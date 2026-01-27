@@ -1,6 +1,6 @@
 {
   "name": "NestJS GraphQL API",
-  "version": "0.0.1",
+  "version": "1.0",
   "description": "A simple NestJS GraphQL API",
   "author": "Miguel Lins",
   "private": true,
@@ -27,7 +27,9 @@
     "@nestjs/core": "^11.0.1",
     "@nestjs/graphql": "^13.2.3",
     "@nestjs/platform-express": "^11.0.1",
+    "@prisma/client": "^6.19.2",
     "graphql": "^16.12.0",
+    "prisma": "^6.19.2",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1"
   },

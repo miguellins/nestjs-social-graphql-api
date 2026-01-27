@@ -1,0 +1,27 @@
+# Defines the sape of your data and what operations are allowed
+# The contract between the client and the server
+# what exists and how it can be queried or changed
+
+## Object type
+type User {
+  id: ID!
+  name: String!
+  email: String!
+}
+
+## Read operation
+type Query {
+  users: [User!]!
+}
+
+## Input type
+input CreateUserInput {
+  name: String!
+  email: String!
+}
+
+## Mutation
+type Mutation {
+  createUser(input: CreateUserInput): User!
+}
+

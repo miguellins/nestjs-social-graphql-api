@@ -11,7 +11,7 @@ import { join } from 'path';
     GraphQLModule.forRoot<ApolloDriverConfig>({
       driver: ApolloDriver,
 
-      // Code-first schema output
+      // Set code-first approach
       autoSchemaFile: join(process.cwd(), "src/schema.gql"),
       playground: true,
     }),
