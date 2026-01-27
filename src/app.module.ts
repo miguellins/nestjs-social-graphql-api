@@ -1,10 +1,10 @@
-import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
-import { GraphQLModule } from '@nestjs/graphql';
-import { Module } from '@nestjs/common';
+import { ApolloDriver, ApolloDriverConfig } from "@nestjs/apollo";
+import { GraphQLModule } from "@nestjs/graphql";
+import { Module } from "@nestjs/common";
 
-import { UsersModule } from './users/users.module';
+import { UsersModule } from "./users/users.module";
 
-import { join } from 'path';
+import { join } from "path";
 
 @Module({
   imports: [
@@ -17,9 +17,9 @@ import { join } from 'path';
     }),
 
     // Application Modules
-    UsersModule
+    UsersModule,
   ],
   controllers: [],
   providers: [],
 })
-export class AppModule { }
+export class AppModule {}
