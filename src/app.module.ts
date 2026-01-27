@@ -6,7 +6,6 @@ import { UsersModule } from './users/users.module';
 
 import { join } from 'path';
 
-
 @Module({
   imports: [
     GraphQLModule.forRoot<ApolloDriverConfig>({
@@ -16,6 +15,8 @@ import { join } from 'path';
       autoSchemaFile: join(process.cwd(), "src/schema.gql"),
       playground: true,
     }),
+
+    // Application Modules
     UsersModule
   ],
   controllers: [],
