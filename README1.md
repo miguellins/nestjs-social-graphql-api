@@ -1,6 +1,7 @@
 TODO List
-
-Choose ORM/Database
-
-Create Model
+- Create Model
+- ADD JWT
+- ADD BCRYPT
+- ADD HELMET
+- ADD Security
 
