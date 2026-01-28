@@ -11,7 +11,7 @@ export class UsersResolver {
 
   @Query(() => [User])
   async users(): Promise<User[]> {
-    return this.usersService.findAll();
+    return this.usersService.GetAllUsers();
   }
 
   @Mutation(() => User)

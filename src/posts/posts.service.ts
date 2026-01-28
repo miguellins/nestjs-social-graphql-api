@@ -5,6 +5,12 @@ import { PrismaService } from "src/prisma.service";
 export class PostsService {
   constructor(private readonly prisma: PrismaService) {}
 
+  async findAll() {
+    return this.prisma.post.findMany({
+      include: { author: true },
+    });
+  }
+
   async createPost(input: {
     title: string;
     content: string;

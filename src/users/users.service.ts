@@ -6,7 +6,7 @@ import { CreateUserInput } from "./dto/create-user.input";
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findAll() {
+  async GetAllUsers() {
     return this.prisma.user.findMany();
   }
 
