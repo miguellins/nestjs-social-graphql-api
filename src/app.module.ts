@@ -19,10 +19,9 @@ import { PostsModule } from './posts/posts.module';
 
     // Application Modules
     UsersModule,
-
     PostsModule,
   ],
   controllers: [],
   providers: [],
 })
-export class AppModule {}
+export class AppModule { }
