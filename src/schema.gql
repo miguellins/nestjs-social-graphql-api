@@ -27,3 +27,21 @@ type Query {
   users: [User!]!
   posts: [Post!]!
 }
+
+type Mutation {
+  createUser(input: CreateUserInput!): User!
+  createPost(input: CreatePostInput!): Post!
+}
+
+input CreateUserInput {
+  name: String!
+  email: String!
+  username: String!
+  password: String!
+}
+
+input CreatePostInput {
+  title: String!
+  content: String!
+  authorId: Int!
+}

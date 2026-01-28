@@ -7,6 +7,7 @@ import { PostsService } from './posts.service';
 
 @Module({
   imports: [PrismaModule],
-  providers: [PostsService, PostsResolver, PrismaModule]
+  providers: [PostsService, PostsResolver, PrismaModule],
+  exports: [PostsService]
 })
 export class PostsModule { }

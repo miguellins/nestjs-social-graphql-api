@@ -8,5 +8,6 @@ import { UsersService } from "./users.service";
 @Module({
   imports: [PrismaModule],
   providers: [UsersService, UsersResolver, PrismaModule],
+  exports: [UsersService]
 })
-export class UsersModule {}
+export class UsersModule { }
