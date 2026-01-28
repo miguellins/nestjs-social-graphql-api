@@ -5,6 +5,7 @@ import { Module } from "@nestjs/common";
 import { UsersModule } from "./users/users.module";
 
 import { join } from "path";
+import { PostsModule } from './posts/posts.module';
 
 @Module({
   imports: [
@@ -18,6 +19,8 @@ import { join } from "path";
 
     // Application Modules
     UsersModule,
+
+    PostsModule,
   ],
   controllers: [],
   providers: [],
