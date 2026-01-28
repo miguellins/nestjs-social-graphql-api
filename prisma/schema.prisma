@@ -8,9 +8,9 @@ datasource db {
 }
 
 model User {
-  id Int @id @default(autoincrement())
-  name String
-  email String @unique
+  id       Int    @id @default(autoincrement())
+  name     String
+  email    String @unique
   username String @unique
   password String
 
@@ -19,8 +19,12 @@ model User {
 }
 
 model Post {
-  id Int @id @default(autoincrement())
-  title String
-  content String
+  id        Int      @id @default(autoincrement())
+  title     String
+  content   String
   createdAt DateTime @default(now())
+
+  // Foreign Key
+  authorId Int
+  author   User @relation(fields: [authorId], references: [id], onDelete: Cascade)
 }
