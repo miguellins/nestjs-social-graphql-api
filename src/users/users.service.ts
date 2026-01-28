@@ -4,7 +4,7 @@ import { CreateUserInput } from "./dto/create-user.input";
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   async findAll() {
     return this.prisma.user.findMany();
@@ -14,7 +14,7 @@ export class UsersService {
     name: string;
     email: string;
     username: string;
-    password: string
+    password: string;
   }) {
     return this.prisma.user.create({
       data: {

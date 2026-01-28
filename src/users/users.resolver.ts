@@ -7,7 +7,7 @@ import { User } from "./users.model";
 
 @Resolver(() => User)
 export class UsersResolver {
-  constructor(private readonly usersService: UsersService) { }
+  constructor(private readonly usersService: UsersService) {}
 
   @Query(() => [User])
   async users(): Promise<User[]> {

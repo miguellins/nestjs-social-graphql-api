@@ -9,7 +9,10 @@ import { Post } from "./posts.model";
 
 @Resolver(() => Post)
 export class PostsResolver {
-  constructor(private readonly prisma: PrismaService, private postsService: PostsService) { }
+  constructor(
+    private readonly prisma: PrismaService,
+    private postsService: PostsService,
+  ) {}
 
   @Query(() => [Post])
   posts() {

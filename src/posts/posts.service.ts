@@ -3,15 +3,15 @@ import { PrismaService } from "src/prisma.service";
 
 @Injectable()
 export class PostsService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   async createPost(input: {
     title: string;
     content: string;
-    authorId: number
+    authorId: number;
   }) {
     const user = await this.prisma.user.findUnique({
-      where: { id: input.authorId }
+      where: { id: input.authorId },
     });
 
     if (!user) throw new NotFoundException("User (author) not found");
@@ -24,7 +24,7 @@ export class PostsService {
       },
       include: {
         author: true,
-      }
+      },
     });
   }
 }

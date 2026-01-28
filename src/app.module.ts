@@ -5,7 +5,7 @@ import { Module } from "@nestjs/common";
 import { UsersModule } from "./users/users.module";
 
 import { join } from "path";
-import { PostsModule } from './posts/posts.module';
+import { PostsModule } from "./posts/posts.module";
 
 @Module({
   imports: [
@@ -24,4 +24,4 @@ import { PostsModule } from './posts/posts.module';
   controllers: [],
   providers: [],
 })
-export class AppModule { }
+export class AppModule {}
