@@ -1,12 +1,19 @@
-import { Injectable } from "@nestjs/common";
+import {
+  ConflictException,
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from "@nestjs/common";
 import { PrismaService } from "src/prisma.service";
 import { CreateUserInput } from "./dto/create-user.input";
+import * as bcrypt from "bcrypt";
+import { Prisma } from "@prisma/client";
 
 @Injectable()
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async GetAllUsers() {
+  async getAllUsers() {
     return this.prisma.user.findMany();
   }
 
@@ -16,13 +23,62 @@ export class UsersService {
     username: string;
     password: string;
   }) {
-    return this.prisma.user.create({
-      data: {
-        name: input.name,
-        email: input.email,
-        username: input.username,
-        password: input.password,
-      },
+    const passwordHash = await bcrypt.hash(input.password, 12);
+
+    try {
+      return await this.prisma.user.create({
+        data: {
+          name: input.name,
+          email: input.email,
+          username: input.username,
+          password: passwordHash,
+        },
+      });
+    } catch (err) {}
+  }
+
+  async updateUser(
+    id: number,
+    input: {
+      name?: string;
+      email?: string;
+      username?: string;
+      password?: string;
+    },
+  ) {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
     });
+
+    if (!user) throw new NotFoundException("User not found");
+
+    const data: any = {};
+
+    if (input.name !== undefined) data.name = input.name;
+    if (input.email !== undefined) data.email = input.email;
+    if (input.username !== undefined) data.username = input.username;
+
+    if (input.password !== undefined) {
+      data.password = await bcrypt.hash(input.password, 12);
+    }
+
+    try {
+      return await this.prisma.user.update({
+        where: { id },
+        data,
+      });
+    } catch (err) {
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === "P2002"
+      ) {
+        const fields =
+          (err.meta?.target as string[] | undefined)?.join(", ") ??
+          "unique field";
+        throw new ConflictException(`User with this ${fields} already exists`);
+      }
+
+      throw new InternalServerErrorException("Failed to update user");
+    }
   }
 }
