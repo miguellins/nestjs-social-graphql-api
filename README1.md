@@ -1,5 +1,5 @@
 TODO List
-- Create Model
+- ADD Post Module
 - ADD JWT
 - ADD BCRYPT
 - ADD HELMET

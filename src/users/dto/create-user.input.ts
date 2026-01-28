@@ -1,4 +1,3 @@
-// src/users/dto/create-user.input.ts
 import { Field, InputType } from "@nestjs/graphql";
 
 @InputType()
