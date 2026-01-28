@@ -9,7 +9,7 @@ type User {
   name: String!
   email: String!
   username: String!
-  password: String!
+  # Password only in CreateUserInput
 }
 
 ## Read operation
@@ -27,7 +27,7 @@ input CreateUserInput {
 
 ## Mutation
 type Mutation {
-  createUser(input: CreateUserInput): User!
+  createUser(input: CreateUserInput!): User!
 }
 
 ## POST

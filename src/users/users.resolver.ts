@@ -1,11 +1,11 @@
 import { Resolver, Query } from "@nestjs/graphql";
 
-import { PrismaService } from "../prisma/prisma.service";
+import { PrismaService } from "../prisma.service";
 import { User } from "./users.model";
 
 @Resolver(() => User)
 export class UsersResolver {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   @Query(() => [User])
   users() {
