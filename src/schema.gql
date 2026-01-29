@@ -32,6 +32,7 @@ type Mutation {
   createUser(input: CreateUserInput!): User!
   updateUser(id: Int!, input: UpdateUserInput!): User!
   createPost(input: CreatePostInput!): Post!
+  updatePost(id: Int!, input: UpdatePostInput!): Post!
 }
 
 input CreateUserInput {
@@ -51,4 +52,9 @@ input CreatePostInput {
   title: String!
   content: String!
   authorId: Int!
+}
+
+input UpdatePostInput {
+  title: String
+  content: String
 }
