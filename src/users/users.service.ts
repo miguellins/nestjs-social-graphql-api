@@ -11,7 +11,7 @@ import { Prisma } from "@prisma/client";
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   async getAllUsers() {
     return this.prisma.user.findMany();
@@ -34,7 +34,7 @@ export class UsersService {
           password: passwordHash,
         },
       });
-    } catch (err) {}
+    } catch (err) { }
   }
 
   async updateUser(
@@ -80,5 +80,17 @@ export class UsersService {
 
       throw new InternalServerErrorException("Failed to update user");
     }
+  }
+
+  async deleteUser(id: number) {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+    });
+
+    if (!user) throw new NotFoundException("User not found");
+
+    return this.prisma.user.delete({
+      where: { id },
+    });
   }
 }

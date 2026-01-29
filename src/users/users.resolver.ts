@@ -11,7 +11,7 @@ export class UsersResolver {
   constructor(private readonly usersService: UsersService) { }
 
   @Query(() => [User])
-  async users(): Promise<User[]> {
+  async getAllUsers(): Promise<User[]> {
     return this.usersService.getAllUsers();
   }
 
@@ -26,5 +26,13 @@ export class UsersResolver {
     @Args("input") input: UpdateUserInput,
   ): Promise<User> {
     return this.usersService.updateUser(id, input);
+  }
+
+  @Mutation(() => Boolean)
+  async deleteUser(
+    @Args("id", { type: () => Int }) id: number,
+  ): Promise<boolean> {
+    await this.usersService.deleteUser(id);
+    return true;
   }
 }

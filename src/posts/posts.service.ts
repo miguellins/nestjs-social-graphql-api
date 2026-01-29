@@ -1,10 +1,15 @@
-import { ConflictException, Injectable, InternalServerErrorException, NotFoundException } from "@nestjs/common";
+import {
+  ConflictException,
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "src/prisma.service";
 
 @Injectable()
 export class PostsService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   async findAll() {
     return this.prisma.post.findMany({
@@ -35,10 +40,13 @@ export class PostsService {
     });
   }
 
-  async updatePost(id: number, input: {
-    title?: string;
-    content?: string;
-  }) {
+  async updatePost(
+    id: number,
+    input: {
+      title?: string;
+      content?: string;
+    },
+  ) {
     const post = await this.prisma.post.findUnique({
       where: { id },
     });
@@ -56,7 +64,7 @@ export class PostsService {
         data,
         include: {
           author: true,
-        }
+        },
       });
     } catch (err) {
       if (
