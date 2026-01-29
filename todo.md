@@ -1,32 +1,9 @@
 TODO List
-- ADD Post Module
 - ADD JWT
-- ADD BCRYPT
 - ADD HELMET
 - ADD Security
 
 JWT IN GRAPHQL
-
-
-import { InputType, Field } from '@nestjs/graphql';
-import { IsEmail, IsString, MinLength, IsOptional } from 'class-validator';
-
-@InputType()
-export class CreateUserInput {
-  @Field() @IsString() name: string;
-  @Field() @IsEmail() email: string;
-  @Field() @IsString() @MinLength(8) password: string;
-}
-
-@InputType()
-export class UpdateUserInput {
-  @Field({ nullable: true }) @IsOptional() @IsString() name?: string;
-  @Field({ nullable: true }) @IsOptional() @IsEmail() email?: string;
-}
-
-
-
-
 
 
 ## When it’s worth it (most cases)
