@@ -1,8 +1,8 @@
 import { ValidationPipe } from "@nestjs/common";
-
 import { NestFactory } from "@nestjs/core";
 
 import { AppModule } from "./app.module";
+
 import helmet from "helmet";
 
 async function bootstrap() {
@@ -11,13 +11,13 @@ async function bootstrap() {
   // Enables global request validation + automatic input cleaning
   app.useGlobalPipes(
     new ValidationPipe({
-      // strips unknown properties
+      // Strips unknown properties
       whitelist: true,
 
-      // throws error on extra fields
+      // Throws error on extra fields
       forbidNonWhitelisted: true,
 
-      // auto-transform payloads to DTO classes
+      // Auto-transform payloads to DTO classes
       transform: true,
     }),
   );
