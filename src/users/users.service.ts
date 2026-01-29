@@ -4,17 +4,29 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from "@nestjs/common";
+
 import { PrismaService } from "src/prisma.service";
-import { CreateUserInput } from "./dto/create-user.input";
+
 import * as bcrypt from "bcrypt";
+
 import { Prisma } from "@prisma/client";
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   async getAllUsers() {
     return this.prisma.user.findMany();
+  }
+
+  async getUser(id: number) {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+    });
+
+    if (!user) throw new NotFoundException("User not found");
+
+    return user;
   }
 
   async createUser(input: {
@@ -34,7 +46,7 @@ export class UsersService {
           password: passwordHash,
         },
       });
-    } catch (err) { }
+    } catch (err) {}
   }
 
   async updateUser(

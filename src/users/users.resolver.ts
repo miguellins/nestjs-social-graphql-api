@@ -8,11 +8,18 @@ import { User } from "./users.model";
 
 @Resolver(() => User)
 export class UsersResolver {
-  constructor(private readonly usersService: UsersService) { }
+  constructor(private readonly usersService: UsersService) {}
 
   @Query(() => [User])
-  async getAllUsers(): Promise<User[]> {
+  async users(): Promise<User[]> {
     return this.usersService.getAllUsers();
+  }
+
+  @Query(() => User)
+  async user(
+    @Args("id", { type: () => Int }) id: number,
+  ): Promise<User | null> {
+    return this.usersService.getUser(id);
   }
 
   @Mutation(() => User)

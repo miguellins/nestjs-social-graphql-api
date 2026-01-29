@@ -12,7 +12,14 @@ export class PostsResolver {
 
   @Query(() => [Post])
   async posts() {
-    return this.postsService.findAll();
+    return this.postsService.getAllPosts();
+  }
+
+  @Query(() => Post)
+  async post(
+    @Args("id", { type: () => Int }) id: number,
+  ): Promise<Post | null> {
+    return this.postsService.getPost(id);
   }
 
   @Mutation(() => Post)
@@ -26,5 +33,13 @@ export class PostsResolver {
     @Args("input") input: UpdatePostInput,
   ): Promise<Post> {
     return this.postsService.updatePost(id, input);
+  }
+
+  @Mutation(() => Boolean)
+  async deletePost(
+    @Args("id", { type: () => Int }) id: number,
+  ): Promise<boolean> {
+    await this.postsService.deletePost(id);
+    return true;
   }
 }

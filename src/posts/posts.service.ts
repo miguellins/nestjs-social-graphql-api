@@ -4,17 +4,32 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from "@nestjs/common";
-import { Prisma } from "@prisma/client";
+
 import { PrismaService } from "src/prisma.service";
+
+import { Prisma } from "@prisma/client";
 
 @Injectable()
 export class PostsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findAll() {
+  async getAllPosts() {
     return this.prisma.post.findMany({
       include: { author: true },
     });
+  }
+
+  async getPost(id: number) {
+    const post = await this.prisma.post.findUnique({
+      where: { id },
+      include: {
+        author: true,
+      },
+    });
+
+    if (!post) throw new NotFoundException("Post not found");
+
+    return post;
   }
 
   async createPost(input: {
@@ -79,5 +94,17 @@ export class PostsService {
 
       throw new InternalServerErrorException("Failed to update user");
     }
+  }
+
+  async deletePost(id: number) {
+    const post = await this.prisma.post.findUnique({
+      where: { id },
+    });
+
+    if (!post) throw new NotFoundException("Post not found");
+
+    return this.prisma.post.delete({
+      where: { id },
+    });
   }
 }

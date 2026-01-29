@@ -24,8 +24,10 @@ A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date
 scalar DateTime
 
 type Query {
-  getAllUsers: [User!]!
+  users: [User!]!
+  user(id: Int!): User!
   posts: [Post!]!
+  post(id: Int!): Post!
 }
 
 type Mutation {
@@ -34,6 +36,7 @@ type Mutation {
   deleteUser(id: Int!): Boolean!
   createPost(input: CreatePostInput!): Post!
   updatePost(id: Int!, input: UpdatePostInput!): Post!
+  deletePost(id: Int!): Boolean!
 }
 
 input CreateUserInput {
