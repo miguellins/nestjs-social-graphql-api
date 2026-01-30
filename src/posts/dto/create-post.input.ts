@@ -19,7 +19,7 @@ export class CreatePostInput {
   @Field()
   @IsString()
   @IsNotEmpty()
-  @MinLength(1)
+  @MinLength(3)
   content: string;
 
   @Field(() => Int)

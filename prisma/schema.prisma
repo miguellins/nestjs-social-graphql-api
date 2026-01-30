@@ -15,7 +15,10 @@ model User {
   password String
 
   // Relations
-  posts Post[]
+  posts     Post[]
+  likes     Like[]
+  followers Follow[] @relation("following")
+  following Follow[] @relation("follower")
 }
 
 model Post {
@@ -26,5 +29,33 @@ model Post {
 
   // Foreign Key
   authorId Int
-  author   User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  author   User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  likes    Like[]
+}
+
+model Follow {
+  id Int @id @default(autoincrement())
+
+  followerId Int
+  follower   User @relation("follower", fields: [followerId], references: [id], onDelete: Cascade)
+
+  followingId Int
+  following   User @relation("following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+}
+
+model Like {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+
+  // Relations
+  userId Int
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  postId Int
+  post   Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  // User can like a post only once
+  @@unique([userId, postId])
 }
