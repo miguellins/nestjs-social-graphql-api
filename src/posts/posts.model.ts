@@ -21,4 +21,7 @@ export class Post {
 
   @Field(() => User)
   author: User;
+
+  @Field(() => Like)
+  author: Like;
 }

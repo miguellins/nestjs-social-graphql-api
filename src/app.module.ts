@@ -11,6 +11,7 @@ import { UsersModule } from "./users/users.module";
 import { PostsModule } from "./posts/posts.module";
 
 import { join } from "path";
+import { LikesModule } from './likes/likes.module';
 
 @Module({
   imports: [
@@ -36,12 +37,13 @@ import { join } from "path";
 
         // 100 requests per ttl per client
         limit: 100,
-      }
+      },
     ]),
 
     // Application Modules
     UsersModule,
     PostsModule,
+    LikesModule,
   ],
   providers: [
     {
@@ -50,4 +52,4 @@ import { join } from "path";
     },
   ],
 })
-export class AppModule { }
+export class AppModule {}

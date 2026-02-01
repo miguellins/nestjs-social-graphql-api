@@ -14,10 +14,22 @@ model User {
   username String @unique
   password String
 
-  // Relations
-  posts     Post[]
-  likes     Like[]
+  /**
+   * 1:1 relation
+   * One user can have many posts
+   */
+  posts Post[]
+
+  // One user can like many posts
+  likes Like[]
+
+  /**
+   * Self-relation
+   * Users who follow this user
+   */
   followers Follow[] @relation("following")
+
+  // Users this user is following
   following Follow[] @relation("follower")
 }
 
@@ -27,35 +39,93 @@ model Post {
   content   String
   createdAt DateTime @default(now())
 
-  // Foreign Key
+  // Stores the ID of the author (User)
   authorId Int
-  author   User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  likes    Like[]
+
+  /**
+   * Relation to User
+   * fields: [authorId] - is a foreign key
+   * references: [id]   - references User.id
+   * onDelete: Cascade  - delete posts if user is deleted
+   */
+  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  /**
+   * One to many relation
+   * A post can have many likes
+   */
+  likes Like[]
+
+  /**
+   * Database index on authorId
+   * Improves performance
+   */
+  @@index([authorId])
 }
 
 model Follow {
   id Int @id @default(autoincrement())
 
+  // Id of the user who is following
   followerId Int
-  follower   User @relation("follower", fields: [followerId], references: [id], onDelete: Cascade)
 
+  /**
+   * Relation to User (the follower)
+   * "follower" is the relation name
+   * needed because User is referenced twice
+   */
+  follower User @relation("follower", fields: [followerId], references: [id], onDelete: Cascade)
+
+  // Id of the user being followed
   followingId Int
-  following   User @relation("following", fields: [followingId], references: [id], onDelete: Cascade)
 
+  // Relation to User (the followed user)
+  following User @relation("following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  // Ensures a user can follow another user only once
   @@unique([followerId, followingId])
+  // Index to improve performance
+  // "who am i following?"
+  @@index([followerId])
+  // "who follows this user?"
+  @@index([followingId])
 }
 
 model Like {
-  id        Int      @id @default(autoincrement())
+  id Int @id @default(autoincrement())
+
+  // Timestamp of when the like was created
   createdAt DateTime @default(now())
 
   // Relations
+  // Id of the user who liked the post
   userId Int
-  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  /**
+   * Relation to User
+   * fields: [userId] - is a foreign key
+   * references: [id] - references Post.id
+   * onDelete: Cascade - delete likes if user is deleted
+   */
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Id of the liked post
   postId Int
-  post   Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  /**
+   * Relation to Post
+   * fields: [postId] - is a foreign key
+   * references: [id] - references User.id
+   * onDelete: Cascade - delete likes if post is deleted
+   */
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  // Index to improve performance
 
   // User can like a post only once
   @@unique([userId, postId])
+  // "how many likes does this post have?"
+  @@index([postId])
+  // "what posts did this user likes?"
+  @@index([userId])
 }
