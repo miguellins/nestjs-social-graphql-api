@@ -27,21 +27,19 @@ export class FollowsResolver {
     return this.followsService.createFollow(input);
   }
 
-  /*
-  @Mutation(() => User)
-  async updateUser(
+  @Mutation(() => Follow)
+  async updateFollow(
     @Args("id", { type: () => Int }) id: number,
-    @Args("input") input: UpdateUserInput,
-  ): Promise<User> {
-    return this.usersService.updateUser(id, input);
+    @Args("input") input: UpdateFollowInput,
+  ): Promise<Follow> {
+    return this.followsService.updateFollow(id, input);
   }
 
   @Mutation(() => Boolean)
-  async deleteUser(
+  async deleteFollow(
     @Args("id", { type: () => Int }) id: number,
   ): Promise<boolean> {
-    await this.usersService.deleteUser(id);
+    await this.followsService.deleteFollow(id);
     return true;
   }
-    */
 }

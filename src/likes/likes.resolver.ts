@@ -27,7 +27,6 @@ export class LikeResolver {
     return this.likesService.createLike(input);
   }
 
-  /*
   @Mutation(() => Like)
   async updateLike(
     @Args("id", { type: () => Int }) id: number,
@@ -43,5 +42,4 @@ export class LikeResolver {
     await this.likesService.deleteLike(id);
     return true;
   }
-    */
 }

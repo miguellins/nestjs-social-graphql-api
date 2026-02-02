@@ -12,7 +12,7 @@ import { Prisma } from "@prisma/client";
 
 @Injectable()
 export class FollowsService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   async getAllFollows() {
     return this.prisma.follow.findMany({
@@ -55,86 +55,47 @@ export class FollowsService {
     });
   }
 
-  /*
-  async updateUser(
+  async updateFollow(
     id: number,
     input: {
-      name?: string;
-      email?: string;
-      username?: string;
-      password?: string;
+      followerId?: number;
+      followingId?: number;
     },
   ) {
-    const user = await this.prisma.user.findUnique({
+    const follow = await this.prisma.follow.findUnique({
       where: { id },
-      include: {
-        posts: true,
-        likes: { include: { post: true } },
-        //followers: { include: { following: true } },
-        //following: { include: { follower: true } },
-      },
     });
 
-    if (!user) throw new NotFoundException("User not found");
+    if (!follow) throw new NotFoundException("Follow not found");
 
     const data: any = {};
 
-    if (input.name !== undefined) data.name = input.name;
-    if (input.email !== undefined) data.email = input.email;
-    if (input.username !== undefined) data.username = input.username;
-
-    if (input.password !== undefined) {
-      data.password = await bcrypt.hash(input.password, 12);
-    }
+    if (input.followerId !== undefined) data.followerId = input.followerId;
+    if (input.followingId !== undefined) data.followingId = input.followingId;
 
     try {
-      return await this.prisma.user.update({
+      return await this.prisma.follow.update({
         where: { id },
         data,
         include: {
-          posts: true,
-          likes: { include: { post: true } },
-          //followers: { include: { following: true } },
-          //following: { include: { follower: true } },
+          follower: true,
+          following: true,
         },
       });
     } catch (err) {
-      if (
-        err instanceof Prisma.PrismaClientKnownRequestError &&
-        err.code === "P2002"
-      ) {
-        const fields =
-          (err.meta?.target as string[] | undefined)?.join(", ") ??
-          "unique field";
-        throw new ConflictException(`User with this ${fields} already exists`);
-      }
-
-      throw new InternalServerErrorException("Failed to update user");
+      throw new Error(err.message);
     }
   }
 
-  async deleteUser(id: number) {
-    const user = await this.prisma.user.findUnique({
+  async deleteFollow(id: number) {
+    const follow = await this.prisma.follow.findUnique({
       where: { id },
-      include: {
-        posts: true,
-        likes: { include: { post: true } },
-        //followers: { include: { following: true } },
-        //following: { include: { follower: true } },
-      },
     });
 
-    if (!user) throw new NotFoundException("User not found");
+    if (!follow) throw new NotFoundException("Follow not found");
 
-    return this.prisma.user.delete({
+    return this.prisma.follow.delete({
       where: { id },
-      include: {
-        posts: true,
-        likes: { include: { post: true } },
-        //followers: { include: { following: true } },
-        //following: { include: { follower: true } },
-      },
     });
   }
-    */
 }

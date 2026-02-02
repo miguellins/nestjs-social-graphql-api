@@ -65,7 +65,11 @@ type Mutation {
   updatePost(id: Int!, input: UpdatePostInput!): Post!
   deletePost(id: Int!): Boolean!
   createLike(input: CreateLikeInput!): Like!
+  updateLike(id: Int!, input: UpdateLikeInput!): Like!
+  deleteLike(id: Int!): Boolean!
   createFollow(input: CreateFollowInput!): Follow!
+  updateFollow(id: Int!, input: UpdateFollowInput!): Follow!
+  deleteFollow(id: Int!): Boolean!
 }
 
 input CreateUserInput {
@@ -97,7 +101,17 @@ input CreateLikeInput {
   postId: Float!
 }
 
+input UpdateLikeInput {
+  userId: Float!
+  postId: Float!
+}
+
 input CreateFollowInput {
+  followerId: Float!
+  followingId: Float!
+}
+
+input UpdateFollowInput {
   followerId: Float!
   followingId: Float!
 }

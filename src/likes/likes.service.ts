@@ -50,31 +50,31 @@ export class LikesService {
     return this.prisma.like.create({ data: input });
   }
 
-  /*
-  async updatePost(
+  async updateLike(
     id: number,
     input: {
-      title?: string;
-      content?: string;
+      userId?: number;
+      postId?: number;
     },
   ) {
-    const post = await this.prisma.post.findUnique({
+    const like = await this.prisma.like.findUnique({
       where: { id },
     });
 
-    if (!post) throw new NotFoundException("Post not found");
+    if (!like) throw new NotFoundException("Like not found");
 
     const data: any = {};
 
-    if (!input.title !== undefined) data.title = input.title;
-    if (!input.content !== undefined) data.content = input.content;
+    if (!input.userId !== undefined) data.userId = input.userId;
+    if (!input.postId !== undefined) data.postId = input.postId;
 
     try {
-      return await this.prisma.post.update({
+      return await this.prisma.like.update({
         where: { id },
         data,
         include: {
-          author: true,
+          user: true,
+          post: true,
         },
       });
     } catch (err) {
@@ -85,23 +85,22 @@ export class LikesService {
         const fields =
           (err.meta?.target as string[] | undefined)?.join(", ") ??
           "unique field";
-        throw new ConflictException(`User with this ${fields} already exists`);
+        throw new ConflictException(`Like with this ${fields} already exists`);
       }
 
-      throw new InternalServerErrorException("Failed to update user");
+      throw new InternalServerErrorException("Failed to update like");
     }
   }
 
-  async deletePost(id: number) {
-    const post = await this.prisma.post.findUnique({
+  async deleteLike(id: number) {
+    const like = await this.prisma.like.findUnique({
       where: { id },
     });
 
-    if (!post) throw new NotFoundException("Post not found");
+    if (!like) throw new NotFoundException("Like not found");
 
-    return this.prisma.post.delete({
+    return this.prisma.like.delete({
       where: { id },
     });
   }
-    */
 }
