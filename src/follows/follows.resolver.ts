@@ -8,7 +8,7 @@ import { Follow } from "./follows.model";
 
 @Resolver(() => Follow)
 export class FollowsResolver {
-  constructor(private readonly followsService: FollowsService) { }
+  constructor(private readonly followsService: FollowsService) {}
 
   @Query(() => [Follow])
   async follows(): Promise<Follow[]> {

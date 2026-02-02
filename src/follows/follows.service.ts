@@ -33,14 +33,11 @@ export class FollowsService {
     });
   }
 
-  async createFollow(input: {
-    followerId: number;
-    followingId: number;
-  }) {
+  async createFollow(input: { followerId: number; followingId: number }) {
     const { followerId, followingId } = input;
 
     if (followerId === followingId) {
-      throw new BadRequestException('You cannot follow yourself');
+      throw new BadRequestException("You cannot follow yourself");
     }
 
     const existing = await this.prisma.follow.findUnique({
@@ -50,12 +47,11 @@ export class FollowsService {
     });
 
     if (existing) {
-      throw new ConflictException('You already follow this user');
+      throw new ConflictException("You already follow this user");
     }
 
     return this.prisma.follow.create({
       data: { followerId, followingId },
-      include: { follower: true, following: true },
     });
   }
 

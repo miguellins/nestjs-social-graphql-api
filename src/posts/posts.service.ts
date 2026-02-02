@@ -53,10 +53,6 @@ export class PostsService {
         content: input.content,
         authorId: input.authorId,
       },
-      include: {
-        author: true,
-        likes: true,
-      },
     });
   }
 
@@ -82,10 +78,6 @@ export class PostsService {
       return await this.prisma.post.update({
         where: { id },
         data,
-        include: {
-          author: true,
-          likes: true,
-        },
       });
     } catch (err) {
       if (
@@ -111,10 +103,6 @@ export class PostsService {
 
     return this.prisma.post.delete({
       where: { id },
-      include: {
-        author: true,
-        likes: true,
-      },
     });
   }
 }
