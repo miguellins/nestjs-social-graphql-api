@@ -11,11 +11,14 @@ import { Prisma } from "@prisma/client";
 
 @Injectable()
 export class PostsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   async getAllPosts() {
     return this.prisma.post.findMany({
-      include: { author: true },
+      include: {
+        author: true,
+        likes: { include: { user: true } },
+      },
     });
   }
 
@@ -24,7 +27,7 @@ export class PostsService {
       where: { id },
       include: {
         author: true,
-        likes: true,
+        likes: { include: { user: true } },
       },
     });
 

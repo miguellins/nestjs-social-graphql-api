@@ -13,20 +13,29 @@ import { Prisma } from "@prisma/client";
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   async getAllUsers() {
-    return this.prisma.user.findMany();
+    return this.prisma.user.findMany({
+      include: {
+        posts: true,
+        likes: { include: { post: true } },
+        //followers: { include: { following: true } },
+        //following: { include: { follower: true } },
+      },
+    });
   }
 
   async getUser(id: number) {
-    const user = await this.prisma.user.findUnique({
+    return this.prisma.user.findUnique({
       where: { id },
+      include: {
+        posts: { include: { likes: true, author: true } },
+        likes: { include: { post: true } },
+        //followers: { include: { following: true } },
+        //following: { include: { follower: true } },
+      },
     });
-
-    if (!user) throw new NotFoundException("User not found");
-
-    return user;
   }
 
   async createUser(input: {
@@ -45,8 +54,14 @@ export class UsersService {
           username: input.username,
           password: passwordHash,
         },
+        include: {
+          posts: true,
+          likes: { include: { post: true } },
+          //followers: { include: { following: true } },
+          //following: { include: { follower: true } },
+        },
       });
-    } catch (err) {}
+    } catch (err) { }
   }
 
   async updateUser(
@@ -60,6 +75,12 @@ export class UsersService {
   ) {
     const user = await this.prisma.user.findUnique({
       where: { id },
+      include: {
+        posts: true,
+        likes: { include: { post: true } },
+        //followers: { include: { following: true } },
+        //following: { include: { follower: true } },
+      },
     });
 
     if (!user) throw new NotFoundException("User not found");
@@ -78,6 +99,12 @@ export class UsersService {
       return await this.prisma.user.update({
         where: { id },
         data,
+        include: {
+          posts: true,
+          likes: { include: { post: true } },
+          //followers: { include: { following: true } },
+          //following: { include: { follower: true } },
+        },
       });
     } catch (err) {
       if (
@@ -97,12 +124,24 @@ export class UsersService {
   async deleteUser(id: number) {
     const user = await this.prisma.user.findUnique({
       where: { id },
+      include: {
+        posts: true,
+        likes: { include: { post: true } },
+        //followers: { include: { following: true } },
+        //following: { include: { follower: true } },
+      },
     });
 
     if (!user) throw new NotFoundException("User not found");
 
     return this.prisma.user.delete({
       where: { id },
+      include: {
+        posts: true,
+        likes: { include: { post: true } },
+        //followers: { include: { following: true } },
+        //following: { include: { follower: true } },
+      },
     });
   }
 }

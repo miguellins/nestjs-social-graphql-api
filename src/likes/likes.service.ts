@@ -11,13 +11,17 @@ import { Prisma } from "@prisma/client";
 
 @Injectable()
 export class LikesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   async getAllLikes() {
     return this.prisma.like.findMany({
       include: {
         user: true,
-        post: true,
+        post: {
+          include: {
+            author: true,
+          },
+        },
       },
     });
   }
@@ -27,7 +31,7 @@ export class LikesService {
       where: { id },
       include: {
         user: true,
-        post: true,
+        post: { include: { author: true } },
       },
     });
 

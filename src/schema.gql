@@ -2,12 +2,20 @@
 # THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
 # ------------------------------------------------------
 
-type User {
+type Post {
   id: ID!
-  name: String!
-  email: String!
-  username: String!
+  title: String!
+  content: String!
+  createdAt: DateTime!
+  authorId: Int!
+  author: User
+  likes: [Like!]
 }
+
+"""
+A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format.
+"""
+scalar DateTime
 
 type Like {
   id: ID!
@@ -18,19 +26,14 @@ type Like {
   post: Post
 }
 
-"""
-A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format.
-"""
-scalar DateTime
-
-type Post {
+type User {
   id: ID!
-  title: String!
-  content: String!
-  createdAt: DateTime!
-  authorId: Int!
-  author: User
-  likes: [Like!]
+  name: String!
+  email: String!
+  username: String!
+  password: String!
+  posts: [Post!]!
+  likes: [Like!]!
 }
 
 type Query {
