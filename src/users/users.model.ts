@@ -1,4 +1,5 @@
 import { Field, ID, ObjectType } from "@nestjs/graphql";
+import { Follow } from "src/follows/follows.model";
 
 import { Like } from "src/likes/likes.model";
 
@@ -23,17 +24,15 @@ export class User {
   @Field()
   password: string;
 
-  @Field(() => [Post])
+  @Field(() => [Post], { nullable: true })
   posts?: Post[];
 
-  @Field(() => [Like])
+  @Field(() => [Like], { nullable: true })
   likes?: Like[];
 
-  /*
-  @Field(() => [Follow])
-  followers: Follow[];
+  @Field(() => [Follow], { nullable: true })
+  followers?: Follow[];
 
-  @Field(() => [Follow])
-  following: Follow[];
-  */
+  @Field(() => [Follow], { nullable: true })
+  following?: Follow[];
 }

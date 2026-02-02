@@ -2,6 +2,14 @@
 # THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
 # ------------------------------------------------------
 
+type Follow {
+  id: ID!
+  followerId: Float!
+  followingId: Float!
+  follower: User
+  following: User
+}
+
 type Post {
   id: ID!
   title: String!
@@ -32,8 +40,10 @@ type User {
   email: String!
   username: String!
   password: String!
-  posts: [Post!]!
-  likes: [Like!]!
+  posts: [Post!]
+  likes: [Like!]
+  followers: [Follow!]
+  following: [Follow!]
 }
 
 type Query {
@@ -43,6 +53,8 @@ type Query {
   post(id: Int!): Post!
   likes: [Like!]!
   like(id: Int!): Like!
+  follows: [Follow!]!
+  follow(id: Int!): Follow!
 }
 
 type Mutation {
@@ -53,6 +65,7 @@ type Mutation {
   updatePost(id: Int!, input: UpdatePostInput!): Post!
   deletePost(id: Int!): Boolean!
   createLike(input: CreateLikeInput!): Like!
+  createFollow(input: CreateFollowInput!): Follow!
 }
 
 input CreateUserInput {
@@ -82,4 +95,9 @@ input UpdatePostInput {
 input CreateLikeInput {
   userId: Float!
   postId: Float!
+}
+
+input CreateFollowInput {
+  followerId: Float!
+  followingId: Float!
 }

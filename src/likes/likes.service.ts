@@ -11,7 +11,7 @@ import { Prisma } from "@prisma/client";
 
 @Injectable()
 export class LikesService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   async getAllLikes() {
     return this.prisma.like.findMany({

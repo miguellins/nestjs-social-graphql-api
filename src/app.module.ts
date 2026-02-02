@@ -12,7 +12,7 @@ import { PostsModule } from "./posts/posts.module";
 
 import { join } from "path";
 import { LikesModule } from "./likes/likes.module";
-import { FollowsModule } from './follows/follows.module';
+import { FollowsModule } from "./follows/follows.module";
 
 @Module({
   imports: [

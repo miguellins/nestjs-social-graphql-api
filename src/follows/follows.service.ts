@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   InternalServerErrorException,
@@ -7,63 +8,58 @@ import {
 
 import { PrismaService } from "src/prisma.service";
 
-import * as bcrypt from "bcrypt";
-
 import { Prisma } from "@prisma/client";
 
 @Injectable()
-export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+export class FollowsService {
+  constructor(private readonly prisma: PrismaService) { }
 
-  async getAllUsers() {
-    return this.prisma.user.findMany({
+  async getAllFollows() {
+    return this.prisma.follow.findMany({
       include: {
-        posts: true,
-        likes: { include: { post: true } },
-        //followers: { include: { following: true } },
-        //following: { include: { follower: true } },
+        follower: true,
+        following: true,
       },
     });
   }
 
-  async getUser(id: number) {
-    return this.prisma.user.findUnique({
+  async getFollow(id: number) {
+    return this.prisma.follow.findUnique({
       where: { id },
       include: {
-        posts: { include: { likes: true, author: true } },
-        likes: { include: { post: true } },
-        //followers: { include: { following: true } },
-        //following: { include: { follower: true } },
+        follower: true,
+        following: true,
       },
     });
   }
 
-  async createUser(input: {
-    name: string;
-    email: string;
-    username: string;
-    password: string;
+  async createFollow(input: {
+    followerId: number;
+    followingId: number;
   }) {
-    const passwordHash = await bcrypt.hash(input.password, 12);
+    const { followerId, followingId } = input;
 
-    try {
-      return await this.prisma.user.create({
-        data: {
-          name: input.name,
-          email: input.email,
-          username: input.username,
-          password: passwordHash,
-        },
-        include: {
-          posts: true,
-          likes: { include: { post: true } },
-          //followers: { include: { following: true } },
-          //following: { include: { follower: true } },
-        },
-      });
-    } catch (err) {}
+    if (followerId === followingId) {
+      throw new BadRequestException('You cannot follow yourself');
+    }
+
+    const existing = await this.prisma.follow.findUnique({
+      where: {
+        followerId_followingId: { followerId, followingId },
+      },
+    });
+
+    if (existing) {
+      throw new ConflictException('You already follow this user');
+    }
+
+    return this.prisma.follow.create({
+      data: { followerId, followingId },
+      include: { follower: true, following: true },
+    });
   }
 
+  /*
   async updateUser(
     id: number,
     input: {
@@ -144,4 +140,5 @@ export class UsersService {
       },
     });
   }
+    */
 }

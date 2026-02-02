@@ -11,7 +11,7 @@ import { Prisma } from "@prisma/client";
 
 @Injectable()
 export class PostsService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   async getAllPosts() {
     return this.prisma.post.findMany({
