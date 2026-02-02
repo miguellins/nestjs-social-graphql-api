@@ -9,13 +9,13 @@ type User {
   username: String!
 }
 
-type Post {
+type Like {
   id: ID!
-  title: String!
-  content: String!
   createdAt: DateTime!
-  authorId: Int!
-  author: User!
+  userId: Int!
+  user: User
+  postId: Int!
+  post: Post
 }
 
 """
@@ -23,11 +23,23 @@ A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date
 """
 scalar DateTime
 
+type Post {
+  id: ID!
+  title: String!
+  content: String!
+  createdAt: DateTime!
+  authorId: Int!
+  author: User
+  likes: [Like!]
+}
+
 type Query {
   users: [User!]!
   user(id: Int!): User!
   posts: [Post!]!
   post(id: Int!): Post!
+  likes: [Like!]!
+  like(id: Int!): Like!
 }
 
 type Mutation {
@@ -37,6 +49,7 @@ type Mutation {
   createPost(input: CreatePostInput!): Post!
   updatePost(id: Int!, input: UpdatePostInput!): Post!
   deletePost(id: Int!): Boolean!
+  createLike(input: CreateLikeInput!): Like!
 }
 
 input CreateUserInput {
@@ -61,4 +74,9 @@ input CreatePostInput {
 input UpdatePostInput {
   title: String
   content: String
+}
+
+input CreateLikeInput {
+  userId: Float!
+  postId: Float!
 }

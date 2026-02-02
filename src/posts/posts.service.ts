@@ -24,6 +24,7 @@ export class PostsService {
       where: { id },
       include: {
         author: true,
+        likes: true,
       },
     });
 
@@ -51,6 +52,7 @@ export class PostsService {
       },
       include: {
         author: true,
+        likes: true,
       },
     });
   }
@@ -79,6 +81,7 @@ export class PostsService {
         data,
         include: {
           author: true,
+          likes: true,
         },
       });
     } catch (err) {
@@ -105,6 +108,10 @@ export class PostsService {
 
     return this.prisma.post.delete({
       where: { id },
+      include: {
+        author: true,
+        likes: true,
+      },
     });
   }
 }

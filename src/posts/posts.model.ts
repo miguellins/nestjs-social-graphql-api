@@ -1,6 +1,9 @@
 import { Field, ID, Int, ObjectType } from "@nestjs/graphql";
 import { GraphQLISODateTime } from "@nestjs/graphql";
+
 import { User } from "../users/users.model";
+
+import { Like } from "src/likes/likes.model";
 
 @ObjectType()
 export class Post {
@@ -19,9 +22,9 @@ export class Post {
   @Field(() => Int)
   authorId: number;
 
-  @Field(() => User)
-  author: User;
+  @Field(() => User, { nullable: true })
+  author?: User;
 
-  @Field(() => Like)
-  author: Like;
+  @Field(() => [Like], { nullable: true })
+  likes?: Like[];
 }

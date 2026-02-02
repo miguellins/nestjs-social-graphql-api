@@ -11,7 +11,7 @@ import { UsersModule } from "./users/users.module";
 import { PostsModule } from "./posts/posts.module";
 
 import { join } from "path";
-import { LikesModule } from './likes/likes.module';
+import { LikesModule } from "./likes/likes.module";
 
 @Module({
   imports: [
