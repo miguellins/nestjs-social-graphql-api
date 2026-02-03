@@ -1,9 +1,8 @@
-import { Field, ID, ObjectType } from "@nestjs/graphql";
+import { Field, HideField, ID, ObjectType } from "@nestjs/graphql";
+
 import { Follow } from "src/follows/follows.model";
 
 import { Like } from "src/likes/likes.model";
-
-//import { Follow } from "src/follows/follows.model";
 
 import { Post } from "src/posts/posts.model";
 
@@ -21,7 +20,7 @@ export class User {
   @Field()
   username: string;
 
-  @Field()
+  @HideField()
   password: string;
 
   @Field(() => [Post], { nullable: true })

@@ -42,26 +42,6 @@ export class UsersService {
     }
   }
 
-  async createUser(input: {
-    name: string;
-    email: string;
-    username: string;
-    password: string;
-  }) {
-    const passwordHash = await bcrypt.hash(input.password, 12);
-
-    try {
-      return await this.prisma.user.create({
-        data: {
-          name: input.name,
-          email: input.email,
-          username: input.username,
-          password: passwordHash,
-        },
-      });
-    } catch (err) {}
-  }
-
   async updateUser(
     id: number,
     input: {

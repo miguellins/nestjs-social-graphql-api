@@ -47,7 +47,7 @@ import { join } from "path";
     UsersModule,
     PostsModule,
     LikesModule,
-    FollowsModule,
+    FollowsModule
   ],
   providers: [
     {
@@ -56,4 +56,4 @@ import { join } from "path";
     },
   ],
 })
-export class AppModule {}
+export class AppModule { }

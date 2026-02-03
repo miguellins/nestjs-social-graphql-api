@@ -39,7 +39,6 @@ type User {
   name: String!
   email: String!
   username: String!
-  password: String!
   posts: [Post!]
   likes: [Like!]
   followers: [Follow!]
@@ -58,7 +57,6 @@ type Query {
 }
 
 type Mutation {
-  createUser(input: CreateUserInput!): User!
   updateUser(id: Int!, input: UpdateUserInput!): User!
   deleteUser(id: Int!): Boolean!
   createPost(input: CreatePostInput!): Post!
@@ -70,13 +68,6 @@ type Mutation {
   createFollow(input: CreateFollowInput!): Follow!
   updateFollow(id: Int!, input: UpdateFollowInput!): Follow!
   deleteFollow(id: Int!): Boolean!
-}
-
-input CreateUserInput {
-  name: String!
-  email: String!
-  username: String!
-  password: String!
 }
 
 input UpdateUserInput {
