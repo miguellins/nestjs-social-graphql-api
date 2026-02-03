@@ -13,7 +13,7 @@ import { Prisma } from "@prisma/client";
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   async getAllUsers() {
     return this.prisma.user.findMany({
@@ -59,7 +59,7 @@ export class UsersService {
           password: passwordHash,
         },
       });
-    } catch (err) {}
+    } catch (err) { }
   }
 
   async updateUser(
