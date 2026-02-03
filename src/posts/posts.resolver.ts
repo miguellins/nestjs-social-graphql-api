@@ -1,11 +1,11 @@
 import { Resolver, Query, Mutation, Args, Int } from "@nestjs/graphql";
+import { Throttle } from "@nestjs/throttler";
 
 import { CreatePostInput } from "./dto/create-post.input";
 import { UpdatePostInput } from "./dto/update-post.input";
 
 import { PostsService } from "./posts.service";
 import { Post } from "./posts.model";
-import { Throttle } from "@nestjs/throttler";
 
 @Resolver(() => Post)
 export class PostsResolver {
