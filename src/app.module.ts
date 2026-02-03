@@ -34,10 +34,10 @@ import { FollowsModule } from "./follows/follows.module";
     ThrottlerModule.forRoot([
       {
         // 60 seconds (ms)
-        ttl: 60000,
+        ttl: 60,
 
         // 100 requests per ttl per client
-        limit: 100,
+        limit: 120,
       },
     ]),
 

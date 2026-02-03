@@ -5,6 +5,7 @@ import { UpdateLikeInput } from "./dto/update-like.input";
 
 import { LikesService } from "./likes.service";
 import { Like } from "./likes.model";
+import { Throttle } from "@nestjs/throttler";
 
 @Resolver(() => Like)
 export class LikeResolver {
@@ -22,11 +23,13 @@ export class LikeResolver {
     return this.likesService.getLike(id);
   }
 
+  @Throttle({ default: { ttl: 10, limit: 2 } })
   @Mutation(() => Like)
   async createLike(@Args("input") input: CreateLikeInput) {
     return this.likesService.createLike(input);
   }
 
+  @Throttle({ default: { ttl: 10, limit: 2 } })
   @Mutation(() => Like)
   async updateLike(
     @Args("id", { type: () => Int }) id: number,
@@ -35,6 +38,7 @@ export class LikeResolver {
     return this.likesService.updateLike(id, input);
   }
 
+  @Throttle({ default: { ttl: 10, limit: 2 } })
   @Mutation(() => Boolean)
   async deleteLike(
     @Args("id", { type: () => Int }) id: number,

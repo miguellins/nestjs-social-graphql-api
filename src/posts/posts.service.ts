@@ -53,6 +53,9 @@ export class PostsService {
         content: input.content,
         authorId: input.authorId,
       },
+      include: {
+        author: true,
+      },
     });
   }
 

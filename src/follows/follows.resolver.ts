@@ -5,6 +5,7 @@ import { UpdateFollowInput } from "./dto/update-follow.input";
 
 import { FollowsService } from "./follows.service";
 import { Follow } from "./follows.model";
+import { Throttle } from "@nestjs/throttler";
 
 @Resolver(() => Follow)
 export class FollowsResolver {
@@ -22,11 +23,13 @@ export class FollowsResolver {
     return this.followsService.getFollow(id);
   }
 
+  @Throttle({ default: { ttl: 10, limit: 2 } })
   @Mutation(() => Follow)
   async createFollow(@Args("input") input: CreateFollowInput) {
     return this.followsService.createFollow(input);
   }
 
+  @Throttle({ default: { ttl: 10, limit: 2 } })
   @Mutation(() => Follow)
   async updateFollow(
     @Args("id", { type: () => Int }) id: number,
@@ -35,6 +38,7 @@ export class FollowsResolver {
     return this.followsService.updateFollow(id, input);
   }
 
+  @Throttle({ default: { ttl: 10, limit: 2 } })
   @Mutation(() => Boolean)
   async deleteFollow(
     @Args("id", { type: () => Int }) id: number,

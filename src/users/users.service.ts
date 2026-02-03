@@ -27,15 +27,19 @@ export class UsersService {
   }
 
   async getUser(id: number) {
-    return this.prisma.user.findUnique({
-      where: { id },
-      include: {
-        posts: { include: { likes: true, author: true } },
-        likes: { include: { post: true } },
-        followers: { include: { follower: true } },
-        following: { include: { following: true } },
-      },
-    });
+    try {
+      return await this.prisma.user.findUnique({
+        where: { id },
+        include: {
+          posts: { include: { likes: true, author: true } },
+          likes: { include: { post: true } },
+          followers: { include: { follower: true } },
+          following: { include: { following: true } },
+        },
+      });
+    } catch (err) {
+      throw new Error(err.message);
+    }
   }
 
   async createUser(input: {

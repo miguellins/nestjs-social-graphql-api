@@ -5,6 +5,7 @@ import { UpdatePostInput } from "./dto/update-post.input";
 
 import { PostsService } from "./posts.service";
 import { Post } from "./posts.model";
+import { Throttle } from "@nestjs/throttler";
 
 @Resolver(() => Post)
 export class PostsResolver {
@@ -22,11 +23,13 @@ export class PostsResolver {
     return this.postsService.getPost(id);
   }
 
+  @Throttle({ default: { ttl: 10, limit: 2 } })
   @Mutation(() => Post)
   async createPost(@Args("input") input: CreatePostInput) {
     return this.postsService.createPost(input);
   }
 
+  @Throttle({ default: { ttl: 10, limit: 2 } })
   @Mutation(() => Post)
   async updatePost(
     @Args("id", { type: () => Int }) id: number,
@@ -35,6 +38,7 @@ export class PostsResolver {
     return this.postsService.updatePost(id, input);
   }
 
+  @Throttle({ default: { ttl: 10, limit: 2 } })
   @Mutation(() => Boolean)
   async deletePost(
     @Args("id", { type: () => Int }) id: number,
