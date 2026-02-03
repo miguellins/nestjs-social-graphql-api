@@ -4,11 +4,14 @@ import { UpdateUserInput } from "./dto/update-user.input";
 
 import { UsersService } from "./users.service";
 import { User } from "./users.model";
+import { CreateUserInput } from "./dto/create-user.input";
+import { Public } from "src/auth/auth.decorator";
 
 @Resolver(() => User)
 export class UsersResolver {
   constructor(private readonly usersService: UsersService) {}
 
+  @Public()
   @Query(() => [User])
   async users(): Promise<User[]> {
     return this.usersService.getAllUsers();
@@ -19,6 +22,12 @@ export class UsersResolver {
     @Args("id", { type: () => Int }) id: number,
   ): Promise<User | null> {
     return this.usersService.getUser(id);
+  }
+
+  @Public()
+  @Mutation(() => User)
+  async createUser(@Args("input") input: CreateUserInput): Promise<User> {
+    return this.usersService.createUser(input);
   }
 
   @Mutation(() => User)

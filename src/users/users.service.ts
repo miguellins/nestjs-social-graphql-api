@@ -3,6 +3,7 @@ import {
   Injectable,
   InternalServerErrorException,
   NotFoundException,
+  UseGuards,
 } from "@nestjs/common";
 
 import { PrismaService } from "src/prisma.service";
@@ -10,6 +11,8 @@ import { PrismaService } from "src/prisma.service";
 import * as bcrypt from "bcrypt";
 
 import { Prisma } from "@prisma/client";
+
+import { GqlJwtGuard } from "src/auth/qgl-jwt.guard";
 
 @Injectable()
 export class UsersService {
@@ -40,6 +43,34 @@ export class UsersService {
     } catch (err) {
       throw new Error(err.message);
     }
+  }
+
+  async createUser(input: {
+    name: string;
+    email: string;
+    username: string;
+    password: string;
+  }) {
+    // Check if username or email already exists
+    const existingUser = await this.prisma.user.findUnique({
+      where: { username: input.username },
+    });
+
+    if (existingUser) {
+      throw new ConflictException("Username or email already exists");
+    }
+
+    // Hash the password before saving
+    const hashedPassword = await bcrypt.hash(input.password, 12);
+
+    return this.prisma.user.create({
+      data: {
+        name: input.name,
+        email: input.email,
+        username: input.username,
+        password: hashedPassword,
+      },
+    });
   }
 
   async updateUser(

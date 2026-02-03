@@ -45,6 +45,10 @@ type User {
   following: [Follow!]
 }
 
+type AuthPayload {
+  access_token: String!
+}
+
 type Query {
   users: [User!]!
   user(id: Int!): User!
@@ -57,6 +61,7 @@ type Query {
 }
 
 type Mutation {
+  createUser(input: CreateUserInput!): User!
   updateUser(id: Int!, input: UpdateUserInput!): User!
   deleteUser(id: Int!): Boolean!
   createPost(input: CreatePostInput!): Post!
@@ -68,6 +73,14 @@ type Mutation {
   createFollow(input: CreateFollowInput!): Follow!
   updateFollow(id: Int!, input: UpdateFollowInput!): Follow!
   deleteFollow(id: Int!): Boolean!
+  login(input: LoginInput!): AuthPayload!
+}
+
+input CreateUserInput {
+  name: String!
+  email: String!
+  username: String!
+  password: String!
 }
 
 input UpdateUserInput {
@@ -105,4 +118,9 @@ input CreateFollowInput {
 input UpdateFollowInput {
   followerId: Float!
   followingId: Float!
+}
+
+input LoginInput {
+  username: String!
+  password: String!
 }

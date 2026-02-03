@@ -15,6 +15,9 @@ import { FollowsModule } from "./follows/follows.module";
 import { LikesModule } from "./likes/likes.module";
 
 import { join } from "path";
+import { AuthModule } from "./auth/auth.module";
+
+import { GqlJwtGuard } from "./auth/qgl-jwt.guard";
 
 @Module({
   imports: [
@@ -47,13 +50,18 @@ import { join } from "path";
     UsersModule,
     PostsModule,
     LikesModule,
-    FollowsModule
+    FollowsModule,
+    AuthModule,
   ],
   providers: [
     {
       provide: APP_GUARD,
       useClass: GqlThrottlerGuard,
     },
+    {
+      provide: APP_GUARD,
+      useClass: GqlJwtGuard,
+    },
   ],
 })
-export class AppModule { }
+export class AppModule {}
