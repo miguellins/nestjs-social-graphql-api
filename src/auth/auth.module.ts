@@ -1,10 +1,12 @@
+import { PassportModule } from "@nestjs/passport";
 import { Module } from "@nestjs/common";
 import { JwtModule } from "@nestjs/jwt";
-import { PassportModule } from "@nestjs/passport";
+
 import { AuthResolver } from "./auth.resolver";
 import { AuthService } from "./auth.service";
-import { JwtStrategy } from "./jwt.strategy";
+
 import { jwtConstants } from "./jwt.constants";
+import { JwtStrategy } from "./jwt.strategy";
 
 @Module({
   imports: [
@@ -19,4 +21,4 @@ import { jwtConstants } from "./jwt.constants";
   ],
   providers: [AuthResolver, AuthService, JwtStrategy],
 })
-export class AuthModule {}
+export class AuthModule { }
