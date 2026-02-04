@@ -7,15 +7,19 @@ import { UpdatePostInput } from "./dto/update-post.input";
 import { PostsService } from "./posts.service";
 import { Post } from "./posts.model";
 
+import { Public } from "src/auth/auth.decorator";
+
 @Resolver(() => Post)
 export class PostsResolver {
-  constructor(private readonly postsService: PostsService) {}
+  constructor(private readonly postsService: PostsService) { }
 
+  @Public()
   @Query(() => [Post])
   async posts() {
     return this.postsService.getAllPosts();
   }
 
+  @Public()
   @Query(() => Post)
   async post(
     @Args("id", { type: () => Int }) id: number,

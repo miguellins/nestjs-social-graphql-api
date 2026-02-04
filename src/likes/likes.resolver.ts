@@ -1,21 +1,25 @@
 import { Resolver, Query, Mutation, Args, Int } from "@nestjs/graphql";
+import { Throttle } from "@nestjs/throttler";
 
 import { CreateLikeInput } from "./dto/create-like.input";
 import { UpdateLikeInput } from "./dto/update-like.input";
 
 import { LikesService } from "./likes.service";
 import { Like } from "./likes.model";
-import { Throttle } from "@nestjs/throttler";
+
+import { Public } from "src/auth/auth.decorator";
 
 @Resolver(() => Like)
 export class LikeResolver {
-  constructor(private readonly likesService: LikesService) {}
+  constructor(private readonly likesService: LikesService) { }
 
+  @Public()
   @Query(() => [Like])
   async likes() {
     return this.likesService.getAllLikes();
   }
 
+  @Public()
   @Query(() => Like)
   async like(
     @Args("id", { type: () => Int }) id: number,

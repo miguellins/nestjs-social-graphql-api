@@ -9,7 +9,7 @@ import { Public } from "src/auth/auth.decorator";
 
 @Resolver(() => User)
 export class UsersResolver {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(private readonly usersService: UsersService) { }
 
   @Public()
   @Query(() => [User])
@@ -17,6 +17,7 @@ export class UsersResolver {
     return this.usersService.getAllUsers();
   }
 
+  @Public()
   @Query(() => User)
   async user(
     @Args("id", { type: () => Int }) id: number,
@@ -24,6 +25,7 @@ export class UsersResolver {
     return this.usersService.getUser(id);
   }
 
+  // Set to Public
   @Public()
   @Mutation(() => User)
   async createUser(@Args("input") input: CreateUserInput): Promise<User> {

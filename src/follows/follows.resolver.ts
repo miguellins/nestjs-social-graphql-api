@@ -1,21 +1,25 @@
 import { Resolver, Mutation, Query, Args, Int } from "@nestjs/graphql";
+import { Throttle } from "@nestjs/throttler";
 
 import { CreateFollowInput } from "./dto/create-follow.input";
 import { UpdateFollowInput } from "./dto/update-follow.input";
 
 import { FollowsService } from "./follows.service";
 import { Follow } from "./follows.model";
-import { Throttle } from "@nestjs/throttler";
+
+import { Public } from "src/auth/auth.decorator";
 
 @Resolver(() => Follow)
 export class FollowsResolver {
-  constructor(private readonly followsService: FollowsService) {}
+  constructor(private readonly followsService: FollowsService) { }
 
+  @Public()
   @Query(() => [Follow])
   async follows(): Promise<Follow[]> {
     return this.followsService.getAllFollows();
   }
 
+  @Public()
   @Query(() => Follow)
   async follow(
     @Args("id", { type: () => Int }) id: number,
