@@ -3,16 +3,13 @@ import {
   Injectable,
   InternalServerErrorException,
   NotFoundException,
-  UseGuards,
 } from "@nestjs/common";
 
 import { PrismaService } from "src/prisma.service";
 
-import * as bcrypt from "bcrypt";
-
 import { Prisma } from "@prisma/client";
 
-import { GqlJwtGuard } from "src/auth/qgl-jwt.guard";
+import * as bcrypt from "bcrypt";
 
 @Injectable()
 export class UsersService {

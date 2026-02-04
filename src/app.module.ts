@@ -6,18 +6,18 @@ import { Module } from "@nestjs/common";
 
 import { GqlThrottlerGuard } from "./guards/qgl-throttler.guard";
 
+import { FollowsModule } from "./follows/follows.module";
+
 import { UsersModule } from "./users/users.module";
 
 import { PostsModule } from "./posts/posts.module";
 
-import { FollowsModule } from "./follows/follows.module";
-
 import { LikesModule } from "./likes/likes.module";
 
-import { join } from "path";
+import { GqlJwtGuard } from "./auth/qgl-jwt.guard";
 import { AuthModule } from "./auth/auth.module";
 
-import { GqlJwtGuard } from "./auth/qgl-jwt.guard";
+import { join } from "path";
 
 @Module({
   imports: [

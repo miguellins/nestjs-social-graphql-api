@@ -1,6 +1,6 @@
 import { PassportModule } from "@nestjs/passport";
-import { Module } from "@nestjs/common";
 import { JwtModule } from "@nestjs/jwt";
+import { Module } from "@nestjs/common";
 
 import { AuthResolver } from "./auth.resolver";
 import { AuthService } from "./auth.service";
@@ -21,4 +21,4 @@ import { JwtStrategy } from "./jwt.strategy";
   ],
   providers: [AuthResolver, AuthService, JwtStrategy],
 })
-export class AuthModule { }
+export class AuthModule {}

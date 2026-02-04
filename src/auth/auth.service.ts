@@ -10,7 +10,7 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
-  ) { }
+  ) {}
 
   async login(input: { username: string; password: string }) {
     const user = await this.prisma.user.findUnique({
@@ -22,7 +22,10 @@ export class AuthService {
       throw new UnauthorizedException("User not found");
     }
 
-    const comparePasswords = await bcrypt.compare(input.password, user.password);
+    const comparePasswords = await bcrypt.compare(
+      input.password,
+      user.password,
+    );
 
     if (!comparePasswords) {
       throw new UnauthorizedException("Password is incorrect");

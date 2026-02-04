@@ -2,14 +2,6 @@
 # THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
 # ------------------------------------------------------
 
-type Follow {
-  id: ID!
-  followerId: Float!
-  followingId: Float!
-  follower: User
-  following: User
-}
-
 type Post {
   id: ID!
   title: String!
@@ -43,6 +35,14 @@ type User {
   likes: [Like!]
   followers: [Follow!]
   following: [Follow!]
+}
+
+type Follow {
+  id: ID!
+  followerId: Float!
+  followingId: Float!
+  follower: User
+  following: User
 }
 
 type AuthPayload {
