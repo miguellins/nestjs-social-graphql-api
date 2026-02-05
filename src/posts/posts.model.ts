@@ -27,4 +27,7 @@ export class Post {
 
   @Field(() => [Like], { nullable: true })
   likes?: Like[];
+
+  @Field(() => Int)
+  likesCount: number;
 }

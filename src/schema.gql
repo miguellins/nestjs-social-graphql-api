@@ -10,6 +10,7 @@ type Post {
   authorId: Int!
   author: User
   likes: [Like!]
+  likesCount: Int!
 }
 
 """

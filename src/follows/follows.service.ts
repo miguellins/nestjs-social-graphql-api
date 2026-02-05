@@ -49,6 +49,10 @@ export class FollowsService {
 
     return this.prisma.follow.create({
       data: { followerId, followingId },
+      include: {
+        follower: true,
+        following: true,
+      },
     });
   }
 

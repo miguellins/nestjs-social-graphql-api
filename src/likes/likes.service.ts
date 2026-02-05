@@ -41,6 +41,7 @@ export class LikesService {
   }
 
   async createLike(input: { userId: number; postId: number }) {
+    /*
     const like = await this.prisma.like.findUnique({
       where: { userId_postId: { userId: input.userId, postId: input.postId } },
     });
@@ -48,6 +49,46 @@ export class LikesService {
     if (like) throw new ConflictException("User already liked this post");
 
     return this.prisma.like.create({ data: input });
+    */
+
+    const post = await this.prisma.post.findUnique({
+      where: { id: input.postId },
+      select: { id: true },
+    });
+    if (!post) throw new NotFoundException("Post not found");
+
+    try {
+      const [like] = await this.prisma.$transaction([
+        this.prisma.like.create({
+          data: {
+            userId: input.userId,
+            postId: input.postId,
+          },
+        }),
+
+        this.prisma.post.update({
+          where: {
+            id: input.postId,
+          },
+          data: {
+            likesCount: {
+              increment: 1,
+            },
+          },
+        }),
+      ]);
+
+      return like;
+    } catch (err) {
+      // if user already liked the post (because of @@unique([userId, postId]))
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === "P2002"
+      ) {
+        throw new ConflictException("You already liked this post");
+      }
+      throw err;
+    }
   }
 
   async updateLike(
