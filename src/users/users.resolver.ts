@@ -9,7 +9,7 @@ import { Public } from "src/auth/auth.decorator";
 
 @Resolver(() => User)
 export class UsersResolver {
-  constructor(private readonly usersService: UsersService) { }
+  constructor(private readonly usersService: UsersService) {}
 
   @Public()
   @Query(() => [User])

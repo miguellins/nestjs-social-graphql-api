@@ -11,7 +11,7 @@ import { Public } from "src/auth/auth.decorator";
 
 @Resolver(() => Post)
 export class PostsResolver {
-  constructor(private readonly postsService: PostsService) { }
+  constructor(private readonly postsService: PostsService) {}
 
   @Public()
   @Query(() => [Post])

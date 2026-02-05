@@ -18,18 +18,15 @@ export class AuthService {
       //select: { id: true, username: true, password: true },
     });
 
-    if (!user) {
-      throw new UnauthorizedException("User not found");
-    }
+    if (!user) throw new UnauthorizedException("User not found");
 
     const comparePasswords = await bcrypt.compare(
       input.password,
       user.password,
     );
 
-    if (!comparePasswords) {
+    if (!comparePasswords)
       throw new UnauthorizedException("Password is incorrect");
-    }
 
     const payload = { sub: user.id };
 

@@ -11,7 +11,7 @@ import { Public } from "src/auth/auth.decorator";
 
 @Resolver(() => Like)
 export class LikeResolver {
-  constructor(private readonly likesService: LikesService) { }
+  constructor(private readonly likesService: LikesService) {}
 
   @Public()
   @Query(() => [Like])

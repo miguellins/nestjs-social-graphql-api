@@ -14,7 +14,7 @@ import { PostsModule } from "./posts/posts.module";
 
 import { LikesModule } from "./likes/likes.module";
 
-import { GqlJwtGuard } from "./auth/qgl-jwt.guard";
+import { GqlJwtGuard } from "./guards/qgl-jwt.guard";
 import { AuthModule } from "./auth/auth.module";
 
 import { join } from "path";

@@ -11,7 +11,7 @@ import { Public } from "src/auth/auth.decorator";
 
 @Resolver(() => Follow)
 export class FollowsResolver {
-  constructor(private readonly followsService: FollowsService) { }
+  constructor(private readonly followsService: FollowsService) {}
 
   @Public()
   @Query(() => [Follow])

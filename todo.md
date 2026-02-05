@@ -1,4 +1,5 @@
 TODO List
+- CHECK LINT ERRORS - npm run lint - AND FIX IT
 - ADD More Security
 - ADD Global error and better error responses
 
@@ -20,3 +21,5 @@ Phase 3 (security)
 ✅ refresh tokens + rotation
 ✅ depth/cost limits
 ✅ production-ready rate limits + Redis store
+
+
