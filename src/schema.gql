@@ -21,7 +21,7 @@ scalar DateTime
 type Like {
   id: ID!
   createdAt: DateTime!
-  userId: Int!
+  userId: Int
   user: User
   postId: Int!
   post: Post
@@ -52,7 +52,7 @@ type AuthPayload {
 
 type Query {
   users: [User!]!
-  user(id: Int!): User!
+  user(id: Int!): User
   posts: [Post!]!
   post(id: Int!): Post!
   likes: [Like!]!
@@ -63,16 +63,14 @@ type Query {
 
 type Mutation {
   createUser(input: CreateUserInput!): User!
-  updateUser(id: Int!, input: UpdateUserInput!): User!
+  updateUser(input: UpdateUserInput!): User!
   deleteUser(id: Int!): Boolean!
   createPost(input: CreatePostInput!): Post!
   updatePost(id: Int!, input: UpdatePostInput!): Post!
   deletePost(id: Int!): Boolean!
   createLike(input: CreateLikeInput!): Like!
-  updateLike(id: Int!, input: UpdateLikeInput!): Like!
   deleteLike(id: Int!): Boolean!
-  createFollow(input: CreateFollowInput!): Follow!
-  updateFollow(id: Int!, input: UpdateFollowInput!): Follow!
+  createFollow(followingId: Int!): Follow!
   deleteFollow(id: Int!): Boolean!
   login(input: LoginInput!): AuthPayload!
 }
@@ -93,7 +91,6 @@ input UpdateUserInput {
 input CreatePostInput {
   title: String!
   content: String!
-  authorId: Int!
 }
 
 input UpdatePostInput {
@@ -102,23 +99,7 @@ input UpdatePostInput {
 }
 
 input CreateLikeInput {
-  userId: Float!
   postId: Float!
-}
-
-input UpdateLikeInput {
-  userId: Float!
-  postId: Float!
-}
-
-input CreateFollowInput {
-  followerId: Float!
-  followingId: Float!
-}
-
-input UpdateFollowInput {
-  followerId: Float!
-  followingId: Float!
 }
 
 input LoginInput {

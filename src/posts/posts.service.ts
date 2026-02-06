@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
@@ -8,6 +9,7 @@ import {
 import { PrismaService } from "src/prisma.service";
 
 import { Prisma } from "@prisma/client";
+import { __InputValue } from "graphql";
 
 @Injectable()
 export class PostsService {
@@ -36,22 +38,18 @@ export class PostsService {
     return post;
   }
 
-  async createPost(input: {
-    title: string;
-    content: string;
-    authorId: number;
-  }) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: input.authorId },
-    });
-
-    if (!user) throw new NotFoundException("User (author) not found");
-
+  async createPost(
+    input: {
+      title: string;
+      content: string;
+    },
+    currentUserId: number,
+  ) {
     return this.prisma.post.create({
       data: {
         title: input.title,
         content: input.content,
-        authorId: input.authorId,
+        authorId: currentUserId,
       },
       include: {
         author: true,
@@ -65,22 +63,32 @@ export class PostsService {
       title?: string;
       content?: string;
     },
+    currentUserId: number,
   ) {
-    const post = await this.prisma.post.findUnique({
-      where: { id },
-    });
+    const data: Prisma.PostUpdateInput = {};
 
-    if (!post) throw new NotFoundException("Post not found");
-
-    const data: any = {};
-
-    if (!input.title !== undefined) data.title = input.title;
-    if (!input.content !== undefined) data.content = input.content;
+    if (input.title !== undefined) data.title = input.title;
+    if (input.content !== undefined) data.content = input.content;
 
     try {
-      return await this.prisma.post.update({
-        where: { id },
+      const result = await this.prisma.post.updateMany({
+        where: {
+          id,
+          authorId: currentUserId,
+        },
         data,
+      });
+
+      if (result.count === 0)
+        throw new ForbiddenException(
+          "You do not have permission to update this post",
+        );
+
+      return this.prisma.post.findUniqueOrThrow({
+        where: { id },
+        include: {
+          author: true,
+        },
       });
     } catch (err) {
       if (
@@ -90,22 +98,35 @@ export class PostsService {
         const fields =
           (err.meta?.target as string[] | undefined)?.join(", ") ??
           "unique field";
-        throw new ConflictException(`User with this ${fields} already exists`);
+
+        throw new ConflictException(`Post with this ${fields} already exists`);
       }
 
-      throw new InternalServerErrorException("Failed to update user");
+      throw new InternalServerErrorException("Failed to update post");
     }
   }
 
-  async deletePost(id: number) {
-    const post = await this.prisma.post.findUnique({
-      where: { id },
-    });
+  async deletePost(id: number, currentUserId: number) {
+    try {
+      // 🔥 DB enforces ownership
+      const result = await this.prisma.post.deleteMany({
+        where: {
+          id,
+          authorId: currentUserId,
+        },
+      });
 
-    if (!post) throw new NotFoundException("Post not found");
+      if (result.count === 0) {
+        throw new ForbiddenException(
+          "You do not have permission to delete this post",
+        );
+      }
 
-    return this.prisma.post.delete({
-      where: { id },
-    });
+      return {
+        message: "Post deleted successfully",
+      };
+    } catch (err) {
+      throw new InternalServerErrorException("Failed to delete post");
+    }
   }
 }

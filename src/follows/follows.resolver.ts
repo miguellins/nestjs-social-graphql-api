@@ -1,13 +1,11 @@
 import { Resolver, Mutation, Query, Args, Int } from "@nestjs/graphql";
 import { Throttle } from "@nestjs/throttler";
 
-import { CreateFollowInput } from "./dto/create-follow.input";
-import { UpdateFollowInput } from "./dto/update-follow.input";
-
 import { FollowsService } from "./follows.service";
 import { Follow } from "./follows.model";
 
-import { Public } from "src/auth/auth.decorator";
+import { Public } from "src/decorators/auth.decorator";
+import { CurrentUser } from "src/decorators/current-user.decorator";
 
 @Resolver(() => Follow)
 export class FollowsResolver {
@@ -29,25 +27,20 @@ export class FollowsResolver {
 
   @Throttle({ default: { ttl: 10, limit: 2 } })
   @Mutation(() => Follow)
-  async createFollow(@Args("input") input: CreateFollowInput) {
-    return this.followsService.createFollow(input);
-  }
-
-  @Throttle({ default: { ttl: 10, limit: 2 } })
-  @Mutation(() => Follow)
-  async updateFollow(
-    @Args("id", { type: () => Int }) id: number,
-    @Args("input") input: UpdateFollowInput,
-  ): Promise<Follow> {
-    return this.followsService.updateFollow(id, input);
+  async createFollow(
+    @Args("followingId", { type: () => Int }) followingId: number,
+    @CurrentUser() user: { id: number },
+  ) {
+    return this.followsService.createFollow(user.id, followingId);
   }
 
   @Throttle({ default: { ttl: 10, limit: 2 } })
   @Mutation(() => Boolean)
   async deleteFollow(
     @Args("id", { type: () => Int }) id: number,
+    @CurrentUser() user: { id: number },
   ): Promise<boolean> {
-    await this.followsService.deleteFollow(id);
+    await this.followsService.deleteFollow(id, user.id);
     return true;
   }
 }

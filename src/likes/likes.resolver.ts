@@ -1,13 +1,13 @@
 import { Resolver, Query, Mutation, Args, Int } from "@nestjs/graphql";
 import { Throttle } from "@nestjs/throttler";
 
+import { CurrentUser } from "src/decorators/current-user.decorator";
+import { Public } from "src/decorators/auth.decorator";
+
 import { CreateLikeInput } from "./dto/create-like.input";
-import { UpdateLikeInput } from "./dto/update-like.input";
 
 import { LikesService } from "./likes.service";
 import { Like } from "./likes.model";
-
-import { Public } from "src/auth/auth.decorator";
 
 @Resolver(() => Like)
 export class LikeResolver {
@@ -29,25 +29,20 @@ export class LikeResolver {
 
   @Throttle({ default: { ttl: 10, limit: 2 } })
   @Mutation(() => Like)
-  async createLike(@Args("input") input: CreateLikeInput) {
-    return this.likesService.createLike(input);
-  }
-
-  @Throttle({ default: { ttl: 10, limit: 2 } })
-  @Mutation(() => Like)
-  async updateLike(
-    @Args("id", { type: () => Int }) id: number,
-    @Args("input") input: UpdateLikeInput,
-  ): Promise<Like> {
-    return this.likesService.updateLike(id, input);
+  async createLike(
+    @Args("input") input: CreateLikeInput,
+    @CurrentUser() user: { id: number },
+  ) {
+    return this.likesService.createLike(user.id, input.postId);
   }
 
   @Throttle({ default: { ttl: 10, limit: 2 } })
   @Mutation(() => Boolean)
   async deleteLike(
     @Args("id", { type: () => Int }) id: number,
+    @CurrentUser() user,
   ): Promise<boolean> {
-    await this.likesService.deleteLike(id);
+    await this.likesService.deleteLike(id, user.id);
     return true;
   }
 }

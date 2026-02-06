@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
@@ -8,6 +9,7 @@ import {
 import { PrismaService } from "src/prisma.service";
 
 import { Prisma } from "@prisma/client";
+import { Like } from "./likes.model";
 
 @Injectable()
 export class LikesService {
@@ -40,35 +42,26 @@ export class LikesService {
     return like;
   }
 
-  async createLike(input: { userId: number; postId: number }) {
-    /*
-    const like = await this.prisma.like.findUnique({
-      where: { userId_postId: { userId: input.userId, postId: input.postId } },
-    });
-
-    if (like) throw new ConflictException("User already liked this post");
-
-    return this.prisma.like.create({ data: input });
-    */
-
+  async createLike(currentUserId: number, postId: number) {
     const post = await this.prisma.post.findUnique({
-      where: { id: input.postId },
+      where: { id: postId },
       select: { id: true },
     });
+
     if (!post) throw new NotFoundException("Post not found");
 
     try {
       const [like] = await this.prisma.$transaction([
         this.prisma.like.create({
           data: {
-            userId: input.userId,
-            postId: input.postId,
+            userId: currentUserId,
+            postId,
           },
         }),
 
         this.prisma.post.update({
           where: {
-            id: input.postId,
+            id: postId,
           },
           data: {
             likesCount: {
@@ -91,57 +84,33 @@ export class LikesService {
     }
   }
 
-  async updateLike(
-    id: number,
-    input: {
-      userId?: number;
-      postId?: number;
-    },
-  ) {
+  async deleteLike(id: number, currentUserId: number) {
     const like = await this.prisma.like.findUnique({
       where: { id },
     });
 
     if (!like) throw new NotFoundException("Like not found");
 
-    const data: any = {};
+    if (like.userId !== currentUserId)
+      throw new ForbiddenException(
+        "You do not have permission to delete this like",
+      );
 
-    if (!input.userId !== undefined) data.userId = input.userId;
-    if (!input.postId !== undefined) data.postId = input.postId;
-
-    try {
-      return await this.prisma.like.update({
-        where: { id },
-        data,
-        include: {
-          user: true,
-          post: true,
+    const [, deletedLike] = await this.prisma.$transaction([
+      this.prisma.post.update({
+        where: { id: like.postId },
+        data: {
+          likesCount: {
+            decrement: 1,
+          },
         },
-      });
-    } catch (err) {
-      if (
-        err instanceof Prisma.PrismaClientKnownRequestError &&
-        err.code === "P2002"
-      ) {
-        const fields =
-          (err.meta?.target as string[] | undefined)?.join(", ") ??
-          "unique field";
-        throw new ConflictException(`Like with this ${fields} already exists`);
-      }
+      }),
 
-      throw new InternalServerErrorException("Failed to update like");
-    }
-  }
+      this.prisma.like.delete({
+        where: { id },
+      }),
+    ]);
 
-  async deleteLike(id: number) {
-    const like = await this.prisma.like.findUnique({
-      where: { id },
-    });
-
-    if (!like) throw new NotFoundException("Like not found");
-
-    return this.prisma.like.delete({
-      where: { id },
-    });
+    return deletedLike;
   }
 }

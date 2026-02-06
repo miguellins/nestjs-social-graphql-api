@@ -1,9 +1,12 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
+  InternalServerErrorException,
   NotFoundException,
 } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
 
 import { PrismaService } from "src/prisma.service";
 
@@ -30,8 +33,8 @@ export class FollowsService {
     });
   }
 
-  async createFollow(input: { followerId: number; followingId: number }) {
-    const { followerId, followingId } = input;
+  async createFollow(currentUserId: number, followingId: number) {
+    const followerId = currentUserId;
 
     if (followerId === followingId) {
       throw new BadRequestException("You cannot follow yourself");
@@ -41,6 +44,7 @@ export class FollowsService {
       where: {
         followerId_followingId: { followerId, followingId },
       },
+      select: { id: true },
     });
 
     if (existing) {
@@ -56,47 +60,29 @@ export class FollowsService {
     });
   }
 
-  async updateFollow(
-    id: number,
-    input: {
-      followerId?: number;
-      followingId?: number;
-    },
-  ) {
+  async deleteFollow(id: number, currentUserId: number) {
     const follow = await this.prisma.follow.findUnique({
       where: { id },
+      select: {
+        id: true,
+        followerId: true,
+      },
     });
 
     if (!follow) throw new NotFoundException("Follow not found");
 
-    const data: any = {};
-
-    if (input.followerId !== undefined) data.followerId = input.followerId;
-    if (input.followingId !== undefined) data.followingId = input.followingId;
-
-    try {
-      return await this.prisma.follow.update({
-        where: { id },
-        data,
-        include: {
-          follower: true,
-          following: true,
-        },
-      });
-    } catch (err) {
-      throw new Error(err.message);
+    if (follow.followerId !== currentUserId) {
+      throw new ForbiddenException(
+        "You do not have permission to delete this follow",
+      );
     }
-  }
-
-  async deleteFollow(id: number) {
-    const follow = await this.prisma.follow.findUnique({
-      where: { id },
-    });
-
-    if (!follow) throw new NotFoundException("Follow not found");
 
     return this.prisma.follow.delete({
       where: { id },
+      include: {
+        follower: true,
+        following: true,
+      },
     });
   }
 }

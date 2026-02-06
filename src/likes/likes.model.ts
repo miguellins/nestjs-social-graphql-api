@@ -13,7 +13,7 @@ export class Like {
   @Field(() => GraphQLISODateTime)
   createdAt: Date;
 
-  @Field(() => Int)
+  @Field(() => Int, { nullable: true })
   userId: number;
 
   @Field(() => User, { nullable: true })

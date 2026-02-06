@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
@@ -71,33 +72,26 @@ export class UsersService {
   }
 
   async updateUser(
-    id: number,
     input: {
       name?: string;
       email?: string;
       username?: string;
       password?: string;
     },
+    currentUserId: number,
   ) {
-    const user = await this.prisma.user.findUnique({
-      where: { id },
-    });
-
-    if (!user) throw new NotFoundException("User not found");
-
-    const data: any = {};
+    const data: Prisma.UserUpdateInput = {};
 
     if (input.name !== undefined) data.name = input.name;
     if (input.email !== undefined) data.email = input.email;
     if (input.username !== undefined) data.username = input.username;
 
-    if (input.password !== undefined) {
+    if (input.password !== undefined)
       data.password = await bcrypt.hash(input.password, 12);
-    }
 
     try {
       return await this.prisma.user.update({
-        where: { id },
+        where: { id: currentUserId },
         data,
       });
     } catch (err) {
@@ -108,22 +102,42 @@ export class UsersService {
         const fields =
           (err.meta?.target as string[] | undefined)?.join(", ") ??
           "unique field";
+
         throw new ConflictException(`User with this ${fields} already exists`);
+      }
+
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === "P2025"
+      ) {
+        throw new NotFoundException("User not found");
       }
 
       throw new InternalServerErrorException("Failed to update user");
     }
   }
 
-  async deleteUser(id: number) {
-    const user = await this.prisma.user.findUnique({
-      where: { id },
-    });
+  async deleteUser(id: number, currentUserId: number) {
+    if (id !== currentUserId) {
+      throw new ForbiddenException(
+        "You do not have permission to delete this user",
+      );
+    }
 
-    if (!user) throw new NotFoundException("User not found");
+    try {
+      return await this.prisma.user.delete({
+        where: { id },
+      });
+    } catch (err) {
+      // Prisma throws P2025 when record doesn't exist
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === "P2025"
+      ) {
+        throw new NotFoundException("User not found");
+      }
 
-    return this.prisma.user.delete({
-      where: { id },
-    });
+      throw new InternalServerErrorException("Failed to delete user");
+    }
   }
 }

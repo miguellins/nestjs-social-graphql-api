@@ -2,8 +2,8 @@ import { Module } from "@nestjs/common";
 
 import { PrismaModule } from "src/prisma.module";
 
-import { LikesService } from "./likes.service";
 import { LikeResolver } from "./likes.resolver";
+import { LikesService } from "./likes.service";
 
 @Module({
   imports: [PrismaModule],

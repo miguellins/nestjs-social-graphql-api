@@ -8,11 +8,5 @@ export class CreateLikeInput {
   @IsNotEmpty()
   @IsPositive()
   @IsNumber()
-  userId: number;
-
-  @Field()
-  @IsNotEmpty()
-  @IsPositive()
-  @IsNumber()
   postId: number;
 }

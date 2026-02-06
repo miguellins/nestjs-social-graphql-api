@@ -7,7 +7,8 @@ import { UpdatePostInput } from "./dto/update-post.input";
 import { PostsService } from "./posts.service";
 import { Post } from "./posts.model";
 
-import { Public } from "src/auth/auth.decorator";
+import { Public } from "src/decorators/auth.decorator";
+import { CurrentUser } from "src/decorators/current-user.decorator";
 
 @Resolver(() => Post)
 export class PostsResolver {
@@ -29,8 +30,11 @@ export class PostsResolver {
 
   @Throttle({ default: { ttl: 10, limit: 2 } })
   @Mutation(() => Post)
-  async createPost(@Args("input") input: CreatePostInput) {
-    return this.postsService.createPost(input);
+  async createPost(
+    @Args("input") input: CreatePostInput,
+    @CurrentUser() user: { id: number },
+  ) {
+    return this.postsService.createPost(input, user.id);
   }
 
   @Throttle({ default: { ttl: 10, limit: 2 } })
@@ -38,16 +42,18 @@ export class PostsResolver {
   async updatePost(
     @Args("id", { type: () => Int }) id: number,
     @Args("input") input: UpdatePostInput,
+    @CurrentUser() user: { id: number },
   ): Promise<Post> {
-    return this.postsService.updatePost(id, input);
+    return this.postsService.updatePost(id, input, user.id);
   }
 
   @Throttle({ default: { ttl: 10, limit: 2 } })
   @Mutation(() => Boolean)
   async deletePost(
     @Args("id", { type: () => Int }) id: number,
+    @CurrentUser() user: { id: number },
   ): Promise<boolean> {
-    await this.postsService.deletePost(id);
+    await this.postsService.deletePost(id, user.id);
     return true;
   }
 }
