@@ -49,7 +49,6 @@ export class UsersService {
     username: string;
     password: string;
   }) {
-    // Check if username or email already exists
     const existingUser = await this.prisma.user.findUnique({
       where: { username: input.username },
     });

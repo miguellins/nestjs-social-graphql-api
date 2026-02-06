@@ -9,6 +9,7 @@ import { Post } from "./posts.model";
 
 import { Public } from "src/decorators/auth.decorator";
 import { CurrentUser } from "src/decorators/current-user.decorator";
+import { DeleteResponse } from "src/delete-response.type";
 
 @Resolver(() => Post)
 export class PostsResolver {
@@ -48,12 +49,15 @@ export class PostsResolver {
   }
 
   @Throttle({ default: { ttl: 10, limit: 2 } })
-  @Mutation(() => Boolean)
+  @Mutation(() => DeleteResponse)
   async deletePost(
     @Args("id", { type: () => Int }) id: number,
     @CurrentUser() user: { id: number },
-  ): Promise<boolean> {
+  ): Promise<DeleteResponse> {
     await this.postsService.deletePost(id, user.id);
-    return true;
+
+    return {
+      message: "Post deleted successfully",
+    };
   }
 }

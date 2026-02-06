@@ -46,6 +46,10 @@ type Follow {
   following: User
 }
 
+type DeleteResponse {
+  message: String!
+}
+
 type AuthPayload {
   access_token: String!
 }
@@ -64,14 +68,14 @@ type Query {
 type Mutation {
   createUser(input: CreateUserInput!): User!
   updateUser(input: UpdateUserInput!): User!
-  deleteUser(id: Int!): Boolean!
+  deleteUser(id: Int!): DeleteResponse!
   createPost(input: CreatePostInput!): Post!
   updatePost(id: Int!, input: UpdatePostInput!): Post!
-  deletePost(id: Int!): Boolean!
-  createLike(input: CreateLikeInput!): Like!
-  deleteLike(id: Int!): Boolean!
+  deletePost(id: Int!): DeleteResponse!
+  createLike(postId: Int!): Like!
+  deleteLike(id: Int!): DeleteResponse!
   createFollow(followingId: Int!): Follow!
-  deleteFollow(id: Int!): Boolean!
+  deleteFollow(id: Int!): DeleteResponse!
   login(input: LoginInput!): AuthPayload!
 }
 
@@ -96,10 +100,6 @@ input CreatePostInput {
 input UpdatePostInput {
   title: String
   content: String
-}
-
-input CreateLikeInput {
-  postId: Float!
 }
 
 input LoginInput {

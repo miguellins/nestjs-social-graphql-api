@@ -9,6 +9,7 @@ import { Public } from "src/decorators/auth.decorator";
 
 import { UsersService } from "./users.service";
 import { User } from "./users.model";
+import { DeleteResponse } from "src/delete-response.type";
 
 @Resolver(() => User)
 export class UsersResolver {
@@ -43,12 +44,15 @@ export class UsersResolver {
     return this.usersService.updateUser(input, user.id);
   }
 
-  @Mutation(() => Boolean)
+  @Mutation(() => DeleteResponse)
   async deleteUser(
     @Args("id", { type: () => Int }) id: number,
     @CurrentUser() user: { id: number },
-  ): Promise<boolean> {
+  ): Promise<DeleteResponse> {
     await this.usersService.deleteUser(id, user.id);
-    return true;
+
+    return {
+      message: "User deleted successfully",
+    };
   }
 }

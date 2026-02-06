@@ -6,6 +6,7 @@ import { Follow } from "./follows.model";
 
 import { Public } from "src/decorators/auth.decorator";
 import { CurrentUser } from "src/decorators/current-user.decorator";
+import { DeleteResponse } from "src/delete-response.type";
 
 @Resolver(() => Follow)
 export class FollowsResolver {
@@ -35,12 +36,15 @@ export class FollowsResolver {
   }
 
   @Throttle({ default: { ttl: 10, limit: 2 } })
-  @Mutation(() => Boolean)
+  @Mutation(() => DeleteResponse)
   async deleteFollow(
     @Args("id", { type: () => Int }) id: number,
     @CurrentUser() user: { id: number },
-  ): Promise<boolean> {
+  ): Promise<DeleteResponse> {
     await this.followsService.deleteFollow(id, user.id);
-    return true;
+
+    return {
+      message: "Follow deleted successfully",
+    };
   }
 }
