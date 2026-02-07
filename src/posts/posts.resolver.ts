@@ -13,7 +13,7 @@ import { DeleteResponse } from "src/common/types/delete-response.type";
 
 @Resolver(() => Post)
 export class PostsResolver {
-  constructor(private readonly postsService: PostsService) { }
+  constructor(private readonly postsService: PostsService) {}
 
   @Public()
   @Query(() => [Post])

@@ -13,7 +13,7 @@ import { __InputValue } from "graphql";
 
 @Injectable()
 export class PostsService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   async getAllPosts() {
     return this.prisma.post.findMany({
@@ -115,11 +115,10 @@ export class PostsService {
         },
       });
 
-      if (result.count === 0) {
+      if (result.count === 0)
         throw new ForbiddenException(
           "You do not have permission to delete this post",
         );
-      }
 
       return {
         message: "Post deleted successfully",

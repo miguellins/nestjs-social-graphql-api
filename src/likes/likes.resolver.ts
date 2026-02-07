@@ -10,7 +10,7 @@ import { DeleteResponse } from "src/common/types/delete-response.type";
 
 @Resolver(() => Like)
 export class LikeResolver {
-  constructor(private readonly likesService: LikesService) { }
+  constructor(private readonly likesService: LikesService) {}
 
   @Public()
   @Query(() => [Like])
