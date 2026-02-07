@@ -13,7 +13,7 @@ import { __InputValue } from "graphql";
 
 @Injectable()
 export class PostsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   async getAllPosts() {
     return this.prisma.post.findMany({
@@ -108,7 +108,6 @@ export class PostsService {
 
   async deletePost(id: number, currentUserId: number) {
     try {
-      // 🔥 DB enforces ownership
       const result = await this.prisma.post.deleteMany({
         where: {
           id,

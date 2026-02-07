@@ -4,13 +4,14 @@ import { Throttle } from "@nestjs/throttler";
 import { FollowsService } from "./follows.service";
 import { Follow } from "./follows.model";
 
-import { Public } from "src/decorators/auth.decorator";
-import { CurrentUser } from "src/decorators/current-user.decorator";
-import { DeleteResponse } from "src/delete-response.type";
+import { CurrentUser } from "src/common/decorators/current-user.decorator";
+import { Public } from "src/common/decorators/auth.decorator";
+
+import { DeleteResponse } from "src/common/types/delete-response.type";
 
 @Resolver(() => Follow)
 export class FollowsResolver {
-  constructor(private readonly followsService: FollowsService) {}
+  constructor(private readonly followsService: FollowsService) { }
 
   @Public()
   @Query(() => [Follow])

@@ -1,6 +1,6 @@
 import { Args, Mutation, Resolver } from "@nestjs/graphql";
 
-import { Public } from "../decorators/auth.decorator";
+import { Public } from "../common/decorators/auth.decorator";
 
 import { LoginInput } from "./dto/login.input";
 
@@ -9,7 +9,7 @@ import { AuthService } from "./auth.service";
 
 @Resolver()
 export class AuthResolver {
-  constructor(private readonly authService: AuthService) {}
+  constructor(private readonly authService: AuthService) { }
 
   @Public()
   @Mutation(() => AuthPayload)

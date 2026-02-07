@@ -7,13 +7,13 @@ import { UpdatePostInput } from "./dto/update-post.input";
 import { PostsService } from "./posts.service";
 import { Post } from "./posts.model";
 
-import { Public } from "src/decorators/auth.decorator";
-import { CurrentUser } from "src/decorators/current-user.decorator";
-import { DeleteResponse } from "src/delete-response.type";
+import { Public } from "src/common/decorators/auth.decorator";
+import { CurrentUser } from "src/common/decorators/current-user.decorator";
+import { DeleteResponse } from "src/common/types/delete-response.type";
 
 @Resolver(() => Post)
 export class PostsResolver {
-  constructor(private readonly postsService: PostsService) {}
+  constructor(private readonly postsService: PostsService) { }
 
   @Public()
   @Query(() => [Post])

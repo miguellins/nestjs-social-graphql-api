@@ -4,8 +4,8 @@ import { GraphQLModule } from "@nestjs/graphql";
 import { APP_GUARD } from "@nestjs/core";
 import { Module } from "@nestjs/common";
 
-import { GqlThrottlerGuard } from "./guards/qgl-throttler.guard";
-import { GqlJwtGuard } from "./guards/qgl-jwt.guard";
+import { GqlThrottlerGuard } from "./common/guards/qgl-throttler.guard";
+import { GqlJwtGuard } from "./common/guards/qgl-jwt.guard";
 
 import { FollowsModule } from "./follows/follows.module";
 
@@ -64,4 +64,4 @@ import { join } from "path";
     },
   ],
 })
-export class AppModule {}
+export class AppModule { }

@@ -1,19 +1,19 @@
 import { Resolver, Mutation, Query, Args, Int } from "@nestjs/graphql";
 
-import { CurrentUser } from "src/decorators/current-user.decorator";
+import { CurrentUser } from "src/common/decorators/current-user.decorator";
 
 import { UpdateUserInput } from "./dto/update-user.input";
 import { CreateUserInput } from "./dto/create-user.input";
 
-import { Public } from "src/decorators/auth.decorator";
+import { Public } from "src/common/decorators/auth.decorator";
 
 import { UsersService } from "./users.service";
 import { User } from "./users.model";
-import { DeleteResponse } from "src/delete-response.type";
+import { DeleteResponse } from "src/common/types/delete-response.type";
 
 @Resolver(() => User)
 export class UsersResolver {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(private readonly usersService: UsersService) { }
 
   @Public()
   @Query(() => [User])
