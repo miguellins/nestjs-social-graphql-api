@@ -8,13 +8,9 @@ import { GqlThrottlerGuard } from "./common/guards/qgl-throttler.guard";
 import { GqlJwtGuard } from "./common/guards/qgl-jwt.guard";
 
 import { FollowsModule } from "./follows/follows.module";
-
 import { UsersModule } from "./users/users.module";
-
 import { PostsModule } from "./posts/posts.module";
-
 import { LikesModule } from "./likes/likes.module";
-
 import { AuthModule } from "./auth/auth.module";
 
 import { join } from "path";
@@ -28,6 +24,11 @@ import { join } from "path";
 
       // Set code-first approach
       autoSchemaFile: join(process.cwd(), "src/schema.gql"),
+
+      // Customizes how errors are presented to the GraphQL client
+      formatError: (error) => ({
+        message: error.message,
+      }),
 
       // Injects the HTTP request and response into the GraphQL context
       context: ({ req, res }) => ({ req, res }),
@@ -64,4 +65,4 @@ import { join } from "path";
     },
   ],
 })
-export class AppModule {}
+export class AppModule { }
