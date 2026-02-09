@@ -9,7 +9,6 @@ import {
 import { PrismaService } from "src/prisma.service";
 
 import { Prisma } from "@prisma/client";
-import { Like } from "./likes.model";
 
 @Injectable()
 export class LikesService {
@@ -57,6 +56,17 @@ export class LikesService {
             userId: currentUserId,
             postId,
           },
+          include: {
+            post: {
+              include: {
+                likes: {
+                  include: {
+                    user: { select: { id: true, name: true, username: true } },
+                  },
+                },
+              },
+            },
+          },
         }),
 
         this.prisma.post.update({
@@ -85,32 +95,48 @@ export class LikesService {
   }
 
   async deleteLike(id: number, currentUserId: number) {
-    const like = await this.prisma.like.findUnique({
-      where: { id },
-    });
-
-    if (!like) throw new NotFoundException("Like not found");
-
-    if (like.userId !== currentUserId)
-      throw new ForbiddenException(
-        "You do not have permission to delete this like",
-      );
-
-    const [, deletedLike] = await this.prisma.$transaction([
-      this.prisma.post.update({
-        where: { id: like.postId },
-        data: {
-          likesCount: {
-            decrement: 1,
-          },
-        },
-      }),
-
-      this.prisma.like.delete({
+    try {
+      const like = await this.prisma.like.findUnique({
         where: { id },
-      }),
-    ]);
+        select: { id: true, userId: true, postId: true },
+      });
 
-    return deletedLike;
+      if (!like) throw new NotFoundException("Like not found");
+
+      if (like.userId !== currentUserId) {
+        throw new ForbiddenException(
+          "You do not have permission to delete this like",
+        );
+      }
+
+      await this.prisma.$transaction([
+        this.prisma.post.update({
+          where: { id: like.postId },
+          data: { likesCount: { decrement: 1 } },
+        }),
+        this.prisma.like.delete({
+          where: { id: like.id },
+        }),
+      ]);
+
+      return { message: "Like deleted successfully" };
+    } catch (err) {
+      if (
+        err instanceof NotFoundException ||
+        err instanceof ForbiddenException
+      ) {
+        throw err;
+      }
+
+      // Optional: if post was deleted but like existed (FK / race conditions)
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === "P2025"
+      ) {
+        throw new NotFoundException("Like or post not found");
+      }
+
+      throw new InternalServerErrorException("Failed to delete like");
+    }
   }
 }

@@ -1,23 +1,22 @@
 import {
-  ConflictException,
   ForbiddenException,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
-  BadRequestException
+  BadRequestException,
 } from "@nestjs/common";
+import { __InputValue } from "graphql";
 
 import { PrismaService } from "src/prisma.service";
 
 import { Post, Prisma } from "@prisma/client";
 
-import { __InputValue } from "graphql";
 import { CreatePostInput } from "./dto/create-post.input";
 import { UpdatePostInput } from "./dto/update-post.input";
 
 @Injectable()
 export class PostsService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   async getAllPosts() {
     return this.prisma.post.findMany({
@@ -41,7 +40,7 @@ export class PostsService {
         author: true,
         likes: {
           orderBy: { createdAt: "desc" },
-          include: { user: true }
+          include: { user: true },
         },
       },
     });
@@ -51,16 +50,13 @@ export class PostsService {
     return post;
   }
 
-  async createPost(
-    input: CreatePostInput,
-    currentUserId: number,
-  ) {
+  async createPost(input: CreatePostInput, currentUserId: number) {
     return this.prisma.post.create({
       data: {
         title: input.title.trim(),
         content: input.content.trim(),
         author: {
-          connect: { id: currentUserId }, // ⭐ safer than raw FK
+          connect: { id: currentUserId },
         },
       },
       include: {
@@ -69,14 +65,12 @@ export class PostsService {
     });
   }
 
-  async updatePost(
-    id: number,
-    input: UpdatePostInput,
-    currentUserId: number,
-  ) {
-    const hasAnyField = input.title !== undefined || input.content !== undefined;
+  async updatePost(id: number, input: UpdatePostInput, currentUserId: number) {
+    const hasAnyField =
+      input.title !== undefined || input.content !== undefined;
 
-    if (!hasAnyField) throw new BadRequestException("No fields provided to update");
+    if (!hasAnyField)
+      throw new BadRequestException("No fields provided to update");
 
     const data: Prisma.PostUpdateInput = {};
 
@@ -101,21 +95,27 @@ export class PostsService {
   async deletePost(id: number, currentUserId: number) {
     try {
       const result = await this.prisma.post.deleteMany({
-        where: {
-          id,
-          authorId: currentUserId,
-        },
+        where: { id, authorId: currentUserId },
       });
 
-      if (result.count === 0)
+      if (result.count === 0) {
+        const exists = await this.prisma.post.findUnique({ where: { id } });
+
+        if (!exists) throw new NotFoundException("Post not found");
         throw new ForbiddenException(
           "You do not have permission to delete this post",
         );
+      }
 
-      return {
-        message: "Post deleted successfully",
-      };
+      return { message: "Post deleted successfully" };
     } catch (err) {
+      if (
+        err instanceof NotFoundException ||
+        err instanceof ForbiddenException
+      ) {
+        throw err;
+      }
+
       throw new InternalServerErrorException("Failed to delete post");
     }
   }

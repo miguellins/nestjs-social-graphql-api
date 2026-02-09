@@ -1,4 +1,9 @@
-import { Catch, ArgumentsHost, HttpException, HttpStatus } from "@nestjs/common";
+import {
+  Catch,
+  ArgumentsHost,
+  HttpException,
+  HttpStatus,
+} from "@nestjs/common";
 import { GqlArgumentsHost, GqlExceptionFilter } from "@nestjs/graphql";
 
 import { Prisma } from "@prisma/client";
@@ -72,10 +77,7 @@ export class GlobalGqlExceptionFilter implements GqlExceptionFilter {
 
       const fields = typeof res === "object" ? res?.fields : undefined;
 
-      return new HttpException(
-        { message, code, fields },
-        status,
-      );
+      return new HttpException({ message, code, fields }, status);
     }
 
     // Unknown errors
