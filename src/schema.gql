@@ -7,10 +7,10 @@ type Post {
   title: String!
   content: String!
   createdAt: DateTime!
-  authorId: Int!
+  authorId: Int
   author: User
   likes: [Like!]
-  likesCount: Int!
+  likesCount: Int
 }
 
 """

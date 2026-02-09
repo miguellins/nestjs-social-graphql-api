@@ -4,22 +4,32 @@ import {
   Injectable,
   InternalServerErrorException,
   NotFoundException,
+  BadRequestException
 } from "@nestjs/common";
 
 import { PrismaService } from "src/prisma.service";
 
-import { Prisma } from "@prisma/client";
+import { Post, Prisma } from "@prisma/client";
+
 import { __InputValue } from "graphql";
+import { CreatePostInput } from "./dto/create-post.input";
+import { UpdatePostInput } from "./dto/update-post.input";
 
 @Injectable()
 export class PostsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   async getAllPosts() {
     return this.prisma.post.findMany({
+      orderBy: {
+        createdAt: "desc",
+      },
       include: {
         author: true,
-        likes: { include: { user: true } },
+        likes: {
+          orderBy: { createdAt: "desc" },
+          include: { user: true },
+        },
       },
     });
   }
@@ -29,7 +39,10 @@ export class PostsService {
       where: { id },
       include: {
         author: true,
-        likes: { include: { user: true } },
+        likes: {
+          orderBy: { createdAt: "desc" },
+          include: { user: true }
+        },
       },
     });
 
@@ -39,17 +52,16 @@ export class PostsService {
   }
 
   async createPost(
-    input: {
-      title: string;
-      content: string;
-    },
+    input: CreatePostInput,
     currentUserId: number,
   ) {
     return this.prisma.post.create({
       data: {
-        title: input.title,
-        content: input.content,
-        authorId: currentUserId,
+        title: input.title.trim(),
+        content: input.content.trim(),
+        author: {
+          connect: { id: currentUserId }, // ⭐ safer than raw FK
+        },
       },
       include: {
         author: true,
@@ -59,51 +71,31 @@ export class PostsService {
 
   async updatePost(
     id: number,
-    input: {
-      title?: string;
-      content?: string;
-    },
+    input: UpdatePostInput,
     currentUserId: number,
   ) {
+    const hasAnyField = input.title !== undefined || input.content !== undefined;
+
+    if (!hasAnyField) throw new BadRequestException("No fields provided to update");
+
     const data: Prisma.PostUpdateInput = {};
 
-    if (input.title !== undefined) data.title = input.title;
-    if (input.content !== undefined) data.content = input.content;
-
-    try {
-      const result = await this.prisma.post.updateMany({
-        where: {
-          id,
-          authorId: currentUserId,
-        },
-        data,
-      });
-
-      if (result.count === 0)
-        throw new ForbiddenException(
-          "You do not have permission to update this post",
-        );
-
-      return this.prisma.post.findUniqueOrThrow({
-        where: { id },
-        include: {
-          author: true,
-        },
-      });
-    } catch (err) {
-      if (
-        err instanceof Prisma.PrismaClientKnownRequestError &&
-        err.code === "P2002"
-      ) {
-        const fields =
-          (err.meta?.target as string[] | undefined)?.join(", ") ??
-          "unique field";
-
-        throw new ConflictException(`Post with this ${fields} already exists`);
-      }
-
-      throw new InternalServerErrorException("Failed to update post");
+    if (input.title !== undefined) {
+      const title = input.title.trim();
+      if (!title) throw new BadRequestException("Title cannot be empty");
+      data.title = title;
     }
+
+    if (input.content !== undefined) {
+      const content = input.content.trim();
+      if (!content) throw new BadRequestException("Content cannot be empty");
+      data.content = content;
+    }
+
+    return await this.prisma.post.update({
+      where: { id, authorId: currentUserId },
+      data,
+    });
   }
 
   async deletePost(id: number, currentUserId: number) {

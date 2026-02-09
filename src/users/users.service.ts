@@ -4,16 +4,17 @@ import {
   Injectable,
   InternalServerErrorException,
   NotFoundException,
-  BadRequestException
+  BadRequestException,
 } from "@nestjs/common";
+
+import { CreateUserInput } from "./dto/create-user.input";
+import { UpdateUserInput } from "./dto/update-user.input";
 
 import { PrismaService } from "src/prisma.service";
 
 import { Prisma } from "@prisma/client";
 
 import * as bcrypt from "bcrypt";
-import { CreateUserInput } from "./dto/create-user.input";
-import { UpdateUserInput } from "./dto/update-user.input";
 
 @Injectable()
 export class UsersService {
@@ -71,10 +72,7 @@ export class UsersService {
     //# ADD BETTER ERROR HANDLING
   }
 
-  async updateUser(
-    input: UpdateUserInput,
-    currentUserId: number,
-  ) {
+  async updateUser(input: UpdateUserInput, currentUserId: number) {
     // Require at least one field
     const hasAnyField =
       input.name !== undefined ||
@@ -82,12 +80,35 @@ export class UsersService {
       input.username !== undefined ||
       input.password !== undefined;
 
-    if (!hasAnyField) throw new BadRequestException("No fields provided to update");
+    if (!hasAnyField)
+      throw new BadRequestException("No fields provided to update");
 
     const data: Prisma.UserUpdateInput = {};
 
-    if (input.password !== undefined)
-      data.password = await bcrypt.hash(input.password, 12);
+    // Copy fields and normalize
+    if (input.name !== undefined) {
+      const name = input.name.trim();
+      if (!name) throw new BadRequestException("Name cannot be empty");
+      data.name = name;
+    }
+
+    if (input.email !== undefined) {
+      const email = input.email.trim().toLowerCase();
+      if (!email) throw new BadRequestException("Email cannot be empty");
+      data.email = email;
+    }
+
+    if (input.username !== undefined) {
+      const username = input.username.trim();
+      if (!username) throw new BadRequestException("Username cannot be empty");
+      data.username = username;
+    }
+
+    if (input.password !== undefined) {
+      const pw = input.password.trim();
+      if (!pw) throw new BadRequestException("Password cannot be empty");
+      data.password = await bcrypt.hash(pw, 12);
+    }
 
     return await this.prisma.user.update({
       where: { id: currentUserId },

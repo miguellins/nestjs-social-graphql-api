@@ -1,19 +1,19 @@
 import { Resolver, Query, Mutation, Args, Int } from "@nestjs/graphql";
 import { Throttle } from "@nestjs/throttler";
 
+import { CurrentUser } from "src/common/decorators/current-user.decorator";
+import { DeleteResponse } from "src/common/types/delete-response.type";
+import { Public } from "src/common/decorators/auth.decorator";
+
 import { CreatePostInput } from "./dto/create-post.input";
 import { UpdatePostInput } from "./dto/update-post.input";
 
 import { PostsService } from "./posts.service";
 import { Post } from "./posts.model";
 
-import { Public } from "src/common/decorators/auth.decorator";
-import { CurrentUser } from "src/common/decorators/current-user.decorator";
-import { DeleteResponse } from "src/common/types/delete-response.type";
-
 @Resolver(() => Post)
 export class PostsResolver {
-  constructor(private readonly postsService: PostsService) {}
+  constructor(private readonly postsService: PostsService) { }
 
   @Public()
   @Query(() => [Post])
@@ -23,9 +23,7 @@ export class PostsResolver {
 
   @Public()
   @Query(() => Post)
-  async post(
-    @Args("id", { type: () => Int }) id: number,
-  ): Promise<Post | null> {
+  async post(@Args("id", { type: () => Int }) id: number): Promise<Post> {
     return this.postsService.getPost(id);
   }
 

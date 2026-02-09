@@ -1,6 +1,13 @@
 import { Field, InputType } from "@nestjs/graphql";
 
-import { IsEmail, IsNotEmpty, IsString, Matches, MaxLength, MinLength } from "class-validator";
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsString,
+  Matches,
+  MaxLength,
+  MinLength,
+} from "class-validator";
 
 import { Transform } from "class-transformer";
 
@@ -10,7 +17,6 @@ export class CreateUserInput {
 
   // Remove whitespace from both ends
   @Transform(({ value }) => (typeof value === "string" ? value.trim() : value))
-
   @IsString()
   @IsNotEmpty()
   @MinLength(3)
@@ -20,8 +26,9 @@ export class CreateUserInput {
   @Field()
 
   // Remove whitespace from both ends and converts all characteres to lowercase
-  @Transform(({ value }) => typeof value === "string" ? value.trim().toLowerCase() : value)
-
+  @Transform(({ value }) =>
+    typeof value === "string" ? value.trim().toLowerCase() : value,
+  )
   @IsEmail()
   @IsNotEmpty()
   @MinLength(3)
@@ -32,7 +39,6 @@ export class CreateUserInput {
 
   // Remove whitespace from both ends
   @Transform(({ value }) => (typeof value === "string" ? value.trim() : value))
-
   @IsString()
   @IsNotEmpty()
   @MinLength(3)

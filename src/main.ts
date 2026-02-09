@@ -3,6 +3,8 @@ import { NestFactory } from "@nestjs/core";
 
 import { AppModule } from "./app.module";
 
+import { GlobalGqlExceptionFilter } from "./common/filters/gql-exception.filter";
+
 import helmet from "helmet";
 
 async function bootstrap() {
@@ -21,6 +23,9 @@ async function bootstrap() {
       transform: true,
     }),
   );
+
+  // Enables global exception filter for GraphQL errors
+  app.useGlobalFilters(new GlobalGqlExceptionFilter());
 
   // Adds several HTTP headers that helps protect the app from common vulnerabilities
   app.use(

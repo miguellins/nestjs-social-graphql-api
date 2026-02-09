@@ -33,6 +33,8 @@ import { join } from "path";
       // Injects the HTTP request and response into the GraphQL context
       context: ({ req, res }) => ({ req, res }),
 
+      debug: false,
+
       playground: true,
     }),
 

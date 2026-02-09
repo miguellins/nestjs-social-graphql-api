@@ -19,7 +19,7 @@ export class Post {
   @Field(() => GraphQLISODateTime)
   createdAt: Date;
 
-  @Field(() => Int)
+  @Field(() => Int, { nullable: true })
   authorId: number;
 
   @Field(() => User, { nullable: true })
@@ -28,6 +28,6 @@ export class Post {
   @Field(() => [Like], { nullable: true })
   likes?: Like[];
 
-  @Field(() => Int)
+  @Field(() => Int, { nullable: true })
   likesCount: number;
 }
