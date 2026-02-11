@@ -133,7 +133,7 @@ export class LikesService {
         err instanceof Prisma.PrismaClientKnownRequestError &&
         err.code === "P2025"
       ) {
-        throw new NotFoundException("Like or post not found");
+        throw new NotFoundException("Post not found");
       }
 
       throw new InternalServerErrorException("Failed to delete like");

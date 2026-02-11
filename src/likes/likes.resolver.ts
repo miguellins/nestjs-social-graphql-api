@@ -2,11 +2,13 @@ import { Resolver, Query, Mutation, Args, Int } from "@nestjs/graphql";
 import { Throttle } from "@nestjs/throttler";
 
 import { CurrentUser } from "src/common/decorators/current-user.decorator";
+
+import { DeleteResponse } from "src/common/types/delete-response.type";
+
 import { Public } from "src/common/decorators/auth.decorator";
 
 import { LikesService } from "./likes.service";
 import { Like } from "./likes.model";
-import { DeleteResponse } from "src/common/types/delete-response.type";
 
 @Resolver(() => Like)
 export class LikeResolver {

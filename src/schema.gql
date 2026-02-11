@@ -32,6 +32,8 @@ type User {
   name: String!
   email: String!
   username: String!
+  createdAt: DateTime!
+  updatedAt: DateTime!
   posts: [Post!]
   likes: [Like!]
   followers: [Follow!]
@@ -50,13 +52,36 @@ type DeleteResponse {
   message: String!
 }
 
+type UserCounts {
+  posts: Int!
+  likes: Int!
+  followers: Int!
+  following: Int!
+}
+
+type SafeUserProfile {
+  id: ID!
+  name: String!
+  username: String!
+  createdAt: DateTime!
+  _count: UserCounts!
+}
+
+type SafeUser {
+  id: ID!
+  name: String!
+  username: String!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
 type AuthPayload {
   access_token: String!
 }
 
 type Query {
-  users: [User!]!
-  user(id: Int!): User
+  users(take: Int): [SafeUser!]!
+  userById(id: Int!): SafeUserProfile!
   posts: [Post!]!
   post(id: Int!): Post!
   likes: [Like!]!
@@ -66,8 +91,8 @@ type Query {
 }
 
 type Mutation {
-  createUser(input: CreateUserInput!): User!
-  updateUser(input: UpdateUserInput!): User!
+  createUser(input: CreateUserInput!): SafeUser!
+  updateUser(input: UpdateUserInput!): SafeUser!
   deleteUser: DeleteResponse!
   createPost(input: CreatePostInput!): Post!
   updatePost(id: Int!, input: UpdatePostInput!): Post!

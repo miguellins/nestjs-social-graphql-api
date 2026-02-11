@@ -1,7 +1,12 @@
-import { Field, ID, Int, ObjectType } from "@nestjs/graphql";
-import { GraphQLISODateTime } from "@nestjs/graphql";
+import {
+  Field,
+  GraphQLISODateTime,
+  ID,
+  Int,
+  ObjectType,
+} from "@nestjs/graphql";
 
-import { User } from "../users/users.model";
+import { User } from "../users/models/users.model";
 
 import { Like } from "src/likes/likes.model";
 
