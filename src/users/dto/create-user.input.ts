@@ -1,5 +1,3 @@
-import { Field, InputType } from "@nestjs/graphql";
-
 import {
   IsEmail,
   IsNotEmpty,
@@ -9,7 +7,21 @@ import {
   MinLength,
 } from "class-validator";
 
+import { Field, InputType } from "@nestjs/graphql";
+
 import { Transform } from "class-transformer";
+
+/**
+ * GraphQL Input Type used when creating a new user
+ *
+ * What it does:
+ * - Validates incoming data at the API boundary
+ * - Prevents bad data from reaching the database
+ * - Enforces consistent formatting
+ * - Improves security
+ *
+ * Acts as the first security layer
+ */
 
 @InputType()
 export class CreateUserInput {
@@ -34,7 +46,6 @@ export class CreateUserInput {
   email: string;
 
   @Field()
-  // Remove whitespace from both ends
   @Transform(({ value }) => (typeof value === "string" ? value.trim() : value))
   @IsString()
   @IsNotEmpty()

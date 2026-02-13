@@ -2,15 +2,23 @@
 # THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
 # ------------------------------------------------------
 
+type SafeUserPreview {
+  id: ID!
+  name: String!
+  username: String!
+}
+
+type PostCounts {
+  likes: Int!
+}
+
 type Post {
   id: ID!
   title: String!
   content: String!
   createdAt: DateTime!
-  authorId: Int
-  author: User
-  likes: [Like!]
-  likesCount: Int
+  author: SafeUserPreview!
+  _count: PostCounts!
 }
 
 """
@@ -24,7 +32,6 @@ type Like {
   userId: Int
   user: User
   postId: Int!
-  post: Post
 }
 
 type User {
@@ -59,20 +66,39 @@ type UserCounts {
   following: Int!
 }
 
-type SafeUserProfile {
-  id: ID!
-  name: String!
-  username: String!
-  createdAt: DateTime!
-  _count: UserCounts!
-}
-
 type SafeUser {
   id: ID!
   name: String!
   username: String!
   createdAt: DateTime!
   updatedAt: DateTime!
+  _count: UserCounts
+}
+
+type PostListItem {
+  id: ID!
+  title: String!
+  content: String!
+  createdAt: DateTime!
+  author: SafeUserPreview!
+  _count: PostCounts!
+}
+
+type LikePreview {
+  id: ID!
+  createdAt: DateTime!
+  user: SafeUserPreview!
+}
+
+type PostDetail {
+  id: ID!
+  title: String!
+  content: String!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  author: SafeUserPreview!
+  _count: PostCounts!
+  likes: [LikePreview!]
 }
 
 type AuthPayload {
@@ -80,10 +106,16 @@ type AuthPayload {
 }
 
 type Query {
-  users(take: Int): [SafeUser!]!
-  userById(id: Int!): SafeUserProfile!
-  posts: [Post!]!
-  post(id: Int!): Post!
+  users(
+    """Max items to return (1-50)"""
+    take: Int
+
+    """Cursor for pagination (id of last item"""
+    cursor: Int
+  ): [SafeUser!]!
+  userById(id: Int!): SafeUser!
+  posts(take: Int, q: String): [PostListItem!]!
+  postById(id: Int!): PostDetail!
   likes: [Like!]!
   like(id: Int!): Like!
   follows: [Follow!]!
@@ -92,8 +124,8 @@ type Query {
 
 type Mutation {
   createUser(input: CreateUserInput!): SafeUser!
-  updateUser(input: UpdateUserInput!): SafeUser!
-  deleteUser: DeleteResponse!
+  updateMe(input: UpdateUserInput!): SafeUser!
+  deleteMe: DeleteResponse!
   createPost(input: CreatePostInput!): Post!
   updatePost(id: Int!, input: UpdatePostInput!): Post!
   deletePost(id: Int!): DeleteResponse!

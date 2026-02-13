@@ -1,3 +1,5 @@
+//# DELETE IF NOT FOUND ANY USE OF THIS
+
 import {
   Field,
   GraphQLISODateTime,
@@ -6,9 +8,11 @@ import {
   ObjectType,
 } from "@nestjs/graphql";
 
+import { Post } from "src/posts/models/posts.model";
+
 import { Follow } from "src/follows/follows.model";
+
 import { Like } from "src/likes/likes.model";
-import { Post } from "src/posts/posts.model";
 
 @ObjectType()
 export class User {

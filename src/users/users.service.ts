@@ -1,28 +1,31 @@
 import {
   ConflictException,
-  ForbiddenException,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
   BadRequestException,
 } from "@nestjs/common";
 
-import { SafeUserProfile } from "./models/safe-user-profile.model";
+import { PaginationArgs } from "src/common/args/pagination.args";
 
 import { CreateUserInput } from "./dto/create-user.input";
 import { UpdateUserInput } from "./dto/update-user.input";
+import { SafeUserDTO } from "./dto/safe-user.dto";
 
 import { PrismaService } from "src/prisma.service";
 import { Prisma } from "@prisma/client";
 
 import * as bcrypt from "bcrypt";
-import { SafeUser } from "./models/safe-user.model";
+
+/**
+ * Responsible for business logic and data operations
+ */
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
-  async findUsers(params?: { take?: number }): Promise<SafeUser[]> {
+  async findUsers(params?: PaginationArgs): Promise<SafeUserDTO[]> {
     // Hard query cap
     // Max number of records per request
     const MAX_TAKE = 50;
@@ -38,7 +41,7 @@ export class UsersService {
       // Use the safe limit
       take: limit,
 
-      // Order by the newest
+      // Order by newest
       orderBy: {
         createdAt: "desc",
       },
@@ -48,11 +51,21 @@ export class UsersService {
         username: true,
         createdAt: true,
         updatedAt: true,
+
+        // Optional field
+        _count: {
+          select: {
+            likes: true,
+            posts: true,
+            followers: true,
+            following: true,
+          },
+        },
       },
     });
   }
 
-  async getUser(id: number): Promise<SafeUserProfile> {
+  async getUser(id: number): Promise<SafeUserDTO> {
     const user = await this.prisma.user.findUnique({
       where: { id },
       select: {
@@ -79,14 +92,20 @@ export class UsersService {
     return user;
   }
 
-  async createUser(input: CreateUserInput): Promise<SafeUser> {
+  async createUser(input: CreateUserInput): Promise<SafeUserDTO> {
     // Hash strength
     const SALT_ROUNDS = 12;
 
     // Normalize user inputs
+    const name = input.name.trim();
     const email = input.email.trim().toLowerCase();
     const username = input.username.trim().toLowerCase();
-    const name = input.name.trim();
+    const password = input.password.trim();
+
+    if (!name) throw new BadRequestException("Name is required");
+    if (!email) throw new BadRequestException("Email is required");
+    if (!username) throw new BadRequestException("Username is required");
+    if (!password) throw new BadRequestException("Password is required");
 
     try {
       // Hash password before storing in DB
@@ -137,13 +156,12 @@ export class UsersService {
     }
   }
 
-  async updateUser(input: UpdateUserInput, currentUserId: number) {
+  async updateUser(
+    input: UpdateUserInput,
+    currentUserId: number,
+  ): Promise<SafeUserDTO> {
     // Require at least one field to update, prevents empty updates
-    const hasAnyField =
-      input.name !== undefined ||
-      input.email !== undefined ||
-      input.username !== undefined ||
-      input.password !== undefined;
+    const hasAnyField = Object.values(input).some((v) => v !== undefined);
 
     if (!hasAnyField)
       throw new BadRequestException("No fields provided to update");
@@ -190,14 +208,22 @@ export class UsersService {
           username: true,
           createdAt: true,
           updatedAt: true,
+
+          // Optional field
+          _count: {
+            select: {
+              likes: true,
+              posts: true,
+              followers: true,
+              following: true,
+            },
+          },
         },
       });
     } catch (err) {
       // If user doesnt exist, prisma throws P2025 on update
       if (err instanceof Prisma.PrismaClientKnownRequestError) {
-        if (err.code === "P2025") {
-          throw new NotFoundException("User not found");
-        }
+        if (err.code === "P2025") throw new NotFoundException("User not found");
 
         // P2002 = unique constraints failed (email/username already exists)
         if (err.code === "P2002") {
@@ -237,11 +263,8 @@ export class UsersService {
       };
     } catch (err) {
       // Prisma throws P2025 when record does not exist
-      if (err instanceof Prisma.PrismaClientKnownRequestError) {
-        if (err.code === "P2025") {
-          throw new NotFoundException("User not found");
-        }
-      }
+      if (err instanceof Prisma.PrismaClientKnownRequestError)
+        if (err.code === "P2025") throw new NotFoundException("User not found");
 
       // Do not leak internal DB errors
       throw new InternalServerErrorException("Failed to delete user");

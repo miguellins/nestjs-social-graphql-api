@@ -1,5 +1,3 @@
-import { Field, InputType } from "@nestjs/graphql";
-
 import {
   IsEmail,
   IsNotEmpty,
@@ -10,7 +8,29 @@ import {
   MinLength,
 } from "class-validator";
 
+import { Field, InputType } from "@nestjs/graphql";
+
 import { Transform } from "class-transformer";
+
+/**
+ * GraphQL Input Type used when updating an existing user
+ *
+ * What it does:
+ * - Validates partial updates safely
+ * - Allows flexible mutations without requiring all fields
+ * - Normalizes incoming data before it reaches the service layer
+ * - Protects database integrity
+ *
+ * Security benefits:
+ * - Prevents empty or malformed updates
+ * - Restricts username format
+ * - Enforces password length best-practices (bcrypt-safe)
+ * - Avoids invalid email formats
+ *
+ * Design note:
+ * All fields are optional because updates are PATCH-style
+ * Only the provided fields will be modified
+ */
 
 @InputType()
 export class UpdateUserInput {

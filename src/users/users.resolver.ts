@@ -1,58 +1,61 @@
 import { Resolver, Mutation, Query, Args, Int } from "@nestjs/graphql";
+import { Throttle } from "@nestjs/throttler";
 
 import { CurrentUser } from "src/common/decorators/current-user.decorator";
-import { Public } from "src/common/decorators/auth.decorator";
-
+import { THROTTLE_LIMITS } from "src/common/constants/throttle.constants";
 import { DeleteResponse } from "src/common/types/delete-response.type";
+import { PaginationArgs } from "src/common/args/pagination.args";
+import { Public } from "src/common/decorators/auth.decorator";
 
 import { UpdateUserInput } from "./dto/update-user.input";
 import { CreateUserInput } from "./dto/create-user.input";
 
+import { SafeUser } from "./models/safe-user.model";
+
 import { UsersService } from "./users.service";
 
-import { SafeUserProfile } from "./models/safe-user-profile.model";
-import { SafeUser } from "./models/safe-user.model";
-import { User } from "./models/users.model";
+/**
+ * Responsible for resolving fields of the SafeUser GraphQL type
+ */
 
-import { UsersArgs } from "./dto/users.args";
-
-@Resolver(() => User)
+@Resolver(() => SafeUser)
 export class UsersResolver {
-  constructor(private readonly usersService: UsersService) { }
+  constructor(private readonly usersService: UsersService) {}
 
   @Public()
+  @Throttle({ default: THROTTLE_LIMITS.LIST })
   @Query(() => [SafeUser])
-  async users(@Args() args: UsersArgs): Promise<SafeUser[]> {
-    return this.usersService.findUsers({ take: args.take });
+  async users(@Args() args: PaginationArgs) {
+    return this.usersService.findUsers(args);
   }
 
   @Public()
-  @Query(() => SafeUserProfile)
-  async userById(
-    @Args("id", { type: () => Int }) id: number,
-  ): Promise<SafeUserProfile> {
+  @Throttle({ default: THROTTLE_LIMITS.READ })
+  @Query(() => SafeUser)
+  async userById(@Args("id", { type: () => Int }) id: number) {
     return this.usersService.getUser(id);
   }
 
   // Set to Public
   @Public()
+  @Throttle({ default: THROTTLE_LIMITS.SIGNUP })
   @Mutation(() => SafeUser)
   async createUser(@Args("input") input: CreateUserInput): Promise<SafeUser> {
     return this.usersService.createUser(input);
   }
 
+  @Throttle({ default: THROTTLE_LIMITS.MUTATION })
   @Mutation(() => SafeUser)
-  async updateUser(
+  async updateMe(
     @Args("input") input: UpdateUserInput,
     @CurrentUser() user: { id: number },
   ): Promise<SafeUser> {
     return this.usersService.updateUser(input, user.id);
   }
 
+  @Throttle({ default: THROTTLE_LIMITS.DESTRUCTIVE })
   @Mutation(() => DeleteResponse)
-  async deleteUser(
-    @CurrentUser() user: { id: number },
-  ): Promise<DeleteResponse> {
+  async deleteMe(@CurrentUser() user: { id: number }) {
     await this.usersService.deleteUser(user.id);
 
     return {
