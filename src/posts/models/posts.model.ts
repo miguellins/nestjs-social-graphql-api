@@ -22,7 +22,7 @@ import { PostCounts } from "./post-counts.model";
  * to scale without rewriting your schema
  *
  * Security benefit:
- * Uses SafeUserPreview to avoid exposing sensitive user fields such as email, 
+ * Uses SafeUserPreview to avoid exposing sensitive user fields such as email,
  * password, tokens, etc
  *
  * Performance strategy:

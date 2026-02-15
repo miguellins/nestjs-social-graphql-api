@@ -12,7 +12,7 @@ import { Post } from "src/posts/models/posts.model";
 
 import { Follow } from "src/follows/follows.model";
 
-import { Like } from "src/likes/likes.model";
+import { Like } from "src/likes/models/likes.model";
 
 @ObjectType()
 export class User {

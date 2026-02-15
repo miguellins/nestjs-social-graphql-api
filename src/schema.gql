@@ -101,6 +101,13 @@ type PostDetail {
   likes: [LikePreview!]
 }
 
+type LikeListItem {
+  id: ID!
+  createdAt: DateTime!
+  user: SafeUserPreview!
+  post: PostListItem!
+}
+
 type AuthPayload {
   access_token: String!
 }
@@ -116,8 +123,17 @@ type Query {
   userById(id: Int!): SafeUser!
   posts(take: Int, q: String): [PostListItem!]!
   postById(id: Int!): PostDetail!
-  likes: [Like!]!
-  like(id: Int!): Like!
+  likes(
+    """Max items to return (1-50)"""
+    take: Int
+
+    """Filter likes by post id"""
+    postId: Int
+
+    """Filter likes by user id"""
+    userId: Int
+  ): [LikeListItem!]!
+  likeById(id: Int!): LikeListItem!
   follows: [Follow!]!
   follow(id: Int!): Follow!
 }
@@ -129,7 +145,7 @@ type Mutation {
   createPost(input: CreatePostInput!): Post!
   updatePost(id: Int!, input: UpdatePostInput!): Post!
   deletePost(id: Int!): DeleteResponse!
-  createLike(postId: Int!): Like!
+  createLike(postId: Int!): LikeListItem!
   deleteLike(id: Int!): DeleteResponse!
   createFollow(followingId: Int!): Follow!
   deleteFollow(id: Int!): DeleteResponse!

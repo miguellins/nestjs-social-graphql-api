@@ -16,7 +16,7 @@ import { PostCounts } from "./post-counts.model";
  * This type should be returned ONLY for single-resource queries, such as 'postById'
  *
  * Design philosophy:
- * LIST - lightweight, fast, scalable  
+ * LIST - lightweight, fast, scalable
  * DETAIL - richer, but still optimized
  *
  * Performance strategy:

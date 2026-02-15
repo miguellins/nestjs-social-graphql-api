@@ -6,6 +6,11 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 
+import { FindLikesArgs } from "src/common/args/find-likes.args";
+
+import { LikeDetailDTO } from "./dto/like-detail.dto";
+import { LikeListDTO } from "./dto/like-list.dto";
+
 import { PrismaService } from "src/prisma.service";
 
 import { Prisma } from "@prisma/client";
@@ -14,88 +19,175 @@ import { Prisma } from "@prisma/client";
 export class LikesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getAllLikes() {
+  async findLikes(params?: FindLikesArgs): Promise<LikeListDTO[]> {
+    const MAX_TAKE = 50;
+    const DEFAULT_TAKE = 20;
+
+    const take = Math.min(params?.take ?? DEFAULT_TAKE, MAX_TAKE);
+
+    const where: Prisma.LikeWhereInput = {
+      ...(params?.postId && { postId: params.postId }),
+      ...(params?.userId && { userId: params.userId }),
+    };
+
     return this.prisma.like.findMany({
-      include: {
-        user: true,
+      take,
+      where,
+      orderBy: { createdAt: "desc" },
+
+      select: {
+        id: true,
+        createdAt: true,
+
+        user: {
+          select: {
+            id: true,
+            name: true,
+            username: true,
+          },
+        },
+
         post: {
-          include: {
-            author: true,
+          select: {
+            id: true,
+            title: true,
+            content: true,
+            createdAt: true,
+
+            author: {
+              select: {
+                id: true,
+                name: true,
+                username: true,
+              },
+            },
+
+            _count: {
+              select: {
+                likes: true,
+              },
+            },
           },
         },
       },
     });
   }
 
-  async getLike(id: number) {
-    const like = await this.prisma.like.findUnique({
-      where: { id },
-      include: {
-        user: true,
-        post: { include: { author: true } },
-      },
-    });
+  async getLike(id: number): Promise<LikeDetailDTO> {
+    try {
+      const like = await this.prisma.like.findUnique({
+        where: { id },
 
-    if (!like) throw new NotFoundException("Like not found");
+        select: {
+          id: true,
+          createdAt: true,
 
-    return like;
+          user: {
+            select: {
+              id: true,
+              name: true,
+              username: true,
+            },
+          },
+
+          post: {
+            select: {
+              id: true,
+              title: true,
+              content: true,
+              createdAt: true,
+
+              author: {
+                select: {
+                  id: true,
+                  name: true,
+                  username: true,
+                },
+              },
+
+              _count: {
+                select: {
+                  likes: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (!like) throw new NotFoundException("Like not found");
+
+      return like;
+    } catch (err) {
+      if (err instanceof NotFoundException) throw err;
+
+      throw new InternalServerErrorException("Failed to fetch like");
+    }
   }
 
-  async createLike(currentUserId: number, postId: number) {
-    const post = await this.prisma.post.findUnique({
-      where: { id: postId },
-      select: { id: true },
-    });
-
-    if (!post) throw new NotFoundException("Post not found");
-
+  async createLike(
+    currentUserId: number,
+    postId: number,
+  ): Promise<LikeDetailDTO> {
     try {
+      // Single transaction
+      // create like (will fail if post doesnt exist or ir already liked)
       const [like] = await this.prisma.$transaction([
         this.prisma.like.create({
           data: {
             userId: currentUserId,
             postId,
           },
-          include: {
+
+          select: {
+            id: true,
+            createdAt: true,
+
+            user: {
+              select: { id: true, name: true, username: true },
+            },
+
             post: {
-              include: {
-                likes: {
-                  include: {
-                    user: { select: { id: true, name: true, username: true } },
-                  },
-                },
+              select: {
+                id: true,
+                title: true,
+                content: true,
+                createdAt: true,
+                author: { select: { id: true, name: true, username: true } },
+                _count: { select: { likes: true } },
               },
             },
           },
         }),
 
         this.prisma.post.update({
-          where: {
-            id: postId,
-          },
-          data: {
-            likesCount: {
-              increment: 1,
-            },
-          },
+          where: { id: postId },
+          data: { likesCount: { increment: 1 } },
+          select: { id: true },
         }),
       ]);
 
       return like;
     } catch (err) {
-      // if user already liked the post (because of @@unique([userId, postId]))
-      if (
-        err instanceof Prisma.PrismaClientKnownRequestError &&
-        err.code === "P2002"
-      ) {
-        throw new ConflictException("You already liked this post");
+      if (err instanceof Prisma.PrismaClientKnownRequestError) {
+        // @@unique([userId, postId]) -> already liked
+        if (err.code === "P2002")
+          throw new ConflictException("You already liked this post");
+
+        // FK violation: postId doesn't exist (or userId doesn't exist)
+        if (err.code === "P2003") throw new NotFoundException("Post not found");
+
+        // Record not found on update (race condition / deleted post)
+        if (err.code === "P2025") throw new NotFoundException("Post not found");
       }
-      throw err;
+
+      throw new InternalServerErrorException("Failed to create like");
     }
   }
 
   async deleteLike(id: number, currentUserId: number) {
     try {
+      // Validate existence + ownership + post target
       const like = await this.prisma.like.findUnique({
         where: { id },
         select: { id: true, userId: true, postId: true },
@@ -103,38 +195,42 @@ export class LikesService {
 
       if (!like) throw new NotFoundException("Like not found");
 
-      if (like.userId !== currentUserId) {
+      if (like.userId !== currentUserId)
         throw new ForbiddenException(
           "You do not have permission to delete this like",
         );
-      }
 
-      await this.prisma.$transaction([
-        this.prisma.post.update({
+      // Delete like + decrement counter safely
+      await this.prisma.$transaction(async (tx) => {
+        // Delete frist (guarantees only decrement if the like truly exists)
+        await tx.like.delete({ where: { id: like.id } });
+
+        // Decrement likesCount, but never let it go below 0
+        await tx.post.update({
           where: { id: like.postId },
-          data: { likesCount: { decrement: 1 } },
-        }),
-        this.prisma.like.delete({
-          where: { id: like.id },
-        }),
-      ]);
+          data: {
+            likesCount: {
+              decrement: 1,
+            },
+          },
+          select: { id: true },
+        });
+      });
 
       return { message: "Like deleted successfully" };
     } catch (err) {
-      if (
-        err instanceof NotFoundException ||
-        err instanceof ForbiddenException
-      ) {
+      if (err instanceof NotFoundException || err instanceof ForbiddenException)
         throw err;
-      }
 
       // Optional: if post was deleted but like existed (FK / race conditions)
       if (
         err instanceof Prisma.PrismaClientKnownRequestError &&
         err.code === "P2025"
-      ) {
-        throw new NotFoundException("Post not found");
-      }
+      )
+        throw new NotFoundException("Like or post not found");
+
+      if (err instanceof NotFoundException || err instanceof ForbiddenException)
+        throw err;
 
       throw new InternalServerErrorException("Failed to delete like");
     }
