@@ -1,3 +1,5 @@
+import { Prisma } from "@prisma/client";
+
 /**
  * Safe representation of a Post used in list-based queries
  *
@@ -46,3 +48,34 @@ export type SafePostListDTO = {
     likes: number;
   };
 };
+
+/**
+ * Prisma select that matches SafePostListDTO exactly
+ *
+ * Guarantees:
+ * - No accidental extra fields
+ * - No sensitive data leakage
+ * - Compile-time safety if DTO changes
+ * - Consistent performance for list queries
+ */
+
+export const SafePostListSelect = {
+  id: true,
+  title: true,
+  content: true,
+  createdAt: true,
+
+  author: {
+    select: {
+      id: true,
+      name: true,
+      username: true,
+    },
+  },
+
+  _count: {
+    select: {
+      likes: true,
+    },
+  },
+} satisfies Prisma.PostSelect;

@@ -1,3 +1,5 @@
+import { Prisma } from "@prisma/client";
+
 /**
  * Safe representation of a Post returned immediately after creation
  *
@@ -41,3 +43,29 @@ export type SafePostCreateDTO = {
     likes: number;
   };
 };
+
+/**
+ * Prisma select that matches SafePostCreateDTO exactly
+ * Use this in createPost() to guarantee the returned shape
+ */
+
+export const SafePostCreateSelect = {
+  id: true,
+  title: true,
+  content: true,
+  createdAt: true,
+
+  author: {
+    select: {
+      id: true,
+      name: true,
+      username: true,
+    },
+  },
+
+  _count: {
+    select: {
+      likes: true,
+    },
+  },
+} satisfies Prisma.PostSelect;

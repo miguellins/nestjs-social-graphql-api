@@ -1,4 +1,7 @@
+import { SafePostListSelect } from "./safe-post-list.dto";
 import { SafePostListDTO } from "./safe-post-list.dto";
+
+import { Prisma } from "@prisma/client";
 
 /**
  * Extended safe representation of a Post used for detailed views
@@ -46,3 +49,32 @@ export type SafePostDetailDTO = SafePostListDTO & {
     };
   }[];
 };
+
+/**
+ * Prisma select that matches SafePostDetailDTO exactly
+ *
+ * Extends the list select and adds:
+ * - updatedAt
+ * - likes preview (with lightweight user preview)
+ */
+
+export const SafePostDetailSelect = {
+  ...SafePostListSelect,
+
+  updatedAt: true,
+
+  likes: {
+    // IMPORTANT: apply take/orderBy in the query, not in the select constant
+    select: {
+      id: true,
+      createdAt: true,
+      user: {
+        select: {
+          id: true,
+          name: true,
+          username: true,
+        },
+      },
+    },
+  },
+} satisfies Prisma.PostSelect;

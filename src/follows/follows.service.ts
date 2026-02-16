@@ -9,7 +9,7 @@ import {
 
 import { PAGINATION } from "src/common/constants/hard-cap.constants";
 
-import { SafeFollowDTO } from "./dto/safe-follow.dto";
+import { SafeFollowDTO, SafeFollowSelect } from "./dto/safe-follow.dto";
 
 import { PrismaService } from "src/prisma.service";
 
@@ -29,28 +29,7 @@ export class FollowsService {
       take,
       orderBy: { id: "desc" },
 
-      select: {
-        id: true,
-        createdAt: true,
-        followerId: true,
-        followingId: true,
-
-        follower: {
-          select: {
-            id: true,
-            name: true,
-            username: true,
-          },
-        },
-
-        following: {
-          select: {
-            id: true,
-            name: true,
-            username: true,
-          },
-        },
-      },
+      select: SafeFollowSelect,
     });
   }
 
@@ -58,28 +37,7 @@ export class FollowsService {
     const follow = await this.prisma.follow.findUnique({
       where: { id },
 
-      select: {
-        id: true,
-        createdAt: true,
-        followerId: true,
-        followingId: true,
-
-        follower: {
-          select: {
-            id: true,
-            name: true,
-            username: true,
-          },
-        },
-
-        following: {
-          select: {
-            id: true,
-            name: true,
-            username: true,
-          },
-        },
-      },
+      select: SafeFollowSelect,
     });
 
     if (!follow) throw new NotFoundException("Follow not found");
@@ -108,19 +66,7 @@ export class FollowsService {
       return await this.prisma.follow.create({
         data: { followerId, followingId },
 
-        select: {
-          id: true,
-          createdAt: true,
-          followerId: true,
-          followingId: true,
-
-          follower: {
-            select: { id: true, name: true, username: true },
-          },
-          following: {
-            select: { id: true, name: true, username: true },
-          },
-        },
+        select: SafeFollowSelect,
       });
     } catch (err) {
       // Duplicate follow attempt (unique constraint)

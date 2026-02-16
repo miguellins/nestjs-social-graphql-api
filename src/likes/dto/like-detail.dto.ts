@@ -1,3 +1,5 @@
+import { Prisma } from "@prisma/client";
+
 /**
  * Internal DTO representing a fully hydrated Like
  *
@@ -52,3 +54,49 @@ export type LikeDetailDTO = {
     };
   };
 };
+
+/**
+ * Prisma select shape that matches LikeListDTO
+ *
+ * Why:
+ * - Guarantees service output matches DTO
+ * - Prevents accidental field leaks
+ * - Keeps return types strongly typed
+ * - Improves long-term maintainability
+ */
+
+export const LikeDetailSelect = {
+  id: true,
+  createdAt: true,
+
+  user: {
+    select: {
+      id: true,
+      name: true,
+      username: true,
+    },
+  },
+
+  post: {
+    select: {
+      id: true,
+      title: true,
+      content: true,
+      createdAt: true,
+
+      author: {
+        select: {
+          id: true,
+          name: true,
+          username: true,
+        },
+      },
+
+      _count: {
+        select: {
+          likes: true,
+        },
+      },
+    },
+  },
+} satisfies Prisma.LikeSelect;

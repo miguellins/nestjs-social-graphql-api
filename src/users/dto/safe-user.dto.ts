@@ -1,3 +1,5 @@
+import { Prisma } from "@prisma/client";
+
 /**
  * Safe representation of a User returned by the service
  *
@@ -31,3 +33,29 @@ export type SafeUserDTO = {
     following: number;
   };
 };
+
+/**
+ * Prisma select shape that matches SafeUserDTO exactly
+ *
+ * Why:
+ * - Guarantees the DB result matches the DTO
+ * - Prevents accidental field leakage (email, password)
+ * - Gives full type-safety via satisfies
+ */
+
+export const SafeUserSelect = {
+  id: true,
+  name: true,
+  username: true,
+  createdAt: true,
+  updatedAt: true,
+
+  _count: {
+    select: {
+      likes: true,
+      posts: true,
+      followers: true,
+      following: true,
+    },
+  },
+} satisfies Prisma.UserSelect;

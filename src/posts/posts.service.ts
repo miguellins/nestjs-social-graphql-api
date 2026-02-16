@@ -12,9 +12,15 @@ import { PAGINATION } from "src/common/constants/hard-cap.constants";
 
 import { FindPostsArgs } from "src/common/args/find-posts-args";
 
-import { SafePostCreateDTO } from "./dto/safe-post-create.dto";
-import { SafePostDetailDTO } from "./dto/safe-post-detail";
-import { SafePostListDTO } from "./dto/safe-post-list.dto";
+import {
+  SafePostCreateDTO,
+  SafePostCreateSelect,
+} from "./dto/safe-post-create.dto";
+import {
+  SafePostDetailDTO,
+  SafePostDetailSelect,
+} from "./dto/safe-post-detail";
+import { SafePostListDTO, SafePostListSelect } from "./dto/safe-post-list.dto";
 import { CreatePostInput } from "./dto/create-post.input";
 import { UpdatePostInput } from "./dto/update-post.input";
 
@@ -59,26 +65,7 @@ export class PostsService {
         createdAt: "desc",
       },
 
-      select: {
-        id: true,
-        title: true,
-        content: true,
-        createdAt: true,
-
-        author: {
-          select: {
-            id: true,
-            username: true,
-            name: true,
-          },
-        },
-
-        _count: {
-          select: {
-            likes: true,
-          },
-        },
-      },
+      select: SafePostListSelect,
     });
   }
 
@@ -98,43 +85,12 @@ export class PostsService {
       where: { id },
 
       select: {
-        id: true,
-        title: true,
-        content: true,
-        createdAt: true,
-        updatedAt: true,
+        ...SafePostDetailSelect,
 
-        author: {
-          select: {
-            id: true,
-            name: true,
-            username: true,
-          },
-        },
-
-        _count: {
-          select: {
-            likes: true,
-          },
-        },
-
-        // Optional field
         likes: {
           take: likesTake,
           orderBy: { createdAt: "desc" },
-
-          select: {
-            id: true,
-            createdAt: true,
-
-            user: {
-              select: {
-                id: true,
-                name: true,
-                username: true,
-              },
-            },
-          },
+          select: SafePostDetailSelect.likes.select,
         },
       },
     });
@@ -164,28 +120,7 @@ export class PostsService {
           author: { connect: { id: currentUserId } },
         },
 
-        select: {
-          id: true,
-          title: true,
-          content: true,
-          createdAt: true,
-          //updatedAt: true,
-
-          author: {
-            select: {
-              id: true,
-              name: true,
-              username: true,
-            },
-          },
-
-          // Optional field
-          _count: {
-            select: {
-              likes: true,
-            },
-          },
-        },
+        select: SafePostCreateSelect,
       });
     } catch (err) {
       // Handle known Prisma errors cleanly

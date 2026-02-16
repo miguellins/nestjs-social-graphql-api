@@ -10,8 +10,7 @@ import { PAGINATION } from "src/common/constants/hard-cap.constants";
 
 import { FindLikesArgs } from "src/common/args/find-likes.args";
 
-import { LikeDetailDTO } from "./dto/like-detail.dto";
-import { LikeListDTO } from "./dto/like-list.dto";
+import { LikeDetailDTO, LikeDetailSelect } from "./dto/like-detail.dto";
 
 import { PrismaService } from "src/prisma.service";
 
@@ -21,7 +20,7 @@ import { Prisma } from "@prisma/client";
 export class LikesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findLikes(params?: FindLikesArgs): Promise<LikeListDTO[]> {
+  async findLikes(params?: FindLikesArgs): Promise<LikeDetailDTO[]> {
     const take = Math.min(
       params?.take ?? PAGINATION.DEFAULT_TAKE,
       PAGINATION.MAX_TAKE,
@@ -37,41 +36,7 @@ export class LikesService {
       where,
       orderBy: { createdAt: "desc" },
 
-      select: {
-        id: true,
-        createdAt: true,
-
-        user: {
-          select: {
-            id: true,
-            name: true,
-            username: true,
-          },
-        },
-
-        post: {
-          select: {
-            id: true,
-            title: true,
-            content: true,
-            createdAt: true,
-
-            author: {
-              select: {
-                id: true,
-                name: true,
-                username: true,
-              },
-            },
-
-            _count: {
-              select: {
-                likes: true,
-              },
-            },
-          },
-        },
-      },
+      select: LikeDetailSelect,
     });
   }
 
@@ -80,41 +45,7 @@ export class LikesService {
       const like = await this.prisma.like.findUnique({
         where: { id },
 
-        select: {
-          id: true,
-          createdAt: true,
-
-          user: {
-            select: {
-              id: true,
-              name: true,
-              username: true,
-            },
-          },
-
-          post: {
-            select: {
-              id: true,
-              title: true,
-              content: true,
-              createdAt: true,
-
-              author: {
-                select: {
-                  id: true,
-                  name: true,
-                  username: true,
-                },
-              },
-
-              _count: {
-                select: {
-                  likes: true,
-                },
-              },
-            },
-          },
-        },
+        select: LikeDetailSelect,
       });
 
       if (!like) throw new NotFoundException("Like not found");
@@ -141,25 +72,7 @@ export class LikesService {
             postId,
           },
 
-          select: {
-            id: true,
-            createdAt: true,
-
-            user: {
-              select: { id: true, name: true, username: true },
-            },
-
-            post: {
-              select: {
-                id: true,
-                title: true,
-                content: true,
-                createdAt: true,
-                author: { select: { id: true, name: true, username: true } },
-                _count: { select: { likes: true } },
-              },
-            },
-          },
+          select: LikeDetailSelect,
         }),
 
         this.prisma.post.update({

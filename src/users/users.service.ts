@@ -10,9 +10,9 @@ import { PAGINATION } from "src/common/constants/hard-cap.constants";
 
 import { PaginationArgs } from "src/common/args/pagination.args";
 
+import { SafeUserDTO, SafeUserSelect } from "./dto/safe-user.dto";
 import { CreateUserInput } from "./dto/create-user.input";
 import { UpdateUserInput } from "./dto/update-user.input";
-import { SafeUserDTO } from "./dto/safe-user.dto";
 
 import { PrismaService } from "src/prisma.service";
 import { Prisma } from "@prisma/client";
@@ -42,46 +42,14 @@ export class UsersService {
       orderBy: {
         createdAt: "desc",
       },
-      select: {
-        id: true,
-        name: true,
-        username: true,
-        createdAt: true,
-        updatedAt: true,
-
-        // Optional field
-        _count: {
-          select: {
-            likes: true,
-            posts: true,
-            followers: true,
-            following: true,
-          },
-        },
-      },
+      select: SafeUserSelect,
     });
   }
 
   async getUser(id: number): Promise<SafeUserDTO> {
     const user = await this.prisma.user.findUnique({
       where: { id },
-      select: {
-        id: true,
-        name: true,
-        username: true,
-        createdAt: true,
-        updatedAt: true,
-
-        // Cheap and scalable way to expose relationship
-        _count: {
-          select: {
-            posts: true,
-            likes: true,
-            followers: true,
-            following: true,
-          },
-        },
-      },
+      select: SafeUserSelect,
     });
 
     if (!user) throw new NotFoundException(`User with ID ${id} not found`);
@@ -199,23 +167,7 @@ export class UsersService {
       return await this.prisma.user.update({
         where: { id: currentUserId },
         data,
-        select: {
-          id: true,
-          name: true,
-          username: true,
-          createdAt: true,
-          updatedAt: true,
-
-          // Optional field
-          _count: {
-            select: {
-              likes: true,
-              posts: true,
-              followers: true,
-              following: true,
-            },
-          },
-        },
+        select: SafeUserSelect,
       });
     } catch (err) {
       // If user doesnt exist, prisma throws P2025 on update
