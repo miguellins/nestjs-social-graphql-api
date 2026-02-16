@@ -2,62 +2,29 @@
 # THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
 # ------------------------------------------------------
 
+type DeleteResponse {
+  message: String!
+}
+
 type SafeUserPreview {
   id: ID!
   name: String!
   username: String!
 }
 
-type PostCounts {
-  likes: Int!
-}
-
-type Post {
+type Follow {
   id: ID!
-  title: String!
-  content: String!
   createdAt: DateTime!
-  author: SafeUserPreview!
-  _count: PostCounts!
+  followerId: Int!
+  followingId: Int!
+  follower: SafeUserPreview
+  following: SafeUserPreview
 }
 
 """
 A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format.
 """
 scalar DateTime
-
-type Like {
-  id: ID!
-  createdAt: DateTime!
-  userId: Int
-  user: User
-  postId: Int!
-}
-
-type User {
-  id: ID!
-  name: String!
-  email: String!
-  username: String!
-  createdAt: DateTime!
-  updatedAt: DateTime!
-  posts: [Post!]
-  likes: [Like!]
-  followers: [Follow!]
-  following: [Follow!]
-}
-
-type Follow {
-  id: ID!
-  followerId: Float!
-  followingId: Float!
-  follower: User
-  following: User
-}
-
-type DeleteResponse {
-  message: String!
-}
 
 type UserCounts {
   posts: Int!
@@ -73,6 +40,10 @@ type SafeUser {
   createdAt: DateTime!
   updatedAt: DateTime!
   _count: UserCounts
+}
+
+type PostCounts {
+  likes: Int!
 }
 
 type PostListItem {
@@ -101,11 +72,41 @@ type PostDetail {
   likes: [LikePreview!]
 }
 
+type Post {
+  id: ID!
+  title: String!
+  content: String!
+  createdAt: DateTime!
+  author: SafeUserPreview!
+  _count: PostCounts!
+}
+
 type LikeListItem {
   id: ID!
   createdAt: DateTime!
   user: SafeUserPreview!
   post: PostListItem!
+}
+
+type User {
+  id: ID!
+  name: String!
+  email: String!
+  username: String!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  posts: [Post!]
+  likes: [Like!]
+  followers: [Follow!]
+  following: [Follow!]
+}
+
+type Like {
+  id: ID!
+  createdAt: DateTime!
+  userId: Int
+  user: User
+  postId: Int!
 }
 
 type AuthPayload {
@@ -134,8 +135,8 @@ type Query {
     userId: Int
   ): [LikeListItem!]!
   likeById(id: Int!): LikeListItem!
-  follows: [Follow!]!
-  follow(id: Int!): Follow!
+  follows(take: Int): [Follow!]!
+  followById(id: Int!): Follow!
 }
 
 type Mutation {

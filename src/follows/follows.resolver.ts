@@ -1,42 +1,49 @@
 import { Resolver, Mutation, Query, Args, Int } from "@nestjs/graphql";
 import { Throttle } from "@nestjs/throttler";
 
-import { FollowsService } from "./follows.service";
-import { Follow } from "./follows.model";
-
 import { CurrentUser } from "src/common/decorators/current-user.decorator";
 import { Public } from "src/common/decorators/auth.decorator";
 
+import { THROTTLE_LIMITS } from "src/common/constants/throttle.constants";
+
 import { DeleteResponse } from "src/common/types/delete-response.type";
+
+import { FollowsService } from "./follows.service";
+
+import { Follow } from "./models/follows.model";
 
 @Resolver(() => Follow)
 export class FollowsResolver {
   constructor(private readonly followsService: FollowsService) {}
 
   @Public()
+  @Throttle({ default: THROTTLE_LIMITS.LIST })
   @Query(() => [Follow])
-  async follows(): Promise<Follow[]> {
-    return this.followsService.getAllFollows();
+  async follows(
+    @Args("take", { type: () => Int, nullable: true }) take?: number,
+  ): Promise<Follow[]> {
+    return this.followsService.findFollows({ take });
   }
 
   @Public()
+  @Throttle({ default: THROTTLE_LIMITS.READ })
   @Query(() => Follow)
-  async follow(
+  async followById(
     @Args("id", { type: () => Int }) id: number,
-  ): Promise<Follow | null> {
+  ): Promise<Follow> {
     return this.followsService.getFollow(id);
   }
 
-  @Throttle({ default: { ttl: 10, limit: 2 } })
+  @Throttle({ default: THROTTLE_LIMITS.MUTATION })
   @Mutation(() => Follow)
   async createFollow(
     @Args("followingId", { type: () => Int }) followingId: number,
     @CurrentUser() user: { id: number },
-  ) {
+  ): Promise<Follow> {
     return this.followsService.createFollow(user.id, followingId);
   }
 
-  @Throttle({ default: { ttl: 10, limit: 2 } })
+  @Throttle({ default: THROTTLE_LIMITS.DESTRUCTIVE })
   @Mutation(() => DeleteResponse)
   async deleteFollow(
     @Args("id", { type: () => Int }) id: number,
