@@ -6,6 +6,8 @@ import {
   BadRequestException,
 } from "@nestjs/common";
 
+import { PAGINATION } from "src/common/constants/hard-cap.constants";
+
 import { PaginationArgs } from "src/common/args/pagination.args";
 
 import { CreateUserInput } from "./dto/create-user.input";
@@ -26,16 +28,11 @@ export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findUsers(params?: PaginationArgs): Promise<SafeUserDTO[]> {
-    // Hard query cap
-    // Max number of records per request
-    const MAX_TAKE = 50;
-
-    // Default number of users returned
-    const DEFAULT_TAKE = 20;
-
-    // Determines the final limit safely
     // Ensures the value never exceeds MAX_TAKE (number of records per request)
-    const limit = Math.min(params?.take ?? DEFAULT_TAKE, MAX_TAKE);
+    const limit = Math.min(
+      params?.take ?? PAGINATION.DEFAULT_TAKE,
+      PAGINATION.MAX_TAKE,
+    );
 
     return this.prisma.user.findMany({
       // Use the safe limit

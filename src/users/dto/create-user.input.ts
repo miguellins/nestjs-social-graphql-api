@@ -7,9 +7,9 @@ import {
   MinLength,
 } from "class-validator";
 
-import { Field, InputType } from "@nestjs/graphql";
+import { Trim } from "src/common/transformer/trim.transformer";
 
-import { Transform } from "class-transformer";
+import { Field, InputType } from "@nestjs/graphql";
 
 /**
  * GraphQL Input Type used when creating a new user
@@ -27,7 +27,7 @@ import { Transform } from "class-transformer";
 export class CreateUserInput {
   @Field()
   // Remove whitespace from both ends
-  @Transform(({ value }) => (typeof value === "string" ? value.trim() : value))
+  @Trim()
   @IsString()
   @IsNotEmpty()
   @MinLength(3)
@@ -36,9 +36,7 @@ export class CreateUserInput {
 
   @Field()
   // Remove whitespace from both ends and converts all characteres to lowercase
-  @Transform(({ value }) =>
-    typeof value === "string" ? value.trim().toLowerCase() : value,
-  )
+  @Trim()
   @IsEmail()
   @IsNotEmpty()
   @MinLength(3)
@@ -46,7 +44,7 @@ export class CreateUserInput {
   email: string;
 
   @Field()
-  @Transform(({ value }) => (typeof value === "string" ? value.trim() : value))
+  @Trim()
   @IsString()
   @IsNotEmpty()
   @MinLength(3)

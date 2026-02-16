@@ -6,9 +6,9 @@ import {
   MinLength,
 } from "class-validator";
 
-import { Field, InputType } from "@nestjs/graphql";
+import { Trim } from "src/common/transformer/trim.transformer";
 
-import { Transform } from "class-transformer";
+import { Field, InputType } from "@nestjs/graphql";
 
 /**
  * GraphQL Input Type used when updating an existing post
@@ -27,7 +27,7 @@ import { Transform } from "class-transformer";
 @InputType()
 export class UpdatePostInput {
   @Field({ nullable: true })
-  @Transform(({ value }) => (typeof value === "string" ? value.trim() : value))
+  @Trim()
   @IsString()
   @IsNotEmpty()
   @IsOptional()
@@ -36,7 +36,7 @@ export class UpdatePostInput {
   title?: string;
 
   @Field({ nullable: true })
-  @Transform(({ value }) => (typeof value === "string" ? value.trim() : value))
+  @Trim()
   @IsString()
   @IsNotEmpty()
   @IsOptional()

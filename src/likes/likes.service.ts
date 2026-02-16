@@ -6,6 +6,8 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 
+import { PAGINATION } from "src/common/constants/hard-cap.constants";
+
 import { FindLikesArgs } from "src/common/args/find-likes.args";
 
 import { LikeDetailDTO } from "./dto/like-detail.dto";
@@ -20,10 +22,10 @@ export class LikesService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findLikes(params?: FindLikesArgs): Promise<LikeListDTO[]> {
-    const MAX_TAKE = 50;
-    const DEFAULT_TAKE = 20;
-
-    const take = Math.min(params?.take ?? DEFAULT_TAKE, MAX_TAKE);
+    const take = Math.min(
+      params?.take ?? PAGINATION.DEFAULT_TAKE,
+      PAGINATION.MAX_TAKE,
+    );
 
     const where: Prisma.LikeWhereInput = {
       ...(params?.postId && { postId: params.postId }),

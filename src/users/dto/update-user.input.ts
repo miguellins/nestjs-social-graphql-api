@@ -8,9 +8,10 @@ import {
   MinLength,
 } from "class-validator";
 
-import { Field, InputType } from "@nestjs/graphql";
+import { Normalize } from "src/common/transformer/normalize.transformer";
+import { Trim } from "src/common/transformer/trim.transformer";
 
-import { Transform } from "class-transformer";
+import { Field, InputType } from "@nestjs/graphql";
 
 /**
  * GraphQL Input Type used when updating an existing user
@@ -35,7 +36,7 @@ import { Transform } from "class-transformer";
 @InputType()
 export class UpdateUserInput {
   @Field({ nullable: true })
-  @Transform(({ value }) => (typeof value === "string" ? value.trim() : value))
+  @Trim()
   @IsString()
   @IsNotEmpty()
   @MinLength(3)
@@ -44,9 +45,7 @@ export class UpdateUserInput {
   name?: string;
 
   @Field({ nullable: true })
-  @Transform(({ value }) =>
-    typeof value === "string" ? value.trim().toLowerCase() : value,
-  )
+  @Normalize()
   @IsString()
   @IsEmail()
   @IsNotEmpty()
@@ -56,7 +55,7 @@ export class UpdateUserInput {
   email?: string;
 
   @Field({ nullable: true })
-  @Transform(({ value }) => (typeof value === "string" ? value.trim() : value))
+  @Trim()
   @IsString()
   @IsOptional()
   @MinLength(3)

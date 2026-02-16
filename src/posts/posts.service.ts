@@ -8,6 +8,8 @@ import {
 
 import { __InputValue } from "graphql";
 
+import { PAGINATION } from "src/common/constants/hard-cap.constants";
+
 import { FindPostsArgs } from "src/common/args/find-posts-args";
 
 import { SafePostCreateDTO } from "./dto/safe-post-create.dto";
@@ -29,16 +31,11 @@ export class PostsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findPosts(params?: FindPostsArgs): Promise<SafePostListDTO[]> {
-    // Hard query cap
-    // Max number of records per request
-    const MAX_TAKE = 50;
-
-    // Default number of posts returned
-    const DEFAULT_TAKE = 20;
-
-    // Determines the final limit safely
     // Ensures the value never exceeds MAX_TAKE (number of records per request)
-    const take = Math.min(params?.take ?? DEFAULT_TAKE, MAX_TAKE);
+    const take = Math.min(
+      params?.take ?? PAGINATION.DEFAULT_TAKE,
+      PAGINATION.MAX_TAKE,
+    );
 
     // Optional search
     const q = params?.q?.trim();
