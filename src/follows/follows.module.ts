@@ -7,7 +7,7 @@ import { FollowsService } from "./follows.service";
 
 @Module({
   imports: [PrismaModule],
-  providers: [FollowsService, FollowsResolver, PrismaModule],
+  providers: [FollowsService, FollowsResolver],
   exports: [FollowsService],
 })
-export class FollowsModule {}
+export class FollowsModule { }

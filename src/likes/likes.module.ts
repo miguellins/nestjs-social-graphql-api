@@ -7,7 +7,7 @@ import { LikesService } from "./likes.service";
 
 @Module({
   imports: [PrismaModule],
-  providers: [LikesService, LikeResolver, PrismaModule],
+  providers: [LikesService, LikeResolver],
   exports: [LikesService],
 })
-export class LikesModule {}
+export class LikesModule { }
