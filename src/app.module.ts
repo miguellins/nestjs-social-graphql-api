@@ -13,7 +13,16 @@ import { PostsModule } from "./posts/posts.module";
 import { LikesModule } from "./likes/likes.module";
 import { AuthModule } from "./auth/auth.module";
 
+import type { GraphQLFormattedError } from "graphql";
+
+import type { Request, Response } from "express";
+
 import { join } from "path";
+
+export type GqlContext = {
+  req: Request;
+  res: Response;
+};
 
 @Module({
   imports: [
@@ -26,12 +35,15 @@ import { join } from "path";
       autoSchemaFile: join(process.cwd(), "src/schema.gql"),
 
       // Customizes how errors are presented to the GraphQL client
-      formatError: (error) => ({
+      formatError: (error: GraphQLFormattedError) => ({
         message: error.message,
       }),
 
       // Injects the HTTP request and response into the GraphQL context
-      context: ({ req, res }) => ({ req, res }),
+      context: ({ req, res }: { req: Request; res: Response }): GqlContext => ({
+        req,
+        res,
+      }),
 
       debug: false,
 

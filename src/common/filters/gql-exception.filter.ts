@@ -9,6 +9,40 @@ import { GqlArgumentsHost, GqlExceptionFilter } from "@nestjs/graphql";
 
 import { Prisma } from "@prisma/client";
 
+type GqlErrorResponseShape = {
+  message?: string | string[];
+  code?: string;
+  fields?: string[];
+};
+
+// Type guard to avoid 'as any'
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+// Narrow HttpException.getResponse() safely
+function normalizeHttpExceptionResponse(res: unknown): GqlErrorResponseShape {
+  if (typeof res === "string") return { message: res };
+
+  if (!isObject(res)) return {};
+
+  const message = res["message"];
+  const code = res["code"];
+  const fields = res["fields"];
+
+  return {
+    // Strong narrowing instead of any
+    message:
+      typeof message === "string" || Array.isArray(message)
+        ? message
+        : undefined,
+    code: typeof code === "string" ? code : undefined,
+    fields: Array.isArray(fields)
+      ? fields.filter((f) => typeof f === "string")
+      : undefined,
+  };
+}
+
 @Catch()
 export class GlobalGqlExceptionFilter implements GqlExceptionFilter {
   catch(exception: unknown, host: ArgumentsHost) {
@@ -53,30 +87,35 @@ export class GlobalGqlExceptionFilter implements GqlExceptionFilter {
     // Normal Nest HTTP exceptions (BadRequest, Forbidden, NotFound, etc)
     if (exception instanceof HttpException) {
       const status = exception.getStatus();
-      const res = exception.getResponse() as any;
 
-      // allow custom objects to pass through
+      // ✅ FIX: remove `as any` and safely normalize the response
+      const normalized = normalizeHttpExceptionResponse(
+        exception.getResponse(),
+      );
+
+      // ✅ FIX: message extraction now type-safe
       const message =
-        typeof res === "string"
-          ? res
-          : Array.isArray(res?.message)
-            ? res.message[0]
-            : res?.message || "Request error";
+        typeof normalized.message === "string"
+          ? normalized.message
+          : Array.isArray(normalized.message)
+            ? normalized.message[0]
+            : "Request error";
 
+      // ✅ FIX: code selection uses typed normalized.code
       const code =
-        typeof res === "object" && res?.code
-          ? res.code
-          : status === 400
-            ? "BAD_REQUEST"
-            : status === 401
-              ? "UNAUTHENTICATED"
-              : status === 403
-                ? "FORBIDDEN"
-                : status === 404
-                  ? "NOT_FOUND"
-                  : "ERROR";
+        normalized.code ??
+        (status === 400
+          ? "BAD_REQUEST"
+          : status === 401
+            ? "UNAUTHENTICATED"
+            : status === 403
+              ? "FORBIDDEN"
+              : status === 404
+                ? "NOT_FOUND"
+                : "ERROR");
 
-      const fields = typeof res === "object" ? res?.fields : undefined;
+      // ✅ FIX: fields are already validated as string[]
+      const fields = normalized.fields;
 
       return new HttpException({ message, code, fields }, status);
     }
