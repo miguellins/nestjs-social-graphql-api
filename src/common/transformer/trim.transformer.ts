@@ -1,4 +1,4 @@
-import { Transform } from "class-transformer";
+import { Transform, type TransformFnParams } from "class-transformer";
 
 /**
  * Trims whitespace from string values
@@ -9,5 +9,7 @@ import { Transform } from "class-transformer";
  * name: string;
  */
 
-export const Trim = () =>
-  Transform(({ value }) => (typeof value === "string" ? value.trim() : value));
+export const Trim = (): PropertyDecorator =>
+  Transform(({ value }: TransformFnParams): unknown =>
+    typeof value === "string" ? value.trim() : value,
+  );

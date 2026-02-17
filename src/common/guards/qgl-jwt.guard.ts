@@ -5,6 +5,15 @@ import { Reflector } from "@nestjs/core";
 
 import { IS_PUBLIC_KEY } from "../decorators/auth.decorator";
 
+type GraphQLContext = {
+  req: Request & {
+    user?: {
+      id: number;
+      username?: string;
+    };
+  };
+};
+
 @Injectable()
 export class GqlJwtGuard extends AuthGuard("jwt") {
   constructor(private readonly reflector: Reflector) {
@@ -24,6 +33,7 @@ export class GqlJwtGuard extends AuthGuard("jwt") {
 
   getRequest(context: ExecutionContext) {
     const gqlCtx = GqlExecutionContext.create(context);
-    return gqlCtx.getContext().req;
+    const ctx = gqlCtx.getContext<GraphQLContext>();
+    return ctx.req;
   }
 }

@@ -98,10 +98,9 @@ export class UsersService {
         // P2002 = Unique constraint failed
         if (err.code === "P2002") {
           // err.meta?.target usually contains which unique field(s) failed
-          const target = (err.meta as any)?.target as
-            | string[]
-            | string
-            | undefined;
+          const target = (
+            err.meta as { target?: string[] | string } | undefined
+          )?.target;
 
           // Give a more precise conflict message (professional UX)
           if (Array.isArray(target)) {
@@ -176,10 +175,9 @@ export class UsersService {
 
         // P2002 = unique constraints failed (email/username already exists)
         if (err.code === "P2002") {
-          const target = (err.meta as any)?.target as
-            | string[]
-            | string
-            | undefined;
+          const target = (
+            err.meta as { target?: string[] | string } | undefined
+          )?.target;
 
           if (Array.isArray(target)) {
             if (target.includes("email"))

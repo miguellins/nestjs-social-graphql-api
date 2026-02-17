@@ -1,4 +1,4 @@
-import { Transform } from "class-transformer";
+import { Transform, type TransformFnParams } from "class-transformer";
 
 /**
  * Trims whitespace and converts string to lowercase
@@ -9,7 +9,7 @@ import { Transform } from "class-transformer";
  * email: string;
  */
 
-export const Normalize = () =>
-  Transform(({ value }) =>
-    typeof value === "string" ? value.trim().toLowerCase() : value,
-  );
+export const Normalize = (): PropertyDecorator =>
+  Transform(({ value }: TransformFnParams): unknown => {
+    return typeof value === "string" ? value.trim().toLowerCase() : value;
+  });
