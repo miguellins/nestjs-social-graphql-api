@@ -5,6 +5,8 @@ import { Reflector } from "@nestjs/core";
 
 import { IS_PUBLIC_KEY } from "../decorators/auth.decorator";
 
+import { type Request } from "express";
+
 type GraphQLContext = {
   req: Request & {
     user?: {

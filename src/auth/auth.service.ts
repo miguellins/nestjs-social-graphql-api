@@ -33,7 +33,7 @@ export class AuthService {
         select: { id: true, username: true, password: true },
       });
 
-      if (!user) throw new UnauthorizedException("User not found");
+      if (!user) throw new UnauthorizedException("Invalid credentials");
 
       const isValid = await bcrypt.compare(password, user.password);
       if (!isValid) throw new UnauthorizedException("Invalid credentials");

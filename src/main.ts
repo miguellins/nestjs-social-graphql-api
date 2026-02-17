@@ -36,6 +36,9 @@ async function bootstrap() {
     }),
   );
 
+  // Allows SIGINT/SIGTERM to trigger module destroy lifecycle
+  app.enableShutdownHooks();
+
   await app.listen(process.env.PORT ?? 3000);
 }
 bootstrap().catch((err) => {

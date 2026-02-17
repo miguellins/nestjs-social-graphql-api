@@ -144,9 +144,6 @@ export class LikesService {
       )
         throw new NotFoundException("Like or post not found");
 
-      if (err instanceof NotFoundException || err instanceof ForbiddenException)
-        throw err;
-
       throw new InternalServerErrorException("Failed to delete like");
     }
   }

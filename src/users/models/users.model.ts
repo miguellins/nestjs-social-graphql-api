@@ -1,5 +1,3 @@
-//# DELETE IF NOT FOUND ANY USE OF THIS
-
 import {
   Field,
   GraphQLISODateTime,
