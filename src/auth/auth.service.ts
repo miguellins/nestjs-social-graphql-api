@@ -36,7 +36,7 @@ export class AuthService {
       if (!user) throw new UnauthorizedException("User not found");
 
       const isValid = await bcrypt.compare(password, user.password);
-      if (!isValid) throw new UnauthorizedException("Password is incorrect");
+      if (!isValid) throw new UnauthorizedException("Invalid credentials");
 
       const payload = { sub: user.id };
 
@@ -55,21 +55,5 @@ export class AuthService {
 
       throw new InternalServerErrorException("Login failed");
     }
-
-    /*
-    const comparePasswords = await bcrypt.compare(
-      input.password,
-      user.password,
-    );
-
-    if (!comparePasswords)
-      throw new UnauthorizedException("Password is incorrect");
-
-    const payload = { sub: user.id };
-
-    return {
-      access_token: await this.jwtService.signAsync(payload),
-    };
-    */
   }
 }

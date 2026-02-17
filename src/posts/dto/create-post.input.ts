@@ -2,7 +2,7 @@ import { IsNotEmpty, IsString, MaxLength, MinLength } from "class-validator";
 
 import { Trim } from "src/common/transformer/trim.transformer";
 
-import { Field, InputType, Int } from "@nestjs/graphql";
+import { Field, InputType } from "@nestjs/graphql";
 
 /**
  * GraphQL Input Type used when creating a new Post

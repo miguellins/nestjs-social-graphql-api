@@ -117,9 +117,6 @@ type Query {
   users(
     """Max items to return (1-50)"""
     take: Int
-
-    """Cursor for pagination (id of last item"""
-    cursor: Int
   ): [SafeUser!]!
   userById(id: Int!): SafeUser!
   posts(take: Int, q: String): [PostListItem!]!

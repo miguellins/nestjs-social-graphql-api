@@ -74,7 +74,7 @@ export class UsersService {
 
     try {
       // Hash password before storing in DB
-      const passwordHash = await bcrypt.hash(input.password, SALT_ROUNDS);
+      const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
 
       // Create user and select only safe fields
       return await this.prisma.user.create({

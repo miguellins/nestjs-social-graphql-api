@@ -11,13 +11,11 @@ import { UpdatePostInput } from "./dto/update-post.input";
 
 import { PostsService } from "./posts.service";
 
-import { PostListItem } from "./models/post-list-item.model";
-
 import { FindPostsArgs } from "../common/args/find-posts-args";
 
+import { PostListItem } from "./models/post-list-item.model";
 import { PostDetail } from "./models/post-detail.model";
 import { Post } from "./models/posts.model";
-import { SafePostDetailDTO } from "./dto/safe-post-detail";
 
 /**
  * Responsible for resolving fields of the Post GraphQL type

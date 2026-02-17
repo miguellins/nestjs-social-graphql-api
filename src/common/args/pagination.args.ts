@@ -14,13 +14,4 @@ export class PaginationArgs {
   // Match the hard cap in service
   @Max(50)
   take?: number;
-
-  @Field(() => Int, {
-    nullable: true,
-    description: "Cursor for pagination (id of last item",
-  })
-  @IsOptional()
-  @IsInt()
-  @Min(1)
-  cursor?: number;
 }

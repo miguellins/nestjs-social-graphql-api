@@ -6,8 +6,6 @@ import {
   BadRequestException,
 } from "@nestjs/common";
 
-import { __InputValue } from "graphql";
-
 import { PAGINATION } from "src/common/constants/hard-cap.constants";
 
 import { FindPostsArgs } from "src/common/args/find-posts-args";

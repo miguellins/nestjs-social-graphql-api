@@ -10,4 +10,4 @@ import { FollowsService } from "./follows.service";
   providers: [FollowsService, FollowsResolver],
   exports: [FollowsService],
 })
-export class FollowsModule { }
+export class FollowsModule {}
