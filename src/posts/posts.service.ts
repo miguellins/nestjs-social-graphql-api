@@ -18,7 +18,9 @@ import {
   SafePostDetailDTO,
   SafePostDetailSelect,
 } from "./dto/safe-post-detail";
+
 import { SafePostListDTO, SafePostListSelect } from "./dto/safe-post-list.dto";
+
 import { CreatePostInput } from "./dto/create-post.input";
 import { UpdatePostInput } from "./dto/update-post.input";
 
