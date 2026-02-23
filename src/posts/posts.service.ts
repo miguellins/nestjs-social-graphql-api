@@ -6,25 +6,25 @@ import {
   BadRequestException,
 } from "@nestjs/common";
 
-import { PAGINATION } from "src/common/constants/hard-cap.constants";
+import { PAGINATION } from "@/common/constants/hard-cap.constants";
 
-import { FindPostsArgs } from "src/common/args/find-posts-args";
+import { FindPostsArgs } from "@/common/args/find-posts-args";
 
 import {
   SafePostCreateDTO,
   SafePostCreateSelect,
-} from "./dto/safe-post-create.dto";
+} from "@/posts/dto/safe-post-create.dto";
 import {
   SafePostDetailDTO,
   SafePostDetailSelect,
-} from "./dto/safe-post-detail";
+} from "@/posts/dto/safe-post-detail";
 
-import { SafePostListDTO, SafePostListSelect } from "./dto/safe-post-list.dto";
+import { SafePostListDTO, SafePostListSelect } from "@/posts/dto/safe-post-list.dto";
 
-import { CreatePostInput } from "./dto/create-post.input";
-import { UpdatePostInput } from "./dto/update-post.input";
+import { CreatePostInput } from "@/posts/dto/create-post.input";
+import { UpdatePostInput } from "@/posts/dto/update-post.input";
 
-import { PrismaService } from "src/prisma.service";
+import { PrismaService } from "@/prisma.service";
 
 import { Prisma } from "@prisma/client";
 
@@ -34,7 +34,7 @@ import { Prisma } from "@prisma/client";
 
 @Injectable()
 export class PostsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   async findPosts(params?: FindPostsArgs): Promise<SafePostListDTO[]> {
     // Ensures the value never exceeds MAX_TAKE (number of records per request)
@@ -49,11 +49,11 @@ export class PostsService {
 
     const where: Prisma.PostWhereInput | undefined = search
       ? {
-          OR: [
-            { title: { contains: search } },
-            { content: { contains: search } },
-          ],
-        }
+        OR: [
+          { title: { contains: search } },
+          { content: { contains: search } },
+        ],
+      }
       : undefined;
 
     return this.prisma.post.findMany({

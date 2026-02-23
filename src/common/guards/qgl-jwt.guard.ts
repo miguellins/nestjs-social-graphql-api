@@ -3,7 +3,7 @@ import { GqlExecutionContext } from "@nestjs/graphql";
 import { AuthGuard } from "@nestjs/passport";
 import { Reflector } from "@nestjs/core";
 
-import { IS_PUBLIC_KEY } from "../decorators/auth.decorator";
+import { IS_PUBLIC_KEY } from "@/common/decorators/auth.decorator";
 
 import { type Request } from "express";
 

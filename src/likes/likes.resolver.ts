@@ -1,23 +1,23 @@
 import { Resolver, Query, Mutation, Args, Int } from "@nestjs/graphql";
 import { Throttle } from "@nestjs/throttler";
 
-import { CurrentUser } from "src/common/decorators/current-user.decorator";
-import { Public } from "src/common/decorators/auth.decorator";
+import { CurrentUser } from "@/common/decorators/current-user.decorator";
+import { Public } from "@/common/decorators/auth.decorator";
 
-import { THROTTLE_LIMITS } from "src/common/constants/throttle.constants";
+import { THROTTLE_LIMITS } from "@/common/constants/throttle.constants";
 
-import { DeleteResponse } from "src/common/types/delete-response.type";
+import { DeleteResponse } from "@/common/types/delete-response.type";
 
-import { FindLikesArgs } from "src/common/args/find-likes.args";
+import { FindLikesArgs } from "@/common/args/find-likes.args";
 
-import { LikeListItem } from "./models/like-list-item.model";
-import { Like } from "./models/likes.model";
+import { LikeListItem } from "@/likes/models/like-list-item.model";
+import { Like } from "@/likes/models/likes.model";
 
-import { LikesService } from "./likes.service";
+import { LikesService } from "@/likes/likes.service";
 
 @Resolver(() => Like)
 export class LikeResolver {
-  constructor(private readonly likesService: LikesService) {}
+  constructor(private readonly likesService: LikesService) { }
 
   @Public()
   @Throttle({ default: THROTTLE_LIMITS.LIST })

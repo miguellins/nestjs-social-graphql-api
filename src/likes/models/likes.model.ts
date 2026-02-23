@@ -6,7 +6,7 @@ import {
   GraphQLISODateTime,
 } from "@nestjs/graphql";
 
-import { User } from "src/users/models/users.model";
+import { User } from "@/users/models/users.model";
 
 /**
  * Full Like GraphQL ObjectType

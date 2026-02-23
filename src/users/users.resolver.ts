@@ -1,18 +1,18 @@
 import { Resolver, Mutation, Query, Args, Int } from "@nestjs/graphql";
 import { Throttle } from "@nestjs/throttler";
 
-import { CurrentUser } from "src/common/decorators/current-user.decorator";
-import { THROTTLE_LIMITS } from "src/common/constants/throttle.constants";
-import { DeleteResponse } from "src/common/types/delete-response.type";
-import { PaginationArgs } from "src/common/args/pagination.args";
-import { Public } from "src/common/decorators/auth.decorator";
+import { CurrentUser } from "@/common/decorators/current-user.decorator";
+import { THROTTLE_LIMITS } from "@/common/constants/throttle.constants";
+import { DeleteResponse } from "@/common/types/delete-response.type";
+import { PaginationArgs } from "@/common/args/pagination.args";
+import { Public } from "@/common/decorators/auth.decorator";
 
-import { UpdateUserInput } from "./dto/update-user.input";
-import { CreateUserInput } from "./dto/create-user.input";
+import { UpdateUserInput } from "@/users/dto/update-user.input";
+import { CreateUserInput } from "@/users/dto/create-user.input";
 
-import { SafeUser } from "./models/safe-user.model";
+import { SafeUser } from "@/users/models/safe-user.model";
 
-import { UsersService } from "./users.service";
+import { UsersService } from "@/users/users.service";
 
 /**
  * Responsible for resolving fields of the SafeUser GraphQL type
@@ -20,7 +20,7 @@ import { UsersService } from "./users.service";
 
 @Resolver(() => SafeUser)
 export class UsersResolver {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(private readonly usersService: UsersService) { }
 
   @Public()
   @Throttle({ default: THROTTLE_LIMITS.LIST })

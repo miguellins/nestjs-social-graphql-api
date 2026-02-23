@@ -6,15 +6,15 @@ import {
   BadRequestException,
 } from "@nestjs/common";
 
-import { PAGINATION } from "src/common/constants/hard-cap.constants";
+import { PAGINATION } from "@/common/constants/hard-cap.constants";
 
-import { PaginationArgs } from "src/common/args/pagination.args";
+import { PaginationArgs } from "@/common/args/pagination.args";
 
-import { SafeUserDTO, SafeUserSelect } from "./dto/safe-user.dto";
-import { CreateUserInput } from "./dto/create-user.input";
-import { UpdateUserInput } from "./dto/update-user.input";
+import { SafeUserDTO, SafeUserSelect } from "@/users/dto/safe-user.dto";
+import { CreateUserInput } from "@/users/dto/create-user.input";
+import { UpdateUserInput } from "@/users/dto/update-user.input";
 
-import { PrismaService } from "src/prisma.service";
+import { PrismaService } from "@/prisma.service";
 import { Prisma } from "@prisma/client";
 
 import * as bcrypt from "bcrypt";
@@ -25,7 +25,7 @@ import * as bcrypt from "bcrypt";
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   async findUsers(params?: PaginationArgs): Promise<SafeUserDTO[]> {
     // Ensures the value never exceeds MAX_TAKE (number of records per request)

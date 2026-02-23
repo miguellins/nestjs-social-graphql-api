@@ -7,17 +7,17 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 
-import { PAGINATION } from "src/common/constants/hard-cap.constants";
+import { PAGINATION } from "@/common/constants/hard-cap.constants";
 
-import { SafeFollowDTO, SafeFollowSelect } from "./dto/safe-follow.dto";
+import { SafeFollowDTO, SafeFollowSelect } from "@/follows/dto/safe-follow.dto";
 
-import { PrismaService } from "src/prisma.service";
+import { PrismaService } from "@/prisma.service";
 
 import { Prisma } from "@prisma/client";
 
 @Injectable()
 export class FollowsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   async findFollows(params?: { take?: number }): Promise<SafeFollowDTO[]> {
     const take = Math.min(

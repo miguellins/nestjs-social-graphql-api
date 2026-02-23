@@ -6,19 +6,19 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 
-import { PAGINATION } from "src/common/constants/hard-cap.constants";
+import { PAGINATION } from "@/common/constants/hard-cap.constants";
 
-import { FindLikesArgs } from "src/common/args/find-likes.args";
+import { FindLikesArgs } from "@/common/args/find-likes.args";
 
-import { LikeDetailDTO, LikeDetailSelect } from "./dto/like-detail.dto";
+import { LikeDetailDTO, LikeDetailSelect } from "@/likes/dto/like-detail.dto";
 
-import { PrismaService } from "src/prisma.service";
+import { PrismaService } from "@/prisma.service";
 
 import { Prisma } from "@prisma/client";
 
 @Injectable()
 export class LikesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   async findLikes(params?: FindLikesArgs): Promise<LikeDetailDTO[]> {
     const take = Math.min(

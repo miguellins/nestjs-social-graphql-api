@@ -1,6 +1,6 @@
 import { IsNotEmpty, IsString, MaxLength, MinLength } from "class-validator";
 
-import { Trim } from "src/common/transformer/trim.transformer";
+import { Trim } from "@/common/transformer/trim.transformer";
 
 import { Field, InputType } from "@nestjs/graphql";
 

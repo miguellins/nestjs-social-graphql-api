@@ -6,7 +6,7 @@ import {
 } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 
-import { PrismaService } from "../prisma.service";
+import { PrismaService } from "@/prisma.service";
 
 import { Prisma } from "@prisma/client";
 
@@ -17,7 +17,7 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
-  ) {}
+  ) { }
 
   async login(input: { username: string; password: string }) {
     const username = input.username?.trim().toLowerCase();

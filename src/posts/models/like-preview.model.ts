@@ -1,6 +1,6 @@
 import { Field, ID, ObjectType, GraphQLISODateTime } from "@nestjs/graphql";
 
-import { SafeUserPreview } from "./safe-user-preview.model";
+import { SafeUserPreview } from "@/posts/models/safe-user-preview.model";
 
 /**
  * Lightweight representation of a Like used in relational queries

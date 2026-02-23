@@ -8,8 +8,8 @@ import {
   MinLength,
 } from "class-validator";
 
-import { Normalize } from "src/common/transformer/normalize.transformer";
-import { Trim } from "src/common/transformer/trim.transformer";
+import { Normalize } from "@/common/transformer/normalize.transformer";
+import { Trim } from "@/common/transformer/trim.transformer";
 
 import { Field, InputType } from "@nestjs/graphql";
 

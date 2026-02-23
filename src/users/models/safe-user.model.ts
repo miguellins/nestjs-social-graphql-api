@@ -1,6 +1,6 @@
 import { Field, ID, ObjectType, GraphQLISODateTime } from "@nestjs/graphql";
 
-import { UserCounts } from "./user-counts.model";
+import { UserCounts } from "@/users/models/user-counts.model";
 
 /**
  * GraphQL Object Type representing a SAFE public view of a user
@@ -38,21 +38,12 @@ export class SafeUser {
   @Field({ description: "Unique username used for identification" })
   username: string;
 
-  @Field(() => GraphQLISODateTime, {
-    description:
-      "Timestamp indicating when the user account was originally created",
-  })
+  @Field(() => GraphQLISODateTime, { description: "Timestamp indicating when the user account was originally created" })
   createdAt: Date;
 
-  @Field(() => GraphQLISODateTime, {
-    description: "Timestamp of the most recent profile update or modification",
-  })
+  @Field(() => GraphQLISODateTime, { description: "Timestamp of the most recent profile update or modification" })
   updatedAt: Date;
 
-  @Field(() => UserCounts, {
-    nullable: true,
-    description:
-      "Aggregated counts of related entities such as posts, followers, and following. Only included when explicitly requested",
-  })
+  @Field(() => UserCounts, { nullable: true, description: "Aggregated counts of related entities such as posts, followers, and following. Only included when explicitly requested" })
   _count?: UserCounts;
 }

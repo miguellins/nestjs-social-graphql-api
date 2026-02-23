@@ -4,14 +4,14 @@ import { GraphQLModule } from "@nestjs/graphql";
 import { APP_GUARD } from "@nestjs/core";
 import { Module } from "@nestjs/common";
 
-import { GqlThrottlerGuard } from "./common/guards/qgl-throttler.guard";
-import { GqlJwtGuard } from "./common/guards/qgl-jwt.guard";
+import { GqlThrottlerGuard } from "@/common/guards/qgl-throttler.guard";
+import { GqlJwtGuard } from "@/common/guards/qgl-jwt.guard";
 
-import { FollowsModule } from "./follows/follows.module";
-import { UsersModule } from "./users/users.module";
-import { PostsModule } from "./posts/posts.module";
-import { LikesModule } from "./likes/likes.module";
-import { AuthModule } from "./auth/auth.module";
+import { FollowsModule } from "@/follows/follows.module";
+import { UsersModule } from "@/users/users.module";
+import { PostsModule } from "@/posts/posts.module";
+import { LikesModule } from "@/likes/likes.module";
+import { AuthModule } from "@/auth/auth.module";
 
 import type { GraphQLFormattedError } from "graphql";
 
@@ -79,4 +79,4 @@ export type GqlContext = {
     },
   ],
 })
-export class AppModule {}
+export class AppModule { }

@@ -1,4 +1,4 @@
-import { SafeUserPreview } from "src/posts/models/safe-user-preview.model";
+import { SafeUserPreview } from "@/posts/models/safe-user-preview.model";
 
 import { Prisma } from "@prisma/client";
 

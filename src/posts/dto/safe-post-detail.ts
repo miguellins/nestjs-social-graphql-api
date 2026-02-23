@@ -1,5 +1,4 @@
-import { SafePostListSelect } from "./safe-post-list.dto";
-import { SafePostListDTO } from "./safe-post-list.dto";
+import { SafePostListSelect, SafePostListDTO } from "@/posts/dto/safe-post-list.dto";
 
 import { Prisma } from "@prisma/client";
 

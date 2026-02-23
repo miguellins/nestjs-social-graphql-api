@@ -1,21 +1,21 @@
 import { Resolver, Query, Mutation, Args, Int } from "@nestjs/graphql";
 import { Throttle } from "@nestjs/throttler";
 
-import { CurrentUser } from "src/common/decorators/current-user.decorator";
-import { THROTTLE_LIMITS } from "src/common/constants/throttle.constants";
-import { DeleteResponse } from "src/common/types/delete-response.type";
-import { Public } from "src/common/decorators/auth.decorator";
+import { CurrentUser } from "@/common/decorators/current-user.decorator";
+import { THROTTLE_LIMITS } from "@/common/constants/throttle.constants";
+import { DeleteResponse } from "@/common/types/delete-response.type";
+import { Public } from "@/common/decorators/auth.decorator";
 
-import { CreatePostInput } from "./dto/create-post.input";
-import { UpdatePostInput } from "./dto/update-post.input";
+import { CreatePostInput } from "@/posts/dto/create-post.input";
+import { UpdatePostInput } from "@/posts/dto/update-post.input";
 
-import { PostsService } from "./posts.service";
+import { PostsService } from "@/posts/posts.service";
 
-import { FindPostsArgs } from "../common/args/find-posts-args";
+import { FindPostsArgs } from "@/common/args/find-posts-args";
 
-import { PostListItem } from "./models/post-list-item.model";
-import { PostDetail } from "./models/post-detail.model";
-import { Post } from "./models/posts.model";
+import { PostListItem } from "@/posts/models/post-list-item.model";
+import { PostDetail } from "@/posts/models/post-detail.model";
+import { Post } from "@/posts/models/posts.model";
 
 /**
  * Responsible for resolving fields of the Post GraphQL type
@@ -23,7 +23,7 @@ import { Post } from "./models/posts.model";
 
 @Resolver(() => Post)
 export class PostsResolver {
-  constructor(private readonly postsService: PostsService) {}
+  constructor(private readonly postsService: PostsService) { }
 
   @Public()
   @Throttle({ default: THROTTLE_LIMITS.LIST })

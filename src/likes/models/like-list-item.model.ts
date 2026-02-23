@@ -1,7 +1,7 @@
 import { Field, ID, ObjectType, GraphQLISODateTime } from "@nestjs/graphql";
 
-import { SafeUserPreview } from "src/posts/models/safe-user-preview.model";
-import { PostListItem } from "src/posts/models/post-list-item.model";
+import { SafeUserPreview } from "@/posts/models/safe-user-preview.model";
+import { PostListItem } from "@/posts/models/post-list-item.model";
 
 /**
  * GraphQL ObjectType representing a lightweight Like response

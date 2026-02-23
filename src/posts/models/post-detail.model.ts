@@ -1,8 +1,8 @@
 import { Field, ID, ObjectType, GraphQLISODateTime } from "@nestjs/graphql";
 
-import { SafeUserPreview } from "./safe-user-preview.model";
-import { LikePreview } from "./like-preview.model";
-import { PostCounts } from "./post-counts.model";
+import { SafeUserPreview } from "@/posts/models/safe-user-preview.model";
+import { LikePreview } from "@/posts/models/like-preview.model";
+import { PostCounts } from "@/posts/models/post-counts.model";
 
 /**
  * Detailed GraphQL Object Type representing a single Post.

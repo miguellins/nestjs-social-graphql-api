@@ -6,7 +6,7 @@ import {
   ObjectType,
 } from "@nestjs/graphql";
 
-import { SafeUserPreview } from "src/posts/models/safe-user-preview.model";
+import { SafeUserPreview } from "@/posts/models/safe-user-preview.model";
 
 /**
  * Follow relationship between two users
