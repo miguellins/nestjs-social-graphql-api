@@ -26,17 +26,29 @@ import { PostListItem } from "src/posts/models/post-list-item.model";
  * - API stability
  */
 
-@ObjectType()
+@ObjectType({
+  description:
+    "Lightweight representation of a Like entity optimized for list views",
+})
 export class LikeListItem {
-  @Field(() => ID)
+  @Field(() => ID, {
+    description:
+      "Unique identifier of the like record. Used for referencing and pagination",
+  })
   id: number;
 
-  @Field(() => GraphQLISODateTime)
+  @Field(() => GraphQLISODateTime, {
+    description: "Timestamp indicating when the like was created",
+  })
   createdAt: Date;
 
-  @Field(() => SafeUserPreview)
+  @Field(() => SafeUserPreview, {
+    description: "Public-safe preview of the user who performed the like",
+  })
   user: SafeUserPreview;
 
-  @Field(() => PostListItem)
+  @Field(() => PostListItem, {
+    description: "Lightweight representation of the post that was liked",
+  })
   post: PostListItem;
 }

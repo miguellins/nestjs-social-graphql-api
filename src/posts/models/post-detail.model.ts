@@ -28,29 +28,46 @@ import { PostCounts } from "./post-counts.model";
  * of private user data
  */
 
-@ObjectType()
+@ObjectType({
+  description:
+    "Comprehensive representation of a Post entity intended for detailed views",
+})
 export class PostDetail {
-  @Field(() => ID)
+  @Field(() => ID, {
+    description:
+      "Unique identifier of the post. Used for referencing, routing, and relation mapping",
+  })
   id: number;
 
-  @Field()
+  @Field({ description: "Title of the post" })
   title: string;
 
-  @Field()
+  @Field({ description: "Main textual content of the post" })
   content: string;
 
-  @Field(() => GraphQLISODateTime)
+  @Field(() => GraphQLISODateTime, {
+    description: "Timestamp indicating when the post was originally created",
+  })
   createdAt: Date;
 
-  @Field(() => GraphQLISODateTime)
+  @Field(() => GraphQLISODateTime, {
+    description: "Timestamp indicating the last time the post was updated",
+  })
   updatedAt: Date;
 
-  @Field(() => SafeUserPreview)
+  @Field(() => SafeUserPreview, {
+    description: "Public safe preview of the user who authored the post",
+  })
   author: SafeUserPreview;
 
-  @Field(() => PostCounts)
+  @Field(() => PostCounts, {
+    description: "Aggregated metadata related to the post",
+  })
   _count: PostCounts;
 
-  @Field(() => [LikePreview], { nullable: true })
+  @Field(() => [LikePreview], {
+    nullable: true,
+    description: "Optional lightweight list of likes associated with the post",
+  })
   likes?: LikePreview[];
 }

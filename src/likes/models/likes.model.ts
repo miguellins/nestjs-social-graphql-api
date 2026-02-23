@@ -30,20 +30,36 @@ import { User } from "src/users/models/users.model";
  * - Should NOT be used in public list endpoints
  */
 
-@ObjectType()
+@ObjectType({
+  description:
+    "Core representation of a Like entity. Connects a user to a post and exposes minimal relational data",
+})
 export class Like {
-  @Field(() => ID)
+  @Field(() => ID, {
+    description:
+      "Unique identifier of the like record. Used for referencing and relational mapping",
+  })
   id: number;
 
-  @Field(() => GraphQLISODateTime)
+  @Field(() => GraphQLISODateTime, {
+    description: "Timestamp indicating when the like was created",
+  })
   createdAt: Date;
 
-  @Field(() => Int, { nullable: true })
+  @Field(() => Int, {
+    nullable: true,
+    description: "Identifier of the user who performed the like",
+  })
   userId: number;
 
-  @Field(() => User, { nullable: true })
+  @Field(() => User, {
+    nullable: true,
+    description: "Optional full user object associated with this like",
+  })
   user?: User;
 
-  @Field(() => Int)
+  @Field(() => Int, {
+    description: "Identifier of the post that was liked",
+  })
   postId: number;
 }

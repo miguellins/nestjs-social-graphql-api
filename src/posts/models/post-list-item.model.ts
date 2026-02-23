@@ -30,23 +30,35 @@ import { PostCounts } from "./post-counts.model";
  * Never add large relational arrays (likes, comments) to list objects
  */
 
-@ObjectType()
+@ObjectType({
+  description:
+    "Lightweight representation of a Post entity optimized for List views",
+})
 export class PostListItem {
-  @Field(() => ID)
+  @Field(() => ID, {
+    description:
+      "Unique identifier of the post. Used for routing, referencing, and pagination cursors",
+  })
   id: number;
 
-  @Field()
+  @Field({ description: "Title of the post" })
   title: string;
 
-  @Field()
+  @Field({ description: "Main textual content of the post" })
   content: string;
 
-  @Field(() => GraphQLISODateTime)
+  @Field(() => GraphQLISODateTime, {
+    description: "Timestamp indicating when the post was originally created",
+  })
   createdAt: Date;
 
-  @Field(() => SafeUserPreview)
+  @Field(() => SafeUserPreview, {
+    description: "Public safe preview of the user who authored the post",
+  })
   author: SafeUserPreview;
 
-  @Field(() => PostCounts)
+  @Field(() => PostCounts, {
+    description: "Aggregated metadata related to the post",
+  })
   _count: PostCounts;
 }

@@ -20,23 +20,41 @@ import { SafeUserPreview } from "src/posts/models/safe-user-preview.model";
  * - Keeps nested queries lightweight (better performance)
  */
 
-@ObjectType()
+@ObjectType({
+  description: "Core representation of a Follow relationship between two users",
+})
 export class Follow {
-  @Field(() => ID)
+  @Field(() => ID, {
+    description: "Unique identifier of the follow relationship record",
+  })
   id: number;
 
-  @Field(() => GraphQLISODateTime)
+  @Field(() => GraphQLISODateTime, {
+    description:
+      "Timestamp indicating when the follow relationship was created",
+  })
   createdAt: Date;
 
-  @Field(() => Int)
+  @Field(() => Int, {
+    description:
+      "Identifier of the user who initiated the follow action (the follower)",
+  })
   followerId: number;
 
-  @Field(() => Int)
+  @Field(() => Int, {
+    description: "Identifier of the user being followed (the following)",
+  })
   followingId: number;
 
-  @Field(() => SafeUserPreview, { nullable: true })
+  @Field(() => SafeUserPreview, {
+    nullable: true,
+    description: "Optional lightweight preview of the follower user",
+  })
   follower?: SafeUserPreview;
 
-  @Field(() => SafeUserPreview, { nullable: true })
+  @Field(() => SafeUserPreview, {
+    nullable: true,
+    description: "Optional lightweight preview of the follower user",
+  })
   following?: SafeUserPreview;
 }

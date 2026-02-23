@@ -29,23 +29,32 @@ import { PostCounts } from "./post-counts.model";
  * Includes aggregated counts instead of full relational arrays
  */
 
-@ObjectType()
+@ObjectType({ description: "Core public representation of a Post entity" })
 export class Post {
-  @Field(() => ID)
+  @Field(() => ID, {
+    description:
+      "Unique identifier of the post. Used for referencing, routing, and relation mapping",
+  })
   id: number;
 
-  @Field()
+  @Field({ description: "Title of the post" })
   title: string;
 
-  @Field()
+  @Field({ description: "Main textual content of the post" })
   content: string;
 
-  @Field(() => GraphQLISODateTime)
+  @Field(() => GraphQLISODateTime, {
+    description: "Timestamp indicating when the post was originally created",
+  })
   createdAt: Date;
 
-  @Field(() => SafeUserPreview)
+  @Field(() => SafeUserPreview, {
+    description: "Public safe preview of the user who authored the post",
+  })
   author: SafeUserPreview;
 
-  @Field(() => PostCounts)
+  @Field(() => PostCounts, {
+    description: "Aggregated metadata related to the post",
+  })
   _count: PostCounts;
 }

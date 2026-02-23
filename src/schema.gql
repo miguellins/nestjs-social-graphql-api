@@ -6,18 +6,40 @@ type DeleteResponse {
   message: String!
 }
 
+"""
+Minimal public safe representation of a User entity intended for relational previews
+"""
 type SafeUserPreview {
+  """
+  Unique identifier of the user. Used for referencing and relational mapping
+  """
   id: ID!
+
+  """Public display name"""
   name: String!
+
+  """Unique username used for identification"""
   username: String!
 }
 
+"""Core representation of a Follow relationship between two users"""
 type Follow {
+  """Unique identifier of the follow relationship record"""
   id: ID!
+
+  """Timestamp indicating when the follow relationship was created"""
   createdAt: DateTime!
+
+  """Identifier of the user who initiated the follow action (the follower)"""
   followerId: Int!
+
+  """Identifier of the user being followed (the following)"""
   followingId: Int!
+
+  """Optional lightweight preview of the follower user"""
   follower: SafeUserPreview
+
+  """Optional lightweight preview of the follower user"""
   following: SafeUserPreview
 }
 
@@ -26,65 +48,165 @@ A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date
 """
 scalar DateTime
 
+"""
+Aggregated numeric metadata representing user relationships and activity
+"""
 type UserCounts {
+  """Total number of posts created by the user"""
   posts: Int!
+
+  """Total number of likes performed by the user across all posts"""
   likes: Int!
+
+  """Total number of users following this account"""
   followers: Int!
+
+  """Total number of accounts this user is currently following"""
   following: Int!
 }
 
+"""
+Public-safe representation of a User. Contains only non-sensitive information
+"""
 type SafeUser {
+  """
+  Unique identifier of the User. Stable across the system and used for referencing relationship
+  """
   id: ID!
+
+  """Public display name"""
   name: String!
+
+  """Unique username used for identification"""
   username: String!
+
+  """Timestamp indicating when the user account was originally created"""
   createdAt: DateTime!
+
+  """Timestamp of the most recent profile update or modification"""
   updatedAt: DateTime!
+
+  """
+  Aggregated counts of related entities such as posts, followers, and following. Only included when explicitly requested
+  """
   _count: UserCounts
 }
 
+"""
+Aggregated numeric metadata for a Post entity. Provides lightweight summary information.
+"""
 type PostCounts {
+  """Total number of likes associated with this post"""
   likes: Int!
 }
 
+"""Lightweight representation of a Post entity optimized for List views"""
 type PostListItem {
+  """
+  Unique identifier of the post. Used for routing, referencing, and pagination cursors
+  """
   id: ID!
+
+  """Title of the post"""
   title: String!
+
+  """Main textual content of the post"""
   content: String!
+
+  """Timestamp indicating when the post was originally created"""
   createdAt: DateTime!
+
+  """Public safe preview of the user who authored the post"""
   author: SafeUserPreview!
+
+  """Aggregated metadata related to the post"""
   _count: PostCounts!
 }
 
+"""
+Lightweight representation of a Like, containing minimal metadata and a safe preview of the user who performed the like
+"""
 type LikePreview {
+  """
+  Unique identifier of the like record. Used internally for referencing and pagination
+  """
   id: ID!
+
+  """Timestamp indicating when the like was created"""
   createdAt: DateTime!
+
+  """Public safe preview of the user who performed the like"""
   user: SafeUserPreview!
 }
 
+"""
+Comprehensive representation of a Post entity intended for detailed views
+"""
 type PostDetail {
+  """
+  Unique identifier of the post. Used for referencing, routing, and relation mapping
+  """
   id: ID!
+
+  """Title of the post"""
   title: String!
+
+  """Main textual content of the post"""
   content: String!
+
+  """Timestamp indicating when the post was originally created"""
   createdAt: DateTime!
+
+  """Timestamp indicating the last time the post was updated"""
   updatedAt: DateTime!
+
+  """Public safe preview of the user who authored the post"""
   author: SafeUserPreview!
+
+  """Aggregated metadata related to the post"""
   _count: PostCounts!
+
+  """Optional lightweight list of likes associated with the post"""
   likes: [LikePreview!]
 }
 
+"""Core public representation of a Post entity"""
 type Post {
+  """
+  Unique identifier of the post. Used for referencing, routing, and relation mapping
+  """
   id: ID!
+
+  """Title of the post"""
   title: String!
+
+  """Main textual content of the post"""
   content: String!
+
+  """Timestamp indicating when the post was originally created"""
   createdAt: DateTime!
+
+  """Public safe preview of the user who authored the post"""
   author: SafeUserPreview!
+
+  """Aggregated metadata related to the post"""
   _count: PostCounts!
 }
 
+"""Lightweight representation of a Like entity optimized for list views"""
 type LikeListItem {
+  """
+  Unique identifier of the like record. Used for referencing and pagination
+  """
   id: ID!
+
+  """Timestamp indicating when the like was created"""
   createdAt: DateTime!
+
+  """Public-safe preview of the user who performed the like"""
   user: SafeUserPreview!
+
+  """Lightweight representation of the post that was liked"""
   post: PostListItem!
 }
 
@@ -101,11 +223,25 @@ type User {
   following: [Follow!]
 }
 
+"""
+Core representation of a Like entity. Connects a user to a post and exposes minimal relational data
+"""
 type Like {
+  """
+  Unique identifier of the like record. Used for referencing and relational mapping
+  """
   id: ID!
+
+  """Timestamp indicating when the like was created"""
   createdAt: DateTime!
+
+  """Identifier of the user who performed the like"""
   userId: Int
+
+  """Optional full user object associated with this like"""
   user: User
+
+  """Identifier of the post that was liked"""
   postId: Int!
 }
 

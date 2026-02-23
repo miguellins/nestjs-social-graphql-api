@@ -37,17 +37,28 @@ import { Field, Int, ObjectType } from "@nestjs/graphql";
  * - Avois unintentionally exposing relationship data
  */
 
-@ObjectType()
+@ObjectType({
+  description:
+    "Aggregated numeric metadata representing user relationships and activity",
+})
 export class UserCounts {
-  @Field(() => Int)
+  @Field(() => Int, {
+    description: "Total number of posts created by the user",
+  })
   posts: number;
 
-  @Field(() => Int)
+  @Field(() => Int, {
+    description: "Total number of likes performed by the user across all posts",
+  })
   likes: number;
 
-  @Field(() => Int)
+  @Field(() => Int, {
+    description: "Total number of users following this account",
+  })
   followers: number;
 
-  @Field(() => Int)
+  @Field(() => Int, {
+    description: "Total number of accounts this user is currently following",
+  })
   following: number;
 }
