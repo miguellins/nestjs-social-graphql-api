@@ -1,7 +1,7 @@
 {
-  "name": "NestJS GraphQL API",
+  "name": "nestjs-social-graphql-api",
   "version": "1.0",
-  "description": "A simple NestJS GraphQL API",
+  "description": "A production-ready NestJS GraphQL API for social platform.",
   "author": "Miguel Lins",
   "private": true,
   "license": "UNLICENSED",
@@ -55,22 +55,5 @@
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.20.0"
-  },
-  "jest": {
-    "moduleFileExtensions": [
-      "js",
-      "json",
-      "ts"
-    ],
-    "rootDir": "src",
-    "testRegex": ".*\\.spec\\.ts$",
-    "transform": {
-      "^.+\\.(t|j)s$": "ts-jest"
-    },
-    "collectCoverageFrom": [
-      "**/*.(t|j)s"
-    ],
-    "coverageDirectory": "../coverage",
-    "testEnvironment": "node"
   }
 }
