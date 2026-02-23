@@ -20,7 +20,7 @@ import { UsersService } from "@/users/users.service";
 
 @Resolver(() => SafeUser)
 export class UsersResolver {
-  constructor(private readonly usersService: UsersService) { }
+  constructor(private readonly usersService: UsersService) {}
 
   @Public()
   @Throttle({ default: THROTTLE_LIMITS.LIST })

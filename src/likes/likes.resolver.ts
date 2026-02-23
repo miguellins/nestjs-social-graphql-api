@@ -17,7 +17,7 @@ import { LikesService } from "@/likes/likes.service";
 
 @Resolver(() => Like)
 export class LikeResolver {
-  constructor(private readonly likesService: LikesService) { }
+  constructor(private readonly likesService: LikesService) {}
 
   @Public()
   @Throttle({ default: THROTTLE_LIMITS.LIST })

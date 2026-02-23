@@ -17,7 +17,7 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
-  ) { }
+  ) {}
 
   async login(input: { username: string; password: string }) {
     const username = input.username?.trim().toLowerCase();

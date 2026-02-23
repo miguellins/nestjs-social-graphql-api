@@ -18,7 +18,7 @@ import { Prisma } from "@prisma/client";
 
 @Injectable()
 export class LikesService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   async findLikes(params?: FindLikesArgs): Promise<LikeDetailDTO[]> {
     const take = Math.min(

@@ -79,4 +79,4 @@ export type GqlContext = {
     },
   ],
 })
-export class AppModule { }
+export class AppModule {}

@@ -10,4 +10,4 @@ import { LikesService } from "@/likes/likes.service";
   providers: [LikesService, LikeResolver],
   exports: [LikesService],
 })
-export class LikesModule { }
+export class LikesModule {}

@@ -14,7 +14,7 @@ import { Follow } from "@/follows/models/follows.model";
 
 @Resolver(() => Follow)
 export class FollowsResolver {
-  constructor(private readonly followsService: FollowsService) { }
+  constructor(private readonly followsService: FollowsService) {}
 
   @Public()
   @Throttle({ default: THROTTLE_LIMITS.LIST })

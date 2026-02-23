@@ -10,4 +10,4 @@ import { PostsService } from "@/posts/posts.service";
   providers: [PostsService, PostsResolver],
   exports: [PostsService],
 })
-export class PostsModule { }
+export class PostsModule {}

@@ -17,7 +17,7 @@ import { Prisma } from "@prisma/client";
 
 @Injectable()
 export class FollowsService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   async findFollows(params?: { take?: number }): Promise<SafeFollowDTO[]> {
     const take = Math.min(

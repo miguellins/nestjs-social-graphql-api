@@ -25,7 +25,7 @@ import * as bcrypt from "bcrypt";
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   async findUsers(params?: PaginationArgs): Promise<SafeUserDTO[]> {
     // Ensures the value never exceeds MAX_TAKE (number of records per request)
