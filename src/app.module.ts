@@ -22,6 +22,8 @@ import type { Request, Response } from "express";
 import KeyvRedis from "@keyv/redis";
 import Keyv from "keyv";
 
+import SuperJSON from "superjson";
+
 import { join } from "path";
 
 export type GqlContext = {
@@ -35,26 +37,32 @@ export type GqlContext = {
     ConfigModule.forRoot({ isGlobal: true }),
 
     /**
-     * Registers a Redis-backed cache module asynchronously and exposes it globally.
+     * Configures a global Redis-backed cache using NestJS CacheModule
      *
-     * The factory function defers initialization until the ConfigService is ready,
-     * allowing it to safely read runtime environment variables.
+     * The factory function reads runtime configuration from ConfigService
+     * and initializes a Redis-backed Keyv store for application-wide caching
      *
-     * Setup breakdown:
-     *  - Reads REDIS_URL from environment and throws early if it is missing,
-     *    preventing silent cache failures at runtime.
-     *  - Instantiates a low-level Redis adapter (KeyvRedis) pointed at the
-     *    provided URL, which handles the raw TCP connection to the Redis server.
-     *  - Wraps the adapter in a Keyv instance scoped to the "app-cache" namespace,
-     *    which prefixes every key to avoid collisions with other applications or
-     *    services sharing the same Redis instance.
-     *  - Returns a cache configuration with a default TTL of 30 seconds, meaning
-     *    cached entries will expire automatically unless explicitly invalidated.
+     * Initialization flow:
+     * - Reads REDIS_URL from the environment and fails fast if undefined,
+     *   preventing silent fallback to in-memory caching
+     * - Creates a KeyvRedis adapter to establish the connection to Redis
+     * - Wraps the adapter in a Keyv instance scoped to the "app-cache"
+     *   namespace, ensuring all keys are isolated and collision-safe
+     *   within shared Redis environments
+     *
+     * Default behavior:
+     * - Cached entries expire after 30 seconds unless explicitly overridden
+     * - Expiration is handled automatically by Redis
+     *
+     * Architectural intent:
+     * - Centralized cache configuration
+     * - Deterministic key isolation
+     * - Production-safe fail-fast behavior
      */
     CacheModule.registerAsync({
       isGlobal: true,
       inject: [ConfigService],
-      useFactory: async (config: ConfigService) => {
+      useFactory: (config: ConfigService) => {
         const redisUrl = config.get<string>("REDIS_URL");
         if (!redisUrl) throw new Error("REDIS_URL is not defined");
 
@@ -66,13 +74,17 @@ export type GqlContext = {
         const keyv = new Keyv({
           store: redis,
           namespace: "app-cache",
+
+          // Serialization to support complex types (Date)
+          serialize: (data) => SuperJSON.stringify(data),
+          deserialize: (data) => SuperJSON.parse(data),
         });
 
         return {
           stores: [keyv],
 
           // Default cache expiration in seconds
-          ttl: 30,
+          ttl: 30_000,
         };
       },
     }),
@@ -130,4 +142,4 @@ export type GqlContext = {
     },
   ],
 })
-export class AppModule { }
+export class AppModule {}

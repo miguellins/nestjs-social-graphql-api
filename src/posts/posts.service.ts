@@ -1,23 +1,21 @@
 import {
   ForbiddenException,
   Injectable,
+  Inject,
   InternalServerErrorException,
   NotFoundException,
   BadRequestException,
 } from "@nestjs/common";
+import { CACHE_MANAGER } from "@nestjs/cache-manager";
 
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
 
 import { FindPostsArgs } from "@/common/args/find-posts-args";
 
 import {
-  SafePostCreateDTO,
-  SafePostCreateSelect,
-} from "@/posts/dto/safe-post-create.dto";
-import {
   SafePostDetailDTO,
   SafePostDetailSelect,
-} from "@/posts/dto/safe-post-detail";
+} from "@/posts/dto/safe-post-detail.dto";
 import {
   SafePostListDTO,
   SafePostListSelect,
@@ -27,8 +25,9 @@ import { CreatePostInput } from "@/posts/dto/create-post.input";
 import { UpdatePostInput } from "@/posts/dto/update-post.input";
 
 import { PrismaService } from "@/prisma.service";
-
 import { Prisma } from "@prisma/client";
+
+import type { Cache } from "cache-manager";
 
 /**
  * Responsible for business logic and data operations
@@ -36,7 +35,10 @@ import { Prisma } from "@prisma/client";
 
 @Injectable()
 export class PostsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(CACHE_MANAGER) private readonly cache: Cache,
+  ) {}
 
   async findPosts(params?: FindPostsArgs): Promise<SafePostListDTO[]> {
     // Ensures the value never exceeds MAX_TAKE (number of records per request)
@@ -49,6 +51,14 @@ export class PostsService {
     const q = params?.q?.trim();
     const search = q ? q : undefined;
 
+    const v = (await this.cache.get<number>("v:posts:list")) ?? 1;
+
+    const cacheKey = `post:list:v${v}:${take}:${search ?? "all"}`;
+
+    const cached = await this.cache.get<SafePostListDTO[]>(cacheKey);
+
+    if (cached) return cached;
+
     const where: Prisma.PostWhereInput | undefined = search
       ? {
           OR: [
@@ -58,20 +68,29 @@ export class PostsService {
         }
       : undefined;
 
-    return this.prisma.post.findMany({
+    const posts = await this.prisma.post.findMany({
       take,
       where,
 
-      // Order by newest
       orderBy: {
         createdAt: "desc",
       },
 
       select: SafePostListSelect,
     });
+
+    await this.cache.set(cacheKey, posts);
+
+    return posts;
   }
 
   async getPost(id: number): Promise<SafePostDetailDTO> {
+    const cacheKey = `posts:detail:${id}`;
+
+    const cached = await this.cache.get<SafePostDetailDTO>(cacheKey);
+
+    if (cached) return cached;
+
     // Hard query cap
     // Max number of likes per request
     const MAX_LIKES = 50;
@@ -99,13 +118,15 @@ export class PostsService {
 
     if (!post) throw new NotFoundException("Post not found");
 
+    await this.cache.set(cacheKey, post, 60_000);
+
     return post;
   }
 
   async createPost(
     input: CreatePostInput,
     currentUserId: number,
-  ): Promise<SafePostCreateDTO> {
+  ): Promise<SafePostListDTO> {
     // Normalize inputs
     const title = input.title?.trim();
     const content = input.content?.trim();
@@ -115,15 +136,22 @@ export class PostsService {
     if (!content) throw new BadRequestException("Content cannot be empty");
 
     try {
-      return await this.prisma.post.create({
+      const post = await this.prisma.post.create({
         data: {
           title,
           content,
           author: { connect: { id: currentUserId } },
         },
-
-        select: SafePostCreateSelect,
+        select: SafePostListSelect,
       });
+
+      await this.cache.del(`posts:detail:${post.id}`);
+
+      const v = (await this.cache.get<number>("v:posts:list")) ?? 1;
+
+      await this.cache.set("v:posts:list", v + 1, 365 * 24 * 60 * 60_000);
+
+      return post;
     } catch (err) {
       // Handle known Prisma errors cleanly
       if (err instanceof Prisma.PrismaClientKnownRequestError) {
@@ -137,7 +165,11 @@ export class PostsService {
     }
   }
 
-  async updatePost(id: number, input: UpdatePostInput, currentUserId: number) {
+  async updatePost(
+    id: number,
+    input: UpdatePostInput,
+    currentUserId: number,
+  ): Promise<SafePostListDTO> {
     // Require at least one field
     const hasAnyField =
       input.title !== undefined || input.content !== undefined;
@@ -178,12 +210,20 @@ export class PostsService {
           "You do not have permission to update this post",
         );
 
-      // Update and return a safe shape
-      return await this.prisma.post.update({
+      const post = await this.prisma.post.update({
         where: { id },
         data,
-        select: SafePostCreateSelect,
+
+        select: SafePostListSelect,
       });
+
+      await this.cache.del(`posts:detail:${id}`);
+
+      const v = (await this.cache.get<number>("v:posts:list")) ?? 1;
+
+      await this.cache.set("v:posts:list", v + 1, 365 * 24 * 60 * 60_000);
+
+      return post;
     } catch (err) {
       if (
         err instanceof BadRequestException ||
@@ -218,7 +258,15 @@ export class PostsService {
         where: { id },
       });
 
-      return { message: "Post deleted successfully" };
+      await this.cache.del(`posts:detail:${id}`);
+
+      const v = (await this.cache.get<number>("v:posts:list")) ?? 1;
+
+      await this.cache.set("v:posts:list", v + 1, 365 * 24 * 60 * 60_000);
+
+      return {
+        message: "Post deleted successfully",
+      };
     } catch (err) {
       // If someone deleted it between the check and the delete
       if (

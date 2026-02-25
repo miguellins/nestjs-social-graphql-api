@@ -4,7 +4,10 @@ import {
   InternalServerErrorException,
   NotFoundException,
   BadRequestException,
+  Inject,
 } from "@nestjs/common";
+
+import { CACHE_MANAGER } from "@nestjs/cache-manager";
 
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
 
@@ -17,6 +20,8 @@ import { UpdateUserInput } from "@/users/dto/update-user.input";
 import { PrismaService } from "@/prisma.service";
 import { Prisma } from "@prisma/client";
 
+import type { Cache } from "cache-manager";
+
 import * as bcrypt from "bcrypt";
 
 /**
@@ -25,7 +30,10 @@ import * as bcrypt from "bcrypt";
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(CACHE_MANAGER) private readonly cache: Cache,
+  ) {}
 
   async findUsers(params?: PaginationArgs): Promise<SafeUserDTO[]> {
     // Ensures the value never exceeds MAX_TAKE (number of records per request)
@@ -34,25 +42,49 @@ export class UsersService {
       PAGINATION.MAX_TAKE,
     );
 
-    return this.prisma.user.findMany({
-      // Use the safe limit
+    // Fetch the current cache version for the user list (used for cache invalidation)
+    const v = (await this.cache.get<number>("v:user:list")) ?? 1;
+
+    // Build a versioned cache key scoped to the current pagination params
+    const key = `user:list:v=${v}:take=${limit}`;
+
+    // Return cached result immediately if available
+    const cached = await this.cache.get<SafeUserDTO[]>(key);
+    if (cached) return cached;
+
+    // Cache miss - query the database
+    const users = await this.prisma.user.findMany({
       take: limit,
 
-      // Order by newest
       orderBy: {
         createdAt: "desc",
       },
+
       select: SafeUserSelect,
     });
+
+    // Store result in cache for 60 seconds before expiry
+    await this.cache.set(key, users, 60_000);
+
+    return users;
   }
 
   async getUser(id: number): Promise<SafeUserDTO> {
+    const key = `user:safe:${id}`;
+
+    const cached = await this.cache.get<SafeUserDTO>(key);
+    if (cached) return cached;
+
     const user = await this.prisma.user.findUnique({
       where: { id },
+
       select: SafeUserSelect,
     });
 
     if (!user) throw new NotFoundException(`User with ID ${id} not found`);
+
+    // Cache user profile longer than list (profiles change less often)
+    await this.cache.set(key, user, 5 * 60_000);
 
     return user;
   }
@@ -76,22 +108,29 @@ export class UsersService {
       // Hash password before storing in DB
       const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
 
-      // Create user and select only safe fields
-      return await this.prisma.user.create({
+      const user = await this.prisma.user.create({
         data: {
           name,
           email,
           username,
           password: passwordHash,
         },
-        select: {
-          id: true,
-          name: true,
-          username: true,
-          createdAt: true,
-          updatedAt: true,
-        },
+
+        select: SafeUserSelect,
       });
+
+      // Store the newly created user's public profile in cache
+      await this.cache.set(`user:safe:${user.id}`, user, 5 * 60_000);
+
+      // Read the current list cache version (used to invalidate paginated lists)
+      const v = (await this.cache.get<number>("v:user:list")) ?? 1;
+
+      // Increment the version so all previously cached user lists become stale
+      // Avois manually deleting multiple list keys
+      // TTL is set to a long duration (1 year in ms) to prevent accidental expiration
+      await this.cache.set("v:user:list", v + 1, 365 * 24 * 60 * 60_000);
+
+      return user;
     } catch (err) {
       // Handle known Prisma errors (like unique constraint violations)
       if (err instanceof Prisma.PrismaClientKnownRequestError) {
@@ -162,12 +201,20 @@ export class UsersService {
     }
 
     try {
-      // Update user but return only safe fields
-      return await this.prisma.user.update({
+      const updated = await this.prisma.user.update({
         where: { id: currentUserId },
         data,
         select: SafeUserSelect,
       });
+
+      // Keep user detail cache consistent
+      await this.cache.set(`user:safe:${currentUserId}`, updated, 5 * 60_000);
+
+      // Invalidate all cached user lists (via version bump)
+      const v = (await this.cache.get<number>("v:user:list")) ?? 1;
+      await this.cache.set("v:user:list", v + 1, 365 * 24 * 60 * 60_000);
+
+      return updated;
     } catch (err) {
       // If user doesnt exist, prisma throws P2025 on update
       if (err instanceof Prisma.PrismaClientKnownRequestError) {
@@ -197,12 +244,19 @@ export class UsersService {
 
   async deleteUser(currentUserId: number) {
     try {
-      // `delete` is intentional:
+      // 'delete' is intentional:
       // - it guarantees exactly ONE record
       // - Prisma throws if the user does not exist
       await this.prisma.user.delete({
         where: { id: currentUserId },
       });
+
+      // Remove the deleted user's detail cache
+      await this.cache.del(`user:safe:${currentUserId}`);
+
+      // Invalidate all cached user lists (via version bump)
+      const v = (await this.cache.get<number>("v:user:list")) ?? 1;
+      await this.cache.set("v:user:list", v + 1, 365 * 24 * 60 * 60_000);
 
       // Return a simple, predictable response
       return {
