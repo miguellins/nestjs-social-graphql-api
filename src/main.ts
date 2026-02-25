@@ -1,9 +1,11 @@
 import { ValidationPipe } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
-import helmet from "helmet";
+
+import { GlobalGqlExceptionFilter } from "@/common/filters/gql-exception.filter";
 
 import { AppModule } from "@/app.module";
-import { GlobalGqlExceptionFilter } from "@/common/filters/gql-exception.filter";
+
+import helmet from "helmet";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);

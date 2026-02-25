@@ -36,7 +36,7 @@ import { Prisma } from "@prisma/client";
 
 @Injectable()
 export class PostsService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   async findPosts(params?: FindPostsArgs): Promise<SafePostListDTO[]> {
     // Ensures the value never exceeds MAX_TAKE (number of records per request)
@@ -51,11 +51,11 @@ export class PostsService {
 
     const where: Prisma.PostWhereInput | undefined = search
       ? {
-        OR: [
-          { title: { contains: search } },
-          { content: { contains: search } },
-        ],
-      }
+          OR: [
+            { title: { contains: search } },
+            { content: { contains: search } },
+          ],
+        }
       : undefined;
 
     return this.prisma.post.findMany({
@@ -182,7 +182,7 @@ export class PostsService {
       return await this.prisma.post.update({
         where: { id },
         data,
-        select: SafePostCreateSelect
+        select: SafePostCreateSelect,
       });
     } catch (err) {
       if (
