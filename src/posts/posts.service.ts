@@ -6,7 +6,8 @@ import {
   NotFoundException,
   BadRequestException,
 } from "@nestjs/common";
-import { CACHE_MANAGER } from "@nestjs/cache-manager";
+
+import { CacheHelperService } from "@/common/cache/cache-helper.service";
 
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
 
@@ -27,8 +28,6 @@ import { UpdatePostInput } from "@/posts/dto/update-post.input";
 import { PrismaService } from "@/prisma.service";
 import { Prisma } from "@prisma/client";
 
-import type { Cache } from "cache-manager";
-
 /**
  * Responsible for business logic and data operations
  */
@@ -37,8 +36,8 @@ import type { Cache } from "cache-manager";
 export class PostsService {
   constructor(
     private readonly prisma: PrismaService,
-    @Inject(CACHE_MANAGER) private readonly cache: Cache,
-  ) {}
+    private readonly cacheHelper: CacheHelperService,
+  ) { }
 
   async findPosts(params?: FindPostsArgs): Promise<SafePostListDTO[]> {
     // Ensures the value never exceeds MAX_TAKE (number of records per request)
@@ -51,76 +50,77 @@ export class PostsService {
     const q = params?.q?.trim();
     const search = q ? q : undefined;
 
-    const v = (await this.cache.get<number>("v:posts:list")) ?? 1;
+    const v = await this.cacheHelper.getVersion("v:posts:list");
+    const cacheKey = `posts:list:v${v}:${take}:${search ?? "all"}`;
 
-    const cacheKey = `post:list:v${v}:${take}:${search ?? "all"}`;
+    return this.cacheHelper.getOrSet(
+      cacheKey,
+      async () => {
+        const where: Prisma.PostWhereInput | undefined = search
+          ? {
+            OR: [
+              { title: { contains: search } },
+              { content: { contains: search } },
+            ],
+          }
+          : undefined;
 
-    const cached = await this.cache.get<SafePostListDTO[]>(cacheKey);
+        return this.prisma.post.findMany({
+          take,
+          where,
 
-    if (cached) return cached;
+          orderBy: {
+            createdAt: "desc"
+          },
 
-    const where: Prisma.PostWhereInput | undefined = search
-      ? {
-          OR: [
-            { title: { contains: search } },
-            { content: { contains: search } },
-          ],
-        }
-      : undefined;
-
-    const posts = await this.prisma.post.findMany({
-      take,
-      where,
-
-      orderBy: {
-        createdAt: "desc",
+          select: SafePostListSelect,
+        });
       },
-
-      select: SafePostListSelect,
-    });
-
-    await this.cache.set(cacheKey, posts);
-
-    return posts;
+      30_000,
+    );
   }
 
   async getPost(id: number): Promise<SafePostDetailDTO> {
     const cacheKey = `posts:detail:${id}`;
 
-    const cached = await this.cache.get<SafePostDetailDTO>(cacheKey);
+    return this.cacheHelper.getOrSet(
+      cacheKey,
+      async () => {
+        // Hard query cap
+        // Max number of likes per request
+        const MAX_LIKES = 50;
 
-    if (cached) return cached;
+        // Default number of likes returned
+        const DEFAULT_LIKES = 20;
 
-    // Hard query cap
-    // Max number of likes per request
-    const MAX_LIKES = 50;
+        // Determines the final limit safely
+        // Ensures the value never exceeds MAX_LIKES (number of likes per request)
+        const likesTake = Math.min(DEFAULT_LIKES, MAX_LIKES);
 
-    // Default number of likes returned
-    const DEFAULT_LIKES = 20;
+        const post = await this.prisma.post.findUnique({
+          where: { id },
 
-    // Determines the final limit safely
-    // Ensures the value never exceeds MAX_LIKES (number of likes per request)
-    const likesTake = Math.min(DEFAULT_LIKES, MAX_LIKES);
+          select: {
+            ...SafePostDetailSelect,
 
-    const post = await this.prisma.post.findUnique({
-      where: { id },
+            likes: {
+              take: likesTake,
 
-      select: {
-        ...SafePostDetailSelect,
+              orderBy: {
+                createdAt: "desc"
+              },
 
-        likes: {
-          take: likesTake,
-          orderBy: { createdAt: "desc" },
-          select: SafePostDetailSelect.likes.select,
-        },
+              select: SafePostDetailSelect.likes.select,
+            },
+          },
+        });
+
+        if (!post) throw new NotFoundException("Post not found");
+
+        return post;
       },
-    });
-
-    if (!post) throw new NotFoundException("Post not found");
-
-    await this.cache.set(cacheKey, post, 60_000);
-
-    return post;
+      60_000, // Detail cache TTL
+    );
   }
 
   async createPost(
@@ -145,11 +145,9 @@ export class PostsService {
         select: SafePostListSelect,
       });
 
-      await this.cache.del(`posts:detail:${post.id}`);
+      await this.cacheHelper.del(`posts:detail:${post.id}`);
 
-      const v = (await this.cache.get<number>("v:posts:list")) ?? 1;
-
-      await this.cache.set("v:posts:list", v + 1, 365 * 24 * 60 * 60_000);
+      await this.cacheHelper.bumpVersion("v:posts:list");
 
       return post;
     } catch (err) {
@@ -217,11 +215,9 @@ export class PostsService {
         select: SafePostListSelect,
       });
 
-      await this.cache.del(`posts:detail:${id}`);
+      await this.cacheHelper.del(`posts:detail:${id}`);
 
-      const v = (await this.cache.get<number>("v:posts:list")) ?? 1;
-
-      await this.cache.set("v:posts:list", v + 1, 365 * 24 * 60 * 60_000);
+      await this.cacheHelper.bumpVersion("v:posts:list");
 
       return post;
     } catch (err) {
@@ -258,14 +254,12 @@ export class PostsService {
         where: { id },
       });
 
-      await this.cache.del(`posts:detail:${id}`);
+      await this.cacheHelper.del(`posts:detail:${id}`);
 
-      const v = (await this.cache.get<number>("v:posts:list")) ?? 1;
-
-      await this.cache.set("v:posts:list", v + 1, 365 * 24 * 60 * 60_000);
+      await this.cacheHelper.bumpVersion("v:posts:list");
 
       return {
-        message: "Post deleted successfully",
+        message: "Post deleted successfully"
       };
     } catch (err) {
       // If someone deleted it between the check and the delete

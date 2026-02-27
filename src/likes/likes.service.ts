@@ -4,7 +4,10 @@ import {
   Injectable,
   InternalServerErrorException,
   NotFoundException,
+  Inject,
 } from "@nestjs/common";
+
+import { CACHE_MANAGER } from "@nestjs/cache-manager";
 
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
 
@@ -13,12 +16,16 @@ import { FindLikesArgs } from "@/common/args/find-likes.args";
 import { LikeDetailDTO, LikeDetailSelect } from "@/likes/dto/like-detail.dto";
 
 import { PrismaService } from "@/prisma.service";
-
 import { Prisma } from "@prisma/client";
+
+import type { Cache } from "cache-manager";
 
 @Injectable()
 export class LikesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(CACHE_MANAGER) private readonly cache: Cache,
+  ) {}
 
   async findLikes(params?: FindLikesArgs): Promise<LikeDetailDTO[]> {
     const take = Math.min(
@@ -26,11 +33,37 @@ export class LikesService {
       PAGINATION.MAX_TAKE,
     );
 
+    const postId = params?.postId;
+    const userId = params?.userId;
+
+    // ✅ list version (invalidate on create/delete like)
+    const v = (await this.cache.get<number>("v:likes:list")) ?? 1;
+
+    const cacheKey = `likes:list:v${v}:${take}:p${postId ?? "all"}:u${userId ?? "all"}`;
+
+    const cached = await this.cache.get<LikeDetailDTO[]>(cacheKey);
+    if (cached) return cached;
+
     const where: Prisma.LikeWhereInput = {
-      ...(params?.postId && { postId: params.postId }),
-      ...(params?.userId && { userId: params.userId }),
+      ...(params?.postId && { postId }),
+      ...(params?.userId && { userId }),
     };
 
+    const likes = await this.prisma.like.findMany({
+      take,
+      where,
+
+      orderBy: {
+        createdAt: "desc",
+      },
+
+      select: LikeDetailSelect,
+    });
+
+    await this.cache.set(cacheKey, likes);
+
+    return likes;
+    /*
     return this.prisma.like.findMany({
       take,
       where,
@@ -38,6 +71,7 @@ export class LikesService {
 
       select: LikeDetailSelect,
     });
+    */
   }
 
   async getLike(id: number): Promise<LikeDetailDTO> {

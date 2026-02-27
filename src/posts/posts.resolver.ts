@@ -23,7 +23,7 @@ import { Post } from "@/posts/models/posts.model";
 
 @Resolver(() => Post)
 export class PostsResolver {
-  constructor(private readonly postsService: PostsService) {}
+  constructor(private readonly postsService: PostsService) { }
 
   @Public()
   @Throttle({ default: THROTTLE_LIMITS.LIST })

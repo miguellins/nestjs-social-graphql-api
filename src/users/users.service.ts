@@ -4,10 +4,9 @@ import {
   InternalServerErrorException,
   NotFoundException,
   BadRequestException,
-  Inject,
 } from "@nestjs/common";
 
-import { CACHE_MANAGER } from "@nestjs/cache-manager";
+import { CacheHelperService } from "@/common/cache/cache-helper.service";
 
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
 
@@ -20,8 +19,6 @@ import { UpdateUserInput } from "@/users/dto/update-user.input";
 import { PrismaService } from "@/prisma.service";
 import { Prisma } from "@prisma/client";
 
-import type { Cache } from "cache-manager";
-
 import * as bcrypt from "bcrypt";
 
 /**
@@ -32,8 +29,8 @@ import * as bcrypt from "bcrypt";
 export class UsersService {
   constructor(
     private readonly prisma: PrismaService,
-    @Inject(CACHE_MANAGER) private readonly cache: Cache,
-  ) {}
+    private readonly cacheHelper: CacheHelperService,
+  ) { }
 
   async findUsers(params?: PaginationArgs): Promise<SafeUserDTO[]> {
     // Ensures the value never exceeds MAX_TAKE (number of records per request)
@@ -43,50 +40,48 @@ export class UsersService {
     );
 
     // Fetch the current cache version for the user list (used for cache invalidation)
-    const v = (await this.cache.get<number>("v:user:list")) ?? 1;
+    const v = await this.cacheHelper.getVersion("v:user:list");
 
     // Build a versioned cache key scoped to the current pagination params
-    const key = `user:list:v=${v}:take=${limit}`;
+    const cacheKey = `user:list:v=${v}:take=${limit}`;
 
-    // Return cached result immediately if available
-    const cached = await this.cache.get<SafeUserDTO[]>(key);
-    if (cached) return cached;
+    // Read-through cache:
+    // - return cached if present, otherwise query DB
+    return this.cacheHelper.getOrSet(
+      cacheKey,
+      async () => {
+        return this.prisma.user.findMany({
+          take: limit,
 
-    // Cache miss - query the database
-    const users = await this.prisma.user.findMany({
-      take: limit,
+          orderBy: {
+            createdAt: "desc",
+          },
 
-      orderBy: {
-        createdAt: "desc",
+          select: SafeUserSelect,
+        });
       },
-
-      select: SafeUserSelect,
-    });
-
-    // Store result in cache for 60 seconds before expiry
-    await this.cache.set(key, users, 60_000);
-
-    return users;
+      60_000,
+    );
   }
 
   async getUser(id: number): Promise<SafeUserDTO> {
-    const key = `user:safe:${id}`;
+    const cacheKey = `user:safe:${id}`;
 
-    const cached = await this.cache.get<SafeUserDTO>(key);
-    if (cached) return cached;
+    return this.cacheHelper.getOrSet(
+      cacheKey,
+      async () => {
+        const user = await this.prisma.user.findUnique({
+          where: { id },
 
-    const user = await this.prisma.user.findUnique({
-      where: { id },
+          select: SafeUserSelect,
+        });
 
-      select: SafeUserSelect,
-    });
+        if (!user) throw new NotFoundException(`User with ID ${id} not found`);
 
-    if (!user) throw new NotFoundException(`User with ID ${id} not found`);
-
-    // Cache user profile longer than list (profiles change less often)
-    await this.cache.set(key, user, 5 * 60_000);
-
-    return user;
+        return user;
+      },
+      5 * 60_000, // Cache user profile longer than list (profiles change less often)
+    );
   }
 
   async createUser(input: CreateUserInput): Promise<SafeUserDTO> {
@@ -119,16 +114,13 @@ export class UsersService {
         select: SafeUserSelect,
       });
 
-      // Store the newly created user's public profile in cache
-      await this.cache.set(`user:safe:${user.id}`, user, 5 * 60_000);
+      await this.cacheHelper.getOrSet(
+        `user:safe:${user.id}`,
+        async () => user, // no DB call; just store the object we already have
+        5 * 60_000,
+      );
 
-      // Read the current list cache version (used to invalidate paginated lists)
-      const v = (await this.cache.get<number>("v:user:list")) ?? 1;
-
-      // Increment the version so all previously cached user lists become stale
-      // Avois manually deleting multiple list keys
-      // TTL is set to a long duration (1 year in ms) to prevent accidental expiration
-      await this.cache.set("v:user:list", v + 1, 365 * 24 * 60 * 60_000);
+      await this.cacheHelper.bumpVersion("v:user:list");
 
       return user;
     } catch (err) {
@@ -207,12 +199,13 @@ export class UsersService {
         select: SafeUserSelect,
       });
 
-      // Keep user detail cache consistent
-      await this.cache.set(`user:safe:${currentUserId}`, updated, 5 * 60_000);
+      await this.cacheHelper.getOrSet(
+        `user:safe:${currentUserId}`,
+        async () => updated, // no DB call; use what we already have
+        5 * 60_000,
+      );
 
-      // Invalidate all cached user lists (via version bump)
-      const v = (await this.cache.get<number>("v:user:list")) ?? 1;
-      await this.cache.set("v:user:list", v + 1, 365 * 24 * 60 * 60_000);
+      await this.cacheHelper.bumpVersion("v:user:list");
 
       return updated;
     } catch (err) {
@@ -252,13 +245,11 @@ export class UsersService {
       });
 
       // Remove the deleted user's detail cache
-      await this.cache.del(`user:safe:${currentUserId}`);
+      await this.cacheHelper.del(`user:safe:${currentUserId}`);
 
-      // Invalidate all cached user lists (via version bump)
-      const v = (await this.cache.get<number>("v:user:list")) ?? 1;
-      await this.cache.set("v:user:list", v + 1, 365 * 24 * 60 * 60_000);
+      // Invalidate all cached user lists via version bump
+      await this.cacheHelper.bumpVersion("v:user:list");
 
-      // Return a simple, predictable response
       return {
         message: "User deleted successfully",
       };
