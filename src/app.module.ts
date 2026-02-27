@@ -83,7 +83,7 @@ export type GqlContext = {
         return {
           stores: [keyv],
 
-          // Default cache expiration in seconds
+          // Default cache expiration in milliseconds
           ttl: 30_000,
         };
       },

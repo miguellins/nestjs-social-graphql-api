@@ -30,7 +30,7 @@ export class UsersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cacheHelper: CacheHelperService,
-  ) { }
+  ) {}
 
   async findUsers(params?: PaginationArgs): Promise<SafeUserDTO[]> {
     // Ensures the value never exceeds MAX_TAKE (number of records per request)

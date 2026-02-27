@@ -4,10 +4,9 @@ import {
   Injectable,
   InternalServerErrorException,
   NotFoundException,
-  Inject,
 } from "@nestjs/common";
 
-import { CACHE_MANAGER } from "@nestjs/cache-manager";
+import { CacheHelperService } from "@/common/cache/cache-helper.service";
 
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
 
@@ -18,13 +17,11 @@ import { LikeDetailDTO, LikeDetailSelect } from "@/likes/dto/like-detail.dto";
 import { PrismaService } from "@/prisma.service";
 import { Prisma } from "@prisma/client";
 
-import type { Cache } from "cache-manager";
-
 @Injectable()
 export class LikesService {
   constructor(
     private readonly prisma: PrismaService,
-    @Inject(CACHE_MANAGER) private readonly cache: Cache,
+    private readonly cacheHelper: CacheHelperService,
   ) {}
 
   async findLikes(params?: FindLikesArgs): Promise<LikeDetailDTO[]> {
@@ -36,60 +33,57 @@ export class LikesService {
     const postId = params?.postId;
     const userId = params?.userId;
 
-    // ✅ list version (invalidate on create/delete like)
-    const v = (await this.cache.get<number>("v:likes:list")) ?? 1;
+    const v = await this.cacheHelper.getVersion("v:likes:list");
 
     const cacheKey = `likes:list:v${v}:${take}:p${postId ?? "all"}:u${userId ?? "all"}`;
 
-    const cached = await this.cache.get<LikeDetailDTO[]>(cacheKey);
-    if (cached) return cached;
+    return this.cacheHelper.getOrSet(
+      cacheKey,
+      async () => {
+        const where: Prisma.LikeWhereInput = {
+          ...(postId && { postId }),
+          ...(userId && { userId }),
+        };
 
-    const where: Prisma.LikeWhereInput = {
-      ...(params?.postId && { postId }),
-      ...(params?.userId && { userId }),
-    };
+        return this.prisma.like.findMany({
+          take,
+          where,
 
-    const likes = await this.prisma.like.findMany({
-      take,
-      where,
+          orderBy: {
+            createdAt: "desc",
+          },
 
-      orderBy: {
-        createdAt: "desc",
+          select: LikeDetailSelect,
+        });
       },
-
-      select: LikeDetailSelect,
-    });
-
-    await this.cache.set(cacheKey, likes);
-
-    return likes;
-    /*
-    return this.prisma.like.findMany({
-      take,
-      where,
-      orderBy: { createdAt: "desc" },
-
-      select: LikeDetailSelect,
-    });
-    */
+      30_000,
+    );
   }
 
   async getLike(id: number): Promise<LikeDetailDTO> {
-    try {
-      const like = await this.prisma.like.findUnique({
-        where: { id },
+    const cacheKey = `like:detail:${id}`;
 
-        select: LikeDetailSelect,
-      });
+    return this.cacheHelper.getOrSet(
+      cacheKey,
+      async () => {
+        try {
+          const like = await this.prisma.like.findUnique({
+            where: { id },
 
-      if (!like) throw new NotFoundException("Like not found");
+            select: LikeDetailSelect,
+          });
 
-      return like;
-    } catch (err) {
-      if (err instanceof NotFoundException) throw err;
+          if (!like) throw new NotFoundException("Like not found");
 
-      throw new InternalServerErrorException("Failed to fetch like");
-    }
+          return like;
+        } catch (err) {
+          if (err instanceof NotFoundException) throw err;
+
+          throw new InternalServerErrorException("Failed to fetch like");
+        }
+      },
+      30_000, // short TTL (likes change frequently)
+    );
   }
 
   async createLike(
@@ -116,6 +110,11 @@ export class LikesService {
         }),
       ]);
 
+      await this.cacheHelper.bumpVersion("v:likes:list");
+
+      await this.cacheHelper.del(`posts:detail:${postId}`);
+      await this.cacheHelper.bumpVersion("v:posts:list");
+
       return like;
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError) {
@@ -139,7 +138,12 @@ export class LikesService {
       // Validate existence + ownership + post target
       const like = await this.prisma.like.findUnique({
         where: { id },
-        select: { id: true, userId: true, postId: true },
+
+        select: {
+          id: true,
+          userId: true,
+          postId: true,
+        },
       });
 
       if (!like) throw new NotFoundException("Like not found");
@@ -157,16 +161,27 @@ export class LikesService {
         // Decrement likesCount, but never let it go below 0
         await tx.post.update({
           where: { id: like.postId },
+
           data: {
             likesCount: {
               decrement: 1,
             },
           },
+
           select: { id: true },
         });
       });
 
-      return { message: "Like deleted successfully" };
+      await this.cacheHelper.del(`like:detail:${id}`);
+
+      await this.cacheHelper.bumpVersion("v:likes:list");
+
+      await this.cacheHelper.del(`posts:detail:${like.postId}`);
+      await this.cacheHelper.bumpVersion("v:posts:list");
+
+      return {
+        message: "Like deleted successfully",
+      };
     } catch (err) {
       if (err instanceof NotFoundException || err instanceof ForbiddenException)
         throw err;

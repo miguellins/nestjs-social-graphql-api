@@ -37,7 +37,7 @@ export class PostsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cacheHelper: CacheHelperService,
-  ) { }
+  ) {}
 
   async findPosts(params?: FindPostsArgs): Promise<SafePostListDTO[]> {
     // Ensures the value never exceeds MAX_TAKE (number of records per request)
@@ -58,11 +58,11 @@ export class PostsService {
       async () => {
         const where: Prisma.PostWhereInput | undefined = search
           ? {
-            OR: [
-              { title: { contains: search } },
-              { content: { contains: search } },
-            ],
-          }
+              OR: [
+                { title: { contains: search } },
+                { content: { contains: search } },
+              ],
+            }
           : undefined;
 
         return this.prisma.post.findMany({
@@ -70,7 +70,7 @@ export class PostsService {
           where,
 
           orderBy: {
-            createdAt: "desc"
+            createdAt: "desc",
           },
 
           select: SafePostListSelect,
@@ -107,7 +107,7 @@ export class PostsService {
               take: likesTake,
 
               orderBy: {
-                createdAt: "desc"
+                createdAt: "desc",
               },
 
               select: SafePostDetailSelect.likes.select,
@@ -259,7 +259,7 @@ export class PostsService {
       await this.cacheHelper.bumpVersion("v:posts:list");
 
       return {
-        message: "Post deleted successfully"
+        message: "Post deleted successfully",
       };
     } catch (err) {
       // If someone deleted it between the check and the delete
