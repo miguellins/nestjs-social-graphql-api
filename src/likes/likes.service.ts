@@ -41,8 +41,8 @@ export class LikesService {
       cacheKey,
       async () => {
         const where: Prisma.LikeWhereInput = {
-          ...(postId && { postId }),
-          ...(userId && { userId }),
+          ...(postId !== undefined && { postId }),
+          ...(userId !== undefined && { userId }),
         };
 
         return this.prisma.like.findMany({
@@ -63,10 +63,10 @@ export class LikesService {
   async getLike(id: number): Promise<LikeDetailDTO> {
     const cacheKey = `like:detail:${id}`;
 
-    return this.cacheHelper.getOrSet(
-      cacheKey,
-      async () => {
-        try {
+    try {
+      return await this.cacheHelper.getOrSet(
+        cacheKey,
+        async () => {
           const like = await this.prisma.like.findUnique({
             where: { id },
 
@@ -76,14 +76,14 @@ export class LikesService {
           if (!like) throw new NotFoundException("Like not found");
 
           return like;
-        } catch (err) {
-          if (err instanceof NotFoundException) throw err;
+        },
+        30_000,
+      );
+    } catch (err) {
+      if (err instanceof NotFoundException) throw err;
 
-          throw new InternalServerErrorException("Failed to fetch like");
-        }
-      },
-      30_000, // short TTL (likes change frequently)
-    );
+      throw new InternalServerErrorException("Failed to fetch like");
+    }
   }
 
   async createLike(
@@ -114,6 +114,9 @@ export class LikesService {
 
       await this.cacheHelper.del(`posts:detail:${postId}`);
       await this.cacheHelper.bumpVersion("v:posts:list");
+
+      await this.cacheHelper.del(`user:safe:${currentUserId}`);
+      await this.cacheHelper.bumpVersion("v:user:list");
 
       return like;
     } catch (err) {
@@ -173,11 +176,13 @@ export class LikesService {
       });
 
       await this.cacheHelper.del(`like:detail:${id}`);
-
       await this.cacheHelper.bumpVersion("v:likes:list");
 
       await this.cacheHelper.del(`posts:detail:${like.postId}`);
       await this.cacheHelper.bumpVersion("v:posts:list");
+
+      await this.cacheHelper.del(`user:safe:${currentUserId}`);
+      await this.cacheHelper.bumpVersion("v:user:list");
 
       return {
         message: "Like deleted successfully",

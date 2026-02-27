@@ -1,7 +1,6 @@
 import {
   ForbiddenException,
   Injectable,
-  Inject,
   InternalServerErrorException,
   NotFoundException,
   BadRequestException,
@@ -47,8 +46,7 @@ export class PostsService {
     );
 
     // Optional search
-    const q = params?.q?.trim();
-    const search = q ? q : undefined;
+    const search = params?.q?.trim().toLowerCase() || undefined;
 
     const v = await this.cacheHelper.getVersion("v:posts:list");
     const cacheKey = `posts:list:v${v}:${take}:${search ?? "all"}`;
@@ -142,12 +140,14 @@ export class PostsService {
           content,
           author: { connect: { id: currentUserId } },
         },
+
         select: SafePostListSelect,
       });
 
-      await this.cacheHelper.del(`posts:detail:${post.id}`);
-
       await this.cacheHelper.bumpVersion("v:posts:list");
+
+      await this.cacheHelper.del(`user:safe:${currentUserId}`);
+      await this.cacheHelper.bumpVersion("v:user:list");
 
       return post;
     } catch (err) {
@@ -255,8 +255,10 @@ export class PostsService {
       });
 
       await this.cacheHelper.del(`posts:detail:${id}`);
-
       await this.cacheHelper.bumpVersion("v:posts:list");
+
+      await this.cacheHelper.del(`user:safe:${existing.authorId}`);
+      await this.cacheHelper.bumpVersion("v:user:list");
 
       return {
         message: "Post deleted successfully",

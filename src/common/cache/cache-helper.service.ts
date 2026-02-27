@@ -7,79 +7,130 @@ import { Inject, Injectable } from "@nestjs/common";
  * Centralized infrastructure service responsible for handling application-level
  * caching logic
  *
- * Why this exists:
- * - Avoid duplicating cache logic across Posts, Users, Likes, etc
- * - Provide a reusable read-through caching pattern (getOrSet)
- * - Provide scalable list invalidation using version keys
- * - Encapsulate direct interaction with the NestJS CacheManager
+ * Responsibilities:
+ * - Abstract direct interaction with NestJS CacheManager
+ * - Provide explicit read and write cache methods
+ * - Implement read-through caching pattern (getOrSet)
+ * - Support scalable list invalidation via version keys
  *
- * Architectural Role:
- * - This is an infrastructure utility (not business logic)
- * - It abstracts cache access (memory or Redis)
- * - It allows services to remain clean and focused on domain logic
+ * Architectural role:
+ * - Infrastructure layer (not business/domain logic)
+ * - Used by Posts, Users, Likes, Follows modules
+ * - Keeps services clean and focused on database + validation logic
  *
- * Patterns Implemented:
- * - Read-through caching
- * - Version-based list invalidation
- * - Detail-level key deletion
+ * Design goals:
+ * - Explicit API: get / set / del / getOrSet
+ * - Predictable version-based invalidation
+ * - Redis-ready and cluster-safe
  */
 
 @Injectable()
 export class CacheHelperService {
   constructor(@Inject(CACHE_MANAGER) private readonly cache: Cache) {}
 
-  // Generic read-through caching helper
-  // T = the type of data being cached (Post[], User, Like[], etc.)
+  /**
+   * Retrieves a value from cache by key
+   *
+   * Returns:
+   * - The cached value if present
+   * - undefined if the key does not exist
+   *
+   * Why explicit get():
+   * - Clear separation between read and write operations
+   * - Useful for conditional logic in services
+   */
+  async get<T>(key: string): Promise<T | undefined> {
+    return (await this.cache.get<T>(key)) ?? undefined;
+  }
+
+  /**
+   * Stores a value in cache with a defined TTL
+   *
+   * Parameters:
+   * - key: unique cache key
+   * - value: data to store
+   * - ttlMs: expiration time in milliseconds
+   */
+  async set<T>(key: string, value: T, ttlMs: number): Promise<void> {
+    await this.cache.set(key, value, ttlMs);
+  }
+
+  /**
+   * Deletes a specific cache key
+   *
+   * Used for:
+   * - Detail-level invalidation
+   * - Removing stale entity data after mutation
+   */
+  async del(key: string): Promise<void> {
+    await this.cache.del(key);
+  }
+
+  /**
+   * Read-through caching helper.
+   *
+   * Flow:
+   * 1. Attempt to read from cache
+   * 2. If present → return immediately (cache hit)
+   * 3. If absent → execute factory (usually DB query)
+   * 4. Store result in cache
+   * 5. Return fresh result
+   *
+   * T = inferred return type of factory
+   *
+   * This centralizes the classic "cache → DB fallback → cache set" pattern.
+   */
+
   async getOrSet<T>(
-    // Unique cache key (ex: "posts:list:v1:10:all")
     key: string,
-
-    // Function that fetches fresh data if cache misses
     factory: () => Promise<T>,
-
-    // Time-to-live in milliseconds
     ttlMs: number,
-
-    // Returns the same type the factory returns
   ): Promise<T> {
-    // Try to retrieve cached value from cache store (memory or Redis)
-    const cached = await this.cache.get<T>(key);
+    const cached = await this.get<T>(key);
 
-    // If cached data exists, immediately return it
-    // This avoids hitting the database and improves performance
-    if (cached) return cached;
+    if (cached !== undefined) return cached;
 
-    // If cache miss, execute the factory function
-    // This typically performs a database query
     const data = await factory();
 
-    // Store the freshly fetched data in cache
-    // It will expire automatically after ttlMs
-    await this.cache.set(key, data, ttlMs);
+    await this.set(key, data, ttlMs);
 
     return data;
   }
 
-  // Increments a version key used to invalidate multiple list cache keys
-  async bumpVersion(versionKey: string): Promise<void> {
-    // Retrieve current version number from cache, if doesnt exist yet, default to 1
-    const v = (await this.cache.get<number>(versionKey)) ?? 1;
-
-    // Store incremented version back into cache
-    // Any cache keys using the old version become instantly obsolete
-    await this.cache.set(versionKey, v + 1, 365 * 24 * 60 * 60_000);
-  }
-
-  // Retrieves the current version number for a given version key
+  /**
+   * Retrieves the current version number for a version key
+   *
+   * Version keys are used to invalidate entire groups of list caches without
+   * deleting individual keys
+   *
+   * Defaults to version 1 if not initialized
+   */
   async getVersion(versionKey: string): Promise<number> {
-    // Return stored version number, or default to 1
-    return (await this.cache.get<number>(versionKey)) ?? 1;
+    const v = await this.get<number>(versionKey);
+    return v ?? 1;
   }
 
-  // Deletes a specific cache key
-  async del(key: string): Promise<void> {
-    // Removes the cache enty completely
-    // Used for detail-level invalidation (ex: posts:detail:15)
-    await this.cache.del(key);
+  /**
+   * Increments a version key
+   *
+   * Effect:
+   * - All previously cached list keys using the old version become instantly unreachable
+   *
+   * Why version-based invalidation?
+   * - Avoids deleting multiple keys manually
+   * - O(1) invalidation cost
+   * - Scales well in Redis clusters
+   *
+   * TTL is intentionally long to prevent accidental expiration, which would reset
+   * versioning and potentially revive stale data
+   */
+  async bumpVersion(versionKey: string): Promise<void> {
+    const v = await this.getVersion(versionKey);
+
+    await this.set(
+      versionKey,
+      v + 1,
+      365 * 24 * 60 * 60_000, // 1 year TTL
+    );
   }
 }

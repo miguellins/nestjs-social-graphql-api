@@ -114,11 +114,7 @@ export class UsersService {
         select: SafeUserSelect,
       });
 
-      await this.cacheHelper.getOrSet(
-        `user:safe:${user.id}`,
-        async () => user, // no DB call; just store the object we already have
-        5 * 60_000,
-      );
+      await this.cacheHelper.set(`user:safe:${user.id}`, user, 5 * 60_000);
 
       await this.cacheHelper.bumpVersion("v:user:list");
 
@@ -199,9 +195,9 @@ export class UsersService {
         select: SafeUserSelect,
       });
 
-      await this.cacheHelper.getOrSet(
+      await this.cacheHelper.set(
         `user:safe:${currentUserId}`,
-        async () => updated, // no DB call; use what we already have
+        updated, // no DB call; use what we already have
         5 * 60_000,
       );
 

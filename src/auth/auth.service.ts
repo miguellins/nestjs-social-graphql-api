@@ -7,7 +7,6 @@ import {
 import { JwtService } from "@nestjs/jwt";
 
 import { PrismaService } from "@/prisma.service";
-
 import { Prisma } from "@prisma/client";
 
 import * as bcrypt from "bcrypt";
