@@ -1,0 +1,395 @@
+import {
+  BadRequestException,
+  ForbiddenException,
+  InternalServerErrorException,
+  NotFoundException,
+} from "@nestjs/common";
+import { Test } from "@nestjs/testing";
+import { Prisma } from "@prisma/client";
+
+import { PostsService } from "./posts.service";
+import { PrismaService } from "@/prisma.service";
+import { CacheHelperService } from "@/common/cache/cache-helper.service";
+import { PAGINATION } from "@/common/constants/hard-cap.constants";
+import { FindPostsArgs } from "@/common/args/find-posts-args";
+import { SafePostListSelect } from "@/posts/dto/safe-post-list.dto";
+import { SafePostDetailSelect } from "@/posts/dto/safe-post-detail.dto";
+import { CreatePostInput } from "@/posts/dto/create-post.input";
+import { UpdatePostInput } from "@/posts/dto/update-post.input";
+
+describe("PostsService", () => {
+  let service: PostsService;
+
+  const prismaMock: {
+    post: {
+      findMany: jest.Mock;
+      findUnique: jest.Mock;
+      create: jest.Mock;
+      update: jest.Mock;
+      delete: jest.Mock;
+    };
+  } = {
+    post: {
+      findMany: jest.fn(),
+      findUnique: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+    },
+  };
+
+  const cacheMock: {
+    getVersion: jest.Mock;
+    bumpVersion: jest.Mock;
+    del: jest.Mock;
+    getOrSet: jest.Mock;
+  } = {
+    getVersion: jest.fn(),
+    bumpVersion: jest.fn(),
+    del: jest.fn(),
+    getOrSet: jest.fn(),
+  };
+
+  // ✅ NEW: in-memory read-through cache to test cache hits
+  const mem = new Map<string, unknown>();
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    mem.clear();
+
+    cacheMock.getOrSet.mockImplementation(
+      async (key: string, factory: () => Promise<unknown>) => {
+        if (mem.has(key)) return mem.get(key);
+        const data = await factory();
+        mem.set(key, data);
+        return data;
+      },
+    );
+
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        PostsService,
+        { provide: PrismaService, useValue: prismaMock },
+        { provide: CacheHelperService, useValue: cacheMock },
+      ],
+    }).compile();
+
+    service = moduleRef.get(PostsService);
+  });
+
+  describe("findPosts", () => {
+    it("caps take, normalizes search, uses cache key with version + take + search, and queries prisma correctly", async () => {
+      cacheMock.getVersion.mockResolvedValue(5);
+      prismaMock.post.findMany.mockResolvedValue([{ id: 1 }]);
+
+      const params: FindPostsArgs = {
+        take: PAGINATION.MAX_TAKE + 999,
+        q: "  HeLLo  ",
+      };
+      const res = await service.findPosts(params);
+
+      const expectedTake = PAGINATION.MAX_TAKE;
+      const expectedSearch = "hello";
+
+      expect(cacheMock.getVersion).toHaveBeenCalledWith("v:posts:list");
+      expect(cacheMock.getOrSet).toHaveBeenCalledWith(
+        `posts:list:v5:${expectedTake}:${expectedSearch}`,
+        expect.any(Function),
+        30_000,
+      );
+
+      expect(prismaMock.post.findMany).toHaveBeenCalledWith({
+        take: expectedTake,
+        where: {
+          OR: [
+            { title: { contains: expectedSearch } },
+            { content: { contains: expectedSearch } },
+          ],
+        },
+        orderBy: { createdAt: "desc" },
+        select: SafePostListSelect,
+      });
+
+      expect(res).toEqual([{ id: 1 }]);
+    });
+
+    it("uses defaults and omits where when no search", async () => {
+      cacheMock.getVersion.mockResolvedValue(1);
+      prismaMock.post.findMany.mockResolvedValue([]);
+
+      await service.findPosts(undefined);
+
+      expect(cacheMock.getOrSet).toHaveBeenCalledWith(
+        `posts:list:v1:${PAGINATION.DEFAULT_TAKE}:all`,
+        expect.any(Function),
+        30_000,
+      );
+
+      expect(prismaMock.post.findMany).toHaveBeenCalledWith({
+        take: PAGINATION.DEFAULT_TAKE,
+        where: undefined,
+        orderBy: { createdAt: "desc" },
+        select: SafePostListSelect,
+      });
+    });
+
+    // ✅ NEW: cache hit behavior (factory not called)
+    it("returns cached value on cache hit (does not call prisma)", async () => {
+      cacheMock.getVersion.mockResolvedValue(1);
+
+      prismaMock.post.findMany.mockResolvedValue([{ id: 123 }]);
+
+      // prime cache
+      const params: FindPostsArgs = { take: 1, q: "hi" };
+      await service.findPosts(params);
+
+      prismaMock.post.findMany.mockClear();
+
+      const res = await service.findPosts(params);
+
+      expect(prismaMock.post.findMany).not.toHaveBeenCalled();
+      expect(res).toEqual([{ id: 123 }]);
+    });
+  });
+
+  describe("getPost", () => {
+    it("returns post and uses likes hard cap defaults in select (take 20) and caches with 60s TTL", async () => {
+      prismaMock.post.findUnique.mockResolvedValue({ id: 10 });
+
+      const res = await service.getPost(10);
+
+      expect(cacheMock.getOrSet).toHaveBeenCalledWith(
+        "posts:detail:10",
+        expect.any(Function),
+        60_000,
+      );
+
+      expect(prismaMock.post.findUnique).toHaveBeenCalledWith({
+        where: { id: 10 },
+        select: {
+          ...SafePostDetailSelect,
+          likes: {
+            take: 20,
+            orderBy: { createdAt: "desc" },
+            select: SafePostDetailSelect.likes.select,
+          },
+        },
+      });
+
+      expect(res).toEqual({ id: 10 });
+    });
+
+    it("throws NotFoundException when post does not exist", async () => {
+      prismaMock.post.findUnique.mockResolvedValue(null);
+
+      await expect(service.getPost(999)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe("createPost", () => {
+    it("throws BadRequestException when title/content are empty after trim", async () => {
+      await expect(
+        service.createPost({ title: "   ", content: "ok" }, 1),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      await expect(
+        service.createPost({ title: "ok", content: "   " }, 1),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      expect(prismaMock.post.create).not.toHaveBeenCalled();
+    });
+
+    it("creates post with trimmed inputs, bumps/invalidates caches and returns post", async () => {
+      const created = { id: 1, title: "T", content: "C" };
+      prismaMock.post.create.mockResolvedValue(created);
+
+      const input: CreatePostInput = { title: "  T  ", content: "  C  " };
+      const res = await service.createPost(input, 7);
+
+      expect(prismaMock.post.create).toHaveBeenCalledWith({
+        data: {
+          title: "T",
+          content: "C",
+          author: { connect: { id: 7 } },
+        },
+        select: SafePostListSelect,
+      });
+
+      expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:posts:list");
+      expect(cacheMock.del).toHaveBeenCalledWith("user:safe:7");
+      expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:user:list");
+
+      expect(res).toEqual(created);
+    });
+
+    it("throws NotFoundException when Prisma errors P2003/P2025 (author not found)", async () => {
+      const err1 = new Prisma.PrismaClientKnownRequestError("fk", {
+        code: "P2003",
+        clientVersion: "test",
+      });
+      prismaMock.post.create.mockRejectedValue(err1);
+
+      await expect(
+        service.createPost({ title: "t", content: "c" }, 1),
+      ).rejects.toBeInstanceOf(NotFoundException);
+
+      const err2 = new Prisma.PrismaClientKnownRequestError("missing", {
+        code: "P2025",
+        clientVersion: "test",
+      });
+      prismaMock.post.create.mockRejectedValue(err2);
+
+      await expect(
+        service.createPost({ title: "t", content: "c" }, 1),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it("throws InternalServerErrorException for unknown errors", async () => {
+      prismaMock.post.create.mockRejectedValue(new Error("boom"));
+
+      await expect(
+        service.createPost({ title: "t", content: "c" }, 1),
+      ).rejects.toBeInstanceOf(InternalServerErrorException);
+    });
+  });
+
+  describe("updatePost", () => {
+    it("throws BadRequestException when no fields provided", async () => {
+      const input: UpdatePostInput = {};
+      await expect(service.updatePost(1, input, 1)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+    });
+
+    it("throws BadRequestException when provided title/content are empty after trim", async () => {
+      await expect(
+        service.updatePost(1, { title: "   " }, 1),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      await expect(
+        service.updatePost(1, { content: "   " }, 1),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it("throws NotFoundException when post does not exist", async () => {
+      prismaMock.post.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.updatePost(1, { title: "ok" }, 1),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it("throws ForbiddenException when current user is not the author", async () => {
+      prismaMock.post.findUnique.mockResolvedValue({ id: 1, authorId: 999 });
+
+      await expect(
+        service.updatePost(1, { title: "ok" }, 1),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it("updates post, invalidates detail cache, bumps list version, and returns post", async () => {
+      prismaMock.post.findUnique.mockResolvedValue({ id: 1, authorId: 7 });
+
+      const updated = { id: 1, title: "New", content: "NewC" };
+      prismaMock.post.update.mockResolvedValue(updated);
+
+      const input: UpdatePostInput = {
+        title: "  New  ",
+        content: "  NewC  ",
+      };
+      const res = await service.updatePost(1, input, 7);
+
+      expect(prismaMock.post.update).toHaveBeenCalledWith({
+        where: { id: 1 },
+        data: { title: "New", content: "NewC" },
+        select: SafePostListSelect,
+      });
+
+      expect(cacheMock.del).toHaveBeenCalledWith("posts:detail:1");
+      expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:posts:list");
+
+      expect(res).toEqual(updated);
+    });
+
+    it("throws NotFoundException when Prisma update throws P2025", async () => {
+      prismaMock.post.findUnique.mockResolvedValue({ id: 1, authorId: 7 });
+
+      const err = new Prisma.PrismaClientKnownRequestError("gone", {
+        code: "P2025",
+        clientVersion: "test",
+      });
+      prismaMock.post.update.mockRejectedValue(err);
+
+      await expect(
+        service.updatePost(1, { title: "ok" }, 7),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it("throws InternalServerErrorException for unexpected errors", async () => {
+      prismaMock.post.findUnique.mockRejectedValue(new Error("boom"));
+
+      await expect(
+        service.updatePost(1, { title: "ok" }, 1),
+      ).rejects.toBeInstanceOf(InternalServerErrorException);
+    });
+  });
+
+  describe("deletePost", () => {
+    it("throws NotFoundException when post does not exist", async () => {
+      prismaMock.post.findUnique.mockResolvedValue(null);
+
+      await expect(service.deletePost(1, 1)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+
+    it("throws ForbiddenException when current user is not the author", async () => {
+      prismaMock.post.findUnique.mockResolvedValue({ id: 1, authorId: 999 });
+
+      await expect(service.deletePost(1, 1)).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+    });
+
+    it("deletes post, invalidates caches, bumps versions, and returns message", async () => {
+      prismaMock.post.findUnique.mockResolvedValue({ id: 1, authorId: 7 });
+      prismaMock.post.delete.mockResolvedValue({ id: 1 });
+
+      const res = await service.deletePost(1, 7);
+
+      expect(prismaMock.post.delete).toHaveBeenCalledWith({ where: { id: 1 } });
+
+      expect(cacheMock.del).toHaveBeenCalledWith("posts:detail:1");
+      expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:posts:list");
+
+      expect(cacheMock.del).toHaveBeenCalledWith("user:safe:7");
+      expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:user:list");
+
+      expect(res).toEqual({ message: "Post deleted successfully" });
+    });
+
+    it("throws NotFoundException when Prisma delete throws P2025 (race condition)", async () => {
+      prismaMock.post.findUnique.mockResolvedValue({ id: 1, authorId: 7 });
+
+      const err = new Prisma.PrismaClientKnownRequestError("gone", {
+        code: "P2025",
+        clientVersion: "test",
+      });
+      prismaMock.post.delete.mockRejectedValue(err);
+
+      await expect(service.deletePost(1, 7)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+
+    it("throws InternalServerErrorException for unexpected errors", async () => {
+      prismaMock.post.findUnique.mockRejectedValue(new Error("boom"));
+
+      await expect(service.deletePost(1, 1)).rejects.toBeInstanceOf(
+        InternalServerErrorException,
+      );
+    });
+  });
+});
