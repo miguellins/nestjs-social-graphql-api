@@ -26,7 +26,7 @@ import { Inject, Injectable } from "@nestjs/common";
 
 @Injectable()
 export class CacheHelperService {
-  constructor(@Inject(CACHE_MANAGER) private readonly cache: Cache) {}
+  constructor(@Inject(CACHE_MANAGER) private readonly cache: Cache) { }
 
   /**
    * Retrieves a value from cache by key
@@ -67,7 +67,7 @@ export class CacheHelperService {
   }
 
   /**
-   * Read-through caching helper.
+   * Read-through caching helper
    *
    * Flow:
    * 1. Attempt to read from cache
@@ -78,7 +78,7 @@ export class CacheHelperService {
    *
    * T = inferred return type of factory
    *
-   * This centralizes the classic "cache → DB fallback → cache set" pattern.
+   * This centralizes the classic "cache → DB fallback → cache set" pattern
    */
 
   async getOrSet<T>(

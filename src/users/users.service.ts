@@ -94,10 +94,11 @@ export class UsersService {
     const username = input.username.trim().toLowerCase();
     const password = input.password.trim();
 
-    if (!name) throw new BadRequestException("Name is required");
-    if (!email) throw new BadRequestException("Email is required");
-    if (!username) throw new BadRequestException("Username is required");
-    if (!password) throw new BadRequestException("Password is required");
+    const requiredFields = { name, email, username, password };
+
+    for (const [key, value] of Object.entries(requiredFields)) {
+      if (!value) throw new BadRequestException(`${key} is required`);
+    }
 
     try {
       // Hash password before storing in DB

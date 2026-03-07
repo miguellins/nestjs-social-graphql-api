@@ -216,6 +216,65 @@ npm run start:dev
 
 - `http://localhost:3000/graphql`
 
+## Docker Setup
+
+This project is fully containerized with:
+
+- `app` (NestJS + Prisma)
+- `mysql` (MySQL 8.4)
+- `redis` (Redis 7)
+
+### 1. Optional: set JWT envs for compose
+
+```bash
+cp .env.docker.example .env.docker
+```
+
+Then export values from that file (or define directly in your shell):
+
+```bash
+export JWT_SECRET="your_long_random_secret"
+export JWT_EXPIRES_IN="7d"
+```
+
+### 2. Build and run
+
+```bash
+docker compose up --build -d
+```
+
+### 3. Check logs
+
+```bash
+docker compose logs -f app
+```
+
+The container entrypoint automatically runs:
+
+```bash
+npx prisma migrate deploy
+```
+
+before starting the API.
+
+### 4. Endpoints
+
+- GraphQL: `http://localhost:3000/graphql`
+- MySQL host port: `3307`
+- Redis host port: `6379`
+
+### 5. Stop
+
+```bash
+docker compose down
+```
+
+To also remove DB/cache volumes:
+
+```bash
+docker compose down -v
+```
+
 ## Available Scripts
 
 - `npm run build` -> builds Nest app and resolves path aliases
