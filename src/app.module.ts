@@ -64,6 +64,7 @@ export type GqlContext = {
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
         const redisUrl = config.get<string>("REDIS_URL");
+
         if (!redisUrl) throw new Error("REDIS_URL is not defined");
 
         // Establishes a direct connection to the REDIS server via its URL
@@ -142,4 +143,4 @@ export type GqlContext = {
     },
   ],
 })
-export class AppModule {}
+export class AppModule { }

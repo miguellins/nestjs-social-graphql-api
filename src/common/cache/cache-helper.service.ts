@@ -26,7 +26,7 @@ import { Inject, Injectable } from "@nestjs/common";
 
 @Injectable()
 export class CacheHelperService {
-  constructor(@Inject(CACHE_MANAGER) private readonly cache: Cache) { }
+  constructor(@Inject(CACHE_MANAGER) private readonly cache: Cache) {}
 
   /**
    * Retrieves a value from cache by key
