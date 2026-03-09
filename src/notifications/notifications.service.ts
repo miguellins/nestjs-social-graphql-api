@@ -1,17 +1,19 @@
-import { Injectable } from "@nestjs/common";
-
+import { Injectable, Logger } from "@nestjs/common";
 import { pubSub } from "@/graphql/pubsub";
+
 import { PrismaService } from "@/prisma.service";
 
+import { type CreateNotificationInput } from "@/notifications/dto/create-notification.input";
 import {
   NotificationSelect,
   type SafeNotificationDTO,
 } from "@/notifications/dto/notifications.dto";
-import { type CreateNotificationInput } from "@/notifications/dto/create-notification.input";
 
 @Injectable()
 export class NotificationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(NotificationsService.name);
+
+  constructor(private readonly prisma: PrismaService) { }
 
   async createAndPublishNotification(
     input: CreateNotificationInput,
@@ -37,7 +39,10 @@ export class NotificationsService {
         notificationReceived: notification,
       });
     } catch (error) {
-      console.error("Failed to publish notification subscription event", error);
+      this.logger.error(
+        "Failed to publish notification subscription event",
+        error instanceof Error ? error.stack : undefined,
+      );
     }
 
     return notification;
