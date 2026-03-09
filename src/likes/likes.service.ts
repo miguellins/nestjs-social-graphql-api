@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 
+import { NotificationsService } from "@/notifications/notifications.service";
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
 
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
@@ -14,14 +15,15 @@ import { FindLikesArgs } from "@/common/args/find-likes.args";
 
 import { LikeDetailDTO, LikeDetailSelect } from "@/likes/dto/like-detail.dto";
 
+import { NotificationType, Prisma } from "@prisma/client";
 import { PrismaService } from "@/prisma.service";
-import { Prisma } from "@prisma/client";
 
 @Injectable()
 export class LikesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cacheHelper: CacheHelperService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async findLikes(params?: FindLikesArgs): Promise<LikeDetailDTO[]> {
@@ -90,9 +92,30 @@ export class LikesService {
     currentUserId: number,
     postId: number,
   ): Promise<LikeDetailDTO> {
+    // Read the minimum data needed for validation and notification building
+    const [currentUser, post] = await Promise.all([
+      this.prisma.user.findUnique({
+        where: { id: currentUserId },
+        select: {
+          id: true,
+          username: true,
+        },
+      }),
+
+      this.prisma.post.findUnique({
+        where: { id: postId },
+        select: {
+          id: true,
+          authorId: true,
+        },
+      }),
+    ]);
+
+    if (!currentUser) throw new NotFoundException("Current user not found");
+    if (!post) throw new NotFoundException("Post not found");
+
     try {
-      // Single transaction
-      // create like (will fail if post doesnt exist or ir already liked)
+      // Single transaction to keep the like row creation and post counter update consistent
       const [like] = await this.prisma.$transaction([
         this.prisma.like.create({
           data: {
@@ -110,6 +133,7 @@ export class LikesService {
         }),
       ]);
 
+      // Invalidate / bump cache after successful write operations
       await this.cacheHelper.bumpVersion("v:likes:list");
 
       await this.cacheHelper.del(`posts:detail:${postId}`);
@@ -118,18 +142,33 @@ export class LikesService {
       await this.cacheHelper.del(`user:safe:${currentUserId}`);
       await this.cacheHelper.bumpVersion("v:user:list");
 
+      // Notifications are best-effort:
+      // the like should succeed even if real-time delivery fails
+      try {
+        await this.notificationsService.createAndPublishNotification({
+          recipientId: post.authorId,
+          actorId: currentUserId,
+          type: NotificationType.POST_LIKED,
+          title: "New like",
+          body: `${currentUser.username} liked your post`,
+          entityId: postId,
+        });
+      } catch (error) {
+        console.error("Failed to create like notification", error);
+      }
+
       return like;
-    } catch (err) {
+    } catch (err: unknown) {
+      // Unique constraint: same user already liked the same post
       if (err instanceof Prisma.PrismaClientKnownRequestError) {
-        // @@unique([userId, postId]) -> already liked
-        if (err.code === "P2002")
+        if (err.code === "P2002") {
           throw new ConflictException("You already liked this post");
+        }
 
-        // FK violation: postId doesn't exist (or userId doesn't exist)
-        if (err.code === "P2003") throw new NotFoundException("Post not found");
-
-        // Record not found on update (race condition / deleted post)
-        if (err.code === "P2025") throw new NotFoundException("Post not found");
+        // Foreign key / missing record problems
+        if (err.code === "P2003" || err.code === "P2025") {
+          throw new NotFoundException("Post not found");
+        }
       }
 
       throw new InternalServerErrorException("Failed to create like");

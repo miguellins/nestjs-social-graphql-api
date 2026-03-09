@@ -2,6 +2,67 @@
 # THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
 # ------------------------------------------------------
 
+"""Minimal safe representation of the actor who triggered a notification"""
+type NotificationActorDTO {
+  """Unique identifier of the actor user"""
+  id: Int!
+
+  """Public username of the actor user"""
+  username: String!
+
+  """Optional public display name of the actor user"""
+  name: String
+}
+
+"""Notification entity delivered to a recipient user"""
+type NotificationDTO {
+  """Unique identifier of the notification record"""
+  id: Int!
+
+  """Category of notification event"""
+  type: NotificationType!
+
+  """Short title shown to the recipient"""
+  title: String!
+
+  """Optional detailed message body"""
+  body: String
+
+  """Read state of this notification"""
+  isRead: Boolean!
+
+  """Timestamp when notification was marked as read"""
+  readAt: DateTime
+
+  """Optional related entity id (follow, like, post, etc.)"""
+  entityId: Int
+
+  """Identifier of the user who triggered the notification"""
+  actorId: Int!
+
+  """Identifier of the user who receives the notification"""
+  recipientId: Int!
+
+  """Public-safe actor preview for UI rendering"""
+  actor: NotificationActorDTO!
+
+  """Timestamp indicating when the notification was created"""
+  createdAt: DateTime!
+
+  """Timestamp indicating the latest update on this notification"""
+  updatedAt: DateTime!
+}
+
+enum NotificationType {
+  USER_FOLLOWED
+  POST_LIKED
+}
+
+"""
+A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format.
+"""
+scalar DateTime
+
 type DeleteResponse {
   message: String!
 }
@@ -42,11 +103,6 @@ type Follow {
   """Optional lightweight preview of the follower user"""
   following: SafeUserPreview
 }
-
-"""
-A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format.
-"""
-scalar DateTime
 
 """
 Aggregated numeric metadata representing user relationships and activity
@@ -268,11 +324,14 @@ type Query {
     userId: Int
   ): [LikeListItem!]!
   likeById(id: Int!): LikeListItem!
+  myNotifications(take: Int): [NotificationDTO!]!
+  unreadNotificationsCount: Int!
   follows(take: Int): [Follow!]!
   followById(id: Int!): Follow!
 }
 
 type Mutation {
+  login(input: LoginInput!): AuthPayload!
   createUser(input: CreateUserInput!): SafeUser!
   updateMe(input: UpdateUserInput!): SafeUser!
   deleteMe: DeleteResponse!
@@ -281,9 +340,15 @@ type Mutation {
   deletePost(id: Int!): DeleteResponse!
   createLike(postId: Int!): LikeListItem!
   deleteLike(id: Int!): DeleteResponse!
+  markNotificationAsRead(notificationId: Int!): DeleteResponse!
+  markAllNotificationsAsRead: DeleteResponse!
   createFollow(followingId: Int!): Follow!
   deleteFollow(id: Int!): DeleteResponse!
-  login(input: LoginInput!): AuthPayload!
+}
+
+input LoginInput {
+  username: String!
+  password: String!
 }
 
 input CreateUserInput {
@@ -310,7 +375,6 @@ input UpdatePostInput {
   content: String
 }
 
-input LoginInput {
-  username: String!
-  password: String!
+type Subscription {
+  notificationReceived: NotificationDTO!
 }

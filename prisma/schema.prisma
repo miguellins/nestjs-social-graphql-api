@@ -35,6 +35,18 @@ model User {
 
   // Users this user is following
   following Follow[] @relation("follower")
+
+  /**
+   * 1:N relation
+   * Notifications sent by this user (as the actor who triggered the event)
+   */
+  sentNotifications Notification[] @relation("NotificationActor")
+
+  /**
+   * 1:N relation
+   * Notifications received by this user (as the target of the event)
+   */
+  receivedNotifications Notification[] @relation("NotificationRecipient")
 }
 
 model Post {
@@ -144,4 +156,66 @@ model Like {
   @@index([postId])
   // "what posts did this user likes?"
   @@index([userId])
+}
+
+enum NotificationType {
+  USER_FOLLOWED
+  POST_LIKED
+}
+
+model Notification {
+  id Int @id @default(autoincrement())
+
+  // Type of notification event (e.g. USER_FOLLOWED, POST_LIKED)
+  type NotificationType
+
+  // Short heading displayed in the notification
+  title String
+
+  // Optional longer description of the notification
+  body String?
+
+  // Whether the recipient has read this notification
+  isRead Boolean @default(false)
+
+  // Timestamp of when the notification was read; null if unread
+  readAt DateTime?
+
+  /**
+   * Optional reference to the entity that triggered the notification
+   * e.g. the Post.id for a POST_LIKED event
+   */
+  entityId Int?
+
+  // Id of the user who triggered the notification (e.g. the follower, the liker)
+  actorId Int
+
+  // Id of the user who receives the notification
+  recipientId Int
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /**
+   * Relation to User (the actor)
+   * fields: [actorId] - is a foreign key
+   * references: [id]  - references User.id
+   * onDelete: Cascade - delete notifications if actor is deleted
+   */
+  actor User @relation("NotificationActor", fields: [actorId], references: [id], onDelete: Cascade)
+
+  /**
+   * Relation to User (the recipient)
+   * fields: [recipientId] - is a foreign key
+   * references: [id]      - references User.id
+   * onDelete: Cascade     - delete notifications if recipient is deleted
+   */
+  recipient User @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+
+  /**
+   * Compound index on recipientId, isRead, and createdAt
+   * Optimizes the common query: "fetch unread notifications for a user, ordered by date"
+   */
+  @@index([recipientId, isRead, createdAt])
 }

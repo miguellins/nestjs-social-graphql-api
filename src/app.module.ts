@@ -3,12 +3,14 @@ import { ConfigModule, ConfigService } from "@nestjs/config";
 import { CacheModule } from "@nestjs/cache-manager";
 import { ThrottlerModule } from "@nestjs/throttler";
 import { GraphQLModule } from "@nestjs/graphql";
+import { JwtService } from "@nestjs/jwt";
 import { APP_GUARD } from "@nestjs/core";
 import { Module } from "@nestjs/common";
 
 import { GqlThrottlerGuard } from "@/common/guards/qgl-throttler.guard";
 import { GqlJwtGuard } from "@/common/guards/qgl-jwt.guard";
 
+import { NotificationsModule } from "@/notifications/notifications.module";
 import { FollowsModule } from "@/follows/follows.module";
 import { UsersModule } from "@/users/users.module";
 import { PostsModule } from "@/posts/posts.module";
@@ -16,7 +18,6 @@ import { LikesModule } from "@/likes/likes.module";
 import { AuthModule } from "@/auth/auth.module";
 
 import type { GraphQLFormattedError } from "graphql";
-
 import type { Request, Response } from "express";
 
 import KeyvRedis from "@keyv/redis";
@@ -26,9 +27,40 @@ import SuperJSON from "superjson";
 
 import { join } from "path";
 
+/**
+ * Extra data attached to a GraphQL WebSocket subscription connection
+ *
+ * This object lives on `context.extra` for subscription operations and stores
+ * connection-scoped metadata, such as the authenticated user resolved during
+ * the WebSocket handshake
+ */
+export type SubscriptionExtra = {
+  // Authenticated user attached during the WebSocket connection handshake
+  user?: {
+    // Unique identifier of the authenticated user
+    id: number;
+  };
+
+  // Allows attaching other connection-scoped metadata later if needed
+  [key: string]: unknown;
+};
+
+/**
+ * GraphQL execution context passed to resolvers and middleware
+ *
+ * Supports both HTTP (req/res) and WebSocket (extra) transports, enabling a
+ * unified context shape across queries, mutations, and subscriptions
+ */
 export type GqlContext = {
-  req: Request;
-  res: Response;
+  // Incoming HTTP request object. Present in query/mutation context
+  req?: Request;
+
+  // Outgoing HTTP response object. Present in query/mutation context
+  res?: Response;
+
+  // Additional context injected by the WebSocket server (e.g. graphql-ws)
+  // Used to carry authenticated user data in subscription connections
+  extra?: SubscriptionExtra;
 };
 
 @Module({
@@ -41,23 +73,6 @@ export type GqlContext = {
      *
      * The factory function reads runtime configuration from ConfigService
      * and initializes a Redis-backed Keyv store for application-wide caching
-     *
-     * Initialization flow:
-     * - Reads REDIS_URL from the environment and fails fast if undefined,
-     *   preventing silent fallback to in-memory caching
-     * - Creates a KeyvRedis adapter to establish the connection to Redis
-     * - Wraps the adapter in a Keyv instance scoped to the "app-cache"
-     *   namespace, ensuring all keys are isolated and collision-safe
-     *   within shared Redis environments
-     *
-     * Default behavior:
-     * - Cached entries expire after 30 seconds unless explicitly overridden
-     * - Expiration is handled automatically by Redis
-     *
-     * Architectural intent:
-     * - Centralized cache configuration
-     * - Deterministic key isolation
-     * - Production-safe fail-fast behavior
      */
     CacheModule.registerAsync({
       isGlobal: true,
@@ -67,60 +82,108 @@ export type GqlContext = {
 
         if (!redisUrl) throw new Error("REDIS_URL is not defined");
 
-        // Establishes a direct connection to the REDIS server via its URL
         const redis = new KeyvRedis(redisUrl);
 
-        // Wraps the Redis adapter with a namespaced Keyv store to isolate cache keys and
-        // prevent collisions across services or environments
         const keyv = new Keyv({
           store: redis,
           namespace: "app-cache",
-
-          // Serialization to support complex types (Date)
           serialize: (data) => SuperJSON.stringify(data),
           deserialize: (data) => SuperJSON.parse(data),
         });
 
         return {
           stores: [keyv],
-
-          // Default cache expiration in milliseconds
           ttl: 30_000,
         };
       },
     }),
 
     // Initializes GraphQL globally
-    GraphQLModule.forRoot<ApolloDriverConfig>({
-      // Uses ApolloDriverConfig for type safety
+    GraphQLModule.forRootAsync<ApolloDriverConfig>({
       driver: ApolloDriver,
+      imports: [AuthModule],
+      inject: [JwtService],
+      useFactory: (jwtService: JwtService): ApolloDriverConfig => ({
+        autoSchemaFile: join(process.cwd(), "src/schema.gql"),
 
-      // Set code-first approach
-      autoSchemaFile: join(process.cwd(), "src/schema.gql"),
+        subscriptions: {
+          "graphql-ws": {
+            // Give clients more time to send connection_init before server closes socket
+            connectionInitWaitTimeout: 60_000,
 
-      // Customizes how errors are presented to the GraphQL client
-      formatError: (error: GraphQLFormattedError) => ({
-        message: error.message,
+            // Send websocket ping frames periodically to keep idle connections alive
+            // @ts-expect-error keepAlive is supported by graphql-ws runtime options
+            keepAlive: 20_000,
+
+            onConnect: async (context) => {
+              console.log("WS connectionParams:", context.connectionParams);
+
+              const extra = context.extra as SubscriptionExtra;
+
+              const auth =
+                context.connectionParams?.authorization ??
+                context.connectionParams?.Authorization;
+
+              if (!auth) {
+                throw new Error(
+                  "Missing authorization in websocket connection params",
+                );
+              }
+
+              if (typeof auth !== "string" || !auth.startsWith("Bearer ")) {
+                throw new Error(
+                  "Authorization must be in format: Bearer <token>",
+                );
+              }
+
+              const token = auth.slice(7);
+
+              try {
+                const payload = await jwtService.verifyAsync<{
+                  sub: number;
+                }>(token);
+
+                extra.user = {
+                  id: payload.sub,
+                };
+
+                console.log("WS authenticated user:", extra.user);
+              } catch {
+                throw new Error("Invalid or expired websocket token");
+              }
+            },
+          },
+        },
+
+        formatError: (error: GraphQLFormattedError) => ({
+          message: error.message,
+        }),
+
+        context: ({
+          req,
+          res,
+          extra,
+        }: {
+          req?: Request;
+          res?: Response;
+          extra?: SubscriptionExtra;
+        }): GqlContext => ({
+          req,
+          res,
+          extra,
+        }),
+
+        debug: false,
       }),
-
-      // Injects the HTTP request and response into the GraphQL context
-      context: ({ req, res }: { req: Request; res: Response }): GqlContext => ({
-        req,
-        res,
-      }),
-
-      debug: false,
-
-      playground: true,
     }),
 
     // Registers the rate limiter globally
     ThrottlerModule.forRoot([
       {
-        // 60 seconds (ms)
+        // 60 seconds
         ttl: 60,
 
-        // 100 requests per ttl per client
+        // 120 requests per ttl per client
         limit: 120,
       },
     ]),
@@ -131,6 +194,7 @@ export type GqlContext = {
     LikesModule,
     FollowsModule,
     AuthModule,
+    NotificationsModule,
   ],
   providers: [
     {
@@ -143,4 +207,4 @@ export type GqlContext = {
     },
   ],
 })
-export class AppModule { }
+export class AppModule {}

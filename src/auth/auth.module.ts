@@ -1,23 +1,33 @@
+import { Module } from "@nestjs/common";
 import { PassportModule } from "@nestjs/passport";
 import { JwtModule } from "@nestjs/jwt";
-import { Module } from "@nestjs/common";
+import { ConfigModule, ConfigService } from "@nestjs/config";
 
-import { AuthResolver } from "@/auth/auth.resolver";
 import { AuthService } from "@/auth/auth.service";
-
+import { AuthResolver } from "@/auth/auth.resolver";
 import { JwtStrategy } from "@/auth/jwt.strategy";
 
 @Module({
   imports: [
     PassportModule,
-    JwtModule.register({
-      // Secret key used to sign and verify JWT tokens
-      secret: process.env.JWT_SECRET,
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => {
+        const secret = config.get<string>("JWT_SECRET");
 
-      // JWT configuration options
-      signOptions: { expiresIn: "7d" },
+        if (!secret) throw new Error("JWT_SECRET is not defined");
+
+        return {
+          secret,
+          signOptions: {
+            expiresIn: "7d",
+          },
+        };
+      },
     }),
   ],
-  providers: [AuthResolver, AuthService, JwtStrategy],
+  providers: [AuthService, AuthResolver, JwtStrategy],
+  exports: [AuthService, JwtModule],
 })
 export class AuthModule {}

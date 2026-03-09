@@ -24,14 +24,14 @@ export class UsersResolver {
 
   @Public()
   @Throttle({ default: THROTTLE_LIMITS.LIST })
-  @Query(() => [SafeUser])
+  @Query(() => [SafeUser], { name: "users" })
   async users(@Args() args: PaginationArgs) {
     return this.usersService.findUsers(args);
   }
 
   @Public()
   @Throttle({ default: THROTTLE_LIMITS.READ })
-  @Query(() => SafeUser)
+  @Query(() => SafeUser, { name: "userById" })
   async userById(@Args("id", { type: () => Int }) id: number) {
     return this.usersService.getUser(id);
   }
@@ -39,13 +39,13 @@ export class UsersResolver {
   // Set to Public
   @Public()
   @Throttle({ default: THROTTLE_LIMITS.SIGNUP })
-  @Mutation(() => SafeUser)
+  @Mutation(() => SafeUser, { name: "createUser" })
   async createUser(@Args("input") input: CreateUserInput): Promise<SafeUser> {
     return this.usersService.createUser(input);
   }
 
   @Throttle({ default: THROTTLE_LIMITS.MUTATION })
-  @Mutation(() => SafeUser)
+  @Mutation(() => SafeUser, { name: "updateMe" })
   async updateMe(
     @Args("input") input: UpdateUserInput,
     @CurrentUser() user: { id: number },
@@ -54,7 +54,7 @@ export class UsersResolver {
   }
 
   @Throttle({ default: THROTTLE_LIMITS.DESTRUCTIVE })
-  @Mutation(() => DeleteResponse)
+  @Mutation(() => DeleteResponse, { name: "deleteMe" })
   async deleteMe(@CurrentUser() user: { id: number }) {
     await this.usersService.deleteUser(user.id);
 

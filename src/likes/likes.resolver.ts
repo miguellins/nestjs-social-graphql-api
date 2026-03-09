@@ -21,13 +21,13 @@ export class LikeResolver {
 
   @Public()
   @Throttle({ default: THROTTLE_LIMITS.LIST })
-  @Query(() => [LikeListItem])
+  @Query(() => [LikeListItem], { name: "likes" })
   async likes(@Args() args: FindLikesArgs): Promise<LikeListItem[]> {
     return this.likesService.findLikes(args);
   }
 
   @Public()
-  @Query(() => LikeListItem)
+  @Query(() => LikeListItem, { name: "likeById" })
   @Throttle({ default: THROTTLE_LIMITS.READ })
   async likeById(
     @Args("id", { type: () => Int }) id: number,
@@ -36,7 +36,7 @@ export class LikeResolver {
   }
 
   @Throttle({ default: THROTTLE_LIMITS.MUTATION })
-  @Mutation(() => LikeListItem)
+  @Mutation(() => LikeListItem, { name: "createLike" })
   async createLike(
     @Args("postId", { type: () => Int }) postId: number,
     @CurrentUser() user: { id: number },
@@ -45,7 +45,7 @@ export class LikeResolver {
   }
 
   @Throttle({ default: THROTTLE_LIMITS.DESTRUCTIVE })
-  @Mutation(() => DeleteResponse)
+  @Mutation(() => DeleteResponse, { name: "deleteLike" })
   async deleteLike(
     @Args("id", { type: () => Int }) id: number,
     @CurrentUser() user: { id: number },

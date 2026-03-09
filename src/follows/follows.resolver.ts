@@ -18,7 +18,7 @@ export class FollowsResolver {
 
   @Public()
   @Throttle({ default: THROTTLE_LIMITS.LIST })
-  @Query(() => [Follow])
+  @Query(() => [Follow], { name: "follows" })
   async follows(
     @Args("take", { type: () => Int, nullable: true }) take?: number,
   ): Promise<Follow[]> {
@@ -27,7 +27,7 @@ export class FollowsResolver {
 
   @Public()
   @Throttle({ default: THROTTLE_LIMITS.READ })
-  @Query(() => Follow)
+  @Query(() => Follow, { name: "followById" })
   async followById(
     @Args("id", { type: () => Int }) id: number,
   ): Promise<Follow> {
@@ -35,7 +35,7 @@ export class FollowsResolver {
   }
 
   @Throttle({ default: THROTTLE_LIMITS.MUTATION })
-  @Mutation(() => Follow)
+  @Mutation(() => Follow, { name: "createFollow" })
   async createFollow(
     @Args("followingId", { type: () => Int }) followingId: number,
     @CurrentUser() user: { id: number },
@@ -44,7 +44,7 @@ export class FollowsResolver {
   }
 
   @Throttle({ default: THROTTLE_LIMITS.DESTRUCTIVE })
-  @Mutation(() => DeleteResponse)
+  @Mutation(() => DeleteResponse, { name: "deleteFollow" })
   async deleteFollow(
     @Args("id", { type: () => Int }) id: number,
     @CurrentUser() user: { id: number },

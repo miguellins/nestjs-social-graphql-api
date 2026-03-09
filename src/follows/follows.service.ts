@@ -7,20 +7,22 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 
+import { NotificationsService } from "@/notifications/notifications.service";
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
 
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
 
 import { SafeFollowDTO, SafeFollowSelect } from "@/follows/dto/safe-follow.dto";
 
+import { Prisma, NotificationType } from "@prisma/client";
 import { PrismaService } from "@/prisma.service";
-import { Prisma } from "@prisma/client";
 
 @Injectable()
 export class FollowsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cacheHelper: CacheHelperService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async findFollows(params?: { take?: number }): Promise<SafeFollowDTO[]> {
@@ -80,11 +82,21 @@ export class FollowsService {
 
     const target = await this.prisma.user.findUnique({
       where: { id: followingId },
-
       select: { id: true },
     });
 
     if (!target) throw new NotFoundException("User to follow not found");
+
+    const currentUser = await this.prisma.user.findUnique({
+      where: { id: followerId },
+
+      select: {
+        id: true,
+        username: true,
+      },
+    });
+
+    if (!currentUser) throw new NotFoundException("Current user not found");
 
     try {
       // Rely on @@unique([followerId, followingId]) to prevent duplicates safely
@@ -100,6 +112,19 @@ export class FollowsService {
       await this.cacheHelper.del(`user:safe:${followingId}`);
 
       await this.cacheHelper.bumpVersion("v:user:list");
+
+      try {
+        await this.notificationsService.createAndPublishNotification({
+          recipientId: followingId,
+          actorId: followerId,
+          type: NotificationType.USER_FOLLOWED,
+          title: "New follower",
+          body: `${currentUser.username} started following you`,
+          entityId: follow.id,
+        });
+      } catch (error) {
+        console.error("Failed to create follow notification", error);
+      }
 
       return follow;
     } catch (err: unknown) {
@@ -118,8 +143,16 @@ export class FollowsService {
 
   async deleteFollow(id: number, currentUserId: number) {
     try {
-      const existing = await this.prisma.follow.findUnique({
-        where: { id },
+      // Supports both:
+      // - follow relation id
+      // - following user id (common "unfollow user" UX)
+      const ownByFollowingId = await this.prisma.follow.findUnique({
+        where: {
+          followerId_followingId: {
+            followerId: currentUserId,
+            followingId: id,
+          },
+        },
 
         select: {
           id: true,
@@ -127,6 +160,18 @@ export class FollowsService {
           followingId: true,
         },
       });
+
+      const existing =
+        ownByFollowingId ??
+        (await this.prisma.follow.findUnique({
+          where: { id },
+
+          select: {
+            id: true,
+            followerId: true,
+            followingId: true,
+          },
+        }));
 
       if (!existing) throw new NotFoundException("Follow not found");
 
@@ -136,10 +181,10 @@ export class FollowsService {
         );
 
       await this.prisma.follow.delete({
-        where: { id },
+        where: { id: existing.id },
       });
 
-      await this.cacheHelper.del(`follow:detail:${id}`);
+      await this.cacheHelper.del(`follow:detail:${existing.id}`);
 
       await this.cacheHelper.bumpVersion("v:follows:list");
 

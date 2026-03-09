@@ -27,14 +27,14 @@ export class PostsResolver {
 
   @Public()
   @Throttle({ default: THROTTLE_LIMITS.LIST })
-  @Query(() => [PostListItem])
+  @Query(() => [PostListItem], { name: "posts" })
   async posts(@Args() args: FindPostsArgs): Promise<PostListItem[]> {
     return this.postsService.findPosts(args);
   }
 
   @Public()
   @Throttle({ default: THROTTLE_LIMITS.READ })
-  @Query(() => PostDetail)
+  @Query(() => PostDetail, { name: "postById" })
   async postById(
     @Args("id", { type: () => Int }) id: number,
   ): Promise<PostDetail> {
@@ -42,7 +42,7 @@ export class PostsResolver {
   }
 
   @Throttle({ default: THROTTLE_LIMITS.MUTATION })
-  @Mutation(() => Post)
+  @Mutation(() => Post, { name: "createPost" })
   async createPost(
     @Args("input") input: CreatePostInput,
     @CurrentUser() user: { id: number },
@@ -51,7 +51,7 @@ export class PostsResolver {
   }
 
   @Throttle({ default: THROTTLE_LIMITS.MUTATION })
-  @Mutation(() => Post)
+  @Mutation(() => Post, { name: "updatePost" })
   async updatePost(
     @Args("id", { type: () => Int }) id: number,
     @Args("input") input: UpdatePostInput,
@@ -61,7 +61,7 @@ export class PostsResolver {
   }
 
   @Throttle({ default: THROTTLE_LIMITS.DESTRUCTIVE })
-  @Mutation(() => DeleteResponse)
+  @Mutation(() => DeleteResponse, { name: "deletePost" })
   async deletePost(
     @Args("id", { type: () => Int }) id: number,
     @CurrentUser() user: { id: number },

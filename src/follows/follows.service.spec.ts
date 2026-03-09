@@ -11,6 +11,7 @@ import { Prisma } from "@prisma/client";
 import { FollowsService } from "./follows.service";
 import { PrismaService } from "@/prisma.service";
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
+import { NotificationsService } from "@/notifications/notifications.service";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
 import { SafeFollowSelect } from "@/follows/dto/safe-follow.dto";
 
@@ -51,8 +52,14 @@ describe("FollowsService", () => {
     getOrSet: jest.fn(),
   };
 
+  const notificationsMock: {
+    createAndPublishNotification: jest.Mock;
+  } = {
+    createAndPublishNotification: jest.fn(),
+  };
+
   beforeEach(async () => {
-    jest.clearAllMocks();
+    jest.resetAllMocks();
 
     // Default: behave like a real cache wrapper: call the factory and return its result
     cacheMock.getOrSet.mockImplementation(
@@ -64,6 +71,7 @@ describe("FollowsService", () => {
         FollowsService,
         { provide: PrismaService, useValue: prismaMock },
         { provide: CacheHelperService, useValue: cacheMock },
+        { provide: NotificationsService, useValue: notificationsMock },
       ],
     }).compile();
 
@@ -239,6 +247,26 @@ describe("FollowsService", () => {
   });
 
   describe("deleteFollow", () => {
+    it("deletes by followingId when relation id is not provided", async () => {
+      prismaMock.follow.findUnique
+        .mockResolvedValueOnce({
+          id: 55,
+          followerId: 1,
+          followingId: 2,
+        })
+        .mockResolvedValueOnce(null);
+
+      prismaMock.follow.delete.mockResolvedValue({ id: 55 });
+
+      const res = await service.deleteFollow(2, 1);
+
+      expect(prismaMock.follow.delete).toHaveBeenCalledWith({
+        where: { id: 55 },
+      });
+
+      expect(res).toEqual({ message: "Follow deleted successfully" });
+    });
+
     it("throws NotFound if follow does not exist", async () => {
       prismaMock.follow.findUnique.mockResolvedValue(null);
 

@@ -15,7 +15,7 @@ export class AuthResolver {
 
   @Public()
   @Throttle({ default: THROTTLE_LIMITS.SIGNUP })
-  @Mutation(() => AuthPayload)
+  @Mutation(() => AuthPayload, { name: "login" })
   login(@Args("input") input: LoginInput) {
     return this.authService.login(input);
   }

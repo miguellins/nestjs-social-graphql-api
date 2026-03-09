@@ -1,23 +1,13 @@
 import { createParamDecorator, ExecutionContext } from "@nestjs/common";
 import { GqlExecutionContext } from "@nestjs/graphql";
 
-type GraphQLContext = {
-  req: {
-    user?:
-      | {
-          id: number;
-          username?: string;
-        }
-      | undefined;
-  };
-};
+import type { GqlContext } from "@/app.module";
 
 export const CurrentUser = createParamDecorator(
   (_data: unknown, context: ExecutionContext) => {
-    const ctx = GqlExecutionContext.create(context);
+    const gqlCtx = GqlExecutionContext.create(context).getContext<GqlContext>();
 
-    const gqlCtx = ctx.getContext<GraphQLContext>();
-
-    return gqlCtx.req.user ?? null;
+    // Supports both HTTP resolvers (req.user) and subscription context (extra.user)
+    return gqlCtx.req?.user ?? gqlCtx.extra?.user ?? null;
   },
 );

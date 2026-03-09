@@ -38,6 +38,15 @@ describe("GqlJwtGuard", () => {
       getAllAndOverride: jest.fn(),
     } as unknown as Reflector;
     guard = new GqlJwtGuard(reflector);
+
+    const gqlExecutionContextMock = GqlExecutionContext as unknown as {
+      create: jest.Mock;
+    };
+
+    gqlExecutionContextMock.create.mockReturnValue({
+      getInfo: jest.fn().mockReturnValue({ operation: { operation: "query" } }),
+      getContext: jest.fn().mockReturnValue({ req: {} }),
+    });
   });
 
   it("returns true for public routes", () => {
@@ -73,5 +82,24 @@ describe("GqlJwtGuard", () => {
 
     expect(createMock).toHaveBeenCalledWith(context);
     expect(result).toBe(req);
+  });
+
+  it("allows authenticated subscriptions via context.extra.user", () => {
+    (reflector.getAllAndOverride as jest.Mock).mockReturnValue(false);
+
+    const gqlExecutionContextMock = GqlExecutionContext as unknown as {
+      create: jest.Mock;
+    };
+    gqlExecutionContextMock.create.mockReturnValue({
+      getInfo: jest
+        .fn()
+        .mockReturnValue({ operation: { operation: "subscription" } }),
+      getContext: jest.fn().mockReturnValue({ extra: { user: { id: 1 } } }),
+    });
+
+    const result = guard.canActivate(context);
+
+    expect(result).toBe(true);
+    expect(canActivateMock).not.toHaveBeenCalled();
   });
 });
