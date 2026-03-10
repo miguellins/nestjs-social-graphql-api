@@ -15,7 +15,7 @@ import {
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   async createAndPublishNotification(
     input: CreateNotificationInput,
@@ -100,7 +100,7 @@ export class NotificationsService {
   }
 
   async markAllAsRead(userId: number): Promise<boolean> {
-    await this.prisma.notification.updateMany({
+    const result = await this.prisma.notification.updateMany({
       where: {
         recipientId: userId,
         isRead: false,
@@ -112,6 +112,6 @@ export class NotificationsService {
       },
     });
 
-    return true;
+    return result.count > 0;
   }
 }

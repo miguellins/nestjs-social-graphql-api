@@ -49,20 +49,20 @@ describe("GqlJwtGuard", () => {
     });
   });
 
-  it("returns true for public routes", () => {
+  it("returns true for public routes", async () => {
     (reflector.getAllAndOverride as jest.Mock).mockReturnValue(true);
 
-    const result = guard.canActivate(context);
+    const result = await guard.canActivate(context);
 
     expect(result).toBe(true);
     expect(canActivateMock).not.toHaveBeenCalled();
   });
 
-  it("delegates to passport guard for non-public routes", () => {
+  it("delegates to passport guard for non-public routes", async () => {
     (reflector.getAllAndOverride as jest.Mock).mockReturnValue(false);
     canActivateMock.mockReturnValue(true);
 
-    const result = guard.canActivate(context);
+    const result = await guard.canActivate(context);
 
     expect(canActivateMock).toHaveBeenCalledWith(context);
     expect(result).toBe(true);
@@ -84,7 +84,7 @@ describe("GqlJwtGuard", () => {
     expect(result).toBe(req);
   });
 
-  it("allows authenticated subscriptions via context.extra.user", () => {
+  it("allows authenticated subscriptions via context.extra.user", async () => {
     (reflector.getAllAndOverride as jest.Mock).mockReturnValue(false);
 
     const gqlExecutionContextMock = GqlExecutionContext as unknown as {
@@ -97,7 +97,7 @@ describe("GqlJwtGuard", () => {
       getContext: jest.fn().mockReturnValue({ extra: { user: { id: 1 } } }),
     });
 
-    const result = guard.canActivate(context);
+    const result = await guard.canActivate(context);
 
     expect(result).toBe(true);
     expect(canActivateMock).not.toHaveBeenCalled();

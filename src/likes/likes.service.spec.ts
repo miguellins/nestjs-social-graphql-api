@@ -8,6 +8,7 @@ import { Test } from "@nestjs/testing";
 import { Prisma } from "@prisma/client";
 
 import { LikesService } from "./likes.service";
+import { NotificationsService } from "@/notifications/notifications.service";
 import { PrismaService } from "@/prisma.service";
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
@@ -25,7 +26,11 @@ describe("LikesService", () => {
       delete: jest.Mock;
     };
     post: {
+      findUnique: jest.Mock;
       update: jest.Mock;
+    };
+    user: {
+      findUnique: jest.Mock;
     };
     $transaction: jest.Mock;
   } = {
@@ -36,7 +41,11 @@ describe("LikesService", () => {
       delete: jest.fn(),
     },
     post: {
+      findUnique: jest.fn(),
       update: jest.fn(),
+    },
+    user: {
+      findUnique: jest.fn(),
     },
     $transaction: jest.fn(),
   };
@@ -55,9 +64,24 @@ describe("LikesService", () => {
 
   const mem = new Map<string, unknown>();
 
+  const notificationsMock: {
+    createAndPublishNotification: jest.Mock;
+  } = {
+    createAndPublishNotification: jest.fn(),
+  };
+
   beforeEach(async () => {
     jest.clearAllMocks();
     mem.clear();
+
+    prismaMock.user.findUnique.mockResolvedValue({
+      id: 10,
+      username: "tester",
+    });
+    prismaMock.post.findUnique.mockResolvedValue({
+      id: 20,
+      authorId: 2,
+    });
 
     cacheMock.getOrSet.mockImplementation(
       async (key: string, factory: () => Promise<unknown>) => {
@@ -73,6 +97,7 @@ describe("LikesService", () => {
         LikesService,
         { provide: PrismaService, useValue: prismaMock },
         { provide: CacheHelperService, useValue: cacheMock },
+        { provide: NotificationsService, useValue: notificationsMock },
       ],
     }).compile();
 
