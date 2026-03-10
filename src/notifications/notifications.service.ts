@@ -2,6 +2,8 @@ import { Injectable, Logger } from "@nestjs/common";
 import { pubSub } from "@/graphql/pubsub";
 
 import { PrismaService } from "@/prisma.service";
+import { PaginationArgs } from "@/common/args/pagination.args";
+import { PAGINATION } from "@/common/constants/hard-cap.constants";
 
 import { type CreateNotificationInput } from "@/notifications/dto/create-notification.input";
 import {
@@ -50,9 +52,12 @@ export class NotificationsService {
 
   async findMyNotifications(
     userId: number,
-    take = 20,
+    params?: PaginationArgs,
   ): Promise<SafeNotificationDTO[]> {
-    const safeTake = Math.max(1, Math.min(take, 50));
+    const safeTake = Math.min(
+      params?.take ?? PAGINATION.DEFAULT_TAKE,
+      PAGINATION.MAX_TAKE,
+    );
 
     return this.prisma.notification.findMany({
       where: {

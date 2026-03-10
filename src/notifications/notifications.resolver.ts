@@ -15,6 +15,7 @@ import { NotificationDTO } from "@/notifications/models/notification.model";
 
 import { CurrentUser } from "@/common/decorators/current-user.decorator";
 import { DeleteResponse } from "@/common/types/delete-response.type";
+import { PaginationArgs } from "@/common/args/pagination.args";
 
 import { THROTTLE_LIMITS } from "@/common/constants/throttle.constants";
 
@@ -27,29 +28,29 @@ export class NotificationsResolver {
   @Throttle({ default: THROTTLE_LIMITS.LIST })
   @Query(() => [NotificationDTO], { name: "myNotifications" })
   async findMyNotifications(
-    @CurrentUser() currentUser: { id: number },
-    @Args("take", { type: () => Int, nullable: true }) take?: number,
+    @CurrentUser() user: { id: number },
+    @Args() args: PaginationArgs,
   ): Promise<NotificationDTO[]> {
-    return this.notificationsService.findMyNotifications(currentUser.id, take);
+    return this.notificationsService.findMyNotifications(user.id, args);
   }
 
   @Throttle({ default: THROTTLE_LIMITS.LIST })
   @Query(() => Int, { name: "unreadNotificationsCount" })
   async getUnreadNotificationsCount(
-    @CurrentUser() currentUser: { id: number },
+    @CurrentUser() user: { id: number },
   ): Promise<number> {
-    return this.notificationsService.getUnreadCount(currentUser.id);
+    return this.notificationsService.getUnreadCount(user.id);
   }
 
   @Throttle({ default: THROTTLE_LIMITS.MUTATION })
   @Mutation(() => DeleteResponse, { name: "markNotificationAsRead" })
   async markNotificationAsRead(
-    @CurrentUser() currentUser: { id: number },
+    @CurrentUser() user: { id: number },
     @Args("notificationId", { type: () => Int }) notificationId: number,
   ): Promise<DeleteResponse> {
     const marked = await this.notificationsService.markAsRead(
       notificationId,
-      currentUser.id,
+      user.id,
     );
 
     return {
@@ -62,9 +63,9 @@ export class NotificationsResolver {
   @Throttle({ default: THROTTLE_LIMITS.MUTATION })
   @Mutation(() => DeleteResponse, { name: "markAllNotificationsAsRead" })
   async markAllNotificationsAsRead(
-    @CurrentUser() currentUser: { id: number },
+    @CurrentUser() user: { id: number },
   ): Promise<DeleteResponse> {
-    await this.notificationsService.markAllAsRead(currentUser.id);
+    await this.notificationsService.markAllAsRead(user.id);
 
     return {
       message: "All notifications marked as read",

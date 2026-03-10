@@ -324,7 +324,10 @@ type Query {
     userId: Int
   ): [LikeListItem!]!
   likeById(id: Int!): LikeListItem!
-  myNotifications(take: Int): [NotificationDTO!]!
+  myNotifications(
+    """Max items to return (1-50)"""
+    take: Int
+  ): [NotificationDTO!]!
   unreadNotificationsCount: Int!
   follows(take: Int): [Follow!]!
   followById(id: Int!): Follow!
