@@ -15,7 +15,7 @@ import {
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
 
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   async createAndPublishNotification(
     input: CreateNotificationInput,
@@ -54,7 +54,7 @@ export class NotificationsService {
     userId: number,
     params?: PaginationArgs,
   ): Promise<SafeNotificationDTO[]> {
-    const safeTake = Math.min(
+    const limit = Math.min(
       params?.take ?? PAGINATION.DEFAULT_TAKE,
       PAGINATION.MAX_TAKE,
     );
@@ -68,7 +68,7 @@ export class NotificationsService {
         createdAt: "desc",
       },
 
-      take: safeTake,
+      take: limit,
 
       select: NotificationSelect,
     });
