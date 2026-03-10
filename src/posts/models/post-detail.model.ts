@@ -1,8 +1,15 @@
-import { Field, ID, ObjectType, GraphQLISODateTime } from "@nestjs/graphql";
+import {
+  Field,
+  ID,
+  ObjectType,
+  GraphQLISODateTime,
+  Int,
+} from "@nestjs/graphql";
 
 import { SafeUserPreview } from "@/posts/models/safe-user-preview.model";
 import { LikePreview } from "@/posts/models/like-preview.model";
 import { PostCounts } from "@/posts/models/post-counts.model";
+import { SafeCommentDTO } from "@/comments/dto/safe-comment.dto";
 
 /**
  * Detailed GraphQL Object Type representing a single Post.
@@ -55,6 +62,12 @@ export class PostDetail {
   })
   updatedAt: Date;
 
+  @Field(() => Int, {
+    description:
+      "Total number of times the post detail view has been accessed successfully",
+  })
+  viewsCount: number;
+
   @Field(() => SafeUserPreview, {
     description: "Public safe preview of the user who authored the post",
   })
@@ -70,4 +83,11 @@ export class PostDetail {
     description: "Optional lightweight list of likes associated with the post",
   })
   likes?: LikePreview[];
+
+  @Field(() => [SafeCommentDTO], {
+    nullable: true,
+    description:
+      "Optional lightweight list of comments associated with the post",
+  })
+  comments?: SafeCommentDTO[];
 }

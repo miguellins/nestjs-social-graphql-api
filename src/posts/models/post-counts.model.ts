@@ -36,4 +36,9 @@ export class PostCounts {
     description: "Total number of likes associated with this post",
   })
   likes: number;
+
+  @Field(() => Int, {
+    description: "Total number of comments associated with this post",
+  })
+  comments: number;
 }

@@ -11,6 +11,7 @@ import { GqlThrottlerGuard } from "@/common/guards/qgl-throttler.guard";
 import { GqlJwtGuard } from "@/common/guards/qgl-jwt.guard";
 
 import { NotificationsModule } from "@/notifications/notifications.module";
+import { CommentsModule } from "./comments/comments.module";
 import { FollowsModule } from "@/follows/follows.module";
 import { UsersModule } from "@/users/users.module";
 import { PostsModule } from "@/posts/posts.module";
@@ -195,6 +196,7 @@ export type GqlContext = {
     FollowsModule,
     AuthModule,
     NotificationsModule,
+    CommentsModule,
   ],
   providers: [
     {

@@ -46,6 +46,7 @@ export type SafePostListDTO = {
 
   _count: {
     likes: number;
+    comments: number;
   };
 };
 
@@ -76,6 +77,7 @@ export const SafePostListSelect = {
   _count: {
     select: {
       likes: true,
+      comments: true,
     },
   },
 } satisfies Prisma.PostSelect;

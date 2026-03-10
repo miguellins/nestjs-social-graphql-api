@@ -8,7 +8,12 @@ import {
 
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
 
+import {
+  DEFAULT_LIKES,
+  MAX_LIKES,
+} from "@/common/constants/paginations.constants";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
+
 import { PaginationArgs } from "@/common/args/pagination.args";
 import { FindPostsArgs } from "@/common/args/find-posts-args";
 
@@ -26,6 +31,7 @@ import { UpdatePostInput } from "@/posts/dto/update-post.input";
 
 import { PrismaService } from "@/prisma.service";
 import { Prisma } from "@prisma/client";
+import { DeleteResponse } from "@/common/types/delete-response.type";
 
 /**
  * Responsible for business logic and data operations
@@ -120,21 +126,37 @@ export class PostsService {
   async getPost(id: number): Promise<SafePostDetailDTO> {
     const cacheKey = `posts:detail:${id}`;
 
-    return this.cacheHelper.getOrSet(
+    // Determines the final limit safely
+    // Ensures the value never exceeds MAX_LIKES (number of likes per request)
+    const likesTake = Math.min(DEFAULT_LIKES, MAX_LIKES);
+
+    let updatedViewCount: number;
+
+    try {
+      // Increment viewsCount on every successful detail request
+      const updatedPost = await this.prisma.post.update({
+        where: { id },
+
+        data: {
+          viewsCount: {
+            increment: 1,
+          },
+        },
+
+        select: {
+          viewsCount: true,
+        },
+      });
+
+      updatedViewCount = updatedPost.viewsCount;
+    } catch {
+      throw new NotFoundException("Post not found");
+    }
+
+    const post = await this.cacheHelper.getOrSet(
       cacheKey,
       async () => {
-        // Hard query cap
-        // Max number of likes per request
-        const MAX_LIKES = 50;
-
-        // Default number of likes returned
-        const DEFAULT_LIKES = 20;
-
-        // Determines the final limit safely
-        // Ensures the value never exceeds MAX_LIKES (number of likes per request)
-        const likesTake = Math.min(DEFAULT_LIKES, MAX_LIKES);
-
-        const post = await this.prisma.post.findUnique({
+        const postDetail = await this.prisma.post.findUnique({
           where: { id },
 
           select: {
@@ -152,12 +174,19 @@ export class PostsService {
           },
         });
 
-        if (!post) throw new NotFoundException("Post not found");
+        if (!postDetail) throw new NotFoundException("Post not found");
 
-        return post;
+        return postDetail;
       },
       60_000, // Detail cache TTL
     );
+
+    // Never trust cached viewsCount here
+    // Always return the latest value after the increment above
+    return {
+      ...post,
+      viewsCount: updatedViewCount,
+    };
   }
 
   async createPost(
@@ -254,8 +283,8 @@ export class PostsService {
         select: SafePostListSelect,
       });
 
+      // Invalidate / bump only the caches affected by this write
       await this.cacheHelper.del(`posts:detail:${id}`);
-
       await this.cacheHelper.bumpVersion("v:posts:list");
 
       return post;
@@ -274,7 +303,7 @@ export class PostsService {
     }
   }
 
-  async deletePost(id: number, currentUserId: number) {
+  async deletePost(id: number, currentUserId: number): Promise<DeleteResponse> {
     try {
       // Check existence and ownership
       const existing = await this.prisma.post.findUnique({
@@ -293,11 +322,9 @@ export class PostsService {
         where: { id },
       });
 
+      // Invalidate / bump only the caches affected by this write
       await this.cacheHelper.del(`posts:detail:${id}`);
       await this.cacheHelper.bumpVersion("v:posts:list");
-
-      await this.cacheHelper.del(`user:safe:${existing.authorId}`);
-      await this.cacheHelper.bumpVersion("v:user:list");
 
       return {
         message: "Post deleted successfully",

@@ -6,7 +6,7 @@ CREATE TABLE `User` (
     `username` VARCHAR(191) NOT NULL,
     `password` VARCHAR(191) NOT NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-    `updatedAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
 
     UNIQUE INDEX `User_email_key`(`email`),
     UNIQUE INDEX `User_username_key`(`username`),
@@ -22,10 +22,28 @@ CREATE TABLE `Post` (
     `updatedAt` DATETIME(3) NOT NULL,
     `authorId` INTEGER NOT NULL,
     `likesCount` INTEGER NOT NULL DEFAULT 0,
+    `commentsCount` INTEGER NOT NULL DEFAULT 0,
+    `viewsCount` INTEGER NOT NULL DEFAULT 0,
 
     INDEX `Post_authorId_idx`(`authorId`),
     INDEX `Post_createdAt_idx`(`createdAt` DESC),
     INDEX `Post_authorId_createdAt_idx`(`authorId`, `createdAt` DESC),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `Comment` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `content` VARCHAR(191) NOT NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+    `authorId` INTEGER NOT NULL,
+    `postId` INTEGER NOT NULL,
+
+    INDEX `Comment_authorId_idx`(`authorId`),
+    INDEX `Comment_postId_idx`(`postId`),
+    INDEX `Comment_createdAt_idx`(`createdAt` DESC),
+    INDEX `Comment_postId_createdAt_idx`(`postId`, `createdAt` DESC),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -75,6 +93,12 @@ CREATE TABLE `Notification` (
 
 -- AddForeignKey
 ALTER TABLE `Post` ADD CONSTRAINT `Post_authorId_fkey` FOREIGN KEY (`authorId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `Comment` ADD CONSTRAINT `Comment_authorId_fkey` FOREIGN KEY (`authorId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `Comment` ADD CONSTRAINT `Comment_postId_fkey` FOREIGN KEY (`postId`) REFERENCES `Post`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `Follow` ADD CONSTRAINT `Follow_followerId_fkey` FOREIGN KEY (`followerId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;

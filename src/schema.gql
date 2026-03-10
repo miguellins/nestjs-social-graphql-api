@@ -83,6 +83,16 @@ type SafeUserPreview {
   username: String!
 }
 
+type SafeCommentDTO {
+  id: Int!
+  content: String!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  authorId: Int!
+  postId: Int!
+  author: SafeUserPreview!
+}
+
 """Core representation of a Follow relationship between two users"""
 type Follow {
   """Unique identifier of the follow relationship record"""
@@ -154,6 +164,9 @@ Aggregated numeric metadata for a Post entity. Provides lightweight summary info
 type PostCounts {
   """Total number of likes associated with this post"""
   likes: Int!
+
+  """Total number of comments associated with this post"""
+  comments: Int!
 }
 
 """Lightweight representation of a Post entity optimized for List views"""
@@ -216,6 +229,11 @@ type PostDetail {
   """Timestamp indicating the last time the post was updated"""
   updatedAt: DateTime!
 
+  """
+  Total number of times the post detail view has been accessed successfully
+  """
+  viewsCount: Int!
+
   """Public safe preview of the user who authored the post"""
   author: SafeUserPreview!
 
@@ -224,6 +242,9 @@ type PostDetail {
 
   """Optional lightweight list of likes associated with the post"""
   likes: [LikePreview!]
+
+  """Optional lightweight list of comments associated with the post"""
+  comments: [SafeCommentDTO!]
 }
 
 """Core public representation of a Post entity"""
@@ -335,6 +356,13 @@ type Query {
   unreadNotificationsCount: Int!
   follows(take: Int): [Follow!]!
   followById(id: Int!): Follow!
+  commentsByPost(
+    """Target post id"""
+    postId: Int!
+
+    """Max items to return (1-50)"""
+    take: Int
+  ): [SafeCommentDTO!]!
 }
 
 type Mutation {
@@ -351,6 +379,11 @@ type Mutation {
   markAllNotificationsAsRead: DeleteResponse!
   createFollow(followingId: Int!): Follow!
   deleteFollow(id: Int!): DeleteResponse!
+  createComment(input: CreateCommentInput!): SafeCommentDTO!
+  deleteComment(
+    """Target comment id"""
+    commentId: Int!
+  ): DeleteResponse!
 }
 
 input LoginInput {
@@ -380,6 +413,11 @@ input CreatePostInput {
 input UpdatePostInput {
   title: String
   content: String
+}
+
+input CreateCommentInput {
+  content: String!
+  postId: Int!
 }
 
 type Subscription {

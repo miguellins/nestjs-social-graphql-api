@@ -16,13 +16,19 @@ model User {
 
   // Timestamps
   createdAt DateTime @default(now())
-  updatedAt DateTime @default(now()) @updatedAt
+  updatedAt DateTime @updatedAt
 
   /**
-   * 1:1 relation
+   * 1:N relation
    * One user can have many posts
    */
   posts Post[]
+
+  /**
+   * 1:N relation
+   * One user can create many comments
+   */
+  comments Comment[]
 
   // One user can like many posts
   likes Like[]
@@ -76,10 +82,28 @@ model Post {
   likesCount Int @default(0)
 
   /**
+   * Number of comments for this post
+   * This is a denormalized field to improve read performance
+   */
+  commentsCount Int @default(0)
+
+  /**
+   * Number of times this post was viewed
+   * For now, a view is counted when postById is called successfully
+   */
+  viewsCount Int @default(0)
+
+  /**
    * One-to-many relation
    * A post can have many likes
    */
   likes Like[]
+
+  /**
+   * One-to-many relation
+   * A post can have many comments
+   */
+  comments Comment[]
 
   /**
    * Database index on authorId
@@ -100,6 +124,62 @@ model Post {
    * - ordered by newest first
    */
   @@index([authorId, createdAt(sort: Desc)])
+}
+
+model Comment {
+  id      Int    @id @default(autoincrement())
+  content String
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Stores the ID of the author (User)
+  authorId Int
+
+  /**
+   * Relation to User
+   * fields: [authorId] - this model stores the foreign key
+   * references: [id]   - references User.id
+   * onDelete: Cascade  - delete comments if the author is deleted
+   */
+  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  // Stores the ID of the related post
+  postId Int
+
+  /**
+   * Relation to Post
+   * fields: [postId]   - this model stores the foreign key
+   * references: [id]   - references Post.id
+   * onDelete: Cascade  - delete comments if the post is deleted
+   */
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  /**
+   * Database index on authorId
+   * Improves queries like:
+   * - "get all comments created by one user"
+   */
+  @@index([authorId])
+  /**
+   * Database index on postId
+   * Improves queries like:
+   * - "get all comments for one post"
+   */
+  @@index([postId])
+  /**
+   * Database index on createdAt descending
+   * Improves queries that sort comments by newest first
+   */
+  @@index([createdAt(sort: Desc)])
+  /**
+   * Compound index on postId + createdAt descending
+   * Improves queries like:
+   * - "get all comments for a post"
+   * - ordered by newest first
+   */
+  @@index([postId, createdAt(sort: Desc)])
 }
 
 model Follow {
@@ -146,7 +226,7 @@ model Like {
   /**
    * Relation to User
    * fields: [userId] - is a foreign key
-   * references: [id] - references Post.id
+   * references: [id] - references User.id
    * onDelete: Cascade - delete likes if user is deleted
    */
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -157,7 +237,7 @@ model Like {
   /**
    * Relation to Post
    * fields: [postId] - is a foreign key
-   * references: [id] - references User.id
+   * references: [id] - references Post.id
    * onDelete: Cascade - delete likes if post is deleted
    */
   post Post @relation(fields: [postId], references: [id], onDelete: Cascade)

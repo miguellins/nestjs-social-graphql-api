@@ -51,6 +51,7 @@ export type LikeDetailDTO = {
 
     _count: {
       likes: number;
+      comments: number;
     };
   };
 };
@@ -95,6 +96,7 @@ export const LikeDetailSelect = {
       _count: {
         select: {
           likes: true,
+          comments: true,
         },
       },
     },

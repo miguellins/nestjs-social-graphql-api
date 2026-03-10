@@ -2,6 +2,10 @@ import {
   SafePostListSelect,
   SafePostListDTO,
 } from "@/posts/dto/safe-post-list.dto";
+import {
+  SafeCommentDTO,
+  SafeCommentSelect,
+} from "@/comments/dto/safe-comment.dto";
 
 import { Prisma } from "@prisma/client";
 
@@ -20,17 +24,17 @@ import { Prisma } from "@prisma/client";
  *
  * Added fields:
  * - 'updatedAt' helps clients detect edits and refresh caches
+ * - 'viewsCount' exposes how many times the post detail was viewed
+ * - '_count.comments' exposes the number of related comments
  * - 'likes' provides a preview of engagement without requiring another query
+ * - 'comments' provides a lightweight preview of post discussion
  *
  * Design decision:
  * - The likes array contains a lightweight user preview instead of the full User object
- * to:
- * - Prevent sensitive data exposure
- * - Reduce payload size
- * - Improve query performance
+ * - The comments array contains a safe nested comment preview
  *
  * Scalability note:
- * - 'likes' should always be limited in the service layer (ex: take: 20) to prevent
+ * - 'likes' and 'comments' should be limited in the service layer when needed prevent
  * large payloads and DB strain
  *
  * Important:
@@ -39,6 +43,9 @@ import { Prisma } from "@prisma/client";
 
 export type SafePostDetailDTO = SafePostListDTO & {
   updatedAt: Date;
+  viewsCount: number;
+
+  _count: SafePostListDTO["_count"];
 
   likes?: {
     id: number;
@@ -50,6 +57,8 @@ export type SafePostDetailDTO = SafePostListDTO & {
       username: string;
     };
   }[];
+
+  comments?: SafeCommentDTO[];
 };
 
 /**
@@ -57,19 +66,30 @@ export type SafePostDetailDTO = SafePostListDTO & {
  *
  * Extends the list select and adds:
  * - updatedAt
- * - likes preview (with lightweight user preview)
+ * - viewsCount
+ * - comments count
+ * - likes preview
+ * - comments preview
  */
 
 export const SafePostDetailSelect = {
   ...SafePostListSelect,
 
   updatedAt: true,
+  viewsCount: true,
+
+  _count: {
+    select: {
+      likes: true,
+      comments: true,
+    },
+  },
 
   likes: {
-    // IMPORTANT: apply take/orderBy in the query, not in the select constant
     select: {
       id: true,
       createdAt: true,
+
       user: {
         select: {
           id: true,
@@ -79,4 +99,12 @@ export const SafePostDetailSelect = {
       },
     },
   },
-} satisfies Prisma.PostSelect;
+
+  comments: {
+    orderBy: {
+      createdAt: "desc",
+    },
+
+    select: SafeCommentSelect,
+  },
+} as const satisfies Prisma.PostSelect;

@@ -133,14 +133,10 @@ export class LikesService {
         }),
       ]);
 
-      // Invalidate / bump cache after successful write operations
+      // Invalidate / bump cache only for data affected by this write
       await this.cacheHelper.bumpVersion("v:likes:list");
-
       await this.cacheHelper.del(`posts:detail:${postId}`);
       await this.cacheHelper.bumpVersion("v:posts:list");
-
-      await this.cacheHelper.del(`user:safe:${currentUserId}`);
-      await this.cacheHelper.bumpVersion("v:user:list");
 
       // Notifications are best-effort:
       // the like should succeed even if real-time delivery fails
@@ -197,7 +193,7 @@ export class LikesService {
 
       // Delete like + decrement counter safely
       await this.prisma.$transaction(async (tx) => {
-        // Delete frist (guarantees only decrement if the like truly exists)
+        // Delete frist so the counter is only decremented if the like really exists
         await tx.like.delete({ where: { id: like.id } });
 
         // Decrement likesCount, but never let it go below 0
@@ -214,14 +210,12 @@ export class LikesService {
         });
       });
 
+      // Invalidate / bump only the caches affected by this write
       await this.cacheHelper.del(`like:detail:${id}`);
       await this.cacheHelper.bumpVersion("v:likes:list");
 
       await this.cacheHelper.del(`posts:detail:${like.postId}`);
       await this.cacheHelper.bumpVersion("v:posts:list");
-
-      await this.cacheHelper.del(`user:safe:${currentUserId}`);
-      await this.cacheHelper.bumpVersion("v:user:list");
 
       return {
         message: "Like deleted successfully",
