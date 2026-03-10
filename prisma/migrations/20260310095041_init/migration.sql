@@ -19,11 +19,13 @@ CREATE TABLE `Post` (
     `title` VARCHAR(191) NOT NULL,
     `content` VARCHAR(191) NOT NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-    `updatedAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
     `authorId` INTEGER NOT NULL,
     `likesCount` INTEGER NOT NULL DEFAULT 0,
 
     INDEX `Post_authorId_idx`(`authorId`),
+    INDEX `Post_createdAt_idx`(`createdAt` DESC),
+    INDEX `Post_authorId_createdAt_idx`(`authorId`, `createdAt` DESC),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 

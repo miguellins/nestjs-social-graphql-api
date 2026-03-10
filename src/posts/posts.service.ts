@@ -9,7 +9,7 @@ import {
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
 
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
-
+import { PaginationArgs } from "@/common/args/pagination.args";
 import { FindPostsArgs } from "@/common/args/find-posts-args";
 
 import {
@@ -37,6 +37,45 @@ export class PostsService {
     private readonly prisma: PrismaService,
     private readonly cacheHelper: CacheHelperService,
   ) {}
+
+  async myFeed(
+    currentUserId: number,
+    params?: PaginationArgs,
+  ): Promise<SafePostListDTO[]> {
+    const take = Math.min(
+      params?.take ?? PAGINATION.DEFAULT_TAKE,
+      PAGINATION.MAX_TAKE,
+    );
+
+    return this.prisma.post.findMany({
+      where: {
+        OR: [
+          // Include posts created by the current user
+          { authorId: currentUserId },
+
+          // Include posts from users the current user follows
+          {
+            author: {
+              followers: {
+                some: {
+                  followerId: currentUserId,
+                },
+              },
+            },
+          },
+        ],
+      },
+
+      // Show newest posts first
+      orderBy: {
+        createdAt: "desc",
+      },
+
+      take,
+
+      select: SafePostListSelect,
+    });
+  }
 
   async findPosts(params?: FindPostsArgs): Promise<SafePostListDTO[]> {
     // Ensures the value never exceeds MAX_TAKE (number of records per request)

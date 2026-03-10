@@ -313,6 +313,10 @@ type Query {
   userById(id: Int!): SafeUser!
   posts(take: Int, q: String): [PostListItem!]!
   postById(id: Int!): PostDetail!
+  myFeed(
+    """Max items to return (1-50)"""
+    take: Int
+  ): [PostListItem!]!
   likes(
     """Max items to return (1-50)"""
     take: Int

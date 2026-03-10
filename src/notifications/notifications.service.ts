@@ -15,7 +15,7 @@ import {
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
 
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   async createAndPublishNotification(
     input: CreateNotificationInput,

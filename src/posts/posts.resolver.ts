@@ -4,14 +4,14 @@ import { Throttle } from "@nestjs/throttler";
 import { CurrentUser } from "@/common/decorators/current-user.decorator";
 import { THROTTLE_LIMITS } from "@/common/constants/throttle.constants";
 import { DeleteResponse } from "@/common/types/delete-response.type";
+import { PaginationArgs } from "@/common/args/pagination.args";
+import { FindPostsArgs } from "@/common/args/find-posts-args";
 import { Public } from "@/common/decorators/auth.decorator";
 
 import { CreatePostInput } from "@/posts/dto/create-post.input";
 import { UpdatePostInput } from "@/posts/dto/update-post.input";
 
 import { PostsService } from "@/posts/posts.service";
-
-import { FindPostsArgs } from "@/common/args/find-posts-args";
 
 import { PostListItem } from "@/posts/models/post-list-item.model";
 import { PostDetail } from "@/posts/models/post-detail.model";
@@ -39,6 +39,15 @@ export class PostsResolver {
     @Args("id", { type: () => Int }) id: number,
   ): Promise<PostDetail> {
     return this.postsService.getPost(id);
+  }
+
+  @Throttle({ default: THROTTLE_LIMITS.LIST })
+  @Query(() => [PostListItem], { name: "myFeed" })
+  async myFeed(
+    @CurrentUser() user: { id: number },
+    @Args() args: PaginationArgs,
+  ): Promise<PostListItem[]> {
+    return this.postsService.myFeed(user.id, args);
   }
 
   @Throttle({ default: THROTTLE_LIMITS.MUTATION })

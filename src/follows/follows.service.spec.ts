@@ -178,7 +178,9 @@ describe("FollowsService", () => {
     });
 
     it("creates follow and bumps/invalidates caches on success", async () => {
-      prismaMock.user.findUnique.mockResolvedValue({ id: 2 });
+      prismaMock.user.findUnique
+        .mockResolvedValueOnce({ id: 2 })
+        .mockResolvedValueOnce({ id: 1, username: "alice" });
 
       const created = { id: 50, followerId: 1, followingId: 2 };
       prismaMock.follow.create.mockResolvedValue(created);
@@ -194,6 +196,45 @@ describe("FollowsService", () => {
       expect(cacheMock.del).toHaveBeenCalledWith("user:safe:1");
       expect(cacheMock.del).toHaveBeenCalledWith("user:safe:2");
       expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:user:list");
+
+      expect(
+        notificationsMock.createAndPublishNotification,
+      ).toHaveBeenCalledWith({
+        recipientId: 2,
+        actorId: 1,
+        type: "USER_FOLLOWED",
+        title: "New follower",
+        body: "alice started following you",
+        entityId: 50,
+      });
+
+      expect(res).toEqual(created);
+    });
+
+    it("throws NotFound when current user does not exist", async () => {
+      prismaMock.user.findUnique
+        .mockResolvedValueOnce({ id: 2 })
+        .mockResolvedValueOnce(null);
+
+      await expect(service.createFollow(1, 2)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+
+      expect(prismaMock.follow.create).not.toHaveBeenCalled();
+    });
+
+    it("returns follow even if notification publish fails", async () => {
+      prismaMock.user.findUnique
+        .mockResolvedValueOnce({ id: 2 })
+        .mockResolvedValueOnce({ id: 1, username: "alice" });
+
+      const created = { id: 50, followerId: 1, followingId: 2 };
+      prismaMock.follow.create.mockResolvedValue(created);
+      notificationsMock.createAndPublishNotification.mockRejectedValue(
+        new Error("notify failed"),
+      );
+
+      const res = await service.createFollow(1, 2);
 
       expect(res).toEqual(created);
     });

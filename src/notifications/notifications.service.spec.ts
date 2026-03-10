@@ -11,12 +11,22 @@ import { NotificationSelect } from "@/notifications/dto/notifications.dto";
 describe("NotificationsService", () => {
   let service: NotificationsService;
 
+  type NotificationUpdateManyArgs = {
+    where:
+      | { id: number; recipientId: number }
+      | { recipientId: number; isRead: boolean };
+    data: { isRead: boolean; readAt: Date };
+  };
+
   const prismaMock = {
     notification: {
       create: jest.fn(),
       findMany: jest.fn(),
       count: jest.fn(),
-      updateMany: jest.fn(),
+      updateMany: jest.fn<
+        Promise<{ count: number }>,
+        [NotificationUpdateManyArgs]
+      >(),
     },
   };
 
@@ -221,16 +231,18 @@ describe("NotificationsService", () => {
 
       const result = await service.markAsRead(10, 1);
 
-      expect(prismaMock.notification.updateMany).toHaveBeenCalledWith({
-        where: {
-          id: 10,
-          recipientId: 1,
-        },
-        data: {
-          isRead: true,
-          readAt: expect.any(Date),
-        },
+      const firstCall = prismaMock.notification.updateMany.mock.calls.at(0);
+      expect(firstCall).toBeDefined();
+      if (!firstCall) throw new Error("updateMany was not called");
+
+      const [updateArgs] = firstCall;
+
+      expect(updateArgs.where).toEqual({
+        id: 10,
+        recipientId: 1,
       });
+      expect(updateArgs.data.isRead).toBe(true);
+      expect(updateArgs.data.readAt).toBeInstanceOf(Date);
 
       expect(result).toBe(true);
     });
@@ -250,16 +262,18 @@ describe("NotificationsService", () => {
 
       const result = await service.markAllAsRead(1);
 
-      expect(prismaMock.notification.updateMany).toHaveBeenCalledWith({
-        where: {
-          recipientId: 1,
-          isRead: false,
-        },
-        data: {
-          isRead: true,
-          readAt: expect.any(Date),
-        },
+      const firstCall = prismaMock.notification.updateMany.mock.calls.at(0);
+      expect(firstCall).toBeDefined();
+      if (!firstCall) throw new Error("updateMany was not called");
+
+      const [updateArgs] = firstCall;
+
+      expect(updateArgs.where).toEqual({
+        recipientId: 1,
+        isRead: false,
       });
+      expect(updateArgs.data.isRead).toBe(true);
+      expect(updateArgs.data.readAt).toBeInstanceOf(Date);
 
       expect(result).toBe(true);
     });

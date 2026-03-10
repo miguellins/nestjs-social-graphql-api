@@ -56,36 +56,50 @@ model Post {
 
   // Timestamps
   createdAt DateTime @default(now())
-  updatedAt DateTime @default(now()) @updatedAt
+  updatedAt DateTime @updatedAt
 
   // Stores the ID of the author (User)
   authorId Int
 
   /**
    * Relation to User
-   * fields: [authorId] - is a foreign key
+   * fields: [authorId] - this model stores the foreign key
    * references: [id]   - references User.id
-   * onDelete: Cascade  - delete posts if user is deleted
+   * onDelete: Cascade  - delete posts if the author is deleted
    */
   author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
 
   /**
    * Number of likes for this post
-   * This is a denormalized field to improve performance
+   * This is a denormalized field to improve read performance
    */
   likesCount Int @default(0)
 
   /**
-   * One to many relation
+   * One-to-many relation
    * A post can have many likes
    */
   likes Like[]
 
   /**
    * Database index on authorId
-   * Improves performance
+   * Improves queries like:
+   * - "get all posts from one author"
+   * - feed filtering by followed authors
    */
   @@index([authorId])
+  /**
+   * Database index on createdAt descending
+   * Improves queries that sort by newest posts first
+   */
+  @@index([createdAt(sort: Desc)])
+  /**
+   * Compound index on authorId + createdAt descending
+   * Improves feed queries like:
+   * - "get posts from these authors"
+   * - ordered by newest first
+   */
+  @@index([authorId, createdAt(sort: Desc)])
 }
 
 model Follow {
