@@ -4,7 +4,7 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from "@nestjs/common";
-import { Test } from "@nestjs/testing";
+import { Test, TestingModule } from "@nestjs/testing";
 import { Prisma } from "@prisma/client";
 
 import { PostsService } from "./posts.service";
@@ -18,6 +18,7 @@ import { UpdatePostInput } from "@/posts/dto/update-post.input";
 
 describe("PostsService", () => {
   let service: PostsService;
+  let moduleRef: TestingModule;
 
   const prismaMock: {
     post: {
@@ -65,7 +66,7 @@ describe("PostsService", () => {
       },
     );
 
-    const moduleRef = await Test.createTestingModule({
+    moduleRef = await Test.createTestingModule({
       providers: [
         PostsService,
         { provide: PrismaService, useValue: prismaMock },
@@ -74,6 +75,10 @@ describe("PostsService", () => {
     }).compile();
 
     service = moduleRef.get(PostsService);
+  });
+
+  afterEach(async () => {
+    await moduleRef?.close();
   });
 
   describe("findPosts", () => {

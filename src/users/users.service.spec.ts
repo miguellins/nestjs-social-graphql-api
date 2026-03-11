@@ -4,7 +4,7 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from "@nestjs/common";
-import { Test } from "@nestjs/testing";
+import { Test, TestingModule } from "@nestjs/testing";
 import { Prisma } from "@prisma/client";
 
 import { UsersService } from "./users.service";
@@ -23,6 +23,7 @@ jest.mock("bcrypt", () => ({
 
 describe("UsersService", () => {
   let service: UsersService;
+  let moduleRef: TestingModule;
 
   const prismaMock: {
     user: {
@@ -64,7 +65,7 @@ describe("UsersService", () => {
       async (_key: string, factory: () => Promise<unknown>) => factory(),
     );
 
-    const moduleRef = await Test.createTestingModule({
+    moduleRef = await Test.createTestingModule({
       providers: [
         UsersService,
         { provide: PrismaService, useValue: prismaMock },
@@ -73,6 +74,10 @@ describe("UsersService", () => {
     }).compile();
 
     service = moduleRef.get(UsersService);
+  });
+
+  afterEach(async () => {
+    await moduleRef?.close();
   });
 
   describe("findUsers", () => {

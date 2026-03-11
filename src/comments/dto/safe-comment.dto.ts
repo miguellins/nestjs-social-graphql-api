@@ -18,7 +18,7 @@ export class SafeCommentDTO {
   @Field(() => Int)
   id: number;
 
-  @Field()
+  /** Comment content visible to clients. */
   content: string;
 
   @Field()

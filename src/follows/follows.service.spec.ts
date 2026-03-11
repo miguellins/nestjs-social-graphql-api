@@ -5,7 +5,7 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from "@nestjs/common";
-import { Test } from "@nestjs/testing";
+import { Test, TestingModule } from "@nestjs/testing";
 import { Prisma } from "@prisma/client";
 
 import { FollowsService } from "./follows.service";
@@ -17,6 +17,7 @@ import { SafeFollowSelect } from "@/follows/dto/safe-follow.dto";
 
 describe("FollowsService", () => {
   let service: FollowsService;
+  let moduleRef: TestingModule;
 
   const prismaMock: {
     follow: {
@@ -66,7 +67,7 @@ describe("FollowsService", () => {
       async (_key: string, factory: () => Promise<unknown>) => factory(),
     );
 
-    const moduleRef = await Test.createTestingModule({
+    moduleRef = await Test.createTestingModule({
       providers: [
         FollowsService,
         { provide: PrismaService, useValue: prismaMock },
@@ -76,6 +77,10 @@ describe("FollowsService", () => {
     }).compile();
 
     service = moduleRef.get(FollowsService);
+  });
+
+  afterEach(async () => {
+    await moduleRef?.close();
   });
 
   describe("findFollows", () => {
@@ -224,6 +229,10 @@ describe("FollowsService", () => {
     });
 
     it("returns follow even if notification publish fails", async () => {
+      const consoleErrorSpy = jest
+        .spyOn(console, "error")
+        .mockImplementation(() => undefined);
+
       prismaMock.user.findUnique
         .mockResolvedValueOnce({ id: 2 })
         .mockResolvedValueOnce({ id: 1, username: "alice" });
@@ -237,6 +246,12 @@ describe("FollowsService", () => {
       const res = await service.createFollow(1, 2);
 
       expect(res).toEqual(created);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        "Failed to create follow notification",
+        expect.any(Error),
+      );
+
+      consoleErrorSpy.mockRestore();
     });
 
     it("throws ConflictException on unique constraint (P2002)", async () => {

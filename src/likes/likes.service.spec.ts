@@ -4,7 +4,7 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from "@nestjs/common";
-import { Test } from "@nestjs/testing";
+import { Test, TestingModule } from "@nestjs/testing";
 import { Prisma } from "@prisma/client";
 
 import { LikesService } from "./likes.service";
@@ -16,6 +16,7 @@ import { LikeDetailSelect } from "@/likes/dto/like-detail.dto";
 
 describe("LikesService", () => {
   let service: LikesService;
+  let moduleRef: TestingModule;
 
   const prismaMock: {
     like: {
@@ -91,7 +92,7 @@ describe("LikesService", () => {
       },
     );
 
-    const moduleRef = await Test.createTestingModule({
+    moduleRef = await Test.createTestingModule({
       providers: [
         LikesService,
         { provide: PrismaService, useValue: prismaMock },
@@ -101,6 +102,10 @@ describe("LikesService", () => {
     }).compile();
 
     service = moduleRef.get(LikesService);
+  });
+
+  afterEach(async () => {
+    await moduleRef?.close();
   });
 
   describe("findLikes", () => {

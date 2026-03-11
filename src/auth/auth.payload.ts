@@ -1,7 +1,7 @@
-import { Field, ObjectType } from "@nestjs/graphql";
+import { ObjectType } from "@nestjs/graphql";
 
 @ObjectType()
 export class AuthPayload {
-  @Field()
+  /** JWT access token returned after successful authentication. */
   access_token: string;
 }

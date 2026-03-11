@@ -8,7 +8,7 @@ import {
 
 import { Trim } from "@/common/transformer/trim.transformer";
 
-import { Field, InputType } from "@nestjs/graphql";
+import { InputType } from "@nestjs/graphql";
 
 /**
  * GraphQL Input Type used when updating an existing post
@@ -26,7 +26,7 @@ import { Field, InputType } from "@nestjs/graphql";
 
 @InputType()
 export class UpdatePostInput {
-  @Field({ nullable: true })
+  /** Updated title for the post. */
   @Trim()
   @IsString()
   @IsNotEmpty()
@@ -35,7 +35,7 @@ export class UpdatePostInput {
   @MaxLength(50)
   title?: string;
 
-  @Field({ nullable: true })
+  /** Updated textual body for the post. */
   @Trim()
   @IsString()
   @IsNotEmpty()

@@ -22,7 +22,7 @@ import { Trim } from "@/common/transformer/trim.transformer";
 
 @InputType()
 export class CreateCommentInput {
-  @Field()
+  /** Text content of the comment. */
   @Trim()
   @IsString()
   @IsNotEmpty()

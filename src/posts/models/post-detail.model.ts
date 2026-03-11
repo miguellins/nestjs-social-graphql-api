@@ -46,10 +46,10 @@ export class PostDetail {
   })
   id: number;
 
-  @Field({ description: "Title of the post" })
+  /** Title of the post. */
   title: string;
 
-  @Field({ description: "Main textual content of the post" })
+  /** Main textual content of the post. */
   content: string;
 
   @Field(() => GraphQLISODateTime, {

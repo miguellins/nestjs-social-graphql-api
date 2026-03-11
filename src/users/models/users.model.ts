@@ -17,13 +17,13 @@ export class User {
   @Field(() => ID)
   id: number;
 
-  @Field()
+  /** Public display name. */
   name: string;
 
-  @Field()
+  /** Email address associated with the user account. */
   email: string;
 
-  @Field()
+  /** Unique username used for identification. */
   username: string;
 
   @HideField()

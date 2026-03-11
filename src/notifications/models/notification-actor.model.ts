@@ -19,14 +19,9 @@ export class NotificationActorDTO {
   })
   id: number;
 
-  @Field(() => String, {
-    description: "Public username of the actor user",
-  })
+  /** Public username of the actor user. */
   username: string;
 
-  @Field(() => String, {
-    nullable: true,
-    description: "Optional public display name of the actor user",
-  })
+  /** Optional public display name of the actor user. */
   name!: string | null;
 }

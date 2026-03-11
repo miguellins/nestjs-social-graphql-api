@@ -33,13 +33,9 @@ export class SafeUserPreview {
   })
   id: number;
 
-  @Field({
-    description: "Public display name",
-  })
+  /** Public display name. */
   name: string;
 
-  @Field({
-    description: "Unique username used for identification",
-  })
+  /** Unique username used for identification. */
   username: string;
 }

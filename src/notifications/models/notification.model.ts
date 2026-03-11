@@ -45,20 +45,13 @@ export class NotificationDTO {
   })
   type: NotificationType;
 
-  @Field(() => String, {
-    description: "Short title shown to the recipient",
-  })
+  /** Short title shown to the recipient. */
   title: string;
 
-  @Field(() => String, {
-    nullable: true,
-    description: "Optional detailed message body",
-  })
+  /** Optional detailed message body. */
   body!: string | null;
 
-  @Field(() => Boolean, {
-    description: "Read state of this notification",
-  })
+  /** Read state of this notification. */
   isRead: boolean;
 
   @Field(() => GraphQLISODateTime, {

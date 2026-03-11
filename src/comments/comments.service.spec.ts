@@ -1,5 +1,5 @@
 import { ForbiddenException, NotFoundException } from "@nestjs/common";
-import { Test } from "@nestjs/testing";
+import { Test, TestingModule } from "@nestjs/testing";
 
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
@@ -11,6 +11,7 @@ import { CommentsService } from "./comments.service";
 
 describe("CommentsService", () => {
   let service: CommentsService;
+  let moduleRef: TestingModule;
 
   const prismaMock: {
     post: {
@@ -47,7 +48,7 @@ describe("CommentsService", () => {
   beforeEach(async () => {
     jest.clearAllMocks();
 
-    const moduleRef = await Test.createTestingModule({
+    moduleRef = await Test.createTestingModule({
       providers: [
         CommentsService,
         { provide: PrismaService, useValue: prismaMock },
@@ -56,6 +57,10 @@ describe("CommentsService", () => {
     }).compile();
 
     service = moduleRef.get(CommentsService);
+  });
+
+  afterEach(async () => {
+    await moduleRef?.close();
   });
 
   describe("createComment", () => {

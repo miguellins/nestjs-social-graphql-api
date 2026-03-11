@@ -9,7 +9,7 @@ import {
 
 import { Trim } from "@/common/transformer/trim.transformer";
 
-import { Field, InputType } from "@nestjs/graphql";
+import { InputType } from "@nestjs/graphql";
 
 /**
  * GraphQL Input Type used when creating a new user
@@ -25,8 +25,7 @@ import { Field, InputType } from "@nestjs/graphql";
 
 @InputType()
 export class CreateUserInput {
-  @Field()
-  // Remove whitespace from both ends
+  /** Public display name chosen by the user. */
   @Trim()
   @IsString()
   @IsNotEmpty()
@@ -34,8 +33,7 @@ export class CreateUserInput {
   @MaxLength(20)
   name: string;
 
-  @Field()
-  // Remove whitespace from both ends and converts all characteres to lowercase
+  /** Email address used for login and account identification. */
   @Trim()
   @IsEmail()
   @IsNotEmpty()
@@ -43,7 +41,7 @@ export class CreateUserInput {
   @MaxLength(20)
   email: string;
 
-  @Field()
+  /** Public username used for mention and login flows. */
   @Trim()
   @IsString()
   @IsNotEmpty()
@@ -56,7 +54,7 @@ export class CreateUserInput {
   username: string;
 
   // accepted as input, but never returned
-  @Field()
+  /** Plain-text password that will be hashed before persistence. */
   @IsString()
   @IsNotEmpty()
   @MinLength(8)

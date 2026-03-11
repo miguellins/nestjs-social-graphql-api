@@ -7,10 +7,10 @@ type NotificationActorDTO {
   """Unique identifier of the actor user"""
   id: Int!
 
-  """Public username of the actor user"""
+  """Public username of the actor user."""
   username: String!
 
-  """Optional public display name of the actor user"""
+  """Optional public display name of the actor user."""
   name: String
 }
 
@@ -21,15 +21,6 @@ type NotificationDTO {
 
   """Category of notification event"""
   type: NotificationType!
-
-  """Short title shown to the recipient"""
-  title: String!
-
-  """Optional detailed message body"""
-  body: String
-
-  """Read state of this notification"""
-  isRead: Boolean!
 
   """Timestamp when notification was marked as read"""
   readAt: DateTime
@@ -51,6 +42,15 @@ type NotificationDTO {
 
   """Timestamp indicating the latest update on this notification"""
   updatedAt: DateTime!
+
+  """Short title shown to the recipient."""
+  title: String!
+
+  """Optional detailed message body."""
+  body: String
+
+  """Read state of this notification."""
+  isRead: Boolean!
 }
 
 enum NotificationType {
@@ -64,6 +64,7 @@ A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date
 scalar DateTime
 
 type DeleteResponse {
+  """Human-readable message describing the result of the mutation."""
   message: String!
 }
 
@@ -76,21 +77,31 @@ type SafeUserPreview {
   """
   id: ID!
 
-  """Public display name"""
+  """Public display name."""
   name: String!
 
-  """Unique username used for identification"""
+  """Unique username used for identification."""
   username: String!
 }
 
+"""
+Safe GraphQL DTO returned when a comment is queried or created
+
+What it does:
+- exposes only safe comment fields to the client
+- includes basic author information
+- is used by resolvers as the return type
+"""
 type SafeCommentDTO {
   id: Int!
-  content: String!
   createdAt: DateTime!
   updatedAt: DateTime!
   authorId: Int!
   postId: Int!
   author: SafeUserPreview!
+
+  """Comment content visible to clients."""
+  content: String!
 }
 
 """Core representation of a Follow relationship between two users"""
@@ -140,12 +151,6 @@ type SafeUser {
   """
   id: ID!
 
-  """Public display name"""
-  name: String!
-
-  """Unique username used for identification"""
-  username: String!
-
   """Timestamp indicating when the user account was originally created"""
   createdAt: DateTime!
 
@@ -156,6 +161,12 @@ type SafeUser {
   Aggregated counts of related entities such as posts, followers, and following. Only included when explicitly requested
   """
   _count: UserCounts
+
+  """Public display name."""
+  name: String!
+
+  """Unique username used for identification."""
+  username: String!
 }
 
 """
@@ -194,12 +205,6 @@ type PostDetail {
   """
   id: ID!
 
-  """Title of the post"""
-  title: String!
-
-  """Main textual content of the post"""
-  content: String!
-
   """Timestamp indicating when the post was originally created"""
   createdAt: DateTime!
 
@@ -222,6 +227,12 @@ type PostDetail {
 
   """Optional lightweight list of comments associated with the post"""
   comments: [SafeCommentDTO!]
+
+  """Title of the post."""
+  title: String!
+
+  """Main textual content of the post."""
+  content: String!
 }
 
 """Core public representation of a Post entity"""
@@ -231,12 +242,6 @@ type Post {
   """
   id: ID!
 
-  """Title of the post"""
-  title: String!
-
-  """Main textual content of the post"""
-  content: String!
-
   """Timestamp indicating when the post was originally created"""
   createdAt: DateTime!
 
@@ -245,6 +250,12 @@ type Post {
 
   """Aggregated metadata related to the post"""
   _count: PostCounts!
+
+  """Title of the post."""
+  title: String!
+
+  """Main textual content of the post."""
+  content: String!
 }
 
 """Lightweight representation of a Like entity optimized for list views"""
@@ -266,15 +277,21 @@ type LikeListItem {
 
 type User {
   id: ID!
-  name: String!
-  email: String!
-  username: String!
   createdAt: DateTime!
   updatedAt: DateTime!
   posts: [Post!]
   likes: [Like!]
   followers: [Follow!]
   following: [Follow!]
+
+  """Public display name."""
+  name: String!
+
+  """Email address associated with the user account."""
+  email: String!
+
+  """Unique username used for identification."""
+  username: String!
 }
 
 """
@@ -300,6 +317,7 @@ type Like {
 }
 
 type AuthPayload {
+  """JWT access token returned after successful authentication."""
   access_token: String!
 }
 
@@ -375,37 +393,134 @@ type Mutation {
 }
 
 input LoginInput {
+  """Username used to authenticate the user."""
   username: String!
+
+  """Plain-text password submitted during login."""
   password: String!
 }
 
+"""
+GraphQL Input Type used when creating a new user
+
+What it does:
+- Validates incoming data at the API boundary
+- Prevents bad data from reaching the database
+- Enforces consistent formatting
+- Improves security
+
+Acts as the first security layer
+"""
 input CreateUserInput {
+  """Public display name chosen by the user."""
   name: String!
+
+  """Email address used for login and account identification."""
   email: String!
+
+  """Public username used for mention and login flows."""
   username: String!
+
+  """Plain-text password that will be hashed before persistence."""
   password: String!
 }
 
+"""
+GraphQL Input Type used when updating an existing user
+
+What it does:
+- Validates partial updates safely
+- Allows flexible mutations without requiring all fields
+- Normalizes incoming data before it reaches the service layer
+- Protects database integrity
+
+Security benefits:
+- Prevents empty or malformed updates
+- Restricts username format
+- Enforces password length best-practices (bcrypt-safe)
+- Avoids invalid email formats
+
+Design note:
+All fields are optional because updates are PATCH-style
+Only the provided fields will be modified
+"""
 input UpdateUserInput {
+  """Updated public display name."""
   name: String
   email: String
+
+  """Updated public username used in the platform."""
   username: String
+
+  """Updated plain-text password that will be re-hashed before persistence."""
   password: String
 }
 
+"""
+GraphQL Input Type used when creating a new Post
+
+What it does:
+- Validates incoming data before it reaches the service layer
+- Prevents empty or malformed posts from being stored
+- Enforces consistent formatting
+- Protects the database from low-quality data
+
+Why this matters:
+- Posts are user-generated content - one of the highest-risk entry points
+
+Strong validation helps prevent:
+- Spam content
+- Accidental empty posts
+- Extremely large payloads
+- Formatting inconsistencies
+
+Security layer:
+- This acts as the first boundary of trust
+- Never rely only on frontend validation
+"""
 input CreatePostInput {
+  """Title shown for the post."""
   title: String!
+
+  """Main textual body of the post."""
   content: String!
 }
 
+"""
+GraphQL Input Type used when updating an existing post
+
+What it does:
+- Validates incoming data before it reaches the service layer
+- Allows partial updates (PATCH-style behavior)
+- Normalizes string input to maintain database consistency
+- Prevents empty or malformed values from being stored
+
+Security role:
+- Second defensive layer after authentication
+- Ensures only properly formatted data is processed
+"""
 input UpdatePostInput {
+  """Updated title for the post."""
   title: String
+
+  """Updated textual body for the post."""
   content: String
 }
 
+"""
+GraphQL input used to create a new comment on a post
+
+What it does:
+- receives the comment text from the client
+- receives the target post ID
+- validates the input before it reaches the service layer
+- trims extra spaces from the comment content
+"""
 input CreateCommentInput {
-  content: String!
   postId: Int!
+
+  """Text content of the comment."""
+  content: String!
 }
 
 type Subscription {

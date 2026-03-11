@@ -10,6 +10,7 @@ import { NotificationSelect } from "@/notifications/dto/notifications.dto";
 
 describe("NotificationsService", () => {
   let service: NotificationsService;
+  let moduleRef: TestingModule;
 
   type NotificationUpdateManyArgs = {
     where:
@@ -47,7 +48,7 @@ describe("NotificationsService", () => {
   beforeEach(async () => {
     jest.clearAllMocks();
 
-    const module: TestingModule = await Test.createTestingModule({
+    moduleRef = await Test.createTestingModule({
       providers: [
         NotificationsService,
         {
@@ -57,7 +58,11 @@ describe("NotificationsService", () => {
       ],
     }).compile();
 
-    service = module.get<NotificationsService>(NotificationsService);
+    service = moduleRef.get<NotificationsService>(NotificationsService);
+  });
+
+  afterEach(async () => {
+    await moduleRef?.close();
   });
 
   describe("createAndPublishNotification", () => {
