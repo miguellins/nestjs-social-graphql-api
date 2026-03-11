@@ -13,7 +13,6 @@ import { UpdatePostInput } from "@/posts/dto/update-post.input";
 
 import { PostsService } from "@/posts/posts.service";
 
-import { PostListItem } from "@/posts/models/post-list-item.model";
 import { PostDetail } from "@/posts/models/post-detail.model";
 import { Post } from "@/posts/models/posts.model";
 
@@ -27,8 +26,8 @@ export class PostsResolver {
 
   @Public()
   @Throttle({ default: THROTTLE_LIMITS.LIST })
-  @Query(() => [PostListItem], { name: "posts" })
-  async posts(@Args() args: FindPostsArgs): Promise<PostListItem[]> {
+  @Query(() => [Post], { name: "posts" })
+  async posts(@Args() args: FindPostsArgs): Promise<Post[]> {
     return this.postsService.findPosts(args);
   }
 
@@ -42,11 +41,11 @@ export class PostsResolver {
   }
 
   @Throttle({ default: THROTTLE_LIMITS.LIST })
-  @Query(() => [PostListItem], { name: "myFeed" })
+  @Query(() => [Post], { name: "myFeed" })
   async myFeed(
     @CurrentUser() user: { id: number },
     @Args() args: PaginationArgs,
-  ): Promise<PostListItem[]> {
+  ): Promise<Post[]> {
     return this.postsService.myFeed(user.id, args);
   }
 

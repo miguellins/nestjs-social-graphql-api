@@ -1,7 +1,7 @@
-import { Field, ID, ObjectType, GraphQLISODateTime } from "@nestjs/graphql";
+import { Field, ObjectType } from "@nestjs/graphql";
 
-import { SafeUserPreview } from "@/posts/models/safe-user-preview.model";
-import { PostListItem } from "@/posts/models/post-list-item.model";
+import { LikePreview } from "@/posts/models/like-preview.model";
+import { Post } from "@/posts/models/posts.model";
 
 /**
  * GraphQL ObjectType representing a lightweight Like response
@@ -14,7 +14,7 @@ import { PostListItem } from "@/posts/models/post-list-item.model";
  *
  * Security layer:
  * - Uses SafeUserPreview instead of full User
- * - Uses PostListItem instead of PostDetail
+ * - Uses Post instead of PostDetail
  * - Ensures no sensitive user data is exposed
  *
  * Design philosophy:
@@ -30,25 +30,9 @@ import { PostListItem } from "@/posts/models/post-list-item.model";
   description:
     "Lightweight representation of a Like entity optimized for list views",
 })
-export class LikeListItem {
-  @Field(() => ID, {
-    description:
-      "Unique identifier of the like record. Used for referencing and pagination",
+export class LikeListItem extends LikePreview {
+  @Field(() => Post, {
+    description: "Public representation of the post that was liked",
   })
-  id: number;
-
-  @Field(() => GraphQLISODateTime, {
-    description: "Timestamp indicating when the like was created",
-  })
-  createdAt: Date;
-
-  @Field(() => SafeUserPreview, {
-    description: "Public-safe preview of the user who performed the like",
-  })
-  user: SafeUserPreview;
-
-  @Field(() => PostListItem, {
-    description: "Lightweight representation of the post that was liked",
-  })
-  post: PostListItem;
+  post: Post;
 }

@@ -159,40 +159,6 @@ type SafeUser {
 }
 
 """
-Aggregated numeric metadata for a Post entity. Provides lightweight summary information.
-"""
-type PostCounts {
-  """Total number of likes associated with this post"""
-  likes: Int!
-
-  """Total number of comments associated with this post"""
-  comments: Int!
-}
-
-"""Lightweight representation of a Post entity optimized for List views"""
-type PostListItem {
-  """
-  Unique identifier of the post. Used for routing, referencing, and pagination cursors
-  """
-  id: ID!
-
-  """Title of the post"""
-  title: String!
-
-  """Main textual content of the post"""
-  content: String!
-
-  """Timestamp indicating when the post was originally created"""
-  createdAt: DateTime!
-
-  """Public safe preview of the user who authored the post"""
-  author: SafeUserPreview!
-
-  """Aggregated metadata related to the post"""
-  _count: PostCounts!
-}
-
-"""
 Lightweight representation of a Like, containing minimal metadata and a safe preview of the user who performed the like
 """
 type LikePreview {
@@ -206,6 +172,17 @@ type LikePreview {
 
   """Public safe preview of the user who performed the like"""
   user: SafeUserPreview!
+}
+
+"""
+Aggregated numeric metadata for a Post entity. Provides lightweight summary information.
+"""
+type PostCounts {
+  """Total number of likes associated with this post"""
+  likes: Int!
+
+  """Total number of comments associated with this post"""
+  comments: Int!
 }
 
 """
@@ -273,18 +250,18 @@ type Post {
 """Lightweight representation of a Like entity optimized for list views"""
 type LikeListItem {
   """
-  Unique identifier of the like record. Used for referencing and pagination
+  Unique identifier of the like record. Used internally for referencing and pagination
   """
   id: ID!
 
   """Timestamp indicating when the like was created"""
   createdAt: DateTime!
 
-  """Public-safe preview of the user who performed the like"""
+  """Public safe preview of the user who performed the like"""
   user: SafeUserPreview!
 
-  """Lightweight representation of the post that was liked"""
-  post: PostListItem!
+  """Public representation of the post that was liked"""
+  post: Post!
 }
 
 type User {
@@ -340,12 +317,12 @@ type Query {
     Free-text search query for posts. Trimmed before validation. Max 50 characters.
     """
     q: String
-  ): [PostListItem!]!
+  ): [Post!]!
   postById(id: Int!): PostDetail!
   myFeed(
     """Maximum number of items to return (1-50)."""
     take: Int
-  ): [PostListItem!]!
+  ): [Post!]!
   likes(
     """Maximum number of items to return (1-50)."""
     take: Int

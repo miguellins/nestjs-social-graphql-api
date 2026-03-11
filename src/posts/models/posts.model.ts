@@ -13,10 +13,9 @@ import { PostCounts } from "@/posts/models/post-counts.model";
  * - Acts as a reusable foundation across queries and mutations
  *
  * Architecture note:
- * Think of this as the "middle-weight" object:
- * PostListItem - ultra lightweight (feeds)
- * Post - balanced (most operations)
- * PostDetail - rich (single-resource views)
+ * Think of this as the shared public post shape used by list queries,
+ * nested relations, and write operations, while PostDetail remains the
+ * richer single-resource view.
  *
  * This layered approach is very common in production systems because it allows you
  * to scale without rewriting your schema
