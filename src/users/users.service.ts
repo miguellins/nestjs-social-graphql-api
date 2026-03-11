@@ -10,8 +10,6 @@ import { CacheHelperService } from "@/common/cache/cache-helper.service";
 
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
 
-import { PaginationArgs } from "@/common/args/pagination.args";
-
 import { SafeUserDTO, SafeUserSelect } from "@/users/dto/safe-user.dto";
 import { CreateUserInput } from "@/users/dto/create-user.input";
 import { UpdateUserInput } from "@/users/dto/update-user.input";
@@ -20,6 +18,10 @@ import { PrismaService } from "@/prisma.service";
 import { Prisma } from "@prisma/client";
 
 import * as bcrypt from "bcrypt";
+
+type PaginationParams = {
+  take?: number;
+};
 
 /**
  * Responsible for business logic and data operations
@@ -32,7 +34,7 @@ export class UsersService {
     private readonly cacheHelper: CacheHelperService,
   ) {}
 
-  async findUsers(params?: PaginationArgs): Promise<SafeUserDTO[]> {
+  async findUsers(params?: PaginationParams): Promise<SafeUserDTO[]> {
     // Ensures the value never exceeds MAX_TAKE (number of records per request)
     const limit = Math.min(
       params?.take ?? PAGINATION.DEFAULT_TAKE,

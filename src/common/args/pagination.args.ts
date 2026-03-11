@@ -2,16 +2,18 @@ import { IsInt, IsOptional, Max, Min } from "class-validator";
 
 import { ArgsType, Field, Int } from "@nestjs/graphql";
 
+import { PAGINATION } from "@/common/constants/hard-cap.constants";
+
 @ArgsType()
 export class PaginationArgs {
   @Field(() => Int, {
     nullable: true,
-    description: "Max items to return (1-50)",
+    description: `Maximum number of items to return (1-${PAGINATION.MAX_TAKE}).`,
   })
   @IsOptional()
   @IsInt()
   @Min(1)
   // Match the hard cap in service
-  @Max(50)
+  @Max(PAGINATION.MAX_TAKE)
   take?: number;
 }

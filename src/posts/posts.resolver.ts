@@ -5,7 +5,7 @@ import { CurrentUser } from "@/common/decorators/current-user.decorator";
 import { THROTTLE_LIMITS } from "@/common/constants/throttle.constants";
 import { DeleteResponse } from "@/common/types/delete-response.type";
 import { PaginationArgs } from "@/common/args/pagination.args";
-import { FindPostsArgs } from "@/common/args/find-posts-args";
+import { FindPostsArgs } from "@/posts/args/find-posts.args";
 import { Public } from "@/common/decorators/auth.decorator";
 
 import { CreatePostInput } from "@/posts/dto/create-post.input";

@@ -11,12 +11,16 @@ import { CacheHelperService } from "@/common/cache/cache-helper.service";
 
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
 
-import { FindLikesArgs } from "@/common/args/find-likes.args";
-
 import { LikeDetailDTO, LikeDetailSelect } from "@/likes/dto/like-detail.dto";
 
 import { NotificationType, Prisma } from "@prisma/client";
 import { PrismaService } from "@/prisma.service";
+
+type FindLikesParams = {
+  take?: number;
+  postId?: number;
+  userId?: number;
+};
 
 @Injectable()
 export class LikesService {
@@ -26,7 +30,7 @@ export class LikesService {
     private readonly notificationsService: NotificationsService,
   ) {}
 
-  async findLikes(params?: FindLikesArgs): Promise<LikeDetailDTO[]> {
+  async findLikes(params?: FindLikesParams): Promise<LikeDetailDTO[]> {
     const take = Math.min(
       params?.take ?? PAGINATION.DEFAULT_TAKE,
       PAGINATION.MAX_TAKE,

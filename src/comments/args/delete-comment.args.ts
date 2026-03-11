@@ -4,8 +4,8 @@ import { ArgsType, Field, Int } from "@nestjs/graphql";
 
 @ArgsType()
 export class DeleteCommentArgs {
-  @Field(() => Int, { description: "Target comment id" })
+  @Field(() => Int, { description: "Unique id of the target comment." })
   @IsInt()
   @Min(1)
-  commentId: number;
+  commentId!: number;
 }

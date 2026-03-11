@@ -8,7 +8,7 @@ import { THROTTLE_LIMITS } from "@/common/constants/throttle.constants";
 
 import { DeleteResponse } from "@/common/types/delete-response.type";
 
-import { FindLikesArgs } from "@/common/args/find-likes.args";
+import { FindLikesArgs } from "@/likes/args/find-likes.args";
 
 import { LikeListItem } from "@/likes/models/like-list-item.model";
 import { Like } from "@/likes/models/likes.model";

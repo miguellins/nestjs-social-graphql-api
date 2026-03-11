@@ -8,7 +8,6 @@ import { CacheHelperService } from "@/common/cache/cache-helper.service";
 
 import { DeleteResponse } from "@/common/types/delete-response.type";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
-import { PaginationArgs } from "@/common/args/pagination.args";
 
 import { PrismaService } from "@/prisma.service";
 
@@ -17,6 +16,11 @@ import {
   SafeCommentSelect,
   type SafeCommentDTO,
 } from "@/comments/dto/safe-comment.dto";
+
+type FindCommentsByPostParams = {
+  postId: number;
+  take?: number;
+};
 
 @Injectable()
 export class CommentsService {
@@ -68,10 +72,10 @@ export class CommentsService {
     return comment;
   }
 
-  async findCommentsByPost(
-    postId: number,
-    params?: PaginationArgs,
-  ): Promise<SafeCommentDTO[]> {
+  async findCommentsByPost({
+    postId,
+    take,
+  }: FindCommentsByPostParams): Promise<SafeCommentDTO[]> {
     // Check if the post exists before listing comments
     const post = await this.prisma.post.findUnique({
       where: { id: postId },
@@ -81,13 +85,13 @@ export class CommentsService {
     if (!post) throw new NotFoundException("Post not found");
 
     // Limit how many comments can be returned
-    const take = Math.min(
-      params?.take ?? PAGINATION.DEFAULT_TAKE,
+    const normalizedTake = Math.min(
+      take ?? PAGINATION.DEFAULT_TAKE,
       PAGINATION.MAX_TAKE,
     );
 
     return this.prisma.comment.findMany({
-      take,
+      take: normalizedTake,
       where: {
         postId,
       },

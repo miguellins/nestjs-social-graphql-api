@@ -328,40 +328,48 @@ type AuthPayload {
 
 type Query {
   users(
-    """Max items to return (1-50)"""
+    """Maximum number of items to return (1-50)."""
     take: Int
   ): [SafeUser!]!
   userById(id: Int!): SafeUser!
-  posts(take: Int, q: String): [PostListItem!]!
+  posts(
+    """Maximum number of items to return (1-50)."""
+    take: Int
+
+    """
+    Free-text search query for posts. Trimmed before validation. Max 50 characters.
+    """
+    q: String
+  ): [PostListItem!]!
   postById(id: Int!): PostDetail!
   myFeed(
-    """Max items to return (1-50)"""
+    """Maximum number of items to return (1-50)."""
     take: Int
   ): [PostListItem!]!
   likes(
-    """Max items to return (1-50)"""
+    """Maximum number of items to return (1-50)."""
     take: Int
 
-    """Filter likes by post id"""
+    """Return only likes that belong to this post id."""
     postId: Int
 
-    """Filter likes by user id"""
+    """Return only likes created by this user id."""
     userId: Int
   ): [LikeListItem!]!
   likeById(id: Int!): LikeListItem!
   myNotifications(
-    """Max items to return (1-50)"""
+    """Maximum number of items to return (1-50)."""
     take: Int
   ): [NotificationDTO!]!
   unreadNotificationsCount: Int!
   follows(take: Int): [Follow!]!
   followById(id: Int!): Follow!
   commentsByPost(
-    """Target post id"""
-    postId: Int!
-
-    """Max items to return (1-50)"""
+    """Maximum number of items to return (1-50)."""
     take: Int
+
+    """Unique id of the post whose comments should be returned."""
+    postId: Int!
   ): [SafeCommentDTO!]!
 }
 
@@ -379,9 +387,12 @@ type Mutation {
   markAllNotificationsAsRead: DeleteResponse!
   createFollow(followingId: Int!): Follow!
   deleteFollow(id: Int!): DeleteResponse!
-  createComment(input: CreateCommentInput!): SafeCommentDTO!
+  createComment(
+    """Payload used to create a new comment."""
+    input: CreateCommentInput!
+  ): SafeCommentDTO!
   deleteComment(
-    """Target comment id"""
+    """Unique id of the target comment."""
     commentId: Int!
   ): DeleteResponse!
 }

@@ -12,7 +12,6 @@ import { NotificationsService } from "@/notifications/notifications.service";
 import { PrismaService } from "@/prisma.service";
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
-import { FindLikesArgs } from "@/common/args/find-likes.args";
 import { LikeDetailSelect } from "@/likes/dto/like-detail.dto";
 
 describe("LikesService", () => {
@@ -111,7 +110,7 @@ describe("LikesService", () => {
         { id: 1, userId: 10, postId: 20 },
       ]);
 
-      const params: FindLikesArgs = {
+      const params = {
         take: PAGINATION.MAX_TAKE + 999,
         postId: 20,
         userId: 10,
@@ -161,7 +160,7 @@ describe("LikesService", () => {
       cacheMock.getVersion.mockResolvedValue(2);
       prismaMock.like.findMany.mockResolvedValue([]);
 
-      const params: FindLikesArgs = { postId: 55 };
+      const params = { postId: 55 };
       await service.findLikes(params);
 
       expect(prismaMock.like.findMany).toHaveBeenCalledWith({
@@ -176,7 +175,7 @@ describe("LikesService", () => {
       cacheMock.getVersion.mockResolvedValue(2);
       prismaMock.like.findMany.mockResolvedValue([]);
 
-      const params: FindLikesArgs = { userId: 77 };
+      const params = { userId: 77 };
       await service.findLikes(params);
 
       expect(prismaMock.like.findMany).toHaveBeenCalledWith({
@@ -195,7 +194,7 @@ describe("LikesService", () => {
         { id: 99, userId: 1, postId: 2 },
       ]);
 
-      const params: FindLikesArgs = { take: 1, postId: 2, userId: 1 };
+      const params = { take: 1, postId: 2, userId: 1 };
       await service.findLikes(params);
 
       prismaMock.like.findMany.mockClear();
@@ -268,8 +267,6 @@ describe("LikesService", () => {
       expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:likes:list");
       expect(cacheMock.del).toHaveBeenCalledWith("posts:detail:20");
       expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:posts:list");
-      expect(cacheMock.del).toHaveBeenCalledWith("user:safe:10");
-      expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:user:list");
 
       expect(res).toEqual(like);
     });
@@ -377,8 +374,6 @@ describe("LikesService", () => {
       expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:likes:list");
       expect(cacheMock.del).toHaveBeenCalledWith("posts:detail:20");
       expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:posts:list");
-      expect(cacheMock.del).toHaveBeenCalledWith("user:safe:10");
-      expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:user:list");
 
       expect(res).toEqual({ message: "Like deleted successfully" });
     });

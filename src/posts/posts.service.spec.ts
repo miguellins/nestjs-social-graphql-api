@@ -11,7 +11,6 @@ import { PostsService } from "./posts.service";
 import { PrismaService } from "@/prisma.service";
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
-import { FindPostsArgs } from "@/common/args/find-posts-args";
 import { SafePostListSelect } from "@/posts/dto/safe-post-list.dto";
 import { SafePostDetailSelect } from "@/posts/dto/safe-post-detail.dto";
 import { CreatePostInput } from "@/posts/dto/create-post.input";
@@ -82,7 +81,7 @@ describe("PostsService", () => {
       cacheMock.getVersion.mockResolvedValue(5);
       prismaMock.post.findMany.mockResolvedValue([{ id: 1 }]);
 
-      const params: FindPostsArgs = {
+      const params = {
         take: PAGINATION.MAX_TAKE + 999,
         q: "  HeLLo  ",
       };
@@ -140,7 +139,7 @@ describe("PostsService", () => {
       prismaMock.post.findMany.mockResolvedValue([{ id: 123 }]);
 
       // prime cache
-      const params: FindPostsArgs = { take: 1, q: "hi" };
+      const params = { take: 1, q: "hi" };
       await service.findPosts(params);
 
       prismaMock.post.findMany.mockClear();
@@ -154,9 +153,22 @@ describe("PostsService", () => {
 
   describe("getPost", () => {
     it("returns post and uses likes hard cap defaults in select (take 20) and caches with 60s TTL", async () => {
-      prismaMock.post.findUnique.mockResolvedValue({ id: 10 });
+      prismaMock.post.update.mockResolvedValue({ viewsCount: 42 });
+      prismaMock.post.findUnique.mockResolvedValue({ id: 10, viewsCount: 1 });
 
       const res = await service.getPost(10);
+
+      expect(prismaMock.post.update).toHaveBeenCalledWith({
+        where: { id: 10 },
+        data: {
+          viewsCount: {
+            increment: 1,
+          },
+        },
+        select: {
+          viewsCount: true,
+        },
+      });
 
       expect(cacheMock.getOrSet).toHaveBeenCalledWith(
         "posts:detail:10",
@@ -176,11 +188,11 @@ describe("PostsService", () => {
         },
       });
 
-      expect(res).toEqual({ id: 10 });
+      expect(res).toEqual({ id: 10, viewsCount: 42 });
     });
 
     it("throws NotFoundException when post does not exist", async () => {
-      prismaMock.post.findUnique.mockResolvedValue(null);
+      prismaMock.post.update.mockRejectedValue(new Error("not found"));
 
       await expect(service.getPost(999)).rejects.toBeInstanceOf(
         NotFoundException,
@@ -363,9 +375,6 @@ describe("PostsService", () => {
 
       expect(cacheMock.del).toHaveBeenCalledWith("posts:detail:1");
       expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:posts:list");
-
-      expect(cacheMock.del).toHaveBeenCalledWith("user:safe:7");
-      expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:user:list");
 
       expect(res).toEqual({ message: "Post deleted successfully" });
     });

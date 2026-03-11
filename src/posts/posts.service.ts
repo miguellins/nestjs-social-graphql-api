@@ -14,9 +14,6 @@ import {
 } from "@/common/constants/paginations.constants";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
 
-import { PaginationArgs } from "@/common/args/pagination.args";
-import { FindPostsArgs } from "@/common/args/find-posts-args";
-
 import {
   SafePostDetailDTO,
   SafePostDetailSelect,
@@ -33,6 +30,14 @@ import { PrismaService } from "@/prisma.service";
 import { Prisma } from "@prisma/client";
 import { DeleteResponse } from "@/common/types/delete-response.type";
 
+type PaginationParams = {
+  take?: number;
+};
+
+type FindPostsParams = PaginationParams & {
+  q?: string;
+};
+
 /**
  * Responsible for business logic and data operations
  */
@@ -46,7 +51,7 @@ export class PostsService {
 
   async myFeed(
     currentUserId: number,
-    params?: PaginationArgs,
+    params?: PaginationParams,
   ): Promise<SafePostListDTO[]> {
     const take = Math.min(
       params?.take ?? PAGINATION.DEFAULT_TAKE,
@@ -83,7 +88,7 @@ export class PostsService {
     });
   }
 
-  async findPosts(params?: FindPostsArgs): Promise<SafePostListDTO[]> {
+  async findPosts(params?: FindPostsParams): Promise<SafePostListDTO[]> {
     // Ensures the value never exceeds MAX_TAKE (number of records per request)
     const take = Math.min(
       params?.take ?? PAGINATION.DEFAULT_TAKE,
