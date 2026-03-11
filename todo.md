@@ -1,6 +1,8 @@
 AFTER EVERYTHING IS DONE:
 
-- CREATE AN BIG AND WELL EXPLAINING PROMPT TO CODEX CREATE README.MD FILE
+- ADD DOCKER
+- ADD GIT LAB
+- CREATE AN BIG AND WELL EXPLAINING PROMPT TO CODEX CREATE README.MD FILE - ASKS IF GRAPHQL QUERIES SHOULD BE INSIDE THE FILE
 - ADD GOOD AND STRONG ERROR HANDLING IN EACH SERVICE
 
 //---//---//---//
@@ -19,14 +21,6 @@ TODO NEXT
 //---//---//---//
 
 IDEAS:
-
-5. **Bookmarks/Saves**
-
-- Private saved posts collection (`savePost`, `unsavePost`, `mySavedPosts`).
-
-11. **Search**
-
-- Dedicated search for users/posts/tags with ranking and pagination.
 
 //---//---//---//
 //---//---//---//
