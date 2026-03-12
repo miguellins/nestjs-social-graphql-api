@@ -7,11 +7,13 @@ import { JwtService } from "@nestjs/jwt";
 import { APP_GUARD } from "@nestjs/core";
 import { Module } from "@nestjs/common";
 
+import { createQueryComplexityPlugin } from "@/graphql/plugins/query-complexity.plugin";
+
 import { GqlThrottlerGuard } from "@/common/guards/qgl-throttler.guard";
 import { GqlJwtGuard } from "@/common/guards/qgl-jwt.guard";
 
 import { NotificationsModule } from "@/notifications/notifications.module";
-import { CommentsModule } from "./comments/comments.module";
+import { CommentsModule } from "@/comments/comments.module";
 import { FollowsModule } from "@/follows/follows.module";
 import { UsersModule } from "@/users/users.module";
 import { PostsModule } from "@/posts/posts.module";
@@ -106,6 +108,7 @@ export type GqlContext = {
       inject: [JwtService],
       useFactory: (jwtService: JwtService): ApolloDriverConfig => ({
         autoSchemaFile: join(process.cwd(), "src/schema.gql"),
+        plugins: [createQueryComplexityPlugin(process.env)],
 
         subscriptions: {
           "graphql-ws": {
