@@ -49,7 +49,7 @@ export class UpdateUserInput {
   @IsEmail()
   @IsNotEmpty()
   @MinLength(3)
-  @MaxLength(20)
+  @MaxLength(100)
   @IsOptional()
   email?: string;
 

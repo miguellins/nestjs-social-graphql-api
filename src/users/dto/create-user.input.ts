@@ -38,7 +38,7 @@ export class CreateUserInput {
   @IsEmail()
   @IsNotEmpty()
   @MinLength(3)
-  @MaxLength(20)
+  @MaxLength(100)
   email: string;
 
   /** Public username used for mention and login flows. */

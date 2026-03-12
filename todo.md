@@ -11,14 +11,93 @@ AFTER EVERYTHING IS DONE:
 PROMPT FOR CODEX:
 
 //---//---//---//
+
+NEXT PROMPT TO CHATGPT (TO NOT MISS THE CURRENT LOGIC):
+isnt this the exact function of the @Trim() transformer? whats the difference?: For your specific DTO, the best middleware candidates are title and body because they are user-facing text fields. That makes them a natural place for things like trimming output, collapsing repeated whitespace, truncating previews, or masking sensitive fragments before the response goes back to the client. Those are exactly the kinds of “convert the result of a field” use cases Nest describes for field middleware.
+
 //---//---//---//
 
 TODO NEXT:
 
-//---//---//---//
+ABOUT FIELD MIDDLEWARE:
+
+Best fit
+NotificationDTO.body
+notification.model.ts
+
+Why suitable:
+field middleware is good for lightweight output transformation
+if you later want truncation, sanitization, or conditional masking of notification text, this is a clean field-level hook
+
+PostDetail.viewsCount
+post-detail.model.ts
+
+Why suitable:
+if you want lightweight formatting or visibility rules around this metric, field middleware fits better than resolver-level branching
+example: hiding analytics-style fields from some roles in the future
+NotificationDTO.actor
+notification.model.ts
+
+Why suitable:
+if you ever need field-level shaping of nested actor data for privacy or presentation, middleware can do that without changing the whole notification resolver flow
+Possible but lower-value
+
+Date fields for presentation normalization
+Examples:
+safe-user.model.ts
+posts.model.ts
+post-detail.model.ts
+
+Why:
+middleware can transform values before they go out
+but in your project, date handling is already straightforward and standard, so this is optional
+
 //---//---//---//
 
-CHATGPT SUGGESTIONS:
+Create it under a shared GraphQL area, not inside a feature service.
+
+Best location in your project:
+
+- `src/graphql/middleware/`
+- or `src/common/graphql/middleware/` if you want it alongside guards/filters/decorators
+
+Given your current structure, I would use:
+
+- `src/graphql/middleware/notification-body.middleware.ts`
+- `src/graphql/middleware/actor-visibility.middleware.ts`
+
+Why there:
+
+- field middleware is GraphQL-specific infrastructure
+- it should stay separate from business services
+- it is easier to reuse and reason about when grouped by GraphQL concern
+
+Where it would be attached:
+
+- directly on `@Field(...)` inside the relevant `@ObjectType()` class
+- for example, if you ever used it, the attachment point would be in:
+  - [`src/notifications/models/notification.model.ts`](/home/mlins/Desktop/nestjs_graphql/src/notifications/models/notification.model.ts)
+  - possibly [`src/posts/models/post-detail.model.ts`](/home/mlins/Desktop/nestjs_graphql/src/posts/models/post-detail.model.ts)
+
+Would this change behavior?
+
+- yes, potentially
+- field middleware exists specifically to alter or gate field resolution behavior
+
+It can change behavior by:
+
+- transforming returned values
+- hiding/masking fields
+- throwing on field access
+- adding conditional logic per field
+
+If you write a no-op middleware, behavior stays the same. But a real middleware is behavior-changing by design.
+
+So:
+
+- create it under `src/graphql/middleware/`
+- attach it at the field decorator level in the relevant `ObjectType`
+- assume it changes behavior unless it is intentionally observational only
 
 //---//---//---//
 //---//---//---//
