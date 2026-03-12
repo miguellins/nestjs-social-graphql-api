@@ -9,6 +9,7 @@ import {
  * - trims leading/trailing whitespace
  * - collapses repeated internal whitespace
  */
+
 export const normalizeOutputTextMiddleware: FieldMiddleware = async (
   _ctx: MiddlewareContext,
   next: NextFn,

@@ -5,7 +5,7 @@ import { ThrottlerModule } from "@nestjs/throttler";
 import { GraphQLModule } from "@nestjs/graphql";
 import { JwtService } from "@nestjs/jwt";
 import { APP_GUARD } from "@nestjs/core";
-import { Module } from "@nestjs/common";
+import { Logger, Module } from "@nestjs/common";
 
 import { createQueryComplexityPlugin } from "@/graphql/plugins/query-complexity.plugin";
 
@@ -33,10 +33,11 @@ import { join } from "path";
 /**
  * Extra data attached to a GraphQL WebSocket subscription connection
  *
- * This object lives on `context.extra` for subscription operations and stores
+ * This object lives on 'context.extra' for subscription operations and stores
  * connection-scoped metadata, such as the authenticated user resolved during
  * the WebSocket handshake
  */
+
 export type SubscriptionExtra = {
   // Authenticated user attached during the WebSocket connection handshake
   user?: {
@@ -54,6 +55,7 @@ export type SubscriptionExtra = {
  * Supports both HTTP (req/res) and WebSocket (extra) transports, enabling a
  * unified context shape across queries, mutations, and subscriptions
  */
+
 export type GqlContext = {
   // Incoming HTTP request object. Present in query/mutation context
   req?: Request;
@@ -106,86 +108,96 @@ export type GqlContext = {
       driver: ApolloDriver,
       imports: [AuthModule],
       inject: [JwtService],
-      useFactory: (jwtService: JwtService): ApolloDriverConfig => ({
-        autoSchemaFile: join(process.cwd(), "src/schema.gql"),
-        plugins: [createQueryComplexityPlugin(process.env)],
+      useFactory: (jwtService: JwtService): ApolloDriverConfig => {
+        const logger = new Logger("GraphQLModule");
 
-        subscriptions: {
-          "graphql-ws": {
-            // Give clients more time to send connection_init before server closes socket
-            connectionInitWaitTimeout: 60_000,
+        return {
+          autoSchemaFile: join(process.cwd(), "src/schema.gql"),
 
-            // Send websocket ping frames periodically to keep idle connections alive
-            // @ts-expect-error keepAlive is supported by graphql-ws runtime options
-            keepAlive: 20_000,
+          // Limits query complexity to prevent expensive or abusive GraphQL queries
+          plugins: [createQueryComplexityPlugin(process.env)],
 
-            onConnect: async (context) => {
-              console.log("WS connectionParams:", context.connectionParams);
+          subscriptions: {
+            "graphql-ws": {
+              // Give clients more time to send connection_init before the server closes the socket
+              connectionInitWaitTimeout: 60_000,
 
-              const extra = context.extra as SubscriptionExtra;
+              // Send WebSocket ping frames periodically to keep idle connections alive
+              // @ts-expect-error keepAlive is supported by graphql-ws runtime options
+              keepAlive: 20_000,
 
-              const auth =
-                context.connectionParams?.authorization ??
-                context.connectionParams?.Authorization;
-
-              if (!auth) {
-                throw new Error(
-                  "Missing authorization in websocket connection params",
+              onConnect: async (context) => {
+                logger.debug(
+                  `WS connection attempt — params: ${JSON.stringify(context.connectionParams)}`,
                 );
-              }
 
-              if (typeof auth !== "string" || !auth.startsWith("Bearer ")) {
-                throw new Error(
-                  "Authorization must be in format: Bearer <token>",
-                );
-              }
+                const extra = context.extra as SubscriptionExtra;
 
-              const token = auth.slice(7);
+                const auth =
+                  context.connectionParams?.authorization ??
+                  context.connectionParams?.Authorization;
 
-              try {
-                const payload = await jwtService.verifyAsync<{
-                  sub: number;
-                }>(token);
+                if (!auth) {
+                  throw new Error(
+                    "Missing authorization in websocket connection params",
+                  );
+                }
 
-                extra.user = {
-                  id: payload.sub,
-                };
+                if (typeof auth !== "string" || !auth.startsWith("Bearer ")) {
+                  throw new Error(
+                    "Authorization must be in format: Bearer <token>",
+                  );
+                }
 
-                console.log("WS authenticated user:", extra.user);
-              } catch {
-                throw new Error("Invalid or expired websocket token");
-              }
+                const token = auth.slice(7);
+
+                try {
+                  const payload = await jwtService.verifyAsync<{
+                    sub: number;
+                  }>(token);
+
+                  extra.user = {
+                    id: payload.sub,
+                  };
+
+                  logger.debug(`WS authenticated — userId: ${extra.user.id}`);
+                } catch {
+                  throw new Error("Invalid or expired websocket token");
+                }
+              },
             },
           },
-        },
 
-        formatError: (error: GraphQLFormattedError) => ({
-          message: error.message,
-        }),
+          // Strips internal error details from GraphQL responses sent to clients
+          formatError: (error: GraphQLFormattedError) => ({
+            message: error.message,
+          }),
 
-        context: ({
-          req,
-          res,
-          extra,
-        }: {
-          req?: Request;
-          res?: Response;
-          extra?: SubscriptionExtra;
-        }): GqlContext => ({
-          req,
-          res,
-          extra,
-        }),
+          // Builds the unified context object available to all resolvers
+          context: ({
+            req,
+            res,
+            extra,
+          }: {
+            req?: Request;
+            res?: Response;
+            extra?: SubscriptionExtra;
+          }): GqlContext => ({
+            req,
+            res,
+            extra,
+          }),
 
-        debug: false,
-      }),
+          debug: false,
+        };
+      },
     }),
 
     // Registers the rate limiter globally
     ThrottlerModule.forRoot([
       {
-        // 60 seconds
-        ttl: 60,
+        // 60 seconds in milliseconds
+        ttl: 60_000,
 
         // 120 requests per ttl per client
         limit: 120,

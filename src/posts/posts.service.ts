@@ -8,6 +8,8 @@ import {
 
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
 
+import { DeleteResponse } from "@/common/types/delete-response.type";
+
 import {
   DEFAULT_LIKES,
   MAX_LIKES,
@@ -28,7 +30,6 @@ import { UpdatePostInput } from "@/posts/dto/update-post.input";
 
 import { PrismaService } from "@/prisma.service";
 import { Prisma } from "@prisma/client";
-import { DeleteResponse } from "@/common/types/delete-response.type";
 
 type PaginationParams = {
   take?: number;

@@ -1,7 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { pubSub } from "@/graphql/pubsub";
 
-import { PrismaService } from "@/prisma.service";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
 import { DeleteResponse } from "@/common/types/delete-response.type";
 
@@ -10,6 +9,8 @@ import {
   NotificationSelect,
   type SafeNotificationDTO,
 } from "@/notifications/dto/notifications.dto";
+
+import { PrismaService } from "@/prisma.service";
 
 type PaginationParams = {
   take?: number;
