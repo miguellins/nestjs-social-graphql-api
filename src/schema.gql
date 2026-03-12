@@ -83,6 +83,14 @@ type SafeUserPreview {
   username: String!
 }
 
+"""
+Safe GraphQL DTO returned when a comment is queried or created
+
+What it does:
+- exposes only safe comment fields to the client
+- includes basic author information
+- is used by resolvers as the return type
+"""
 type SafeCommentDTO {
   id: Int!
   content: String!
@@ -379,6 +387,17 @@ input LoginInput {
   password: String!
 }
 
+"""
+GraphQL Input Type used when creating a new user
+
+What it does:
+- Validates incoming data at the API boundary
+- Prevents bad data from reaching the database
+- Enforces consistent formatting
+- Improves security
+
+Acts as the first security layer
+"""
 input CreateUserInput {
   name: String!
   email: String!
@@ -386,6 +405,25 @@ input CreateUserInput {
   password: String!
 }
 
+"""
+GraphQL Input Type used when updating an existing user
+
+What it does:
+- Validates partial updates safely
+- Allows flexible mutations without requiring all fields
+- Normalizes incoming data before it reaches the service layer
+- Protects database integrity
+
+Security benefits:
+- Prevents empty or malformed updates
+- Restricts username format
+- Enforces password length best-practices (bcrypt-safe)
+- Avoids invalid email formats
+
+Design note:
+All fields are optional because updates are PATCH-style
+Only the provided fields will be modified
+"""
 input UpdateUserInput {
   name: String
   email: String
@@ -393,16 +431,60 @@ input UpdateUserInput {
   password: String
 }
 
+"""
+GraphQL Input Type used when creating a new Post
+
+What it does:
+- Validates incoming data before it reaches the service layer
+- Prevents empty or malformed posts from being stored
+- Enforces consistent formatting
+- Protects the database from low-quality data
+
+Why this matters:
+- Posts are user-generated content - one of the highest-risk entry points
+
+Strong validation helps prevent:
+- Spam content
+- Accidental empty posts
+- Extremely large payloads
+- Formatting inconsistencies
+
+Security layer:
+- This acts as the first boundary of trust
+- Never rely only on frontend validation
+"""
 input CreatePostInput {
   title: String!
   content: String!
 }
 
+"""
+GraphQL Input Type used when updating an existing post
+
+What it does:
+- Validates incoming data before it reaches the service layer
+- Allows partial updates (PATCH-style behavior)
+- Normalizes string input to maintain database consistency
+- Prevents empty or malformed values from being stored
+
+Security role:
+- Second defensive layer after authentication
+- Ensures only properly formatted data is processed
+"""
 input UpdatePostInput {
   title: String
   content: String
 }
 
+"""
+GraphQL input used to create a new comment on a post
+
+What it does:
+- receives the comment text from the client
+- receives the target post ID
+- validates the input before it reaches the service layer
+- trims extra spaces from the comment content
+"""
 input CreateCommentInput {
   content: String!
   postId: Int!
