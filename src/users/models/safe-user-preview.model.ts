@@ -9,13 +9,11 @@ import { Field, ID, ObjectType } from "@nestjs/graphql";
  * - prevents schema mismatch when only a subset of user fields is selected
  */
 
-@ObjectType({
-  description: "Minimal public-safe representation of a User for nested fields",
-})
+/** Minimal public-safe representation of a User for nested fields. */
+@ObjectType()
 export class SafeUserPreview {
-  @Field(() => ID, {
-    description: "Unique identifier of the user",
-  })
+  /** Unique identifier of the user. */
+  @Field(() => ID)
   id: number;
 
   /** Public display name. */

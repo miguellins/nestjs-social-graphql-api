@@ -26,13 +26,10 @@ import { Post } from "@/posts/models/posts.model";
  * - API stability
  */
 
-@ObjectType({
-  description:
-    "Lightweight representation of a Like entity optimized for list views",
-})
+/** Lightweight representation of a Like entity optimized for list views. */
+@ObjectType()
 export class LikeListItem extends LikePreview {
-  @Field(() => Post, {
-    description: "Public representation of the post that was liked",
-  })
+  /** Public representation of the post that was liked. */
+  @Field(() => Post)
   post: Post;
 }

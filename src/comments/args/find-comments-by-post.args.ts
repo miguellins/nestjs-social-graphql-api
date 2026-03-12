@@ -6,9 +6,8 @@ import { PaginationArgs } from "@/common/args/pagination.args";
 
 @ArgsType()
 export class FindCommentsByPostArgs extends PaginationArgs {
-  @Field(() => Int, {
-    description: "Unique id of the post whose comments should be returned.",
-  })
+  /** Unique id of the post whose comments should be returned. */
+  @Field(() => Int)
   @IsInt()
   @Min(1)
   postId!: number;

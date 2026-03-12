@@ -7,9 +7,9 @@ import { PaginationArgs } from "@/common/args/pagination.args";
 @ArgsType()
 export class FindLikesArgs extends PaginationArgs {
   // Optional filter by post
+  /** Return only likes that belong to this post id. */
   @Field(() => Int, {
     nullable: true,
-    description: "Return only likes that belong to this post id.",
   })
   @IsOptional()
   @IsInt()
@@ -17,9 +17,9 @@ export class FindLikesArgs extends PaginationArgs {
   postId?: number;
 
   // Optional filter by user
+  /** Return only likes created by this user id. */
   @Field(() => Int, {
     nullable: true,
-    description: "Return only likes created by this user id.",
   })
   @IsOptional()
   @IsInt()

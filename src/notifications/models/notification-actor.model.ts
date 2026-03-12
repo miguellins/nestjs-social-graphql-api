@@ -9,14 +9,11 @@ import { Field, Int, ObjectType } from "@nestjs/graphql";
  * - Keeps notification payloads small and predictable
  */
 
-@ObjectType({
-  description:
-    "Minimal safe representation of the actor who triggered a notification",
-})
+/** Minimal safe representation of the actor who triggered a notification. */
+@ObjectType()
 export class NotificationActorDTO {
-  @Field(() => Int, {
-    description: "Unique identifier of the actor user",
-  })
+  /** Unique identifier of the actor user. */
+  @Field(() => Int)
   id: number;
 
   /** Public username of the actor user. */

@@ -10,12 +10,51 @@ AFTER EVERYTHING IS DONE:
 
 PROMPT FOR CODEX:
 
+fix this: many types still keep schema docs in inline description options instead of JSDoc comments
+Current examples:
+
+comments args:
+find-comments-by-post.args.ts
+create-comment.args.ts
+delete-comment.args.ts
+
+users models:
+safe-user-preview.model.ts
+safe-user.model.ts
+user-counts.model.ts
+
+likes:
+find-likes.args.ts
+likes.model.ts
+like-list-item.model.ts
+
+follows:
+follows.model.ts
+
+notifications:
+notification-actor.model.ts
+notification.model.ts
+
 //---//---//---//
 //---//---//---//
 
 TODO NEXT
 
 ABOUT GRAPHQL-CLI PLUGIN:
+
+What I would consider “not missing anymore”:
+
+plugin registration in the actual Nest compiler
+plugin registration in Jest
+suffix coverage for your naming conventions
+auto-generated simple scalar fields in the cleaned-up areas
+What I would leave as-is:
+
+inline options for nullable, defaultValue, deprecationReason
+dynamic descriptions such as pagination.args.ts and find-posts.args.ts, because those are not good JSDoc candidates
+So the honest answer is: right now the only major plugin capability you are still underusing is comment-driven schema documentation outside the post models.
+
+---
 
 Based on this project, the main Nest GraphQL plugin features you are not really taking advantage of are these:
 
