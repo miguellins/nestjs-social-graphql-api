@@ -3,6 +3,7 @@ import { pubSub } from "@/graphql/pubsub";
 
 import { PrismaService } from "@/prisma.service";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
+import { DeleteResponse } from "@/common/types/delete-response.type";
 
 import { type CreateNotificationInput } from "@/notifications/dto/create-notification.input";
 import {
@@ -86,7 +87,10 @@ export class NotificationsService {
     });
   }
 
-  async markAsRead(notificationId: number, userId: number): Promise<boolean> {
+  async markAsRead(
+    notificationId: number,
+    userId: number,
+  ): Promise<DeleteResponse> {
     const result = await this.prisma.notification.updateMany({
       where: {
         id: notificationId,
@@ -99,11 +103,16 @@ export class NotificationsService {
       },
     });
 
-    return result.count > 0;
+    return {
+      message:
+        result.count > 0
+          ? "Notification marked as read"
+          : "Notification not found",
+    };
   }
 
-  async markAllAsRead(userId: number): Promise<boolean> {
-    const result = await this.prisma.notification.updateMany({
+  async markAllAsRead(userId: number): Promise<DeleteResponse> {
+    await this.prisma.notification.updateMany({
       where: {
         recipientId: userId,
         isRead: false,
@@ -115,6 +124,8 @@ export class NotificationsService {
       },
     });
 
-    return result.count > 0;
+    return {
+      message: "All notifications marked as read",
+    };
   }
 }

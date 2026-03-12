@@ -48,16 +48,7 @@ export class NotificationsResolver {
     @CurrentUser() user: { id: number },
     @Args("notificationId", { type: () => Int }) notificationId: number,
   ): Promise<DeleteResponse> {
-    const marked = await this.notificationsService.markAsRead(
-      notificationId,
-      user.id,
-    );
-
-    return {
-      message: marked
-        ? "Notification marked as read"
-        : "Notification not found",
-    };
+    return this.notificationsService.markAsRead(notificationId, user.id);
   }
 
   @Throttle({ default: THROTTLE_LIMITS.MUTATION })
@@ -65,11 +56,7 @@ export class NotificationsResolver {
   async markAllNotificationsAsRead(
     @CurrentUser() user: { id: number },
   ): Promise<DeleteResponse> {
-    await this.notificationsService.markAllAsRead(user.id);
-
-    return {
-      message: "All notifications marked as read",
-    };
+    return this.notificationsService.markAllAsRead(user.id);
   }
 
   @Subscription(() => NotificationDTO, {

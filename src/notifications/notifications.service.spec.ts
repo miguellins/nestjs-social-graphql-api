@@ -231,7 +231,7 @@ describe("NotificationsService", () => {
   });
 
   describe("markAsRead", () => {
-    it("should return true when notification is updated", async () => {
+    it("should return a success response when notification is updated", async () => {
       prismaMock.notification.updateMany.mockResolvedValue({ count: 1 });
 
       const result = await service.markAsRead(10, 1);
@@ -249,20 +249,20 @@ describe("NotificationsService", () => {
       expect(updateArgs.data.isRead).toBe(true);
       expect(updateArgs.data.readAt).toBeInstanceOf(Date);
 
-      expect(result).toBe(true);
+      expect(result).toEqual({ message: "Notification marked as read" });
     });
 
-    it("should return false when notification is not updated", async () => {
+    it("should return a not found response when notification is not updated", async () => {
       prismaMock.notification.updateMany.mockResolvedValue({ count: 0 });
 
       const result = await service.markAsRead(10, 1);
 
-      expect(result).toBe(false);
+      expect(result).toEqual({ message: "Notification not found" });
     });
   });
 
   describe("markAllAsRead", () => {
-    it("should return true when notifications are updated", async () => {
+    it("should return a success response when notifications are updated", async () => {
       prismaMock.notification.updateMany.mockResolvedValue({ count: 2 });
 
       const result = await service.markAllAsRead(1);
@@ -280,15 +280,15 @@ describe("NotificationsService", () => {
       expect(updateArgs.data.isRead).toBe(true);
       expect(updateArgs.data.readAt).toBeInstanceOf(Date);
 
-      expect(result).toBe(true);
+      expect(result).toEqual({ message: "All notifications marked as read" });
     });
 
-    it("should return false when no notifications are updated", async () => {
+    it("should return the same success response when no notifications are updated", async () => {
       prismaMock.notification.updateMany.mockResolvedValue({ count: 0 });
 
       const result = await service.markAllAsRead(1);
 
-      expect(result).toBe(false);
+      expect(result).toEqual({ message: "All notifications marked as read" });
     });
   });
 });
