@@ -2,60 +2,96 @@
 # THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
 # ------------------------------------------------------
 
-"""Minimal safe representation of the actor who triggered a notification"""
-type NotificationActorDTO {
-  """Unique identifier of the actor user"""
-  id: Int!
+"""
+GraphQL Object Type that exposes aggregated relationship metrics for a User
 
-  """Public username of the actor user"""
-  username: String!
+What it does:
+- Returns lightweight numeric summaries instead of full relational data
+- Prevents expensive nested queries
+- Improves API performance
+- Keeps responses predictable and scalable
 
-  """Optional public display name of the actor user"""
-  name: String
+Why this matters:
+Fetching entire arrays (posts, followers, likes) can become extremely expensive as the
+application grows
+
+Example problem: A user with 50k followers would generate a massive payload
+
+Returning counts instead:
+- Faster queries
+- Smaller responses
+- Better mobile performance
+- Lower database load
+
+Architectural benefit:
+This follows a very common production pattern:
+"Return metadata first, fetch details only when needed"
+
+Clients can decide:
+- Show the count only
+- Lazily load the full list later
+
+Prisma optimization:
+These values are typically retrieved using '_count', which is highly efficient at the
+database level
+
+Security benefit:
+- Avois unintentionally exposing relationship data
+"""
+type UserCounts {
+  """Total number of posts created by the user."""
+  posts: Int!
+
+  """Total number of likes performed by the user across all posts."""
+  likes: Int!
+
+  """Total number of users following this account."""
+  followers: Int!
+
+  """Total number of accounts this user is currently following."""
+  following: Int!
 }
 
-"""Notification entity delivered to a recipient user"""
-type NotificationDTO {
-  """Unique identifier of the notification record"""
-  id: Int!
+"""
+GraphQL Object Type representing a SAFE public view of a user
 
-  """Category of notification event"""
-  type: NotificationType!
+What it does:
+- Exposes only non-sensitive user data
+- Prevents accidental leakage of private fields
+- Creates a clear boundary between public API data and internal DB models
+- Improves long-term API security
 
-  """Short title shown to the recipient"""
-  title: String!
+Security benefits:
+- Email is intentionally excluded
+- Password is NEVER exposed
+- Reduces attack surface if the API is compromised
 
-  """Optional detailed message body"""
-  body: String
+Architectural benefit:
+- Treat this as your "public contract"
+- Even if your database schema changes, clients remain protected
+"""
+type SafeUser {
+  """
+  Unique identifier of the User. Stable across the system and used for referencing relationship.
+  """
+  id: ID!
 
-  """Read state of this notification"""
-  isRead: Boolean!
-
-  """Timestamp when notification was marked as read"""
-  readAt: DateTime
-
-  """Optional related entity id (follow, like, post, etc.)"""
-  entityId: Int
-
-  """Identifier of the user who triggered the notification"""
-  actorId: Int!
-
-  """Identifier of the user who receives the notification"""
-  recipientId: Int!
-
-  """Public-safe actor preview for UI rendering"""
-  actor: NotificationActorDTO!
-
-  """Timestamp indicating when the notification was created"""
+  """Timestamp indicating when the user account was originally created."""
   createdAt: DateTime!
 
-  """Timestamp indicating the latest update on this notification"""
+  """Timestamp of the most recent profile update or modification."""
   updatedAt: DateTime!
-}
 
-enum NotificationType {
-  USER_FOLLOWED
-  POST_LIKED
+  """
+  Aggregated counts of related entities such as posts, followers, and following. Only included when explicitly requested.
+  """
+  _count: UserCounts
+
+  """Public display name."""
+  name: String!
+
+  """Unique username used for identification."""
+  username: String!
 }
 
 """
@@ -63,23 +99,109 @@ A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date
 """
 scalar DateTime
 
+"""
+Lightweight public-safe representation of a notification actor
+
+What it does:
+- Exposes only minimal actor data required by notification UIs
+- Prevents sensitive user fields from being returned in nested objects
+- Keeps notification payloads small and predictable
+"""
+type NotificationActorDTO {
+  """
+  Unique identifier of the User. Stable across the system and used for referencing relationship.
+  """
+  id: ID!
+
+  """Public display name."""
+  name: String!
+
+  """Unique username used for identification."""
+  username: String!
+}
+
+"""
+GraphQL Object Type representing a user notification
+
+What it does:
+- Defines the API contract used by notification queries/subscriptions
+- Provides recipient-safe event metadata for client rendering
+- Supports read state, timestamps, and optional related entity references
+
+Design philosophy:
+- Notification objects should include enough context for UX
+- Keep relational data minimal through dedicated preview objects
+
+Performance benefit:
+- Flat scalar fields plus lightweight actor preview reduce payload cost
+- Works well for polling and real-time subscription streams
+"""
+type NotificationDTO {
+  """Unique identifier of the notification record."""
+  id: Int!
+
+  """Category of notification event."""
+  type: NotificationType!
+
+  """Timestamp when notification was marked as read."""
+  readAt: DateTime
+
+  """Optional related entity id (follow, like, post, etc.)."""
+  entityId: Int
+
+  """Identifier of the user who triggered the notification."""
+  actorId: Int!
+
+  """Identifier of the user who receives the notification."""
+  recipientId: Int!
+
+  """Public-safe actor preview for UI rendering."""
+  actor: NotificationActorDTO!
+
+  """Timestamp indicating when the notification was created."""
+  createdAt: DateTime!
+
+  """Timestamp indicating the latest update on this notification."""
+  updatedAt: DateTime!
+
+  """Short title shown to the recipient."""
+  title: String!
+
+  """Optional detailed message body."""
+  body: String
+
+  """Read state of this notification."""
+  isRead: Boolean!
+}
+
+enum NotificationType {
+  USER_FOLLOWED
+  POST_LIKED
+}
+
 type DeleteResponse {
+  """Human-readable message describing the result of the mutation."""
   message: String!
 }
 
 """
-Minimal public safe representation of a User entity intended for relational previews
+Small public-safe user shape for nested objects
+
+What it does:
+- exposes only the minimal user fields needed in lists and nested relations
+- avoids overfetching data in nested GraphQL objects
+- prevents schema mismatch when only a subset of user fields is selected
 """
 type SafeUserPreview {
   """
-  Unique identifier of the user. Used for referencing and relational mapping
+  Unique identifier of the User. Stable across the system and used for referencing relationship.
   """
   id: ID!
 
-  """Public display name"""
+  """Public display name."""
   name: String!
 
-  """Unique username used for identification"""
+  """Unique username used for identification."""
   username: String!
 }
 
@@ -92,222 +214,335 @@ What it does:
 - is used by resolvers as the return type
 """
 type SafeCommentDTO {
+  """Unique identifier of the comment."""
   id: Int!
-  content: String!
-  createdAt: DateTime!
-  updatedAt: DateTime!
+
+  """Identifier of the user who authored the comment."""
   authorId: Int!
+
+  """Identifier of the post that owns the comment."""
   postId: Int!
+
+  """Public-safe preview of the comment author."""
   author: SafeUserPreview!
+
+  """Comment content visible to clients."""
+  content: String!
+
+  """Timestamp indicating when the comment was created."""
+  createdAt: DateTime!
+
+  """Timestamp indicating the latest update made to the comment."""
+  updatedAt: DateTime!
 }
 
-"""Core representation of a Follow relationship between two users"""
+"""
+Follow relationship between two users
+
+What it does:
+- Represents a directional edge: follower - following
+- Exposes both foreign keys + optional user previews
+
+Why SafeUserPreview:
+- Prevents leaking private user fields
+- Keeps nested queries lightweight (better performance)
+"""
 type Follow {
-  """Unique identifier of the follow relationship record"""
+  """Unique identifier of the follow relationship record."""
   id: ID!
 
-  """Timestamp indicating when the follow relationship was created"""
+  """Timestamp indicating when the follow relationship was created."""
   createdAt: DateTime!
 
-  """Identifier of the user who initiated the follow action (the follower)"""
+  """Identifier of the user who initiated the follow action (the follower)."""
   followerId: Int!
 
-  """Identifier of the user being followed (the following)"""
+  """Identifier of the user being followed (the following)."""
   followingId: Int!
 
-  """Optional lightweight preview of the follower user"""
+  """Optional lightweight preview of the follower user."""
   follower: SafeUserPreview
 
-  """Optional lightweight preview of the follower user"""
+  """Optional lightweight preview of the followed user."""
   following: SafeUserPreview
 }
 
 """
-Aggregated numeric metadata representing user relationships and activity
-"""
-type UserCounts {
-  """Total number of posts created by the user"""
-  posts: Int!
+Lightweight representation of a Like used in relational queries
 
-  """Total number of likes performed by the user across all posts"""
-  likes: Int!
+What it does:
+- Exposes only the essential data needed by the client
+- Prevents returning the full Like or User models
+- Keeps nested responses performant and scalable
 
-  """Total number of users following this account"""
-  followers: Int!
+Why it exists:
+Returning full relational objects inside arrays (likes - users) can quickly create
+very heavy payloads
 
-  """Total number of accounts this user is currently following"""
-  following: Int!
-}
+This preview pattern ensures:
+- Smaller responses
+- Faster queries
+- Better API scalability
 
-"""
-Public-safe representation of a User. Contains only non-sensitive information
-"""
-type SafeUser {
-  """
-  Unique identifier of the User. Stable across the system and used for referencing relationship
-  """
-  id: ID!
+Design philosophy:
+Detail objects should still be optimized
+Even when fetching a single post, nested relations must remain lightweight
 
-  """Public display name"""
-  name: String!
-
-  """Unique username used for identification"""
-  username: String!
-
-  """Timestamp indicating when the user account was originally created"""
-  createdAt: DateTime!
-
-  """Timestamp of the most recent profile update or modification"""
-  updatedAt: DateTime!
-
-  """
-  Aggregated counts of related entities such as posts, followers, and following. Only included when explicitly requested
-  """
-  _count: UserCounts
-}
-
-"""
-Lightweight representation of a Like, containing minimal metadata and a safe preview of the user who performed the like
+Security benefit:
+Uses SafeUserPreview instead of the full User type to avoid leaking sensitive user
+data such as email or password
 """
 type LikePreview {
   """
-  Unique identifier of the like record. Used internally for referencing and pagination
+  Unique identifier of the like record. Used internally for referencing and pagination.
   """
   id: ID!
 
-  """Timestamp indicating when the like was created"""
+  """Timestamp indicating when the like was created."""
   createdAt: DateTime!
 
-  """Public safe preview of the user who performed the like"""
+  """Public safe preview of the user who performed the like."""
   user: SafeUserPreview!
 }
 
 """
-Aggregated numeric metadata for a Post entity. Provides lightweight summary information.
+Aggregated relationship counts for a Post
+
+What it does:
+- Exposes engagement metrics without loading full relational data
+- Prevents expensive nested queries
+- Keeps API responses small and fast
+
+Why it exists:
+Counting in the database is significantly cheaper than returning large arrays
+of related records
+
+Example - Instead of returning 5,000 likes - return { likes: 5000 }
+
+Design philosophy:
+Prefer counts for list and detail views
+Fetch full relations only when truly necessary
+
+Performance benefit:
+- Reduces DB load
+- Improves response time
+- Helps APIs scale under heavy traffic
+
+Future scalability:
+This object can grow safely as product evolves
 """
 type PostCounts {
-  """Total number of likes associated with this post"""
+  """Total number of likes associated with this post."""
   likes: Int!
 
-  """Total number of comments associated with this post"""
+  """Total number of comments associated with this post."""
   comments: Int!
 }
 
 """
-Comprehensive representation of a Post entity intended for detailed views
+Detailed GraphQL Object Type representing a single Post.
+
+What it does:
+- Provides a rich, client-ready representation of a post
+- Includes relational previews while avoiding heavy nested objects
+- Maintains a safe API contract by exposing only non-sensitive data
+
+When to use:
+This type should be returned ONLY for single-resource queries, such as 'postById'
+
+Design philosophy:
+LIST - lightweight, fast, scalable
+DETAIL - richer, but still optimized
+
+Performance strategy:
+Even though this is a "detail" object, relations are still previews
+Avoid returning full relational trees
+
+Security benefit:
+Uses SafeUserPreview instead of the full User model to prevent accidental exposure
+of private user data
 """
 type PostDetail {
   """
-  Unique identifier of the post. Used for referencing, routing, and relation mapping
+  Unique identifier of the post. Used for referencing, routing, and relation mapping.
   """
   id: ID!
 
-  """Title of the post"""
-  title: String!
-
-  """Main textual content of the post"""
-  content: String!
-
-  """Timestamp indicating when the post was originally created"""
+  """Timestamp indicating when the post was originally created."""
   createdAt: DateTime!
 
-  """Timestamp indicating the last time the post was updated"""
+  """Timestamp indicating the last time the post was updated."""
   updatedAt: DateTime!
 
   """
-  Total number of times the post detail view has been accessed successfully
+  Total number of times the post detail view has been accessed successfully.
   """
   viewsCount: Int!
 
-  """Public safe preview of the user who authored the post"""
+  """Public safe preview of the user who authored the post."""
   author: SafeUserPreview!
 
-  """Aggregated metadata related to the post"""
+  """Aggregated metadata related to the post."""
   _count: PostCounts!
 
-  """Optional lightweight list of likes associated with the post"""
+  """Optional lightweight list of likes associated with the post."""
   likes: [LikePreview!]
 
-  """Optional lightweight list of comments associated with the post"""
+  """Optional lightweight list of comments associated with the post."""
   comments: [SafeCommentDTO!]
-}
 
-"""Core public representation of a Post entity"""
-type Post {
-  """
-  Unique identifier of the post. Used for referencing, routing, and relation mapping
-  """
-  id: ID!
-
-  """Title of the post"""
+  """Title of the post."""
   title: String!
 
-  """Main textual content of the post"""
+  """Main textual content of the post."""
   content: String!
-
-  """Timestamp indicating when the post was originally created"""
-  createdAt: DateTime!
-
-  """Public safe preview of the user who authored the post"""
-  author: SafeUserPreview!
-
-  """Aggregated metadata related to the post"""
-  _count: PostCounts!
 }
 
-"""Lightweight representation of a Like entity optimized for list views"""
-type LikeListItem {
+"""
+Core GraphQL Object Type representing a Post
+
+What it does:
+- Defines the base shape of a post returned by the API
+- Exposes only safe, client-ready data
+- Keeps relational depth shallow for better performance
+- Acts as a reusable foundation across queries and mutations
+
+Architecture note:
+Think of this as the shared public post shape used by list queries,
+nested relations, and write operations, while PostDetail remains the
+richer single-resource view.
+
+This layered approach is very common in production systems because it allows you
+to scale without rewriting your schema
+
+Security benefit:
+Uses SafeUserPreview to avoid exposing sensitive user fields such as email,
+password, tokens, etc
+
+Performance strategy:
+Includes aggregated counts instead of full relational arrays
+"""
+type Post {
   """
-  Unique identifier of the like record. Used internally for referencing and pagination
+  Unique identifier of the post. Used for referencing, routing, and relation mapping.
   """
   id: ID!
 
-  """Timestamp indicating when the like was created"""
+  """Timestamp indicating when the post was originally created."""
   createdAt: DateTime!
 
-  """Public safe preview of the user who performed the like"""
+  """Public safe preview of the user who authored the post."""
+  author: SafeUserPreview!
+
+  """Aggregated metadata related to the post."""
+  _count: PostCounts!
+
+  """Title of the post."""
+  title: String!
+
+  """Main textual content of the post."""
+  content: String!
+}
+
+"""
+GraphQL ObjectType representing a lightweight Like response
+
+What it does:
+- Exposes only the necessary fields for list queries
+- Prevents deep relational nesting
+- Keeps payload small and predictable
+- Improves performance for high-volume endpoints
+
+Security layer:
+- Uses SafeUserPreview instead of full User
+- Uses Post instead of PostDetail
+- Ensures no sensitive user data is exposed
+
+Design philosophy:
+List endpoints should always return the smallest useful shape
+Heavy objects belong to single-record detail queries
+
+Lightweight DTOs protect both:
+- Database performance
+- API stability
+"""
+type LikeListItem {
+  """
+  Unique identifier of the like record. Used internally for referencing and pagination.
+  """
+  id: ID!
+
+  """Timestamp indicating when the like was created."""
+  createdAt: DateTime!
+
+  """Public safe preview of the user who performed the like."""
   user: SafeUserPreview!
 
-  """Public representation of the post that was liked"""
+  """Public representation of the post that was liked."""
   post: Post!
 }
 
 type User {
   id: ID!
-  name: String!
-  email: String!
-  username: String!
   createdAt: DateTime!
   updatedAt: DateTime!
   posts: [Post!]
   likes: [Like!]
   followers: [Follow!]
   following: [Follow!]
+
+  """Public display name."""
+  name: String!
+
+  """Email address associated with the user account."""
+  email: String!
+
+  """Unique username used for identification."""
+  username: String!
 }
 
 """
-Core representation of a Like entity. Connects a user to a post and exposes minimal relational data
+Full Like GraphQL ObjectType
+
+What it represents:
+- A direct mapping of the Like database entity
+- Exposes relational structure between User and Post
+
+Important:
+This is a "raw entity shape"
+It is heavier and more sensitive than LikeListItem
+
+What it does:
+- Exposes relational data (user)
+- Keeps foreign keys visible (userId, postId)
+- Suitable for internal or admin-level queries
+
+Security considerations:
+- Uses full User object (NOT SafeUserPreview)
+- Can expose more user data depending on User model design
+- Should NOT be used in public list endpoints
 """
 type Like {
   """
-  Unique identifier of the like record. Used for referencing and relational mapping
+  Unique identifier of the like record. Used for referencing and relational mapping.
   """
   id: ID!
 
-  """Timestamp indicating when the like was created"""
+  """Timestamp indicating when the like was created."""
   createdAt: DateTime!
 
-  """Identifier of the user who performed the like"""
+  """Identifier of the user who performed the like."""
   userId: Int
 
-  """Optional full user object associated with this like"""
+  """Optional full user object associated with this like."""
   user: User
 
-  """Identifier of the post that was liked"""
+  """Identifier of the post that was liked."""
   postId: Int!
 }
 
 type AuthPayload {
+  """JWT access token returned after successful authentication."""
   access_token: String!
 }
 
@@ -383,7 +618,10 @@ type Mutation {
 }
 
 input LoginInput {
+  """Username used to authenticate the user."""
   username: String!
+
+  """Plain-text password submitted during login."""
   password: String!
 }
 
@@ -399,9 +637,16 @@ What it does:
 Acts as the first security layer
 """
 input CreateUserInput {
+  """Public display name chosen by the user."""
   name: String!
+
+  """Email address used for login and account identification."""
   email: String!
+
+  """Public username used for mention and login flows."""
   username: String!
+
+  """Plain-text password that will be hashed before persistence."""
   password: String!
 }
 
@@ -425,9 +670,14 @@ All fields are optional because updates are PATCH-style
 Only the provided fields will be modified
 """
 input UpdateUserInput {
+  """Updated public display name."""
   name: String
   email: String
+
+  """Updated public username used in the platform."""
   username: String
+
+  """Updated plain-text password that will be re-hashed before persistence."""
   password: String
 }
 
@@ -454,7 +704,10 @@ Security layer:
 - Never rely only on frontend validation
 """
 input CreatePostInput {
+  """Title shown for the post."""
   title: String!
+
+  """Main textual body of the post."""
   content: String!
 }
 
@@ -472,7 +725,10 @@ Security role:
 - Ensures only properly formatted data is processed
 """
 input UpdatePostInput {
+  """Title shown for the post."""
   title: String
+
+  """Main textual body of the post."""
   content: String
 }
 
@@ -486,8 +742,11 @@ What it does:
 - trims extra spaces from the comment content
 """
 input CreateCommentInput {
-  content: String!
+  """Unique identifier of the post that will receive the new comment."""
   postId: Int!
+
+  """Text content of the comment."""
+  content: String!
 }
 
 type Subscription {

@@ -1,11 +1,12 @@
 // src/common/cache/cache-helper.service.spec.ts
 import { CACHE_MANAGER } from "@nestjs/cache-manager";
-import { Test } from "@nestjs/testing";
+import { Test, TestingModule } from "@nestjs/testing";
 
 import { CacheHelperService } from "./cache-helper.service";
 
 describe("CacheHelperService", () => {
   let service: CacheHelperService;
+  let moduleRef: TestingModule;
 
   const cacheMock: {
     get: jest.Mock;
@@ -20,7 +21,7 @@ describe("CacheHelperService", () => {
   beforeEach(async () => {
     jest.clearAllMocks();
 
-    const moduleRef = await Test.createTestingModule({
+    moduleRef = await Test.createTestingModule({
       providers: [
         CacheHelperService,
         { provide: CACHE_MANAGER, useValue: cacheMock },
@@ -28,6 +29,10 @@ describe("CacheHelperService", () => {
     }).compile();
 
     service = moduleRef.get(CacheHelperService);
+  });
+
+  afterEach(async () => {
+    await moduleRef?.close();
   });
 
   describe("get", () => {

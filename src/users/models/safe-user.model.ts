@@ -21,38 +21,30 @@ import { UserCounts } from "@/users/models/user-counts.model";
  * - Even if your database schema changes, clients remain protected
  */
 
-@ObjectType({
-  description:
-    "Public-safe representation of a User. Contains only non-sensitive information",
-})
+/** Public-safe representation of a User. Contains only non-sensitive information. */
+@ObjectType()
 export class SafeUser {
-  @Field(() => ID, {
-    description:
-      "Unique identifier of the User. Stable across the system and used for referencing relationship",
-  })
+  /** Unique identifier of the User. Stable across the system and used for referencing relationship. */
+  @Field(() => ID)
   id: number;
 
-  @Field({ description: "Public display name" })
+  /** Public display name. */
   name: string;
 
-  @Field({ description: "Unique username used for identification" })
+  /** Unique username used for identification. */
   username: string;
 
-  @Field(() => GraphQLISODateTime, {
-    description:
-      "Timestamp indicating when the user account was originally created",
-  })
+  /** Timestamp indicating when the user account was originally created. */
+  @Field(() => GraphQLISODateTime)
   createdAt: Date;
 
-  @Field(() => GraphQLISODateTime, {
-    description: "Timestamp of the most recent profile update or modification",
-  })
+  /** Timestamp of the most recent profile update or modification. */
+  @Field(() => GraphQLISODateTime)
   updatedAt: Date;
 
+  /** Aggregated counts of related entities such as posts, followers, and following. Only included when explicitly requested. */
   @Field(() => UserCounts, {
     nullable: true,
-    description:
-      "Aggregated counts of related entities such as posts, followers, and following. Only included when explicitly requested",
   })
   _count?: UserCounts;
 }

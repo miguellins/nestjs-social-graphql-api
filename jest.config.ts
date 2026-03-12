@@ -13,6 +13,9 @@ const config: Config = {
       "ts-jest",
       {
         tsconfig: "<rootDir>/tsconfig.json",
+        astTransformers: {
+          before: ["<rootDir>/graphql-plugin-transformer.cjs"],
+        },
       },
     ],
   },

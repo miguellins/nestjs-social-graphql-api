@@ -43,14 +43,16 @@ export class AuthService {
         access_token: await this.jwtService.signAsync(payload),
       };
     } catch (err) {
-      if (err instanceof Prisma.PrismaClientKnownRequestError)
+      if (err instanceof Prisma.PrismaClientKnownRequestError) {
         throw new InternalServerErrorException("Login failed");
+      }
 
       if (
         err instanceof UnauthorizedException ||
         err instanceof BadRequestException
-      )
+      ) {
         throw err;
+      }
 
       throw new InternalServerErrorException("Login failed");
     }

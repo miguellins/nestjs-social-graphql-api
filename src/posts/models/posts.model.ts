@@ -1,6 +1,6 @@
 import { Field, GraphQLISODateTime, ID, ObjectType } from "@nestjs/graphql";
 
-import { SafeUserPreview } from "@/posts/models/safe-user-preview.model";
+import { SafeUserPreview } from "@/users/models/safe-user-preview.model";
 import { PostCounts } from "@/posts/models/post-counts.model";
 
 /**
@@ -28,32 +28,28 @@ import { PostCounts } from "@/posts/models/post-counts.model";
  * Includes aggregated counts instead of full relational arrays
  */
 
-@ObjectType({ description: "Core public representation of a Post entity" })
+/** Core public representation of a Post entity. */
+@ObjectType()
 export class Post {
-  @Field(() => ID, {
-    description:
-      "Unique identifier of the post. Used for referencing, routing, and relation mapping",
-  })
+  /** Unique identifier of the post. Used for referencing, routing, and relation mapping. */
+  @Field(() => ID)
   id: number;
 
-  @Field({ description: "Title of the post" })
+  /** Title of the post. */
   title: string;
 
-  @Field({ description: "Main textual content of the post" })
+  /** Main textual content of the post. */
   content: string;
 
-  @Field(() => GraphQLISODateTime, {
-    description: "Timestamp indicating when the post was originally created",
-  })
+  /** Timestamp indicating when the post was originally created. */
+  @Field(() => GraphQLISODateTime)
   createdAt: Date;
 
-  @Field(() => SafeUserPreview, {
-    description: "Public safe preview of the user who authored the post",
-  })
+  /** Public safe preview of the user who authored the post. */
+  @Field(() => SafeUserPreview)
   author: SafeUserPreview;
 
-  @Field(() => PostCounts, {
-    description: "Aggregated metadata related to the post",
-  })
+  /** Aggregated metadata related to the post. */
+  @Field(() => PostCounts)
   _count: PostCounts;
 }

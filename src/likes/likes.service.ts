@@ -190,10 +190,11 @@ export class LikesService {
 
       if (!like) throw new NotFoundException("Like not found");
 
-      if (like.userId !== currentUserId)
+      if (like.userId !== currentUserId) {
         throw new ForbiddenException(
           "You do not have permission to delete this like",
         );
+      }
 
       // Delete like + decrement counter safely
       await this.prisma.$transaction(async (tx) => {
@@ -225,15 +226,20 @@ export class LikesService {
         message: "Like deleted successfully",
       };
     } catch (err) {
-      if (err instanceof NotFoundException || err instanceof ForbiddenException)
+      if (
+        err instanceof NotFoundException ||
+        err instanceof ForbiddenException
+      ) {
         throw err;
+      }
 
       // Optional: if post was deleted but like existed (FK / race conditions)
       if (
         err instanceof Prisma.PrismaClientKnownRequestError &&
         err.code === "P2025"
-      )
+      ) {
         throw new NotFoundException("Like or post not found");
+      }
 
       throw new InternalServerErrorException("Failed to delete like");
     }

@@ -7,9 +7,8 @@ import { CreateCommentInput } from "@/comments/dto/create-comment.input";
 
 @ArgsType()
 export class CreateCommentArgs {
-  @Field(() => CreateCommentInput, {
-    description: "Payload used to create a new comment.",
-  })
+  /** Payload used to create a new comment. */
+  @Field(() => CreateCommentInput)
   @ValidateNested()
   @Type(() => CreateCommentInput)
   input!: CreateCommentInput;

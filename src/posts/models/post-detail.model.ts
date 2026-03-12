@@ -6,7 +6,7 @@ import {
   Int,
 } from "@nestjs/graphql";
 
-import { SafeUserPreview } from "@/posts/models/safe-user-preview.model";
+import { SafeUserPreview } from "@/users/models/safe-user-preview.model";
 import { LikePreview } from "@/posts/models/like-preview.model";
 import { PostCounts } from "@/posts/models/post-counts.model";
 import { SafeCommentDTO } from "@/comments/dto/safe-comment.dto";
@@ -35,59 +35,48 @@ import { SafeCommentDTO } from "@/comments/dto/safe-comment.dto";
  * of private user data
  */
 
-@ObjectType({
-  description:
-    "Comprehensive representation of a Post entity intended for detailed views",
-})
+/** Comprehensive representation of a Post entity intended for detailed views. */
+@ObjectType()
 export class PostDetail {
-  @Field(() => ID, {
-    description:
-      "Unique identifier of the post. Used for referencing, routing, and relation mapping",
-  })
+  /** Unique identifier of the post. Used for referencing, routing, and relation mapping. */
+  @Field(() => ID)
   id: number;
 
-  @Field({ description: "Title of the post" })
+  /** Title of the post. */
   title: string;
 
-  @Field({ description: "Main textual content of the post" })
+  /** Main textual content of the post. */
   content: string;
 
-  @Field(() => GraphQLISODateTime, {
-    description: "Timestamp indicating when the post was originally created",
-  })
+  /** Timestamp indicating when the post was originally created. */
+  @Field(() => GraphQLISODateTime)
   createdAt: Date;
 
-  @Field(() => GraphQLISODateTime, {
-    description: "Timestamp indicating the last time the post was updated",
-  })
+  /** Timestamp indicating the last time the post was updated. */
+  @Field(() => GraphQLISODateTime)
   updatedAt: Date;
 
-  @Field(() => Int, {
-    description:
-      "Total number of times the post detail view has been accessed successfully",
-  })
+  /** Total number of times the post detail view has been accessed successfully. */
+  @Field(() => Int)
   viewsCount: number;
 
-  @Field(() => SafeUserPreview, {
-    description: "Public safe preview of the user who authored the post",
-  })
+  /** Public safe preview of the user who authored the post. */
+  @Field(() => SafeUserPreview)
   author: SafeUserPreview;
 
-  @Field(() => PostCounts, {
-    description: "Aggregated metadata related to the post",
-  })
+  /** Aggregated metadata related to the post. */
+  @Field(() => PostCounts)
   _count: PostCounts;
 
+  /** Optional lightweight list of likes associated with the post. */
   @Field(() => [LikePreview], {
     nullable: true,
-    description: "Optional lightweight list of likes associated with the post",
   })
   likes?: LikePreview[];
 
+  /** Optional lightweight list of comments associated with the post. */
   @Field(() => [SafeCommentDTO], {
     nullable: true,
-    description:
-      "Optional lightweight list of comments associated with the post",
   })
   comments?: SafeCommentDTO[];
 }

@@ -6,7 +6,7 @@ import {
   ObjectType,
 } from "@nestjs/graphql";
 
-import { SafeUserPreview } from "@/posts/models/safe-user-preview.model";
+import { SafeUserPreview } from "@/users/models/safe-user-preview.model";
 
 /**
  * Follow relationship between two users
@@ -20,41 +20,34 @@ import { SafeUserPreview } from "@/posts/models/safe-user-preview.model";
  * - Keeps nested queries lightweight (better performance)
  */
 
-@ObjectType({
-  description: "Core representation of a Follow relationship between two users",
-})
+/** Core representation of a Follow relationship between two users. */
+@ObjectType()
 export class Follow {
-  @Field(() => ID, {
-    description: "Unique identifier of the follow relationship record",
-  })
+  /** Unique identifier of the follow relationship record. */
+  @Field(() => ID)
   id: number;
 
-  @Field(() => GraphQLISODateTime, {
-    description:
-      "Timestamp indicating when the follow relationship was created",
-  })
+  /** Timestamp indicating when the follow relationship was created. */
+  @Field(() => GraphQLISODateTime)
   createdAt: Date;
 
-  @Field(() => Int, {
-    description:
-      "Identifier of the user who initiated the follow action (the follower)",
-  })
+  /** Identifier of the user who initiated the follow action (the follower). */
+  @Field(() => Int)
   followerId: number;
 
-  @Field(() => Int, {
-    description: "Identifier of the user being followed (the following)",
-  })
+  /** Identifier of the user being followed (the following). */
+  @Field(() => Int)
   followingId: number;
 
+  /** Optional lightweight preview of the follower user. */
   @Field(() => SafeUserPreview, {
     nullable: true,
-    description: "Optional lightweight preview of the follower user",
   })
   follower?: SafeUserPreview;
 
+  /** Optional lightweight preview of the followed user. */
   @Field(() => SafeUserPreview, {
     nullable: true,
-    description: "Optional lightweight preview of the follower user",
   })
   following?: SafeUserPreview;
 }

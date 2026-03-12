@@ -11,7 +11,7 @@ import {
 import { Normalize } from "@/common/transformer/normalize.transformer";
 import { Trim } from "@/common/transformer/trim.transformer";
 
-import { Field, InputType } from "@nestjs/graphql";
+import { InputType } from "@nestjs/graphql";
 
 /**
  * GraphQL Input Type used when updating an existing user
@@ -35,7 +35,7 @@ import { Field, InputType } from "@nestjs/graphql";
 
 @InputType()
 export class UpdateUserInput {
-  @Field({ nullable: true })
+  /** Updated public display name. */
   @Trim()
   @IsString()
   @IsNotEmpty()
@@ -44,7 +44,6 @@ export class UpdateUserInput {
   @IsOptional()
   name?: string;
 
-  @Field({ nullable: true })
   @Normalize()
   @IsString()
   @IsEmail()
@@ -54,7 +53,7 @@ export class UpdateUserInput {
   @IsOptional()
   email?: string;
 
-  @Field({ nullable: true })
+  /** Updated public username used in the platform. */
   @Trim()
   @IsString()
   @IsOptional()
@@ -66,7 +65,7 @@ export class UpdateUserInput {
   @IsNotEmpty()
   username?: string;
 
-  @Field({ nullable: true })
+  /** Updated plain-text password that will be re-hashed before persistence. */
   @IsString()
   @IsNotEmpty()
   @MinLength(8)

@@ -3,7 +3,7 @@ import {
   InternalServerErrorException,
   UnauthorizedException,
 } from "@nestjs/common";
-import { Test } from "@nestjs/testing";
+import { Test, TestingModule } from "@nestjs/testing";
 import { JwtService } from "@nestjs/jwt";
 import { Prisma } from "@prisma/client";
 
@@ -18,6 +18,7 @@ jest.mock("bcrypt", () => ({
 
 describe("AuthService", () => {
   let service: AuthService;
+  let moduleRef: TestingModule;
   const findUniqueMock = jest.fn();
   const signAsyncMock = jest.fn();
   const compareMock = bcrypt.compare as jest.Mock;
@@ -35,7 +36,7 @@ describe("AuthService", () => {
   beforeEach(async () => {
     jest.clearAllMocks();
 
-    const moduleRef = await Test.createTestingModule({
+    moduleRef = await Test.createTestingModule({
       providers: [
         AuthService,
         { provide: PrismaService, useValue: prismaMock },
@@ -44,6 +45,10 @@ describe("AuthService", () => {
     }).compile();
 
     service = moduleRef.get(AuthService);
+  });
+
+  afterEach(async () => {
+    await moduleRef?.close();
   });
 
   describe("login", () => {

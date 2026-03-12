@@ -1,14 +1,6 @@
-import {
-  IsNotEmpty,
-  IsOptional,
-  IsString,
-  MaxLength,
-  MinLength,
-} from "class-validator";
+import { InputType, PartialType } from "@nestjs/graphql";
 
-import { Trim } from "@/common/transformer/trim.transformer";
-
-import { Field, InputType } from "@nestjs/graphql";
+import { CreatePostInput } from "@/posts/dto/create-post.input";
 
 /**
  * GraphQL Input Type used when updating an existing post
@@ -25,22 +17,4 @@ import { Field, InputType } from "@nestjs/graphql";
  */
 
 @InputType()
-export class UpdatePostInput {
-  @Field({ nullable: true })
-  @Trim()
-  @IsString()
-  @IsNotEmpty()
-  @IsOptional()
-  @MinLength(3)
-  @MaxLength(50)
-  title?: string;
-
-  @Field({ nullable: true })
-  @Trim()
-  @IsString()
-  @IsNotEmpty()
-  @IsOptional()
-  @MinLength(3)
-  @MaxLength(200)
-  content?: string;
-}
+export class UpdatePostInput extends PartialType(CreatePostInput) {}

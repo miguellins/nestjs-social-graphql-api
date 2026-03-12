@@ -74,10 +74,6 @@ export class PostsResolver {
     @Args("id", { type: () => Int }) id: number,
     @CurrentUser() user: { id: number },
   ): Promise<DeleteResponse> {
-    await this.postsService.deletePost(id, user.id);
-
-    return {
-      message: "Post deleted successfully",
-    };
+    return this.postsService.deletePost(id, user.id);
   }
 }

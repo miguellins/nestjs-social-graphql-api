@@ -31,70 +31,55 @@ registerEnumType(NotificationType, {
  * - Works well for polling and real-time subscription streams
  */
 
-@ObjectType({
-  description: "Notification entity delivered to a recipient user",
-})
+/** Notification entity delivered to a recipient user. */
+@ObjectType()
 export class NotificationDTO {
-  @Field(() => Int, {
-    description: "Unique identifier of the notification record",
-  })
+  /** Unique identifier of the notification record. */
+  @Field(() => Int)
   id: number;
 
-  @Field(() => NotificationType, {
-    description: "Category of notification event",
-  })
+  /** Category of notification event. */
+  @Field(() => NotificationType)
   type: NotificationType;
 
-  @Field(() => String, {
-    description: "Short title shown to the recipient",
-  })
+  /** Short title shown to the recipient. */
   title: string;
 
-  @Field(() => String, {
-    nullable: true,
-    description: "Optional detailed message body",
-  })
+  /** Optional detailed message body. */
   body!: string | null;
 
-  @Field(() => Boolean, {
-    description: "Read state of this notification",
-  })
+  /** Read state of this notification. */
   isRead: boolean;
 
+  /** Timestamp when notification was marked as read. */
   @Field(() => GraphQLISODateTime, {
     nullable: true,
-    description: "Timestamp when notification was marked as read",
   })
   readAt!: Date | null;
 
+  /** Optional related entity id (follow, like, post, etc.). */
   @Field(() => Int, {
     nullable: true,
-    description: "Optional related entity id (follow, like, post, etc.)",
   })
   entityId!: number | null;
 
-  @Field(() => Int, {
-    description: "Identifier of the user who triggered the notification",
-  })
+  /** Identifier of the user who triggered the notification. */
+  @Field(() => Int)
   actorId: number;
 
-  @Field(() => Int, {
-    description: "Identifier of the user who receives the notification",
-  })
+  /** Identifier of the user who receives the notification. */
+  @Field(() => Int)
   recipientId: number;
 
-  @Field(() => NotificationActorDTO, {
-    description: "Public-safe actor preview for UI rendering",
-  })
+  /** Public-safe actor preview for UI rendering. */
+  @Field(() => NotificationActorDTO)
   actor: NotificationActorDTO;
 
-  @Field(() => GraphQLISODateTime, {
-    description: "Timestamp indicating when the notification was created",
-  })
+  /** Timestamp indicating when the notification was created. */
+  @Field(() => GraphQLISODateTime)
   createdAt: Date;
 
-  @Field(() => GraphQLISODateTime, {
-    description: "Timestamp indicating the latest update on this notification",
-  })
+  /** Timestamp indicating the latest update on this notification. */
+  @Field(() => GraphQLISODateTime)
   updatedAt: Date;
 }

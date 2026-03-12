@@ -1,4 +1,6 @@
-import { Field, Int, ObjectType } from "@nestjs/graphql";
+import { ObjectType, PickType } from "@nestjs/graphql";
+
+import { SafeUser } from "@/users/models/safe-user.model";
 
 /**
  * Lightweight public-safe representation of a notification actor
@@ -9,24 +11,10 @@ import { Field, Int, ObjectType } from "@nestjs/graphql";
  * - Keeps notification payloads small and predictable
  */
 
-@ObjectType({
-  description:
-    "Minimal safe representation of the actor who triggered a notification",
-})
-export class NotificationActorDTO {
-  @Field(() => Int, {
-    description: "Unique identifier of the actor user",
-  })
-  id: number;
-
-  @Field(() => String, {
-    description: "Public username of the actor user",
-  })
-  username: string;
-
-  @Field(() => String, {
-    nullable: true,
-    description: "Optional public display name of the actor user",
-  })
-  name!: string | null;
-}
+/** Minimal safe representation of the actor who triggered a notification. */
+@ObjectType()
+export class NotificationActorDTO extends PickType(SafeUser, [
+  "id",
+  "username",
+  "name",
+] as const) {}

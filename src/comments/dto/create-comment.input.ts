@@ -22,7 +22,7 @@ import { Trim } from "@/common/transformer/trim.transformer";
 
 @InputType()
 export class CreateCommentInput {
-  @Field()
+  /** Text content of the comment. */
   @Trim()
   @IsString()
   @IsNotEmpty()
@@ -30,6 +30,7 @@ export class CreateCommentInput {
   @MaxLength(1000)
   content: string;
 
+  /** Unique identifier of the post that will receive the new comment. */
   @Field(() => Int)
   @IsInt()
   postId: number;
