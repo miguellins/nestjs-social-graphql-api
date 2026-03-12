@@ -93,15 +93,26 @@ What it does:
 - is used by resolvers as the return type
 """
 type SafeCommentDTO {
+  """Unique identifier of the comment."""
   id: Int!
-  createdAt: DateTime!
-  updatedAt: DateTime!
+
+  """Identifier of the user who authored the comment."""
   authorId: Int!
+
+  """Identifier of the post that owns the comment."""
   postId: Int!
+
+  """Public-safe preview of the comment author."""
   author: SafeUserPreview!
 
   """Comment content visible to clients."""
   content: String!
+
+  """Timestamp indicating when the comment was created."""
+  createdAt: DateTime!
+
+  """Timestamp indicating the latest update made to the comment."""
+  updatedAt: DateTime!
 }
 
 """Core representation of a Follow relationship between two users"""

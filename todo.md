@@ -15,7 +15,36 @@ PROMPT FOR CODEX:
 
 TODO NEXT
 
--
+What you can still implement in your project:
+
+should i add the transformer to e2e Jest config too?
+
+---
+
+Nest docs explicitly call out that Jest/e2e must load the plugin transformer too, otherwise you can get schema errors like “must define one or more fields”
+Right now you wired it for your current Jest config, which is good
+Support SWC later if you migrate build tooling
+
+---
+
+The docs mention GraphQL CLI plugin support with SWC, but it requires the right type-check / metadata flow
+Only relevant if you switch away from the current compiler path
+What the plugin does not really add beyond what you already use:
+
+---
+
+there are basically only two real plugin options:
+typeFileNameSuffix
+introspectComments
+So there is not a large hidden feature set left to enable in config. The main value now is in how you use it:
+better file suffix coverage
+better property comments
+selective removal of repetitive decorators
+keeping explicit decorators where schema precision matters
+
+One caution:
+the Swagger CLI plugin has more advanced options like classValidatorShim
+the GraphQL CLI plugin does not expose that kind of richer option set in the docs
 
 //---//---//---//
 //---//---//---//
@@ -27,217 +56,54 @@ IDEAS:
 
 CHATGPT SUGGESTIONS:
 
+---
+
 1. Mapped types
 
 Nest GraphQL supports PartialType, PickType, OmitType, and IntersectionType for code-first DTOs. This is one of the best next improvements for your project because you have lots of create/update DTOs, safe/public user shapes, and repeated GraphQL classes. A strong next refactor would be things like UpdatePostInput extends PartialType(CreatePostInput) and safe output shapes built with OmitType.
+
+---
+
+2. Query complexity protection
+
+Nest documents integration with graphql-query-complexity so you can reject overly expensive queries. Since your API has social-style nesting like posts, likes, comments, follows, and notifications, this is a very good production feature to add after throttling and hard take caps. I do not see graphql-query-complexity in the dependencies you pasted, so this would be a true net-new improvement.
+
+---
+
+3. Apollo plugins
+
+Nest supports Apollo plugins through @nestjs/apollo, and they can hook into request lifecycle stages for things like GraphQL request logging, latency measurement, tracing, and centralized instrumentation. Since you already use Apollo, this is a clean next step for visibility and debugging without cluttering resolvers and services.
+
+//---//---//---//
+//---//---//---//
+
+CHAT GPT FULL RECOMENDATIONS:
+
+4. SDL generation outside app boot
+
+Nest has a documented way to generate GraphQL SDL without booting the full app by using the schema builder module. This is useful for CI, schema snapshots, contract review, and frontend coordination. For your project, this is especially useful if you later add React + GraphQL code generation.
+
+5. Field middleware
+
+Nest GraphQL field middleware lets you run logic before or after a field resolves. The docs call out use cases like transforming field values, validating field arguments, and field-level role checks. This could be useful in your project for masking sensitive fields, formatting output, or lightweight field-level access rules. One limitation: the docs note field middleware applies only to ObjectType classes.
+
+6. Extensions metadata
+
+Nest’s @Extensions() lets you attach metadata to fields, such as required roles, and then read that metadata at runtime for generic authorization behavior. That would fit well if you want field-level authorization for things like email, internal notification fields, or admin-only properties without spreading custom checks everywhere.
+
+7. Interfaces, unions, and enums
+
+Nest’s code-first GraphQL docs support abstract interfaces with @InterfaceType(), plus unions and enums. This is useful when your schema starts getting richer. In your app, interfaces would be a clean way to standardize shared fields like id, createdAt, and updatedAt; unions would be useful for a future mixed search result like User | Post | Comment; and enums are a good fit for things like notification types and sort options.
+
+8. Directives
+
+Nest supports GraphQL directives in code-first as well. This is not the first thing I’d add, but it becomes useful for deprecations and schema-driven behaviors as your API evolves. If you start replacing old fields or operations, directives give you a cleaner migration path.
+
+10. Subscriptions, but in a more production-ready way
+
+You already have graphql-ws and graphql-subscriptions in your dependencies, and Nest’s docs strongly recommend graphql-ws over the older transport approach. Since you’re already exploring notifications, this is a natural area to improve further: authenticated subscriptions, filtered subscriptions, and wiring notification delivery cleanly to your domain events.
 
 //---//---//---//
 //---//---//---//
 
 CODEX ABOUT THE PROJECT LEVEL:
-
-Your fastest path to senior-level is:
-
-1. lock down correctness
-2. reduce conceptual duplication
-3. add integration confidence
-4. improve operational maturity
-5. document architectural decisions
-
-**Phase 1: Quick Wins**
-These are high-value and low-risk.
-
-1. Tighten TypeScript in [`tsconfig.json`](/home/mlins/Desktop/nestjs_graphql/tsconfig.json).
-   Set:
-
-- `noImplicitAny: true`
-- `noFallthroughCasesInSwitch: true`
-- `strictBindCallApply: true`
-  Then fix resulting errors gradually.
-
-2. Standardize naming across layers.
-   Define a rule for:
-
-- GraphQL object models
-- DTOs
-- input types
-- args
-- service param types
-  Right now the code is good enough to work, but not fully uniform.
-
-3. Remove or merge duplicate/redundant schema models only when semantics are identical.
-   You already started this well with `PostListItem`.
-   Do the same review for all preview/list/detail types.
-
-4. Remove `console.log` from runtime code.
-   In [`app.module.ts`](/home/mlins/Desktop/nestjs_graphql/src/app.module.ts), use Nest `Logger` or a structured logger instead.
-
-5. Validate environment variables at startup.
-   Use `ConfigModule.forRoot({ validate })` or schema validation with `zod`/`joi`.
-   A senior project fails early and clearly.
-
-**Phase 2: Architecture Cleanup**
-This is where the project starts to feel senior.
-
-1. Formalize the layers.
-   Make a clear distinction between:
-
-- resolver layer: GraphQL contracts
-- service layer: business use cases
-- persistence layer: Prisma queries/selects
-- infrastructure layer: cache, pubsub, auth plumbing
-
-2. Move service param types out of service files once they become meaningful.
-   Inline types are fine now, but once reused, extract them into:
-
-- `posts/types/find-posts.params.ts`
-- `users/types/pagination.params.ts`
-  Only do this when reuse appears.
-
-3. Standardize model reuse rules.
-   For example:
-
-- `Detail` types only for single-resource rich reads
-- `Preview` types only for nested relations
-- base/shared object types when shapes are identical
-  This prevents schema drift.
-
-4. Normalize shared user preview concepts.
-   Review whether [`SafeUserPreview`](/home/mlins/Desktop/nestjs_graphql/src/posts/models/safe-user-preview.model.ts) and similar user-related models can be better centralized without losing domain meaning.
-
-5. Centralize constants and policy rules.
-   You already have pagination/throttle constants.
-   Extend this to:
-
-- cache TTLs
-- notification event names
-- auth token conventions
-- query limit policies
-
-**Phase 3: Testing Maturity**
-This is one of the biggest jumps from mid to senior.
-
-1. Add real GraphQL e2e tests.
-   Test:
-
-- `posts`
-- `postById`
-- `likes`
-- `commentsByPost`
-- auth mutations/queries
-- notification flows if practical
-
-2. Add auth-protected resolver tests.
-   Verify:
-
-- unauthenticated requests fail correctly
-- guards behave correctly for HTTP and websocket contexts
-
-3. Add subscription e2e coverage.
-   Test:
-
-- websocket auth handshake
-- notification delivery
-- recipient filtering
-- invalid token rejection
-
-4. Add database-backed integration tests.
-   Use a test DB or isolated environment for:
-
-- Prisma transactions
-- counter updates (`likesCount`, `commentsCount`)
-- cache invalidation behavior after mutations
-
-5. Add negative-path tests at API level.
-   Not just service-level exceptions.
-   Test actual GraphQL error responses and shapes.
-
-**Phase 4: Operational Maturity**
-This is where the repo starts looking production-grade.
-
-1. Add structured logging.
-   Use Nest `Logger` minimum, ideally structured JSON logs if you want production polish.
-
-2. Add health checks.
-   Expose checks for:
-
-- database
-- redis/cache
-- app readiness
-
-3. Replace in-memory pubsub for production scenarios.
-   [`pubsub.ts`](/home/mlins/Desktop/nestjs_graphql/src/graphql/pubsub.ts) is fine for local/single-instance use, but senior-level production systems use distributed pubsub.
-
-4. Add request correlation / traceability.
-   Even a simple request id improves debugging a lot.
-
-5. Define cache strategy explicitly.
-   Document:
-
-- what is cached
-- invalidation rules
-- TTL policy
-- eventual consistency tradeoffs
-
-6. Add rate-limit/auth/security review.
-   Check:
-
-- brute-force resistance
-- mutation throttling
-- sensitive error leakage
-- websocket auth hardening
-
-**Phase 5: Delivery Discipline**
-This matters a lot in real senior work.
-
-1. Add CI.
-   Run on every push/PR:
-
-- `npm run lint`
-- `npm run test`
-- `npm run build`
-
-2. Make migrations part of the workflow.
-   Document how schema changes are created, reviewed, and applied.
-
-3. Add a proper README.
-   Include:
-
-- architecture overview
-- module boundaries
-- env vars
-- local setup
-- test commands
-- schema generation notes
-
-4. Add ADR-style notes for key decisions.
-   Short docs for:
-
-- why GraphQL code-first
-- why Prisma
-- why cache versioning
-- why transport types are isolated from services
-
-5. Add Docker/devcontainer or reproducible local environment.
-   Senior projects are easier for others to run, not just the original author.
-
-**Highest-Value Order**
-If you want the best sequence, do this:
-
-1. tighten TS config
-2. add env validation
-3. add GraphQL e2e tests
-4. add subscription tests
-5. clean duplicated schema models systematically
-6. replace runtime `console.log` with structured logging
-7. add CI
-8. document architecture and operational decisions
-
-**Bottom Line**
-To become senior-level, you do not need a bigger codebase. You need:
-
-- stricter correctness guarantees
-- clearer boundaries
-- stronger end-to-end confidence
-- better production discipline
-- cleaner architectural consistency

@@ -50,10 +50,6 @@ export class LikeResolver {
     @Args("id", { type: () => Int }) id: number,
     @CurrentUser() user: { id: number },
   ): Promise<DeleteResponse> {
-    await this.likesService.deleteLike(id, user.id);
-
-    return {
-      message: "Like deleted successfully",
-    };
+    return this.likesService.deleteLike(id, user.id);
   }
 }

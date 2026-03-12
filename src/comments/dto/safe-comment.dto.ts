@@ -15,24 +15,28 @@ import { Prisma } from "@prisma/client";
 
 @ObjectType()
 export class SafeCommentDTO {
+  /** Unique identifier of the comment. */
   @Field(() => Int)
   id: number;
 
   /** Comment content visible to clients. */
   content: string;
 
-  @Field()
+  /** Timestamp indicating when the comment was created. */
   createdAt: Date;
 
-  @Field()
+  /** Timestamp indicating the latest update made to the comment. */
   updatedAt: Date;
 
+  /** Identifier of the user who authored the comment. */
   @Field(() => Int)
   authorId: number;
 
+  /** Identifier of the post that owns the comment. */
   @Field(() => Int)
   postId: number;
 
+  /** Public-safe preview of the comment author. */
   @Field(() => SafeUserPreview)
   author: SafeUserPreview;
 }

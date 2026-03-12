@@ -49,10 +49,6 @@ export class FollowsResolver {
     @Args("id", { type: () => Int }) id: number,
     @CurrentUser() user: { id: number },
   ): Promise<DeleteResponse> {
-    await this.followsService.deleteFollow(id, user.id);
-
-    return {
-      message: "Follow deleted successfully",
-    };
+    return this.followsService.deleteFollow(id, user.id);
   }
 }

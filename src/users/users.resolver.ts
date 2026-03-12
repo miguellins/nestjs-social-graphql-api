@@ -55,11 +55,7 @@ export class UsersResolver {
 
   @Throttle({ default: THROTTLE_LIMITS.DESTRUCTIVE })
   @Mutation(() => DeleteResponse, { name: "deleteMe" })
-  async deleteMe(@CurrentUser() user: { id: number }) {
-    await this.usersService.deleteUser(user.id);
-
-    return {
-      message: "User deleted successfully",
-    };
+  async deleteMe(@CurrentUser() user: { id: number }): Promise<DeleteResponse> {
+    return this.usersService.deleteUser(user.id);
   }
 }
