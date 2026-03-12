@@ -34,7 +34,7 @@ export type SafeNotificationDTO = {
   actor: {
     id: number;
     username: string;
-    name: string | null;
+    name: string;
   };
 };
 

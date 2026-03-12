@@ -3,94 +3,6 @@
 # ------------------------------------------------------
 
 """
-Lightweight public-safe representation of a notification actor
-
-What it does:
-- Exposes only minimal actor data required by notification UIs
-- Prevents sensitive user fields from being returned in nested objects
-- Keeps notification payloads small and predictable
-"""
-type NotificationActorDTO {
-  """Unique identifier of the actor user."""
-  id: Int!
-
-  """Public username of the actor user."""
-  username: String!
-
-  """Optional public display name of the actor user."""
-  name: String
-}
-
-"""
-GraphQL Object Type representing a user notification
-
-What it does:
-- Defines the API contract used by notification queries/subscriptions
-- Provides recipient-safe event metadata for client rendering
-- Supports read state, timestamps, and optional related entity references
-
-Design philosophy:
-- Notification objects should include enough context for UX
-- Keep relational data minimal through dedicated preview objects
-
-Performance benefit:
-- Flat scalar fields plus lightweight actor preview reduce payload cost
-- Works well for polling and real-time subscription streams
-"""
-type NotificationDTO {
-  """Unique identifier of the notification record."""
-  id: Int!
-
-  """Category of notification event."""
-  type: NotificationType!
-
-  """Timestamp when notification was marked as read."""
-  readAt: DateTime
-
-  """Optional related entity id (follow, like, post, etc.)."""
-  entityId: Int
-
-  """Identifier of the user who triggered the notification."""
-  actorId: Int!
-
-  """Identifier of the user who receives the notification."""
-  recipientId: Int!
-
-  """Public-safe actor preview for UI rendering."""
-  actor: NotificationActorDTO!
-
-  """Timestamp indicating when the notification was created."""
-  createdAt: DateTime!
-
-  """Timestamp indicating the latest update on this notification."""
-  updatedAt: DateTime!
-
-  """Short title shown to the recipient."""
-  title: String!
-
-  """Optional detailed message body."""
-  body: String
-
-  """Read state of this notification."""
-  isRead: Boolean!
-}
-
-enum NotificationType {
-  USER_FOLLOWED
-  POST_LIKED
-}
-
-"""
-A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format.
-"""
-scalar DateTime
-
-type DeleteResponse {
-  """Human-readable message describing the result of the mutation."""
-  message: String!
-}
-
-"""
 GraphQL Object Type that exposes aggregated relationship metrics for a User
 
 What it does:
@@ -180,6 +92,96 @@ type SafeUser {
 
   """Unique username used for identification."""
   username: String!
+}
+
+"""
+A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format.
+"""
+scalar DateTime
+
+"""
+Lightweight public-safe representation of a notification actor
+
+What it does:
+- Exposes only minimal actor data required by notification UIs
+- Prevents sensitive user fields from being returned in nested objects
+- Keeps notification payloads small and predictable
+"""
+type NotificationActorDTO {
+  """
+  Unique identifier of the User. Stable across the system and used for referencing relationship.
+  """
+  id: ID!
+
+  """Public display name."""
+  name: String!
+
+  """Unique username used for identification."""
+  username: String!
+}
+
+"""
+GraphQL Object Type representing a user notification
+
+What it does:
+- Defines the API contract used by notification queries/subscriptions
+- Provides recipient-safe event metadata for client rendering
+- Supports read state, timestamps, and optional related entity references
+
+Design philosophy:
+- Notification objects should include enough context for UX
+- Keep relational data minimal through dedicated preview objects
+
+Performance benefit:
+- Flat scalar fields plus lightweight actor preview reduce payload cost
+- Works well for polling and real-time subscription streams
+"""
+type NotificationDTO {
+  """Unique identifier of the notification record."""
+  id: Int!
+
+  """Category of notification event."""
+  type: NotificationType!
+
+  """Timestamp when notification was marked as read."""
+  readAt: DateTime
+
+  """Optional related entity id (follow, like, post, etc.)."""
+  entityId: Int
+
+  """Identifier of the user who triggered the notification."""
+  actorId: Int!
+
+  """Identifier of the user who receives the notification."""
+  recipientId: Int!
+
+  """Public-safe actor preview for UI rendering."""
+  actor: NotificationActorDTO!
+
+  """Timestamp indicating when the notification was created."""
+  createdAt: DateTime!
+
+  """Timestamp indicating the latest update on this notification."""
+  updatedAt: DateTime!
+
+  """Short title shown to the recipient."""
+  title: String!
+
+  """Optional detailed message body."""
+  body: String
+
+  """Read state of this notification."""
+  isRead: Boolean!
+}
+
+enum NotificationType {
+  USER_FOLLOWED
+  POST_LIKED
+}
+
+type DeleteResponse {
+  """Human-readable message describing the result of the mutation."""
+  message: String!
 }
 
 """
