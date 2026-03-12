@@ -27,18 +27,14 @@ import { Field, Int, ObjectType } from "@nestjs/graphql";
  * This object can grow safely as product evolves
  */
 
-@ObjectType({
-  description:
-    "Aggregated numeric metadata for a Post entity. Provides lightweight summary information.",
-})
+/** Aggregated numeric metadata for a Post entity. Provides lightweight summary information. */
+@ObjectType()
 export class PostCounts {
-  @Field(() => Int, {
-    description: "Total number of likes associated with this post",
-  })
+  /** Total number of likes associated with this post. */
+  @Field(() => Int)
   likes: number;
 
-  @Field(() => Int, {
-    description: "Total number of comments associated with this post",
-  })
+  /** Total number of comments associated with this post. */
+  @Field(() => Int)
   comments: number;
 }

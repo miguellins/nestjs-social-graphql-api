@@ -15,41 +15,20 @@ PROMPT FOR CODEX:
 
 TODO NEXT
 
-What you can still implement in your project:
+ABOUT GRAPHQL-CLI PLUGIN:
 
-should i add the transformer to e2e Jest config too?
+Based on this project, the main Nest GraphQL plugin features you are not really taking advantage of are these:
 
----
+Consistent “minimal decorator” style across DTOs/models
+Right now the project mixes “plugin-capable” setup with a mostly manual code-first style. That is not wrong, but it means you pay the complexity cost of the plugin without getting much boilerplate reduction.
 
-Nest docs explicitly call out that Jest/e2e must load the plugin transformer too, otherwise you can get schema errors like “must define one or more fields”
-Right now you wired it for your current Jest config, which is good
-Support SWC later if you migrate build tooling
-
----
-
-The docs mention GraphQL CLI plugin support with SWC, but it requires the right type-check / metadata flow
-Only relevant if you switch away from the current compiler path
-What the plugin does not really add beyond what you already use:
-
----
-
-there are basically only two real plugin options:
-typeFileNameSuffix
-introspectComments
-So there is not a large hidden feature set left to enable in config. The main value now is in how you use it:
-better file suffix coverage
-better property comments
-selective removal of repetitive decorators
-keeping explicit decorators where schema precision matters
-
-One caution:
-the Swagger CLI plugin has more advanced options like classValidatorShim
-the GraphQL CLI plugin does not expose that kind of richer option set in the docs
-
-//---//---//---//
-//---//---//---//
-
-IDEAS:
+Good idea: choose a rule such as:
+plugin handles simple scalar fields by default
+explicit decorators only for special GraphQL semantics
+That makes the codebase more predictable.
+Future SWC parity
+You mentioned this already, and it is the right next concern. Today the project is using ts-jest and the transformer is wired in jest.config.ts. If you later move app build/test compilation to SWC, you should make sure the same plugin behavior exists there too.
+Good idea: document this in the repo so a tooling migration does not silently break schema generation.
 
 //---//---//---//
 //---//---//---//

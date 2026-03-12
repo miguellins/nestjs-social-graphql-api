@@ -69,11 +69,29 @@ type DeleteResponse {
 }
 
 """
-Minimal public safe representation of a User entity intended for relational previews
+Ultra-lightweight public representation of a User
+
+What it does:
+- Exposes only the minimum data required to identify a user
+- Prevents sensitive fields from ever reaching the client
+- Optimizes nested GraphQL queries
+- Reduces payload size in relational responses
+
+Design philosophy:
+Always return the smallest object possible inside relations
+
+Why this matters:
+Deep GraphQL nesting is one of the fastest ways to destroy API performance
+
+Example of a dangerous chain: Post - Likes - User - Followers - Posts
+Preview objects stop that explosion early
+
+Security benefit:
+Guarantees that critical fields are never exposed
 """
 type SafeUserPreview {
   """
-  Unique identifier of the user. Used for referencing and relational mapping
+  Unique identifier of the user. Used for referencing and relational mapping.
   """
   id: ID!
 
@@ -181,62 +199,127 @@ type SafeUser {
 }
 
 """
-Lightweight representation of a Like, containing minimal metadata and a safe preview of the user who performed the like
+Lightweight representation of a Like used in relational queries
+
+What it does:
+- Exposes only the essential data needed by the client
+- Prevents returning the full Like or User models
+- Keeps nested responses performant and scalable
+
+Why it exists:
+Returning full relational objects inside arrays (likes - users) can quickly create
+very heavy payloads
+
+This preview pattern ensures:
+- Smaller responses
+- Faster queries
+- Better API scalability
+
+Design philosophy:
+Detail objects should still be optimized
+Even when fetching a single post, nested relations must remain lightweight
+
+Security benefit:
+Uses SafeUserPreview instead of the full User type to avoid leaking sensitive user
+data such as email or password
 """
 type LikePreview {
   """
-  Unique identifier of the like record. Used internally for referencing and pagination
+  Unique identifier of the like record. Used internally for referencing and pagination.
   """
   id: ID!
 
-  """Timestamp indicating when the like was created"""
+  """Timestamp indicating when the like was created."""
   createdAt: DateTime!
 
-  """Public safe preview of the user who performed the like"""
+  """Public safe preview of the user who performed the like."""
   user: SafeUserPreview!
 }
 
 """
-Aggregated numeric metadata for a Post entity. Provides lightweight summary information.
+Aggregated relationship counts for a Post
+
+What it does:
+- Exposes engagement metrics without loading full relational data
+- Prevents expensive nested queries
+- Keeps API responses small and fast
+
+Why it exists:
+Counting in the database is significantly cheaper than returning large arrays
+of related records
+
+Example - Instead of returning 5,000 likes - return { likes: 5000 }
+
+Design philosophy:
+Prefer counts for list and detail views
+Fetch full relations only when truly necessary
+
+Performance benefit:
+- Reduces DB load
+- Improves response time
+- Helps APIs scale under heavy traffic
+
+Future scalability:
+This object can grow safely as product evolves
 """
 type PostCounts {
-  """Total number of likes associated with this post"""
+  """Total number of likes associated with this post."""
   likes: Int!
 
-  """Total number of comments associated with this post"""
+  """Total number of comments associated with this post."""
   comments: Int!
 }
 
 """
-Comprehensive representation of a Post entity intended for detailed views
+Detailed GraphQL Object Type representing a single Post.
+
+What it does:
+- Provides a rich, client-ready representation of a post
+- Includes relational previews while avoiding heavy nested objects
+- Maintains a safe API contract by exposing only non-sensitive data
+
+When to use:
+This type should be returned ONLY for single-resource queries, such as 'postById'
+
+Design philosophy:
+LIST - lightweight, fast, scalable
+DETAIL - richer, but still optimized
+
+Performance strategy:
+Even though this is a "detail" object, relations are still previews
+Avoid returning full relational trees
+
+Security benefit:
+Uses SafeUserPreview instead of the full User model to prevent accidental exposure
+of private user data
 """
 type PostDetail {
   """
-  Unique identifier of the post. Used for referencing, routing, and relation mapping
+  Unique identifier of the post. Used for referencing, routing, and relation mapping.
   """
   id: ID!
 
-  """Timestamp indicating when the post was originally created"""
+  """Timestamp indicating when the post was originally created."""
   createdAt: DateTime!
 
-  """Timestamp indicating the last time the post was updated"""
+  """Timestamp indicating the last time the post was updated."""
   updatedAt: DateTime!
 
   """
-  Total number of times the post detail view has been accessed successfully
+  Total number of times the post detail view has been accessed successfully.
   """
   viewsCount: Int!
 
-  """Public safe preview of the user who authored the post"""
+  """Public safe preview of the user who authored the post."""
   author: SafeUserPreview!
 
-  """Aggregated metadata related to the post"""
+  """Aggregated metadata related to the post."""
   _count: PostCounts!
 
-  """Optional lightweight list of likes associated with the post"""
+  """Optional lightweight list of likes associated with the post."""
   likes: [LikePreview!]
 
-  """Optional lightweight list of comments associated with the post"""
+  """Optional lightweight list of comments associated with the post."""
   comments: [SafeCommentDTO!]
 
   """Title of the post."""
@@ -246,20 +329,43 @@ type PostDetail {
   content: String!
 }
 
-"""Core public representation of a Post entity"""
+"""
+Core GraphQL Object Type representing a Post
+
+What it does:
+- Defines the base shape of a post returned by the API
+- Exposes only safe, client-ready data
+- Keeps relational depth shallow for better performance
+- Acts as a reusable foundation across queries and mutations
+
+Architecture note:
+Think of this as the shared public post shape used by list queries,
+nested relations, and write operations, while PostDetail remains the
+richer single-resource view.
+
+This layered approach is very common in production systems because it allows you
+to scale without rewriting your schema
+
+Security benefit:
+Uses SafeUserPreview to avoid exposing sensitive user fields such as email,
+password, tokens, etc
+
+Performance strategy:
+Includes aggregated counts instead of full relational arrays
+"""
 type Post {
   """
-  Unique identifier of the post. Used for referencing, routing, and relation mapping
+  Unique identifier of the post. Used for referencing, routing, and relation mapping.
   """
   id: ID!
 
-  """Timestamp indicating when the post was originally created"""
+  """Timestamp indicating when the post was originally created."""
   createdAt: DateTime!
 
-  """Public safe preview of the user who authored the post"""
+  """Public safe preview of the user who authored the post."""
   author: SafeUserPreview!
 
-  """Aggregated metadata related to the post"""
+  """Aggregated metadata related to the post."""
   _count: PostCounts!
 
   """Title of the post."""
@@ -272,14 +378,14 @@ type Post {
 """Lightweight representation of a Like entity optimized for list views"""
 type LikeListItem {
   """
-  Unique identifier of the like record. Used internally for referencing and pagination
+  Unique identifier of the like record. Used internally for referencing and pagination.
   """
   id: ID!
 
-  """Timestamp indicating when the like was created"""
+  """Timestamp indicating when the like was created."""
   createdAt: DateTime!
 
-  """Public safe preview of the user who performed the like"""
+  """Public safe preview of the user who performed the like."""
   user: SafeUserPreview!
 
   """Public representation of the post that was liked"""

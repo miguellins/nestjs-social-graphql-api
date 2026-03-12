@@ -28,24 +28,18 @@ import { SafeUserPreview } from "@/posts/models/safe-user-preview.model";
  * data such as email or password
  */
 
-@ObjectType({
-  description:
-    "Lightweight representation of a Like, containing minimal metadata and a safe preview of the user who performed the like",
-})
+/** Lightweight representation of a Like, containing minimal metadata and a safe preview of the user who performed the like. */
+@ObjectType()
 export class LikePreview {
-  @Field(() => ID, {
-    description:
-      "Unique identifier of the like record. Used internally for referencing and pagination",
-  })
+  /** Unique identifier of the like record. Used internally for referencing and pagination. */
+  @Field(() => ID)
   id: number;
 
-  @Field(() => GraphQLISODateTime, {
-    description: "Timestamp indicating when the like was created",
-  })
+  /** Timestamp indicating when the like was created. */
+  @Field(() => GraphQLISODateTime)
   createdAt: Date;
 
-  @Field(() => SafeUserPreview, {
-    description: "Public safe preview of the user who performed the like",
-  })
+  /** Public safe preview of the user who performed the like. */
+  @Field(() => SafeUserPreview)
   user: SafeUserPreview;
 }

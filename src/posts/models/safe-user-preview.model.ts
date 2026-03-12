@@ -22,15 +22,11 @@ import { Field, ID, ObjectType } from "@nestjs/graphql";
  * Guarantees that critical fields are never exposed
  */
 
-@ObjectType({
-  description:
-    "Minimal public safe representation of a User entity intended for relational previews",
-})
+/** Minimal public safe representation of a User entity intended for relational previews. */
+@ObjectType()
 export class SafeUserPreview {
-  @Field(() => ID, {
-    description:
-      "Unique identifier of the user. Used for referencing and relational mapping",
-  })
+  /** Unique identifier of the user. Used for referencing and relational mapping. */
+  @Field(() => ID)
   id: number;
 
   /** Public display name. */
