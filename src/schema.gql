@@ -91,102 +91,6 @@ type DeleteResponse {
 }
 
 """
-Ultra-lightweight public representation of a User
-
-What it does:
-- Exposes only the minimum data required to identify a user
-- Prevents sensitive fields from ever reaching the client
-- Optimizes nested GraphQL queries
-- Reduces payload size in relational responses
-
-Design philosophy:
-Always return the smallest object possible inside relations
-
-Why this matters:
-Deep GraphQL nesting is one of the fastest ways to destroy API performance
-
-Example of a dangerous chain: Post - Likes - User - Followers - Posts
-Preview objects stop that explosion early
-
-Security benefit:
-Guarantees that critical fields are never exposed
-"""
-type SafeUserPreview {
-  """
-  Unique identifier of the user. Used for referencing and relational mapping.
-  """
-  id: ID!
-
-  """Public display name."""
-  name: String!
-
-  """Unique username used for identification."""
-  username: String!
-}
-
-"""
-Safe GraphQL DTO returned when a comment is queried or created
-
-What it does:
-- exposes only safe comment fields to the client
-- includes basic author information
-- is used by resolvers as the return type
-"""
-type SafeCommentDTO {
-  """Unique identifier of the comment."""
-  id: Int!
-
-  """Identifier of the user who authored the comment."""
-  authorId: Int!
-
-  """Identifier of the post that owns the comment."""
-  postId: Int!
-
-  """Public-safe preview of the comment author."""
-  author: SafeUserPreview!
-
-  """Comment content visible to clients."""
-  content: String!
-
-  """Timestamp indicating when the comment was created."""
-  createdAt: DateTime!
-
-  """Timestamp indicating the latest update made to the comment."""
-  updatedAt: DateTime!
-}
-
-"""
-Follow relationship between two users
-
-What it does:
-- Represents a directional edge: follower - following
-- Exposes both foreign keys + optional user previews
-
-Why SafeUserPreview:
-- Prevents leaking private user fields
-- Keeps nested queries lightweight (better performance)
-"""
-type Follow {
-  """Unique identifier of the follow relationship record."""
-  id: ID!
-
-  """Timestamp indicating when the follow relationship was created."""
-  createdAt: DateTime!
-
-  """Identifier of the user who initiated the follow action (the follower)."""
-  followerId: Int!
-
-  """Identifier of the user being followed (the following)."""
-  followingId: Int!
-
-  """Optional lightweight preview of the follower user."""
-  follower: SafeUserPreview
-
-  """Optional lightweight preview of the followed user."""
-  following: SafeUserPreview
-}
-
-"""
 GraphQL Object Type that exposes aggregated relationship metrics for a User
 
 What it does:
@@ -276,6 +180,89 @@ type SafeUser {
 
   """Unique username used for identification."""
   username: String!
+}
+
+"""
+Small public-safe user shape for nested objects
+
+What it does:
+- exposes only the minimal user fields needed in lists and nested relations
+- avoids overfetching data in nested GraphQL objects
+- prevents schema mismatch when only a subset of user fields is selected
+"""
+type SafeUserPreview {
+  """
+  Unique identifier of the User. Stable across the system and used for referencing relationship.
+  """
+  id: ID!
+
+  """Public display name."""
+  name: String!
+
+  """Unique username used for identification."""
+  username: String!
+}
+
+"""
+Safe GraphQL DTO returned when a comment is queried or created
+
+What it does:
+- exposes only safe comment fields to the client
+- includes basic author information
+- is used by resolvers as the return type
+"""
+type SafeCommentDTO {
+  """Unique identifier of the comment."""
+  id: Int!
+
+  """Identifier of the user who authored the comment."""
+  authorId: Int!
+
+  """Identifier of the post that owns the comment."""
+  postId: Int!
+
+  """Public-safe preview of the comment author."""
+  author: SafeUserPreview!
+
+  """Comment content visible to clients."""
+  content: String!
+
+  """Timestamp indicating when the comment was created."""
+  createdAt: DateTime!
+
+  """Timestamp indicating the latest update made to the comment."""
+  updatedAt: DateTime!
+}
+
+"""
+Follow relationship between two users
+
+What it does:
+- Represents a directional edge: follower - following
+- Exposes both foreign keys + optional user previews
+
+Why SafeUserPreview:
+- Prevents leaking private user fields
+- Keeps nested queries lightweight (better performance)
+"""
+type Follow {
+  """Unique identifier of the follow relationship record."""
+  id: ID!
+
+  """Timestamp indicating when the follow relationship was created."""
+  createdAt: DateTime!
+
+  """Identifier of the user who initiated the follow action (the follower)."""
+  followerId: Int!
+
+  """Identifier of the user being followed (the following)."""
+  followingId: Int!
+
+  """Optional lightweight preview of the follower user."""
+  follower: SafeUserPreview
+
+  """Optional lightweight preview of the followed user."""
+  following: SafeUserPreview
 }
 
 """
@@ -736,10 +723,10 @@ Security role:
 - Ensures only properly formatted data is processed
 """
 input UpdatePostInput {
-  """Updated title for the post."""
+  """Title shown for the post."""
   title: String
 
-  """Updated textual body for the post."""
+  """Main textual body of the post."""
   content: String
 }
 
@@ -753,6 +740,7 @@ What it does:
 - trims extra spaces from the comment content
 """
 input CreateCommentInput {
+  """Unique identifier of the post that will receive the new comment."""
   postId: Int!
 
   """Text content of the comment."""

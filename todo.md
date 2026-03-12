@@ -10,38 +10,21 @@ AFTER EVERYTHING IS DONE:
 
 PROMPT FOR CODEX:
 
+check if this is okay: I did not force NotificationActorDTO into PickType(SafeUser, ...). Its current shape does not align cleanly with SafeUser because:
+id is exposed as Int there, not ID
+name is nullable there, but not in SafeUser
+
+should there be made any improvements?
+
 //---//---//---//
 //---//---//---//
 
-TODO NEXT
-
-ABOUT GRAPHQL-CLI PLUGIN:
-
-Finish comment-introspection cleanup in the remaining schema files
-You converted many of the important ones, but a few files still keep inline description options, for example:
-common/args/pagination.args.ts
-posts/args/find-posts.args.ts
-Suggestion:
-
-keep inline descriptions when they are dynamic or depend on constants/templates
-move only stable text into JSDoc comments
-Keep enforcing “minimal decorator” style as a project convention
-Your plugin setup in nest-cli.json and graphql-plugin-transformer.cjs supports this, but the real value comes from consistency.
-
-So the short version is: you are mostly taking advantage of the plugin already. The remaining useful work is mostly consistency and pipeline coverage, not discovering a new plugin capability you missed.
+TODO NEXT:
 
 //---//---//---//
 //---//---//---//
 
 CHATGPT SUGGESTIONS:
-
----
-
-1. Mapped types
-
-Nest GraphQL supports PartialType, PickType, OmitType, and IntersectionType for code-first DTOs. This is one of the best next improvements for your project because you have lots of create/update DTOs, safe/public user shapes, and repeated GraphQL classes. A strong next refactor would be things like UpdatePostInput extends PartialType(CreatePostInput) and safe output shapes built with OmitType.
-
----
 
 2. Query complexity protection
 

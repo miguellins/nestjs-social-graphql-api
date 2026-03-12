@@ -30,6 +30,7 @@ export class CreateCommentInput {
   @MaxLength(1000)
   content: string;
 
+  /** Unique identifier of the post that will receive the new comment. */
   @Field(() => Int)
   @IsInt()
   postId: number;

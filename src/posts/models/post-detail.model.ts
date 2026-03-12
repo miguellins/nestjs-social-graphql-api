@@ -6,7 +6,7 @@ import {
   Int,
 } from "@nestjs/graphql";
 
-import { SafeUserPreview } from "@/posts/models/safe-user-preview.model";
+import { SafeUserPreview } from "@/users/models/safe-user-preview.model";
 import { LikePreview } from "@/posts/models/like-preview.model";
 import { PostCounts } from "@/posts/models/post-counts.model";
 import { SafeCommentDTO } from "@/comments/dto/safe-comment.dto";
