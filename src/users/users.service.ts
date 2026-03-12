@@ -134,10 +134,12 @@ export class UsersService {
 
           // Give a more precise conflict message (professional UX)
           if (Array.isArray(target)) {
-            if (target.includes("email"))
+            if (target.includes("email")) {
               throw new ConflictException("Email already exists");
-            if (target.includes("username"))
+            }
+            if (target.includes("username")) {
               throw new ConflictException("Username already exists");
+            }
           }
 
           // Fallback if meta is missing
@@ -157,8 +159,9 @@ export class UsersService {
     // Require at least one field to update, prevents empty updates
     const hasAnyField = Object.values(input).some((v) => v !== undefined);
 
-    if (!hasAnyField)
+    if (!hasAnyField) {
       throw new BadRequestException("No fields provided to update");
+    }
 
     // Hash strength
     const SALT_ROUNDS = 12;
@@ -219,10 +222,12 @@ export class UsersService {
           )?.target;
 
           if (Array.isArray(target)) {
-            if (target.includes("email"))
+            if (target.includes("email")) {
               throw new ConflictException("Email already exists");
-            if (target.includes("username"))
+            }
+            if (target.includes("username")) {
               throw new ConflictException("Username already exists");
+            }
           }
 
           throw new ConflictException("Email or username already exists");
@@ -254,8 +259,9 @@ export class UsersService {
       };
     } catch (err) {
       // Prisma throws P2025 when record does not exist
-      if (err instanceof Prisma.PrismaClientKnownRequestError)
+      if (err instanceof Prisma.PrismaClientKnownRequestError) {
         if (err.code === "P2025") throw new NotFoundException("User not found");
+      }
 
       // Do not leak internal DB errors
       throw new InternalServerErrorException("Failed to delete user");

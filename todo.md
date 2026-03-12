@@ -10,31 +10,6 @@ AFTER EVERYTHING IS DONE:
 
 PROMPT FOR CODEX:
 
-fix this: many types still keep schema docs in inline description options instead of JSDoc comments
-Current examples:
-
-comments args:
-find-comments-by-post.args.ts
-create-comment.args.ts
-delete-comment.args.ts
-
-users models:
-safe-user-preview.model.ts
-safe-user.model.ts
-user-counts.model.ts
-
-likes:
-find-likes.args.ts
-likes.model.ts
-like-list-item.model.ts
-
-follows:
-follows.model.ts
-
-notifications:
-notification-actor.model.ts
-notification.model.ts
-
 //---//---//---//
 //---//---//---//
 
@@ -42,32 +17,18 @@ TODO NEXT
 
 ABOUT GRAPHQL-CLI PLUGIN:
 
-What I would consider “not missing anymore”:
+Finish comment-introspection cleanup in the remaining schema files
+You converted many of the important ones, but a few files still keep inline description options, for example:
+common/args/pagination.args.ts
+posts/args/find-posts.args.ts
+Suggestion:
 
-plugin registration in the actual Nest compiler
-plugin registration in Jest
-suffix coverage for your naming conventions
-auto-generated simple scalar fields in the cleaned-up areas
-What I would leave as-is:
+keep inline descriptions when they are dynamic or depend on constants/templates
+move only stable text into JSDoc comments
+Keep enforcing “minimal decorator” style as a project convention
+Your plugin setup in nest-cli.json and graphql-plugin-transformer.cjs supports this, but the real value comes from consistency.
 
-inline options for nullable, defaultValue, deprecationReason
-dynamic descriptions such as pagination.args.ts and find-posts.args.ts, because those are not good JSDoc candidates
-So the honest answer is: right now the only major plugin capability you are still underusing is comment-driven schema documentation outside the post models.
-
----
-
-Based on this project, the main Nest GraphQL plugin features you are not really taking advantage of are these:
-
-Consistent “minimal decorator” style across DTOs/models
-Right now the project mixes “plugin-capable” setup with a mostly manual code-first style. That is not wrong, but it means you pay the complexity cost of the plugin without getting much boilerplate reduction.
-
-Good idea: choose a rule such as:
-plugin handles simple scalar fields by default
-explicit decorators only for special GraphQL semantics
-That makes the codebase more predictable.
-Future SWC parity
-You mentioned this already, and it is the right next concern. Today the project is using ts-jest and the transformer is wired in jest.config.ts. If you later move app build/test compilation to SWC, you should make sure the same plugin behavior exists there too.
-Good idea: document this in the repo so a tooling migration does not silently break schema generation.
+So the short version is: you are mostly taking advantage of the plugin already. The remaining useful work is mostly consistency and pipeline coverage, not discovering a new plugin capability you missed.
 
 //---//---//---//
 //---//---//---//
@@ -120,6 +81,17 @@ Nest supports GraphQL directives in code-first as well. This is not the first th
 10. Subscriptions, but in a more production-ready way
 
 You already have graphql-ws and graphql-subscriptions in your dependencies, and Nest’s docs strongly recommend graphql-ws over the older transport approach. Since you’re already exploring notifications, this is a natural area to improve further: authenticated subscriptions, filtered subscriptions, and wiring notification delivery cleanly to your domain events.
+
+My concrete recommendation for your project
+Your best next sequence is:
+
+- keep the CLI plugin and simplify a few GraphQL classes
+- refactor DTOs with mapped types
+- add query complexity
+- add an Apollo logging/metrics plugin
+- add schema generation as a script
+
+That path gives you less boilerplate, better maintainability, better protection, and better observability without a big architectural jump.
 
 //---//---//---//
 //---//---//---//

@@ -245,8 +245,9 @@ export class PostsService {
     const hasAnyField =
       input.title !== undefined || input.content !== undefined;
 
-    if (!hasAnyField)
+    if (!hasAnyField) {
       throw new BadRequestException("No fields provided to update");
+    }
 
     // Build update payload safely
     const data: Prisma.PostUpdateInput = {};
@@ -276,10 +277,11 @@ export class PostsService {
 
       if (!existing) throw new NotFoundException("Post not found");
 
-      if (existing.authorId !== currentUserId)
+      if (existing.authorId !== currentUserId) {
         throw new ForbiddenException(
           "You do not have permission to update this post",
         );
+      }
 
       const post = await this.prisma.post.update({
         where: { id },
@@ -298,11 +300,13 @@ export class PostsService {
         err instanceof BadRequestException ||
         err instanceof ForbiddenException ||
         err instanceof NotFoundException
-      )
+      ) {
         throw err;
+      }
 
-      if (err instanceof Prisma.PrismaClientKnownRequestError)
+      if (err instanceof Prisma.PrismaClientKnownRequestError) {
         if (err.code === "P2025") throw new NotFoundException("Post not found");
+      }
 
       throw new InternalServerErrorException("Failed to update post");
     }
@@ -318,10 +322,11 @@ export class PostsService {
 
       if (!existing) throw new NotFoundException("Post not found");
 
-      if (existing.authorId !== currentUserId)
+      if (existing.authorId !== currentUserId) {
         throw new ForbiddenException(
           "You do not have permission to delete this post",
         );
+      }
 
       await this.prisma.post.delete({
         where: { id },
@@ -339,12 +344,17 @@ export class PostsService {
       if (
         err instanceof Prisma.PrismaClientKnownRequestError &&
         err.code === "P2025"
-      )
+      ) {
         throw new NotFoundException("Post not found");
+      }
 
       // Keep intentional domain errors
-      if (err instanceof NotFoundException || err instanceof ForbiddenException)
+      if (
+        err instanceof NotFoundException ||
+        err instanceof ForbiddenException
+      ) {
         throw err;
+      }
 
       throw new InternalServerErrorException("Failed to delete post");
     }

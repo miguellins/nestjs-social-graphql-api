@@ -77,8 +77,9 @@ export class FollowsService {
     const followerId = currentUserId;
 
     // Business rule: cannot follow yourself
-    if (followerId === followingId)
+    if (followerId === followingId) {
       throw new BadRequestException("You cannot follow yourself");
+    }
 
     const target = await this.prisma.user.findUnique({
       where: { id: followingId },
@@ -130,11 +131,13 @@ export class FollowsService {
     } catch (err: unknown) {
       // Duplicate follow attempt (unique constraint)
       if (err instanceof Prisma.PrismaClientKnownRequestError) {
-        if (err.code === "P2003" || err.code === "P2025")
+        if (err.code === "P2003" || err.code === "P2025") {
           throw new NotFoundException("User to follow not found");
+        }
 
-        if (err.code === "P2002")
+        if (err.code === "P2002") {
           throw new ConflictException("You already follow this user");
+        }
       }
 
       throw new InternalServerErrorException("Failed to create follow");
@@ -175,10 +178,11 @@ export class FollowsService {
 
       if (!existing) throw new NotFoundException("Follow not found");
 
-      if (existing.followerId !== currentUserId)
+      if (existing.followerId !== currentUserId) {
         throw new ForbiddenException(
           "You do not have permission to delete this follow",
         );
+      }
 
       await this.prisma.follow.delete({
         where: { id: existing.id },
@@ -198,13 +202,19 @@ export class FollowsService {
       };
     } catch (err: unknown) {
       // If it was deleted between check and delete (race condition)
-      if (err instanceof Prisma.PrismaClientKnownRequestError)
-        if (err.code === "P2025")
+      if (err instanceof Prisma.PrismaClientKnownRequestError) {
+        if (err.code === "P2025") {
           throw new NotFoundException("Follow not found");
+        }
+      }
 
       // Keep domain errors
-      if (err instanceof NotFoundException || err instanceof ForbiddenException)
+      if (
+        err instanceof NotFoundException ||
+        err instanceof ForbiddenException
+      ) {
         throw err;
+      }
 
       throw new InternalServerErrorException("Failed to delete follow");
     }

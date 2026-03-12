@@ -122,10 +122,11 @@ export class CommentsService {
     if (!comment) throw new NotFoundException("Comment not found");
 
     // Only the comment owner can delete it
-    if (comment.authorId !== currentUserId)
+    if (comment.authorId !== currentUserId) {
       throw new ForbiddenException(
         "You do not have permission to delete this comment",
       );
+    }
 
     // Keep the comment deletion and commentsCount decrement in sync
     await this.prisma.$transaction(async (tx) => {
