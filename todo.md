@@ -10,8 +10,6 @@ AFTER EVERYTHING IS DONE:
 
 PROMPT FOR CODEX:
 
-should i keep a cheap default for simple fields, then explicitly mark “expensive” fields higher. For example, a plain scalar field might stay at 1, while a list-returning field or a field that triggers heavy joins/cache misses can be assigned a higher complexity. The package supports both numeric values and custom estimator functions in schema field extensions.
-
 //---//---//---//
 //---//---//---//
 
@@ -26,10 +24,6 @@ CHATGPT SUGGESTIONS:
 //---//---//---//
 
 CHAT GPT FULL RECOMENDATIONS:
-
-4. SDL generation outside app boot
-
-Nest has a documented way to generate GraphQL SDL without booting the full app by using the schema builder module. This is useful for CI, schema snapshots, contract review, and frontend coordination. For your project, this is especially useful if you later add React + GraphQL code generation.
 
 5. Field middleware
 
@@ -50,17 +44,6 @@ Nest supports GraphQL directives in code-first as well. This is not the first th
 10. Subscriptions, but in a more production-ready way
 
 You already have graphql-ws and graphql-subscriptions in your dependencies, and Nest’s docs strongly recommend graphql-ws over the older transport approach. Since you’re already exploring notifications, this is a natural area to improve further: authenticated subscriptions, filtered subscriptions, and wiring notification delivery cleanly to your domain events.
-
-My concrete recommendation for your project
-Your best next sequence is:
-
-- keep the CLI plugin and simplify a few GraphQL classes
-- refactor DTOs with mapped types
-- add query complexity
-- add an Apollo logging/metrics plugin
-- add schema generation as a script
-
-That path gives you less boilerplate, better maintainability, better protection, and better observability without a big architectural jump.
 
 //---//---//---//
 //---//---//---//

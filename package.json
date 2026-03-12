@@ -4,7 +4,7 @@
   "description": "A production-ready NestJS GraphQL API for social platform.",
   "author": "Miguel Lins",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "MIT",
   "scripts": {
     "build": "nest build && tsc-alias",
     "format": "prettier --write \"src/**/*.ts\"",
