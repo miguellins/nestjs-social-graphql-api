@@ -10,27 +10,36 @@ AFTER EVERYTHING IS DONE:
 
 PROMPT FOR CODEX:
 
-check if this is okay: I did not force NotificationActorDTO into PickType(SafeUser, ...). Its current shape does not align cleanly with SafeUser because:
-id is exposed as Int there, not ID
-name is nullable there, but not in SafeUser
-
-should there be made any improvements?
+check if my project is suitable for: Nest documents integration with graphql-query-complexity so you can reject overly expensive queries. Since your API has social-style nesting like posts, likes, comments, follows, and notifications, this is a very good production feature to add after throttling and hard take caps. I do not see graphql-query-complexity in the dependencies you pasted, so this would be a true net-new improvement.
 
 //---//---//---//
 //---//---//---//
 
 TODO NEXT:
 
+So the answer is: yes, it is suitable.
+What makes it a good idea here:
+
+throttling limits request rate, not query cost
+take caps limit list size where args exist, but they do not protect every nested selection
+complexity rules give you a per-operation budget, which is the missing control
+What to watch before adding it:
+
+some of your expensive fields are nested object/array fields rather than top-level paginated queries, so default complexity estimation alone may be too naive
+fields like likes and comments on PostDetail (line 68) are good candidates for explicit higher complexity values if you add the feature
+start simple: global max complexity plus sensible defaults, then add custom weights only to clearly expensive fields
+My recommendation:
+
+Add query complexity validation in GraphQL module config.
+Start with a conservative global limit and logging.
+Assign custom complexity to obviously heavier nested fields such as post detail relations.
+Keep throttling and hard caps; complexity protection complements them, it does not replace them.
+So this is not just theoretically suitable. It is a strong fit for your API shape.
+
 //---//---//---//
 //---//---//---//
 
 CHATGPT SUGGESTIONS:
-
-2. Query complexity protection
-
-Nest documents integration with graphql-query-complexity so you can reject overly expensive queries. Since your API has social-style nesting like posts, likes, comments, follows, and notifications, this is a very good production feature to add after throttling and hard take caps. I do not see graphql-query-complexity in the dependencies you pasted, so this would be a true net-new improvement.
-
----
 
 3. Apollo plugins
 
