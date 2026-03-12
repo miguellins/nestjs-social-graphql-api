@@ -76,6 +76,9 @@ type SafeUser {
   """
   id: ID!
 
+  """Public display name."""
+  name: String!
+
   """Timestamp indicating when the user account was originally created."""
   createdAt: DateTime!
 
@@ -86,9 +89,6 @@ type SafeUser {
   Aggregated counts of related entities such as posts, followers, and following. Only included when explicitly requested.
   """
   _count: UserCounts
-
-  """Public display name."""
-  name: String!
 
   """Unique username used for identification."""
   username: String!
@@ -143,6 +143,9 @@ type NotificationDTO {
   """Category of notification event."""
   type: NotificationType!
 
+  """Short title shown to the recipient."""
+  title: String!
+
   """Timestamp when notification was marked as read."""
   readAt: DateTime
 
@@ -163,9 +166,6 @@ type NotificationDTO {
 
   """Timestamp indicating the latest update on this notification."""
   updatedAt: DateTime!
-
-  """Short title shown to the recipient."""
-  title: String!
 
   """Optional detailed message body."""
   body: String

@@ -1,5 +1,6 @@
 import { Field, ID, ObjectType, GraphQLISODateTime } from "@nestjs/graphql";
 
+import { normalizeOutputTextMiddleware } from "@/graphql/middleware/normalize-output-text.middleware";
 import { UserCounts } from "@/users/models/user-counts.model";
 
 /**
@@ -29,6 +30,9 @@ export class SafeUser {
   id: number;
 
   /** Public display name. */
+  @Field(() => String, {
+    middleware: [normalizeOutputTextMiddleware],
+  })
   name: string;
 
   /** Unique username used for identification. */

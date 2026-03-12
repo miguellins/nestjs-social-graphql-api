@@ -8,6 +8,7 @@ import {
 
 import { NotificationType } from "@prisma/client";
 
+import { normalizeOutputTextMiddleware } from "@/graphql/middleware/normalize-output-text.middleware";
 import { NotificationActorDTO } from "@/notifications/models/notification-actor.model";
 
 registerEnumType(NotificationType, {
@@ -43,6 +44,9 @@ export class NotificationDTO {
   type: NotificationType;
 
   /** Short title shown to the recipient. */
+  @Field(() => String, {
+    middleware: [normalizeOutputTextMiddleware],
+  })
   title: string;
 
   /** Optional detailed message body. */
