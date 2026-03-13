@@ -1,40 +1,22 @@
-import { ValidationPipe } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 
-import { GlobalGqlExceptionFilter } from "@/common/filters/gql-exception.filter";
+import { setupValidation } from "@/bootstrap/setup-validation";
+import { setupSecurity } from "@/bootstrap/setup-security";
+import { setupFilters } from "@/bootstrap/setup-filters";
 
 import { AppModule } from "@/app.module";
-
-import helmet from "helmet";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   // Enables global request validation + automatic input cleaning
-  app.useGlobalPipes(
-    new ValidationPipe({
-      // Strips unknown properties
-      whitelist: true,
-
-      // Throws error on extra fields
-      forbidNonWhitelisted: true,
-
-      // Auto-transform payloads to DTO classes
-      transform: true,
-    }),
-  );
+  setupValidation(app);
 
   // Enables global exception filter for GraphQL errors
-  app.useGlobalFilters(new GlobalGqlExceptionFilter());
+  setupFilters(app);
 
   // Adds several HTTP headers that helps protect the app from common vulnerabilities
-  app.use(
-    helmet({
-      // Configure Helmet CSP (content security policy) behavior
-      contentSecurityPolicy:
-        process.env.NODE_ENV === "production" ? undefined : false,
-    }),
-  );
+  setupSecurity(app);
 
   // Allows SIGINT/SIGTERM to trigger module destroy lifecycle
   app.enableShutdownHooks();

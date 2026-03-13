@@ -1,7 +1,7 @@
 import { createParamDecorator, ExecutionContext } from "@nestjs/common";
 import { GqlExecutionContext } from "@nestjs/graphql";
 
-import type { GqlContext } from "@/app.module";
+import type { GqlContext } from "@/graphql/config/graphql-context.types";
 
 /**
  * GraphQL parameter decorator that extracts the authenticated user

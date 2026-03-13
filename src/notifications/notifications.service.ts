@@ -1,5 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { pubSub } from "@/graphql/pubsub";
+
+import { pubSub } from "@/graphql/subscriptions/pubsub";
 
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
 import {

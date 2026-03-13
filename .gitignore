@@ -43,6 +43,7 @@ tmp/
 
 # prisma generated artifacts (if any local generators create these)
 prisma/generated/
+src/schema.gql
 
 # IDE/editor
 .vscode/

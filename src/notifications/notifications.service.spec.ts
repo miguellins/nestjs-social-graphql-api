@@ -4,7 +4,7 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { NotificationReadStatus } from "@/notifications/enums/notification-read-status.enum";
 import { NotificationsService } from "./notifications.service";
 
-import { pubSub } from "@/graphql/pubsub";
+import { pubSub } from "@/graphql/subscriptions/pubsub";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
 import { PrismaService } from "@/prisma.service";
 import { NotificationSelect } from "@/notifications/dto/notifications.dto";
