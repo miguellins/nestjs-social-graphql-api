@@ -6,4 +6,4 @@ import { CacheHelperService } from "@/common/cache/cache-helper.service";
   providers: [CacheHelperService],
   exports: [CacheHelperService],
 })
-export class CacheModule {}
+export class CacheHelpersModule {}

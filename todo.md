@@ -15,34 +15,6 @@
 ## SUGGESTED IMPLEMENTATION EXAMPLES:
 
 CHECK IF PEPPER IS WORKING:
-What changes:
-
-Old format: plain bcrypt hash, usually starts like $2b$12$...
-New format: your code stores a prefix plus bcrypt hash, like bcrypt+hmac-sha256:v1$2b$12$...
-So the stored value will be:
-
-longer
-different even for the same password
-prefixed with bcrypt+hmac-sha256:v1$
-How to verify quickly:
-
-Create a new user normally through your GraphQL mutation.
-Check the row in the User table.
-Inspect the password column.
-What you should see:
-
-It should start with bcrypt+hmac-sha256:v1$
-It should not be plain text
-It should not be only $2b$... anymore for newly created users
-Example:
-
-Before pepper: $2b$12$abc...
-After pepper: bcrypt+hmac-sha256:v1$$2b$12$abc...
-Important detail:
-
-The password is not longer because bcrypt “stores the pepper”.
-The extra length comes from your custom prefix bcrypt+hmac-sha256:v1$ added before the bcrypt hash in password.service.ts (line 28).
-Best practical tests:
 
 Create two users with the same password.
 Their stored hashes should still be different, because bcrypt generates a different salt each time.

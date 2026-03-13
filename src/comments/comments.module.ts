@@ -1,14 +1,15 @@
 import { Module } from "@nestjs/common";
 
-import { PrismaModule } from "@/prisma.module";
-import { CacheModule } from "@/common/cache/cache.module";
+import { CacheHelpersModule } from "@/common/cache/cache-helpers.module";
 
 import { CommentsResolver } from "@/comments/comments.resolver";
 import { CommentsService } from "@/comments/comments.service";
 
+import { PrismaModule } from "@/prisma.module";
+
 @Module({
-  imports: [PrismaModule, CacheModule],
+  imports: [PrismaModule, CacheHelpersModule],
   providers: [CommentsService, CommentsResolver],
   exports: [CommentsService],
 })
-export class CommentsModule {}
+export class CommentsModule { }
