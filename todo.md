@@ -8,16 +8,6 @@
 //---//---//---// //---//---//---//
 //---//---//---// //---//---//---//
 
-CHECK:
-Updated the JSDoc comments in all requested files and kept one blank line after each comment block:
-
-setup-filters.ts
-setup-security.ts
-setup-validation.ts
-cache.config.ts
-graphql.config.ts
-subscriptions.config.ts
-
 //---//---//---// //---//---//---//
 
 # ANSWER FROM CODEX TO ANALISE:

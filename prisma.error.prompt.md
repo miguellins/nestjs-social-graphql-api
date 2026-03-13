@@ -1,7 +1,5 @@
 ## 1 - SEND TO CHATGPT ONCE:
 
-I HAVE THIS EXCEPTION FILTER. THIS IS THE FILTER.
-
 ```TypeScript
 import {
   Catch,
