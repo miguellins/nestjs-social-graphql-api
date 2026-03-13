@@ -10,17 +10,12 @@ import { Prisma } from "@prisma/client";
 import { UsersService } from "./users.service";
 import { PrismaService } from "@/prisma.service";
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
+import { PasswordService } from "@/common/security/password.service";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
 import { ChronologicalOrder } from "@/common/enums/chronological-order.enum";
 import { SafeUserSelect } from "@/users/dto/safe-user.dto";
 import { CreateUserInput } from "@/users/dto/create-user.input";
 import { UpdateUserInput } from "@/users/dto/update-user.input";
-
-import * as bcrypt from "bcrypt";
-
-jest.mock("bcrypt", () => ({
-  hash: jest.fn(),
-}));
 
 describe("UsersService", () => {
   let service: UsersService;
@@ -58,6 +53,12 @@ describe("UsersService", () => {
     set: jest.fn(),
   };
 
+  const passwordMock: {
+    hashPassword: jest.Mock;
+  } = {
+    hashPassword: jest.fn(),
+  };
+
   beforeEach(async () => {
     jest.clearAllMocks();
 
@@ -71,6 +72,7 @@ describe("UsersService", () => {
         UsersService,
         { provide: PrismaService, useValue: prismaMock },
         { provide: CacheHelperService, useValue: cacheMock },
+        { provide: PasswordService, useValue: passwordMock },
       ],
     }).compile();
 
@@ -210,7 +212,7 @@ describe("UsersService", () => {
     });
 
     it("hashes password, creates user with normalized inputs, caches profile, bumps list version", async () => {
-      (bcrypt.hash as unknown as jest.Mock).mockResolvedValue("hashedPw");
+      passwordMock.hashPassword.mockResolvedValue("hashedPw");
 
       const created = {
         id: 10,
@@ -228,7 +230,7 @@ describe("UsersService", () => {
       };
       const res = await service.createUser(input);
 
-      expect(bcrypt.hash).toHaveBeenCalledWith("pass", 12);
+      expect(passwordMock.hashPassword).toHaveBeenCalledWith("pass");
 
       expect(prismaMock.user.create).toHaveBeenCalledWith({
         data: {
@@ -251,7 +253,7 @@ describe("UsersService", () => {
     });
 
     it("throws ConflictException with precise message when Prisma P2002 targets email", async () => {
-      (bcrypt.hash as unknown as jest.Mock).mockResolvedValue("hashedPw");
+      passwordMock.hashPassword.mockResolvedValue("hashedPw");
 
       const err = new Prisma.PrismaClientKnownRequestError("unique", {
         code: "P2002",
@@ -272,7 +274,7 @@ describe("UsersService", () => {
     });
 
     it("throws ConflictException with precise message when Prisma P2002 targets username", async () => {
-      (bcrypt.hash as unknown as jest.Mock).mockResolvedValue("hashedPw");
+      passwordMock.hashPassword.mockResolvedValue("hashedPw");
 
       const err = new Prisma.PrismaClientKnownRequestError("unique", {
         code: "P2002",
@@ -293,7 +295,7 @@ describe("UsersService", () => {
     });
 
     it("throws ConflictException fallback when Prisma P2002 has no meta target", async () => {
-      (bcrypt.hash as unknown as jest.Mock).mockResolvedValue("hashedPw");
+      passwordMock.hashPassword.mockResolvedValue("hashedPw");
 
       const err = new Prisma.PrismaClientKnownRequestError("unique", {
         code: "P2002",
@@ -313,7 +315,7 @@ describe("UsersService", () => {
     });
 
     it("throws InternalServerErrorException for unknown errors", async () => {
-      (bcrypt.hash as unknown as jest.Mock).mockResolvedValue("hashedPw");
+      passwordMock.hashPassword.mockResolvedValue("hashedPw");
       prismaMock.user.create.mockRejectedValue(new Error("boom"));
 
       await expect(
@@ -354,7 +356,7 @@ describe("UsersService", () => {
     });
 
     it("hashes password when updating password", async () => {
-      (bcrypt.hash as unknown as jest.Mock).mockResolvedValue("hashedNew");
+      passwordMock.hashPassword.mockResolvedValue("hashedNew");
 
       prismaMock.user.update.mockResolvedValue({
         id: 1,
@@ -365,7 +367,7 @@ describe("UsersService", () => {
 
       await service.updateUser({ password: "  newpass  " }, 1);
 
-      expect(bcrypt.hash).toHaveBeenCalledWith("newpass", 12);
+      expect(passwordMock.hashPassword).toHaveBeenCalledWith("newpass");
 
       expect(prismaMock.user.update).toHaveBeenCalledWith({
         where: { id: 1 },

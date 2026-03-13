@@ -11,7 +11,6 @@ import { GqlThrottlerGuard } from "@/common/guards/qgl-throttler.guard";
 import { GqlJwtGuard } from "@/common/guards/qgl-jwt.guard";
 
 import { createGraphqlConfig } from "@/graphql/config/graphql.config";
-
 import { cacheModuleConfig } from "@/cache/config/cache.config";
 
 import { NotificationsModule } from "@/notifications/notifications.module";
@@ -68,4 +67,4 @@ import { AuthModule } from "@/auth/auth.module";
     },
   ],
 })
-export class AppModule {}
+export class AppModule { }

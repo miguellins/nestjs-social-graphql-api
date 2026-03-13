@@ -2,21 +2,25 @@ import {
   BadRequestException,
   Injectable,
   InternalServerErrorException,
+  Logger,
   UnauthorizedException,
 } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 
+import { PasswordService } from "@/common/security/password.service";
+
 import { PrismaService } from "@/prisma.service";
 import { Prisma } from "@prisma/client";
 
-import * as bcrypt from "bcrypt";
-
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
-  ) {}
+    private readonly passwordService: PasswordService,
+  ) { }
 
   async login(input: { username: string; password: string }) {
     const username = input.username?.trim().toLowerCase();
@@ -34,8 +38,27 @@ export class AuthService {
 
       if (!user) throw new UnauthorizedException("Invalid credentials");
 
-      const isValid = await bcrypt.compare(password, user.password);
-      if (!isValid) throw new UnauthorizedException("Invalid credentials");
+      const verification = await this.passwordService.verifyPassword(
+        password,
+        user.password,
+      );
+
+      if (!verification.isValid) {
+        throw new UnauthorizedException("Invalid credentials");
+      }
+
+      if (verification.upgradedHash) {
+        try {
+          await this.prisma.user.update({
+            where: { id: user.id },
+            data: { password: verification.upgradedHash },
+          });
+        } catch {
+          this.logger.warn(
+            `Failed to upgrade legacy password hash for userId=${user.id}`,
+          );
+        }
+      }
 
       const payload = { sub: user.id };
 

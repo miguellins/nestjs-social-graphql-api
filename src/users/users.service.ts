@@ -7,7 +7,7 @@ import {
 } from "@nestjs/common";
 
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
-import { SALT_ROUNDS } from "@/common/constants/security.constants";
+import { PasswordService } from "@/common/security/password.service";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
 import {
   ChronologicalOrder,
@@ -20,8 +20,6 @@ import { UpdateUserInput } from "@/users/dto/update-user.input";
 
 import { PrismaService } from "@/prisma.service";
 import { Prisma } from "@prisma/client";
-
-import * as bcrypt from "bcrypt";
 
 type PaginationParams = {
   take?: number;
@@ -37,7 +35,8 @@ export class UsersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cacheHelper: CacheHelperService,
-  ) {}
+    private readonly passwordService: PasswordService,
+  ) { }
 
   async findUsers(params?: PaginationParams): Promise<SafeUserDTO[]> {
     // Ensures the value never exceeds MAX_TAKE (number of records per request)
@@ -108,8 +107,7 @@ export class UsersService {
     }
 
     try {
-      // Hash password before storing in DB
-      const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+      const passwordHash = await this.passwordService.hashPassword(password);
 
       const user = await this.prisma.user.create({
         data: {
@@ -193,7 +191,7 @@ export class UsersService {
     if (input.password !== undefined) {
       const pw = input.password.trim();
       if (!pw) throw new BadRequestException("Password cannot be empty");
-      data.password = await bcrypt.hash(pw, SALT_ROUNDS);
+      data.password = await this.passwordService.hashPassword(pw);
     }
 
     try {

@@ -526,6 +526,12 @@ type Like {
   postId: Int!
 }
 
+"""
+GraphQL object returned by authentication operations.
+
+Exposes the signed JWT access token that clients use to authenticate
+subsequent protected requests.
+"""
 type AuthPayload {
   """JWT access token returned after successful authentication."""
   access_token: String!

@@ -7,6 +7,14 @@ import {
   type JwtFromRequestFunction,
 } from "passport-jwt";
 
+/**
+ * Passport JWT strategy used to authenticate protected requests.
+ *
+ * Extracts the bearer token from the Authorization header, validates it with
+ * the configured JWT secret, and maps the token payload into the authenticated
+ * request user shape consumed by guards and resolvers.
+ */
+
 type JwtPayload = { sub: number };
 
 @Injectable()
