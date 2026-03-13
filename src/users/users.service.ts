@@ -8,6 +8,7 @@ import {
 
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
 
+import { SALT_ROUNDS } from "@/common/constants/security.constants";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
 
 import { SafeUserDTO, SafeUserSelect } from "@/users/dto/safe-user.dto";
@@ -33,7 +34,7 @@ export class UsersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cacheHelper: CacheHelperService,
-  ) {}
+  ) { }
 
   async findUsers(params?: PaginationParams): Promise<SafeUserDTO[]> {
     // Ensures the value never exceeds MAX_TAKE (number of records per request)
@@ -88,9 +89,6 @@ export class UsersService {
   }
 
   async createUser(input: CreateUserInput): Promise<SafeUserDTO> {
-    // Hash strength
-    const SALT_ROUNDS = 12;
-
     // Normalize user inputs
     const name = input.name.trim();
     const email = input.email.trim().toLowerCase();
@@ -163,9 +161,6 @@ export class UsersService {
     if (!hasAnyField) {
       throw new BadRequestException("No fields provided to update");
     }
-
-    // Hash strength
-    const SALT_ROUNDS = 12;
 
     // Build the update payload safely only including provided fields
     const data: Prisma.UserUpdateInput = {};

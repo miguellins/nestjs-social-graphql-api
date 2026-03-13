@@ -9,11 +9,6 @@ import {
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
 
 import { DeleteResponse } from "@/common/types/delete-response.type";
-
-import {
-  DEFAULT_LIKES,
-  MAX_LIKES,
-} from "@/common/constants/paginations.constants";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
 
 import {
@@ -133,8 +128,11 @@ export class PostsService {
     const cacheKey = `posts:detail:${id}`;
 
     // Determines the final limit safely
-    // Ensures the value never exceeds MAX_LIKES (number of likes per request)
-    const likesTake = Math.min(DEFAULT_LIKES, MAX_LIKES);
+    // Ensures the value never exceeds the likes hard cap
+    const likesTake = Math.min(
+      PAGINATION.DEFAULT_TAKE_LIKES,
+      PAGINATION.MAX_TAKE_LIKES,
+    );
 
     let updatedViewCount: number;
 
