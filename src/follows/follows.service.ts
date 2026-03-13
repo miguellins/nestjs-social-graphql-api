@@ -11,6 +11,10 @@ import { NotificationsService } from "@/notifications/notifications.service";
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
 
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
+import {
+  ChronologicalOrder,
+  toSortDirection,
+} from "@/common/enums/chronological-order.enum";
 
 import { SafeFollowDTO, SafeFollowSelect } from "@/follows/dto/safe-follow.dto";
 
@@ -25,15 +29,21 @@ export class FollowsService {
     private readonly notificationsService: NotificationsService,
   ) {}
 
-  async findFollows(params?: { take?: number }): Promise<SafeFollowDTO[]> {
+  async findFollows(params?: {
+    take?: number;
+    orderBy?: ChronologicalOrder;
+  }): Promise<SafeFollowDTO[]> {
     const take = Math.min(
       params?.take ?? PAGINATION.DEFAULT_TAKE,
       PAGINATION.MAX_TAKE,
     );
 
+    // Default to newest-first when no explicit chronological order is provided
+    const orderby = params?.orderBy ?? ChronologicalOrder.NEWEST;
+
     const v = await this.cacheHelper.getVersion("v:follows:list");
 
-    const cacheKey = `follows:list:v${v}:${take}`;
+    const cacheKey = `follows:list:v${v}:${take}:order=${orderby}`;
 
     return this.cacheHelper.getOrSet(
       cacheKey,
@@ -41,7 +51,7 @@ export class FollowsService {
         return this.prisma.follow.findMany({
           take,
 
-          orderBy: { id: "desc" },
+          orderBy: { createdAt: toSortDirection(orderby) },
 
           select: SafeFollowSelect,
         });

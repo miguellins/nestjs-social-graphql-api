@@ -11,6 +11,10 @@ import { NotificationsService } from "@/notifications/notifications.service";
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
 
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
+import {
+  ChronologicalOrder,
+  toSortDirection,
+} from "@/common/enums/chronological-order.enum";
 
 import { LikeDetailDTO, LikeDetailSelect } from "@/likes/dto/like-detail.dto";
 
@@ -19,6 +23,7 @@ import { PrismaService } from "@/prisma.service";
 
 type FindLikesParams = {
   take?: number;
+  orderBy?: ChronologicalOrder;
   postId?: number;
   userId?: number;
 };
@@ -38,11 +43,14 @@ export class LikesService {
     );
 
     const postId = params?.postId;
-    const userId = params?.userId;
+    const userId = params?.userId === 0 ? undefined : params?.userId;
+
+    // Default to newest-first when no explicit chronological order is provided
+    const orderby = params?.orderBy ?? ChronologicalOrder.NEWEST;
 
     const v = await this.cacheHelper.getVersion("v:likes:list");
 
-    const cacheKey = `likes:list:v${v}:${take}:p${postId ?? "all"}:u${userId ?? "all"}`;
+    const cacheKey = `likes:list:v${v}:${take}:p${postId ?? "all"}:u${userId ?? "all"}:order=${orderby}`;
 
     return this.cacheHelper.getOrSet(
       cacheKey,
@@ -57,7 +65,7 @@ export class LikesService {
           where,
 
           orderBy: {
-            createdAt: "desc",
+            createdAt: toSortDirection(orderby),
           },
 
           select: LikeDetailSelect,

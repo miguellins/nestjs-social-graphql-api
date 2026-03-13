@@ -1,6 +1,7 @@
 import { ObjectType, PickType } from "@nestjs/graphql";
 
 import { SafeUser } from "@/users/models/safe-user.model";
+import { PublicUserIdentity } from "@/users/models/public-user-identity.interface";
 
 /**
  * Small public-safe user shape for nested objects
@@ -12,7 +13,7 @@ import { SafeUser } from "@/users/models/safe-user.model";
  */
 
 /** Minimal public-safe representation of a User for nested fields. */
-@ObjectType()
+@ObjectType({ implements: () => PublicUserIdentity })
 export class SafeUserPreview extends PickType(SafeUser, [
   "id",
   "name",

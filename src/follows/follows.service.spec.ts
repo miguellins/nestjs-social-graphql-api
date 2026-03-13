@@ -13,6 +13,7 @@ import { PrismaService } from "@/prisma.service";
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
 import { NotificationsService } from "@/notifications/notifications.service";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
+import { ChronologicalOrder } from "@/common/enums/chronological-order.enum";
 import { SafeFollowSelect } from "@/follows/dto/safe-follow.dto";
 
 describe("FollowsService", () => {
@@ -99,14 +100,14 @@ describe("FollowsService", () => {
       expect(cacheMock.getVersion).toHaveBeenCalledWith("v:follows:list");
 
       expect(cacheMock.getOrSet).toHaveBeenCalledWith(
-        `follows:list:v3:${expectedTake}`,
+        `follows:list:v3:${expectedTake}:order=${ChronologicalOrder.NEWEST}`,
         expect.any(Function),
         30_000,
       );
 
       expect(prismaMock.follow.findMany).toHaveBeenCalledWith({
         take: expectedTake,
-        orderBy: { id: "desc" },
+        orderBy: { createdAt: "desc" },
         select: SafeFollowSelect,
       });
 
@@ -121,7 +122,7 @@ describe("FollowsService", () => {
 
       expect(prismaMock.follow.findMany).toHaveBeenCalledWith({
         take: PAGINATION.DEFAULT_TAKE,
-        orderBy: { id: "desc" },
+        orderBy: { createdAt: "desc" },
         select: SafeFollowSelect,
       });
     });

@@ -5,9 +5,12 @@ import {
 } from "@nestjs/common";
 
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
-
 import { DeleteResponse } from "@/common/types/delete-response.type";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
+import {
+  ChronologicalOrder,
+  toSortDirection,
+} from "@/common/enums/chronological-order.enum";
 
 import { PrismaService } from "@/prisma.service";
 
@@ -20,6 +23,7 @@ import {
 type FindCommentsByPostParams = {
   postId: number;
   take?: number;
+  orderBy?: ChronologicalOrder;
 };
 
 @Injectable()
@@ -75,6 +79,7 @@ export class CommentsService {
   async findCommentsByPost({
     postId,
     take,
+    orderBy,
   }: FindCommentsByPostParams): Promise<SafeCommentDTO[]> {
     // Check if the post exists before listing comments
     const post = await this.prisma.post.findUnique({
@@ -90,6 +95,9 @@ export class CommentsService {
       PAGINATION.MAX_TAKE,
     );
 
+    // Default to newest-first when no explicit chronological order is provided
+    const orderby = orderBy ?? ChronologicalOrder.NEWEST;
+
     return this.prisma.comment.findMany({
       take: normalizedTake,
       where: {
@@ -97,7 +105,7 @@ export class CommentsService {
       },
 
       orderBy: {
-        createdAt: "desc",
+        createdAt: toSortDirection(orderby),
       },
 
       select: SafeCommentSelect,

@@ -1,15 +1,17 @@
 import {
   Field,
   GraphQLISODateTime,
+  ID,
   Int,
   ObjectType,
   registerEnumType,
 } from "@nestjs/graphql";
 
-import { NotificationType } from "@prisma/client";
-
 import { normalizeOutputTextMiddleware } from "@/graphql/middleware/normalize-output-text.middleware";
+
 import { NotificationActorDTO } from "@/notifications/models/notification-actor.model";
+
+import { NotificationType } from "@prisma/client";
 
 registerEnumType(NotificationType, {
   name: "NotificationType",
@@ -36,7 +38,7 @@ registerEnumType(NotificationType, {
 @ObjectType()
 export class NotificationDTO {
   /** Unique identifier of the notification record. */
-  @Field(() => Int)
+  @Field(() => ID)
   id: number;
 
   /** Category of notification event. */

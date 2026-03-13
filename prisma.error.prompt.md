@@ -1,3 +1,8 @@
+## 1 - SEND TO CHATGPT ONCE:
+
+I HAVE THIS EXCEPTION FILTER. THIS IS THE FILTER.
+
+```TypeScript
 import {
   Catch,
   ArgumentsHost,
@@ -132,3 +137,43 @@ export class GlobalGqlExceptionFilter implements GqlExceptionFilter {
     );
   }
 }
+```
+
+Leave to the filter:
+unexpected Prisma errors
+generic fallback mapping when a service did not handle something
+cross-cutting normalization of final GraphQL error shape
+
+//---//---//---// //---//---//---// //---//---//---// //---//---//---//
+//---//---//---// //---//---//---// //---//---//---// //---//---//---//
+
+## 2 - SEND THIS TO CHATGPT FOR EVERY FUNCTION IN EVERY SERVICE
+
+READ PRISMA DOCUMENTATION VERSION @prisma/client": "^6.19.2", "prisma": "^6.19.2":
+Add Prisma error handling in the service when the error is expected and you can translate it into a meaningful domain response
+
+Good times to handle Prisma errors in services:
+when a unique constraint has business meaning
+Example: P2002 for duplicate email, username, like, or follow
+when a missing related record should map to a specific message
+Example: P2003 / P2025 for “Post not found”, “User to follow not found”
+when ownership/permission or workflow logic depends on the failed operation
+when you want a better user-facing message than a generic DB error
+when different Prisma codes should produce different app behavior
+
+DO NOT add detailed Prisma handling when:
+the service cannot add meaningful context
+the error is unexpected or truly generic
+a global fallback is enough
+
+Practical rule for your project:
+handle Prisma errors in write operations almost always
+create
+update
+delete
+transactions
+
+handle them in reads when the DB error can be mapped to a useful domain result
+otherwise let the global GraphQL exception filter be the fallback
+
+APPLY THE BEST PRACTICE IN ERROR HANDLING FOR THIS, BASED IN THIS SERVICE:

@@ -5,10 +5,10 @@ import { CurrentUser } from "@/common/decorators/current-user.decorator";
 import { THROTTLE_LIMITS } from "@/common/constants/throttle.constants";
 import { DeleteResponse } from "@/common/types/delete-response.type";
 
+import { FindCommentsByPostArgs } from "@/comments/args/find-comments-by-post.args";
 import { CreateCommentArgs } from "@/comments/args/create-comment.args";
 import { DeleteCommentArgs } from "@/comments/args/delete-comment.args";
-import { FindCommentsByPostArgs } from "@/comments/args/find-comments-by-post.args";
-import { SafeCommentDTO } from "@/comments/dto/safe-comment.dto";
+import { SafeCommentDTO } from "@/comments/models/safe-comment.model";
 
 import { CommentsService } from "@/comments/comments.service";
 

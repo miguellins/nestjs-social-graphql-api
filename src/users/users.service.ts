@@ -7,12 +7,14 @@ import {
 } from "@nestjs/common";
 
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
-
 import { SALT_ROUNDS } from "@/common/constants/security.constants";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
+import {
+  ChronologicalOrder,
+  toSortDirection,
+} from "@/common/enums/chronological-order.enum";
 
 import { SafeUserDTO, SafeUserSelect } from "@/users/dto/safe-user.dto";
-
 import { CreateUserInput } from "@/users/dto/create-user.input";
 import { UpdateUserInput } from "@/users/dto/update-user.input";
 
@@ -23,6 +25,7 @@ import * as bcrypt from "bcrypt";
 
 type PaginationParams = {
   take?: number;
+  orderBy?: ChronologicalOrder;
 };
 
 /**
@@ -34,7 +37,7 @@ export class UsersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cacheHelper: CacheHelperService,
-  ) { }
+  ) {}
 
   async findUsers(params?: PaginationParams): Promise<SafeUserDTO[]> {
     // Ensures the value never exceeds MAX_TAKE (number of records per request)
@@ -43,11 +46,14 @@ export class UsersService {
       PAGINATION.MAX_TAKE,
     );
 
+    // Default to newest-first when no explicit chronological order is provided
+    const orderby = params?.orderBy ?? ChronologicalOrder.NEWEST;
+
     // Fetch the current cache version for the user list (used for cache invalidation)
     const v = await this.cacheHelper.getVersion("v:user:list");
 
     // Build a versioned cache key scoped to the current pagination params
-    const cacheKey = `user:list:v=${v}:take=${limit}`;
+    const cacheKey = `user:list:v=${v}:take=${limit}:order=${orderby}`;
 
     // Read-through cache:
     // - return cached if present, otherwise query DB
@@ -58,7 +64,7 @@ export class UsersService {
           take: limit,
 
           orderBy: {
-            createdAt: "desc",
+            createdAt: toSortDirection(orderby),
           },
 
           select: SafeUserSelect,

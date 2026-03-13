@@ -1,5 +1,5 @@
 import { ArgsType, Field } from "@nestjs/graphql";
-import { IsNotEmpty, IsOptional, IsString, MaxLength } from "class-validator";
+import { IsOptional, IsString, MaxLength } from "class-validator";
 
 import { PaginationArgs } from "@/common/args/pagination.args";
 
@@ -17,7 +17,6 @@ export class FindPostsArgs extends PaginationArgs {
   @IsOptional()
   @Trim()
   @IsString()
-  @IsNotEmpty()
   @MaxLength(MAX_QUERY_LENGTH)
   q?: string;
 }

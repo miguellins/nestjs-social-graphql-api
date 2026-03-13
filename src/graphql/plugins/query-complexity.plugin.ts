@@ -5,7 +5,12 @@ import {
   getComplexity,
   simpleEstimator,
 } from "graphql-query-complexity";
-import { GraphQLError, type GraphQLSchema } from "graphql";
+import {
+  GraphQLError,
+  Kind,
+  type GraphQLSchema,
+  type SelectionNode,
+} from "graphql";
 
 import type {
   ApolloServerPlugin,
@@ -77,11 +82,32 @@ function shouldSkipComplexityCheck(
   requestContext: GraphQLRequestContextDidResolveOperation<object>,
 ): boolean {
   const operationType = requestContext.operation?.operation;
+  const operationName =
+    requestContext.request.operationName ?? requestContext.operationName;
 
   return (
     String(operationType) === SUBSCRIPTION_OPERATION ||
-    requestContext.request.operationName === "IntrospectionQuery"
+    operationName === "IntrospectionQuery" ||
+    containsIntrospectionSelection(
+      requestContext.operation?.selectionSet?.selections,
+    )
   );
+}
+
+function containsIntrospectionSelection(
+  selections: readonly SelectionNode[] | undefined,
+): boolean {
+  if (!selections) return false;
+
+  return selections.some((selection) => {
+    if (selection.kind !== Kind.FIELD) return false;
+
+    const field = selection;
+
+    if (field.name.value.startsWith("__")) return true;
+
+    return containsIntrospectionSelection(field.selectionSet?.selections);
+  });
 }
 
 function formatOperationName(
@@ -145,9 +171,8 @@ export function createQueryComplexityPlugin(
             const operationName = formatOperationName(requestContext);
             const message = `operation=${operationName} complexity=${complexity}`;
 
-            if (options.log) {
-              if (complexity >= options.warnAt) logger.warn(message);
-              else logger.log(message);
+            if (options.log && complexity >= options.warnAt) {
+              logger.warn(message);
             }
 
             if (options.enforce && complexity > options.maxComplexity) {

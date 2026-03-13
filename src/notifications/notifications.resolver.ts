@@ -9,13 +9,14 @@ import {
 import { Throttle } from "@nestjs/throttler";
 import { pubSub } from "@/graphql/pubsub";
 
+import { FindNotificationsArgs } from "@/notifications/args/find-notifications.args";
+
 import { NotificationsService } from "@/notifications/notifications.service";
 
 import { NotificationDTO } from "@/notifications/models/notification.model";
 
 import { CurrentUser } from "@/common/decorators/current-user.decorator";
 import { DeleteResponse } from "@/common/types/delete-response.type";
-import { PaginationArgs } from "@/common/args/pagination.args";
 
 import { THROTTLE_LIMITS } from "@/common/constants/throttle.constants";
 
@@ -29,9 +30,13 @@ export class NotificationsResolver {
   @Query(() => [NotificationDTO], { name: "myNotifications" })
   async findMyNotifications(
     @CurrentUser() user: { id: number },
-    @Args() args: PaginationArgs,
+    @Args() args: FindNotificationsArgs,
   ): Promise<NotificationDTO[]> {
-    return this.notificationsService.findMyNotifications(user.id, args);
+    return this.notificationsService.findMyNotifications(
+      user.id,
+      args,
+      args.status,
+    );
   }
 
   @Throttle({ default: THROTTLE_LIMITS.LIST })

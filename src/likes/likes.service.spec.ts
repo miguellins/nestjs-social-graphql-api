@@ -12,6 +12,7 @@ import { NotificationsService } from "@/notifications/notifications.service";
 import { PrismaService } from "@/prisma.service";
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
+import { ChronologicalOrder } from "@/common/enums/chronological-order.enum";
 import { LikeDetailSelect } from "@/likes/dto/like-detail.dto";
 
 describe("LikesService", () => {
@@ -126,7 +127,7 @@ describe("LikesService", () => {
 
       expect(cacheMock.getVersion).toHaveBeenCalledWith("v:likes:list");
       expect(cacheMock.getOrSet).toHaveBeenCalledWith(
-        `likes:list:v9:${expectedTake}:p20:u10`,
+        `likes:list:v9:${expectedTake}:p20:u10:order=${ChronologicalOrder.NEWEST}`,
         expect.any(Function),
         30_000,
       );
@@ -148,7 +149,7 @@ describe("LikesService", () => {
       await service.findLikes(undefined);
 
       expect(cacheMock.getOrSet).toHaveBeenCalledWith(
-        `likes:list:v1:${PAGINATION.DEFAULT_TAKE}:pall:uall`,
+        `likes:list:v1:${PAGINATION.DEFAULT_TAKE}:pall:uall:order=${ChronologicalOrder.NEWEST}`,
         expect.any(Function),
         30_000,
       );
@@ -186,6 +187,26 @@ describe("LikesService", () => {
       expect(prismaMock.like.findMany).toHaveBeenCalledWith({
         take: PAGINATION.DEFAULT_TAKE,
         where: { userId: 77 },
+        orderBy: { createdAt: "desc" },
+        select: LikeDetailSelect,
+      });
+    });
+
+    it("treats userId 0 as no user filter", async () => {
+      cacheMock.getVersion.mockResolvedValue(3);
+      prismaMock.like.findMany.mockResolvedValue([]);
+
+      await service.findLikes({ userId: 0 });
+
+      expect(cacheMock.getOrSet).toHaveBeenCalledWith(
+        `likes:list:v3:${PAGINATION.DEFAULT_TAKE}:pall:uall:order=${ChronologicalOrder.NEWEST}`,
+        expect.any(Function),
+        30_000,
+      );
+
+      expect(prismaMock.like.findMany).toHaveBeenCalledWith({
+        take: PAGINATION.DEFAULT_TAKE,
+        where: {},
         orderBy: { createdAt: "desc" },
         select: LikeDetailSelect,
       });

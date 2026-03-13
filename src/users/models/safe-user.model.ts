@@ -1,6 +1,6 @@
-import { Field, ID, ObjectType, GraphQLISODateTime } from "@nestjs/graphql";
+import { Field, ObjectType, GraphQLISODateTime } from "@nestjs/graphql";
 
-import { normalizeOutputTextMiddleware } from "@/graphql/middleware/normalize-output-text.middleware";
+import { PublicUserIdentity } from "@/users/models/public-user-identity.interface";
 import { UserCounts } from "@/users/models/user-counts.model";
 
 /**
@@ -23,21 +23,8 @@ import { UserCounts } from "@/users/models/user-counts.model";
  */
 
 /** Public-safe representation of a User. Contains only non-sensitive information. */
-@ObjectType()
-export class SafeUser {
-  /** Unique identifier of the User. Stable across the system and used for referencing relationship. */
-  @Field(() => ID)
-  id: number;
-
-  /** Public display name. */
-  @Field(() => String, {
-    middleware: [normalizeOutputTextMiddleware],
-  })
-  name: string;
-
-  /** Unique username used for identification. */
-  username: string;
-
+@ObjectType({ implements: () => PublicUserIdentity })
+export class SafeUser extends PublicUserIdentity {
   /** Timestamp indicating when the user account was originally created. */
   @Field(() => GraphQLISODateTime)
   createdAt: Date;

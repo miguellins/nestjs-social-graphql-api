@@ -70,11 +70,10 @@ Architectural benefit:
 - Treat this as your "public contract"
 - Even if your database schema changes, clients remain protected
 """
-type SafeUser {
-  """
-  Unique identifier of the User. Stable across the system and used for referencing relationship.
-  """
+type SafeUser implements PublicUserIdentity {
   id: ID!
+  name: String!
+  username: String!
 
   """Timestamp indicating when the user account was originally created."""
   createdAt: DateTime!
@@ -86,11 +85,11 @@ type SafeUser {
   Aggregated counts of related entities such as posts, followers, and following. Only included when explicitly requested.
   """
   _count: UserCounts
+}
 
-  """Public display name."""
+interface PublicUserIdentity {
+  id: ID!
   name: String!
-
-  """Unique username used for identification."""
   username: String!
 }
 
@@ -107,16 +106,9 @@ What it does:
 - Prevents sensitive user fields from being returned in nested objects
 - Keeps notification payloads small and predictable
 """
-type NotificationActorDTO {
-  """
-  Unique identifier of the User. Stable across the system and used for referencing relationship.
-  """
+type NotificationActorDTO implements PublicUserIdentity {
   id: ID!
-
-  """Public display name."""
   name: String!
-
-  """Unique username used for identification."""
   username: String!
 }
 
@@ -138,7 +130,7 @@ Performance benefit:
 """
 type NotificationDTO {
   """Unique identifier of the notification record."""
-  id: Int!
+  id: ID!
 
   """Category of notification event."""
   type: NotificationType!
@@ -192,30 +184,23 @@ What it does:
 - avoids overfetching data in nested GraphQL objects
 - prevents schema mismatch when only a subset of user fields is selected
 """
-type SafeUserPreview {
-  """
-  Unique identifier of the User. Stable across the system and used for referencing relationship.
-  """
+type SafeUserPreview implements PublicUserIdentity {
   id: ID!
-
-  """Public display name."""
   name: String!
-
-  """Unique username used for identification."""
   username: String!
 }
 
 """
-Safe GraphQL DTO returned when a comment is queried or created
+Public-safe GraphQL model returned for comment queries and mutations
 
 What it does:
-- exposes only safe comment fields to the client
-- includes basic author information
-- is used by resolvers as the return type
+- exposes only comment fields that are safe for API clients
+- includes a lightweight author preview for nested rendering
+- defines the GraphQL output contract independently from Prisma select logic
 """
 type SafeCommentDTO {
   """Unique identifier of the comment."""
-  id: Int!
+  id: ID!
 
   """Identifier of the user who authored the comment."""
   authorId: Int!
@@ -550,11 +535,17 @@ type Query {
   users(
     """Maximum number of items to return (1-50)."""
     take: Int
+
+    """Controls chronological ordering for list results."""
+    orderBy: ChronologicalOrder
   ): [SafeUser!]!
   userById(id: Int!): SafeUser!
   posts(
     """Maximum number of items to return (1-50)."""
     take: Int
+
+    """Controls chronological ordering for list results."""
+    orderBy: ChronologicalOrder
 
     """
     Free-text search query for posts. Trimmed before validation. Max 50 characters.
@@ -565,32 +556,66 @@ type Query {
   myFeed(
     """Maximum number of items to return (1-50)."""
     take: Int
+
+    """Controls chronological ordering for list results."""
+    orderBy: ChronologicalOrder
   ): [Post!]!
   likes(
     """Maximum number of items to return (1-50)."""
     take: Int
 
+    """Controls chronological ordering for list results."""
+    orderBy: ChronologicalOrder
+
     """Return only likes that belong to this post id."""
     postId: Int
 
-    """Return only likes created by this user id."""
+    """
+    Return only likes created by this user id. Use 0 to disable this filter.
+    """
     userId: Int
   ): [LikeListItem!]!
   likeById(id: Int!): LikeListItem!
   myNotifications(
     """Maximum number of items to return (1-50)."""
     take: Int
+
+    """Controls chronological ordering for list results."""
+    orderBy: ChronologicalOrder
+    status: NotificationReadStatus
   ): [NotificationDTO!]!
   unreadNotificationsCount: Int!
-  follows(take: Int): [Follow!]!
+  follows(
+    """Maximum number of items to return (1-50)."""
+    take: Int
+
+    """Controls chronological ordering for list results."""
+    orderBy: ChronologicalOrder
+  ): [Follow!]!
   followById(id: Int!): Follow!
   commentsByPost(
     """Maximum number of items to return (1-50)."""
     take: Int
 
+    """Controls chronological ordering for list results."""
+    orderBy: ChronologicalOrder
+
     """Unique id of the post whose comments should be returned."""
     postId: Int!
   ): [SafeCommentDTO!]!
+}
+
+"""Controls chronological ordering for list queries"""
+enum ChronologicalOrder {
+  NEWEST
+  OLDEST
+}
+
+"""Filter notifications by read state"""
+enum NotificationReadStatus {
+  ALL
+  READ
+  UNREAD
 }
 
 type Mutation {

@@ -1,6 +1,8 @@
-import { IsInt, IsOptional, Max, Min } from "class-validator";
+import { IsEnum, IsInt, IsOptional, Max, Min } from "class-validator";
 
 import { ArgsType, Field, Int } from "@nestjs/graphql";
+
+import { ChronologicalOrder } from "@/common/enums/chronological-order.enum";
 
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
 
@@ -16,4 +18,12 @@ export class PaginationArgs {
   // Match the hard cap in service
   @Max(PAGINATION.MAX_TAKE)
   take?: number;
+
+  /** Controls chronological ordering for list results. */
+  @Field(() => ChronologicalOrder, {
+    nullable: true,
+  })
+  @IsOptional()
+  @IsEnum(ChronologicalOrder)
+  orderBy?: ChronologicalOrder;
 }

@@ -9,7 +9,7 @@ import {
 import { SafeUserPreview } from "@/users/models/safe-user-preview.model";
 import { LikePreview } from "@/posts/models/like-preview.model";
 import { PostCounts } from "@/posts/models/post-counts.model";
-import { SafeCommentDTO } from "@/comments/dto/safe-comment.dto";
+import { SafeCommentDTO } from "@/comments/models/safe-comment.model";
 
 /**
  * Detailed GraphQL Object Type representing a single Post.

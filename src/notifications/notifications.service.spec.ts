@@ -1,12 +1,14 @@
 import { Logger } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 
+import { NotificationReadStatus } from "@/notifications/enums/notification-read-status.enum";
 import { NotificationsService } from "./notifications.service";
 
 import { pubSub } from "@/graphql/pubsub";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
 import { PrismaService } from "@/prisma.service";
 import { NotificationSelect } from "@/notifications/dto/notifications.dto";
+import { NotificationType } from "@prisma/client";
 
 describe("NotificationsService", () => {
   let service: NotificationsService;
@@ -33,7 +35,7 @@ describe("NotificationsService", () => {
 
   const mockNotification = {
     id: 1,
-    type: "USER_FOLLOWED",
+    type: NotificationType.USER_FOLLOWED,
     title: "New follower",
     body: "john started following you",
     isRead: false,
@@ -70,7 +72,7 @@ describe("NotificationsService", () => {
       const input = {
         recipientId: 1,
         actorId: 1,
-        type: "USER_FOLLOWED",
+        type: NotificationType.USER_FOLLOWED,
         title: "New follower",
         body: "self action",
         entityId: 99,
@@ -91,7 +93,7 @@ describe("NotificationsService", () => {
       const input = {
         recipientId: 1,
         actorId: 2,
-        type: "USER_FOLLOWED",
+        type: NotificationType.USER_FOLLOWED,
         title: "New follower",
         body: "john started following you",
         entityId: 10,
@@ -128,7 +130,7 @@ describe("NotificationsService", () => {
       const input = {
         recipientId: 1,
         actorId: 2,
-        type: "USER_FOLLOWED",
+        type: NotificationType.USER_FOLLOWED,
         title: "New follower",
         body: "john started following you",
         entityId: 10,
@@ -208,6 +210,50 @@ describe("NotificationsService", () => {
           createdAt: "desc",
         },
         take: PAGINATION.MAX_TAKE,
+        select: NotificationSelect,
+      });
+    });
+
+    it("should filter only read notifications when status is READ", async () => {
+      prismaMock.notification.findMany.mockResolvedValue([mockNotification]);
+
+      await service.findMyNotifications(
+        1,
+        { take: 5 },
+        NotificationReadStatus.READ,
+      );
+
+      expect(prismaMock.notification.findMany).toHaveBeenCalledWith({
+        where: {
+          recipientId: 1,
+          isRead: true,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 5,
+        select: NotificationSelect,
+      });
+    });
+
+    it("should filter only unread notifications when status is UNREAD", async () => {
+      prismaMock.notification.findMany.mockResolvedValue([mockNotification]);
+
+      await service.findMyNotifications(
+        1,
+        { take: 5 },
+        NotificationReadStatus.UNREAD,
+      );
+
+      expect(prismaMock.notification.findMany).toHaveBeenCalledWith({
+        where: {
+          recipientId: 1,
+          isRead: false,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 5,
         select: NotificationSelect,
       });
     });

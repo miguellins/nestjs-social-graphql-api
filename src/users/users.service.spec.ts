@@ -11,6 +11,7 @@ import { UsersService } from "./users.service";
 import { PrismaService } from "@/prisma.service";
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
+import { ChronologicalOrder } from "@/common/enums/chronological-order.enum";
 import { SafeUserSelect } from "@/users/dto/safe-user.dto";
 import { CreateUserInput } from "@/users/dto/create-user.input";
 import { UpdateUserInput } from "@/users/dto/update-user.input";
@@ -91,7 +92,7 @@ describe("UsersService", () => {
 
       expect(cacheMock.getVersion).toHaveBeenCalledWith("v:user:list");
       expect(cacheMock.getOrSet).toHaveBeenCalledWith(
-        `user:list:v=4:take=${expectedTake}`,
+        `user:list:v=4:take=${expectedTake}:order=${ChronologicalOrder.NEWEST}`,
         expect.any(Function),
         60_000,
       );
@@ -114,6 +115,25 @@ describe("UsersService", () => {
       expect(prismaMock.user.findMany).toHaveBeenCalledWith({
         take: PAGINATION.DEFAULT_TAKE,
         orderBy: { createdAt: "desc" },
+        select: SafeUserSelect,
+      });
+    });
+
+    it("uses a distinct cache key and ascending order for OLDEST", async () => {
+      cacheMock.getVersion.mockResolvedValue(2);
+      prismaMock.user.findMany.mockResolvedValue([]);
+
+      await service.findUsers({ orderBy: ChronologicalOrder.OLDEST });
+
+      expect(cacheMock.getOrSet).toHaveBeenCalledWith(
+        `user:list:v=2:take=${PAGINATION.DEFAULT_TAKE}:order=${ChronologicalOrder.OLDEST}`,
+        expect.any(Function),
+        60_000,
+      );
+
+      expect(prismaMock.user.findMany).toHaveBeenCalledWith({
+        take: PAGINATION.DEFAULT_TAKE,
+        orderBy: { createdAt: "asc" },
         select: SafeUserSelect,
       });
     });

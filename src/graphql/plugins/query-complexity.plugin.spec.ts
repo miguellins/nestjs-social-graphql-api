@@ -36,6 +36,9 @@ describe("query-complexity.plugin", () => {
     const logSpy = jest
       .spyOn(Logger.prototype, "log")
       .mockImplementation(() => undefined);
+    const warnSpy = jest
+      .spyOn(Logger.prototype, "warn")
+      .mockImplementation(() => undefined);
 
     const plugin = createQueryComplexityPlugin({
       GRAPHQL_COMPLEXITY_ENFORCE: "false",
@@ -63,7 +66,8 @@ describe("query-complexity.plugin", () => {
       } as never),
     ).resolves.toBeUndefined();
 
-    expect(logSpy).toHaveBeenCalledWith("operation=Ping complexity=1");
+    expect(logSpy).not.toHaveBeenCalled();
+    expect(warnSpy).not.toHaveBeenCalled();
   });
 
   it("rejects operations that exceed the configured maximum when enforcement is enabled", async () => {
@@ -101,6 +105,9 @@ describe("query-complexity.plugin", () => {
     const logSpy = jest
       .spyOn(Logger.prototype, "log")
       .mockImplementation(() => undefined);
+    const warnSpy = jest
+      .spyOn(Logger.prototype, "warn")
+      .mockImplementation(() => undefined);
 
     const plugin = createQueryComplexityPlugin({
       GRAPHQL_COMPLEXITY_LOG: "true",
@@ -132,5 +139,86 @@ describe("query-complexity.plugin", () => {
     ).resolves.toBeUndefined();
 
     expect(logSpy).not.toHaveBeenCalled();
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it("warns when a query reaches the configured threshold", async () => {
+    const warnSpy = jest
+      .spyOn(Logger.prototype, "warn")
+      .mockImplementation(() => undefined);
+
+    const plugin = createQueryComplexityPlugin({
+      GRAPHQL_COMPLEXITY_LOG: "true",
+      GRAPHQL_COMPLEXITY_WARN_AT: "1",
+    });
+
+    const listener = await plugin.requestDidStart?.({} as never);
+
+    await expect(
+      listener?.didResolveOperation?.({
+        schema,
+        document: parse(`
+          query Ping {
+            ping
+          }
+        `),
+        request: {
+          operationName: "Ping",
+          variables: {},
+        },
+        operationName: "Ping",
+        operation: {
+          operation: "query",
+        },
+      } as never),
+    ).resolves.toBeUndefined();
+
+    expect(warnSpy).toHaveBeenCalledWith("operation=Ping complexity=1");
+  });
+
+  it("skips introspection selections even without the standard operation name", async () => {
+    const warnSpy = jest
+      .spyOn(Logger.prototype, "warn")
+      .mockImplementation(() => undefined);
+
+    const plugin = createQueryComplexityPlugin({
+      GRAPHQL_COMPLEXITY_LOG: "true",
+    });
+
+    const listener = await plugin.requestDidStart?.({} as never);
+
+    await expect(
+      listener?.didResolveOperation?.({
+        schema,
+        document: parse(`
+          query SchemaExplorer {
+            __schema {
+              queryType {
+                name
+              }
+            }
+          }
+        `),
+        request: {
+          operationName: "SchemaExplorer",
+          variables: {},
+        },
+        operationName: "SchemaExplorer",
+        operation: {
+          operation: "query",
+          selectionSet: {
+            kind: "SelectionSet",
+            selections: [
+              {
+                kind: "Field",
+                name: { kind: "Name", value: "__schema" },
+              },
+            ],
+          },
+        },
+      } as never),
+    ).resolves.toBeUndefined();
+
+    expect(warnSpy).not.toHaveBeenCalled();
   });
 });

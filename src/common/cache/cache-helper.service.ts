@@ -15,7 +15,7 @@ import { Inject, Injectable } from "@nestjs/common";
  *
  * Architectural role:
  * - Infrastructure layer (not business/domain logic)
- * - Used by Posts, Users, Likes, Follows modules
+ * - Used by Posts, Users, Likes, Follows, and Comments modules
  * - Keeps services clean and focused on database + validation logic
  *
  * Design goals:
@@ -80,7 +80,6 @@ export class CacheHelperService {
    *
    * This centralizes the classic "cache → DB fallback → cache set" pattern
    */
-
   async getOrSet<T>(
     key: string,
     factory: () => Promise<T>,

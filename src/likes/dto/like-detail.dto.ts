@@ -57,7 +57,7 @@ export type LikeDetailDTO = {
 };
 
 /**
- * Prisma select shape that matches LikeListDTO
+ * Prisma select shape that matches LikeDetailDTO
  *
  * Why:
  * - Guarantees service output matches DTO

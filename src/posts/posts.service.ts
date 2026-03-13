@@ -10,6 +10,10 @@ import { CacheHelperService } from "@/common/cache/cache-helper.service";
 
 import { DeleteResponse } from "@/common/types/delete-response.type";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
+import {
+  ChronologicalOrder,
+  toSortDirection,
+} from "@/common/enums/chronological-order.enum";
 
 import {
   SafePostDetailDTO,
@@ -28,6 +32,7 @@ import { Prisma } from "@prisma/client";
 
 type PaginationParams = {
   take?: number;
+  orderBy?: ChronologicalOrder;
 };
 
 type FindPostsParams = PaginationParams & {
@@ -54,6 +59,9 @@ export class PostsService {
       PAGINATION.MAX_TAKE,
     );
 
+    // Default to newest-first when no explicit chronological order is provided
+    const orderby = params?.orderBy ?? ChronologicalOrder.NEWEST;
+
     return this.prisma.post.findMany({
       where: {
         OR: [
@@ -75,7 +83,7 @@ export class PostsService {
 
       // Show newest posts first
       orderBy: {
-        createdAt: "desc",
+        createdAt: toSortDirection(orderby),
       },
 
       take,
@@ -94,8 +102,11 @@ export class PostsService {
     // Optional search
     const search = params?.q?.trim().toLowerCase() || undefined;
 
+    // Default to newest-first when no explicit chronological order is provided
+    const orderby = params?.orderBy ?? ChronologicalOrder.NEWEST;
+
     const v = await this.cacheHelper.getVersion("v:posts:list");
-    const cacheKey = `posts:list:v${v}:${take}:${search ?? "all"}`;
+    const cacheKey = `posts:list:v${v}:${take}:${search ?? "all"}:order=${orderby}`;
 
     return this.cacheHelper.getOrSet(
       cacheKey,
@@ -114,7 +125,7 @@ export class PostsService {
           where,
 
           orderBy: {
-            createdAt: "desc",
+            createdAt: toSortDirection(orderby),
           },
 
           select: SafePostListSelect,

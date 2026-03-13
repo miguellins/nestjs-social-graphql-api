@@ -2,8 +2,13 @@ import { Injectable, Logger } from "@nestjs/common";
 import { pubSub } from "@/graphql/pubsub";
 
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
+import {
+  ChronologicalOrder,
+  toSortDirection,
+} from "@/common/enums/chronological-order.enum";
 import { DeleteResponse } from "@/common/types/delete-response.type";
 
+import { NotificationReadStatus } from "@/notifications/enums/notification-read-status.enum";
 import { type CreateNotificationInput } from "@/notifications/dto/create-notification.input";
 import {
   NotificationSelect,
@@ -14,6 +19,7 @@ import { PrismaService } from "@/prisma.service";
 
 type PaginationParams = {
   take?: number;
+  orderBy?: ChronologicalOrder;
 };
 
 @Injectable()
@@ -58,19 +64,31 @@ export class NotificationsService {
   async findMyNotifications(
     userId: number,
     params?: PaginationParams,
+    status: NotificationReadStatus = NotificationReadStatus.ALL,
   ): Promise<SafeNotificationDTO[]> {
     const limit = Math.min(
       params?.take ?? PAGINATION.DEFAULT_TAKE,
       PAGINATION.MAX_TAKE,
     );
 
+    // Default to newest-first when no explicit chronological order is provided
+    const orderby = params?.orderBy ?? ChronologicalOrder.NEWEST;
+
+    const readFilter =
+      status === NotificationReadStatus.READ
+        ? { isRead: true }
+        : status === NotificationReadStatus.UNREAD
+          ? { isRead: false }
+          : {};
+
     return this.prisma.notification.findMany({
       where: {
         recipientId: userId,
+        ...readFilter,
       },
 
       orderBy: {
-        createdAt: "desc",
+        createdAt: toSortDirection(orderby),
       },
 
       take: limit,

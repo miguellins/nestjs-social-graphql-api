@@ -11,6 +11,7 @@ import { PostsService } from "./posts.service";
 import { PrismaService } from "@/prisma.service";
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
+import { ChronologicalOrder } from "@/common/enums/chronological-order.enum";
 import { SafePostListSelect } from "@/posts/dto/safe-post-list.dto";
 import { SafePostDetailSelect } from "@/posts/dto/safe-post-detail.dto";
 import { CreatePostInput } from "@/posts/dto/create-post.input";
@@ -97,7 +98,7 @@ describe("PostsService", () => {
 
       expect(cacheMock.getVersion).toHaveBeenCalledWith("v:posts:list");
       expect(cacheMock.getOrSet).toHaveBeenCalledWith(
-        `posts:list:v5:${expectedTake}:${expectedSearch}`,
+        `posts:list:v5:${expectedTake}:${expectedSearch}:order=${ChronologicalOrder.NEWEST}`,
         expect.any(Function),
         30_000,
       );
@@ -124,7 +125,7 @@ describe("PostsService", () => {
       await service.findPosts(undefined);
 
       expect(cacheMock.getOrSet).toHaveBeenCalledWith(
-        `posts:list:v1:${PAGINATION.DEFAULT_TAKE}:all`,
+        `posts:list:v1:${PAGINATION.DEFAULT_TAKE}:all:order=${ChronologicalOrder.NEWEST}`,
         expect.any(Function),
         30_000,
       );

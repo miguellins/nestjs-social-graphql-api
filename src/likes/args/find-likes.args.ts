@@ -17,12 +17,12 @@ export class FindLikesArgs extends PaginationArgs {
   postId?: number;
 
   // Optional filter by user
-  /** Return only likes created by this user id. */
+  /** Return only likes created by this user id. Use 0 to disable this filter. */
   @Field(() => Int, {
     nullable: true,
   })
   @IsOptional()
   @IsInt()
-  @Min(1)
+  @Min(0)
   userId?: number;
 }

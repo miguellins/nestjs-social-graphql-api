@@ -8,6 +8,7 @@ import { THROTTLE_LIMITS } from "@/common/constants/throttle.constants";
 
 import { DeleteResponse } from "@/common/types/delete-response.type";
 
+import { FindFollowsArgs } from "@/follows/args/find-follows.args";
 import { FollowsService } from "@/follows/follows.service";
 
 import { Follow } from "@/follows/models/follows.model";
@@ -19,10 +20,8 @@ export class FollowsResolver {
   @Public()
   @Throttle({ default: THROTTLE_LIMITS.LIST })
   @Query(() => [Follow], { name: "follows" })
-  async follows(
-    @Args("take", { type: () => Int, nullable: true }) take?: number,
-  ): Promise<Follow[]> {
-    return this.followsService.findFollows({ take });
+  async follows(@Args() args: FindFollowsArgs): Promise<Follow[]> {
+    return this.followsService.findFollows(args);
   }
 
   @Public()
