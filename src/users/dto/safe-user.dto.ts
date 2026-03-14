@@ -1,22 +1,9 @@
 import { Prisma } from "@prisma/client";
 
 /**
- * Safe representation of a User returned by the service
+ * Safe user shape returned by the service layer
  *
- * What it does:
- * - Exposes only non-sensitive user data
- * - Ensures passwords and private fields never leave the backend
- * - Provides a predictable shape for API response
- * - Supports lightweight relationship metadata via '_count'
- *
- * Why it exists:
- * - Prevents accidental data leaks (password, email, tokens)
- * - Creates a clear contract between the database and the API layer
- * - Improves long-term maintainability by centralizing the "safe user" shape
- *
- * Important:
- * This type should ALWAYS be used when returning user data externally
- * Never return the raw Prisma user model
+ * Excludes sensitive fields such as password and email
  */
 
 export type SafeUserDTO = {
@@ -35,12 +22,9 @@ export type SafeUserDTO = {
 };
 
 /**
- * Prisma select shape that matches SafeUserDTO exactly
+ * Prisma select that matches SafeUserDTO
  *
- * Why:
- * - Guarantees the DB result matches the DTO
- * - Prevents accidental field leakage (email, password)
- * - Gives full type-safety via satisfies
+ * Keeps database reads aligned with the safe response shape
  */
 
 export const SafeUserSelect = {

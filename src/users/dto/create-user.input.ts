@@ -12,15 +12,9 @@ import { Trim } from "@/common/transformer/trim.transformer";
 import { InputType } from "@nestjs/graphql";
 
 /**
- * GraphQL Input Type used when creating a new user
+ * GraphQL input used to create a user
  *
- * What it does:
- * - Validates incoming data at the API boundary
- * - Prevents bad data from reaching the database
- * - Enforces consistent formatting
- * - Improves security
- *
- * Acts as the first security layer
+ * Validates and trims client input before it reaches the service layer
  */
 
 @InputType()
