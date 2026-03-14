@@ -4,36 +4,21 @@ import { PublicUserIdentity } from "@/users/models/public-user-identity.interfac
 import { UserCounts } from "@/users/models/user-counts.model";
 
 /**
- * GraphQL Object Type representing a SAFE public view of a user
- *
- * What it does:
- * - Exposes only non-sensitive user data
- * - Prevents accidental leakage of private fields
- * - Creates a clear boundary between public API data and internal DB models
- * - Improves long-term API security
- *
- * Security benefits:
- * - Email is intentionally excluded
- * - Password is NEVER exposed
- * - Reduces attack surface if the API is compromised
- *
- * Architectural benefit:
- * - Treat this as your "public contract"
- * - Even if your database schema changes, clients remain protected
+ * Public GraphQL user model
  */
 
-/** Public-safe representation of a User. Contains only non-sensitive information. */
+/** Public user representation with non-sensitive fields */
 @ObjectType({ implements: () => PublicUserIdentity })
 export class SafeUser extends PublicUserIdentity {
-  /** Timestamp indicating when the user account was originally created. */
+  /** When the user account was created */
   @Field(() => GraphQLISODateTime)
   createdAt: Date;
 
-  /** Timestamp of the most recent profile update or modification. */
+  /** When the user was last updated */
   @Field(() => GraphQLISODateTime)
   updatedAt: Date;
 
-  /** Aggregated counts of related entities such as posts, followers, and following. Only included when explicitly requested. */
+  /** Related entity counts when explicitly requested */
   @Field(() => UserCounts, {
     nullable: true,
   })
