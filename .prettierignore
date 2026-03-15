@@ -1,0 +1,6 @@
+node_modules
+dist
+coverage
+src/schema.gql
+prisma/migrations
+package-lock.json
