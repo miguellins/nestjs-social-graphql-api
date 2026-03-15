@@ -44,16 +44,14 @@ deleteComment(commentId: Int!): DeleteResponse!
 
 # ABOUT ZOD VALIDATION:
 
-//---//---//---// //---//---//---//
-//---//---//---// //---//---//---//
+Reset all data from DATABASE
+Check all Queries and Mutations:
+Test everything
 
-# AFTER ZOD IMPLEMENTATION:
+//---//---//---// //---//---//---//
+//---//---//---// //---//---//---//
 
 ## Prompt for Clean Up
-
-Add this to tsconfig.json
-"noUnusedLocals": true,
-"noUnusedParameters": true
 
 //---//---//---// //---//---//---//
 //---//---//---// //---//---//---//
