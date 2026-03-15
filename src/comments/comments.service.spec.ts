@@ -1,4 +1,8 @@
-import { ForbiddenException, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
@@ -64,6 +68,14 @@ describe("CommentsService", () => {
   });
 
   describe("createComment", () => {
+    it("throws BadRequestException when content is empty after trim", async () => {
+      await expect(
+        service.createComment({ content: "   ", postId: 1 }, 10),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      expect(prismaMock.post.findUnique).not.toHaveBeenCalled();
+    });
+
     it("throws NotFoundException when post does not exist", async () => {
       prismaMock.post.findUnique.mockResolvedValue(null);
 

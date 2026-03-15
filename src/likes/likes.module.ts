@@ -9,9 +9,13 @@ import { LikesService } from "@/likes/likes.service";
 
 import { PrismaModule } from "@/prisma.module";
 
+/**
+ * Registers the likes module providers and dependencies
+ */
+
 @Module({
   imports: [PrismaModule, CacheHelpersModule, NotificationsModule],
   providers: [LikesService, LikeResolver],
   exports: [LikesService],
 })
-export class LikesModule { }
+export class LikesModule {}

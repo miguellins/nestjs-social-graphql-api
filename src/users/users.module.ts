@@ -8,9 +8,13 @@ import { UsersService } from "@/users/users.service";
 
 import { PrismaModule } from "@/prisma.module";
 
+/**
+ * Registers the users module providers and dependencies
+ */
+
 @Module({
   imports: [PrismaModule, CacheHelpersModule, PasswordModule],
   providers: [UsersService, UsersResolver],
   exports: [UsersService],
 })
-export class UsersModule { }
+export class UsersModule {}

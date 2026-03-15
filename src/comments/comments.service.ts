@@ -7,18 +7,26 @@ import {
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
 import { DeleteResponse } from "@/common/types/delete-response.type";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
+import { parseWithBadRequest } from "@/common/zod/parse-with-zod";
 import {
   ChronologicalOrder,
   toSortDirection,
 } from "@/common/enums/chronological-order.enum";
 
-import { PrismaService } from "@/prisma.service";
-
-import { type CreateCommentInput } from "@/comments/dto/create-comment.input";
+import {
+  createCommentCommandSchema,
+  type CreateCommentCommand,
+} from "@/comments/schemas/create-comment.schema";
 import {
   SafeCommentSelect,
   type SafeCommentDTO,
 } from "@/comments/dto/safe-comment.dto";
+
+import { PrismaService } from "@/prisma.service";
+
+/**
+ * Handles comment creation, listing, and deletion workflows
+ */
 
 type FindCommentsByPostParams = {
   postId: number;
@@ -28,18 +36,22 @@ type FindCommentsByPostParams = {
 
 @Injectable()
 export class CommentsService {
+  // Injects the services used by comment workflows
   constructor(
     private readonly prisma: PrismaService,
     private readonly cacheHelper: CacheHelperService,
   ) {}
 
+  // Creates a comment and updates the related post counter
   async createComment(
-    input: CreateCommentInput,
+    input: CreateCommentCommand,
     currentUserId: number,
   ): Promise<SafeCommentDTO> {
+    const data = this.parseCreateCommentInput(input);
+
     // Check if the target post exists before creating the comment
     const post = await this.prisma.post.findUnique({
-      where: { id: input.postId },
+      where: { id: data.postId },
       select: { id: true },
     });
 
@@ -49,8 +61,8 @@ export class CommentsService {
     const comment = await this.prisma.$transaction(async (tx) => {
       const createdComment = await tx.comment.create({
         data: {
-          content: input.content,
-          postId: input.postId,
+          content: data.content,
+          postId: data.postId,
           authorId: currentUserId,
         },
 
@@ -58,7 +70,7 @@ export class CommentsService {
       });
 
       await tx.post.update({
-        where: { id: input.postId },
+        where: { id: data.postId },
 
         data: {
           commentsCount: {
@@ -71,11 +83,12 @@ export class CommentsService {
     });
 
     // Invalidate the cached post detail because comments changed
-    await this.cacheHelper.del(`posts:detail:${input.postId}`);
+    await this.cacheHelper.del(`posts:detail:${data.postId}`);
 
     return comment;
   }
 
+  // Lists comments for a post with bounded pagination
   async findCommentsByPost({
     postId,
     take,
@@ -112,6 +125,7 @@ export class CommentsService {
     });
   }
 
+  // Deletes a comment owned by the current user
   async deleteComment(
     commentId: number,
     currentUserId: number,
@@ -159,5 +173,14 @@ export class CommentsService {
     return {
       message: "Comment deleted successfully",
     };
+  }
+
+  // Parses and normalizes create-comment input for the service layer
+  private parseCreateCommentInput(input: CreateCommentCommand) {
+    return parseWithBadRequest(
+      createCommentCommandSchema,
+      input,
+      "Invalid comment input",
+    );
   }
 }

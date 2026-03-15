@@ -5,27 +5,102 @@
 - CREATE AN BIG AND WELL EXPLAINING PROMPT TO CODEX CREATE README.MD FILE - ASKS IF GRAPHQL QUERIES SHOULD BE INSIDE THE FILE
 
 //---//---//---// //---//---//---//
+
+# Current Operation Signatures
+
+Queries
+users(take?: Int, orderBy?: ChronologicalOrder): [SafeUser!]!
+userById(id: Int!): SafeUser!
+posts(take?: Int, orderBy?: ChronologicalOrder, q?: String): [Post!]!
+postById(id: Int!): PostDetail!
+myFeed(take?: Int, orderBy?: ChronologicalOrder): [Post!]!
+likes(take?: Int, orderBy?: ChronologicalOrder, postId?: Int, userId?: Int): [LikeListItem!]!
+likeById(id: Int!): LikeListItem!
+myNotifications(take?: Int, orderBy?: ChronologicalOrder, status?: NotificationReadStatus): [NotificationDTO!]!
+unreadNotificationsCount: Int!
+follows(take?: Int, orderBy?: ChronologicalOrder): [Follow!]!
+followById(id: Int!): Follow!
+commentsByPost(take?: Int, orderBy?: ChronologicalOrder, postId: Int!): [SafeCommentDTO!]!\
+
+Mutations
+login(input: LoginInput!): AuthPayload!
+createUser(input: CreateUserInput!): SafeUser!
+updateMe(input: UpdateUserInput!): SafeUser!
+deleteMe: DeleteResponse!
+createPost(input: CreatePostInput!): Post!
+updatePost(id: Int!, input: UpdatePostInput!): Post!
+deletePost(id: Int!): DeleteResponse!
+createLike(postId: Int!): LikeListItem!
+deleteLike(id: Int!): DeleteResponse!
+markNotificationAsRead(notificationId: Int!): DeleteResponse!
+markAllNotificationsAsRead: DeleteResponse!
+createFollow(followingId: Int!): Follow!
+deleteFollow(id: Int!): DeleteResponse!
+createComment(input: CreateCommentInput!): SafeCommentDTO!
+deleteComment(commentId: Int!): DeleteResponse!
+
+//---//---//---// //---//---//---//
+//---//---//---// //---//---//---//
+
+# ABOUT ZOD VALIDATION:
+
+//---//---//---// //---//---//---//
+//---//---//---// //---//---//---//
+
+# AFTER ZOD IMPLEMENTATION:
+
+## Prompt for Clean Up
+
+Add this to tsconfig.json
+"noUnusedLocals": true,
+"noUnusedParameters": true
+
+//---//---//---// //---//---//---//
+//---//---//---// //---//---//---//
+
+# About Zod:
+
+Consider Zod later for:
+reusable service/domain command schemas in users and posts, if you want to eliminate repeated normalization and support more than just GraphQL entry points
+
+The best long-term structure for this codebase is hybrid:
+
+- GraphQL code-first classes remain the transport/schema layer.
+- Zod becomes the runtime parsing layer for unknown data and reusable domain contracts.
+- Env validation moves to Zod immediately.
+
+What changed:
+
+- Added centralized env validation in env.schema.ts and wired it into app.module.ts. Your app now validates required env vars and coerces numeric/boolean config at startup.
+- Moved jwt.strategy.ts off direct process.env reads and onto ConfigService, which is cleaner and aligned with the new env validation.
+- Added Zod runtime parsing for websocket connection params in subscription-connection-params.schema.ts and integrated it into subscriptions.config.ts.
+- Added a Zod-backed internal notification contract in create-notification.schema.ts, and notifications.service.ts now validates payloads before touching Prisma. The existing type alias in create-notification.input.ts remains as the stable import surface.
+
 //---//---//---// //---//---//---//
 //---//---//---// //---//---//---//
 
 //---//---//---// //---//---//---//
+//---//---//---// //---//---//---//
 
-# ANSWER FROM CODEX TO ANALISE:
+//---//---//---// //---//---//---//
+//---//---//---// //---//---//---//
+
+### Recommended Architecture
+
+//---//---//---// //---//---//---//
+//---//---//---// //---//---//---//
+
+### Recommended Folder Structure
+
+//---//---//---// //---//---//---//
+//---//---//---// //---//---//---//
+
+//---//---//---// //---//---//---//
+//---//---//---// //---//---//---//
+
+//---//---//---// //---//---//---//
 
 ## SUGGESTED IMPLEMENTATION EXAMPLES:
-
-CHECK IF PEPPER IS WORKING:
-
-Create two users with the same password.
-Their stored hashes should still be different, because bcrypt generates a different salt each time.
-Both should start with the pepper prefix.
-Login with the correct password should work.
-Login with the wrong password should fail.
-You can also test legacy migration:
-
-If an existing user has an old hash starting only with $2b$..., log in with the correct password.
-After successful login, check the DB again.
-That user’s password should now be replaced with the prefixed format.
 
 ## RECOMMENDATION FOR YOUR PROJECT:
 
@@ -33,18 +108,10 @@ That user’s password should now be replaced with the prefixed format.
 
 # NEXT PROMPT (FOR NOT INTERRUPT THE LOGIC IN THE CHAT):
 
-HOW/IF I CAN IMPROVE THIS:
-What I see in your project:
-repeated preview/user-like shapes:
-SafeUser
-SafeUserPreview
-NotificationActorDTO
-
 //---//---//---// //---//---//---//
 
 # NEXT IDEA:
 
-- CHECK IF ZOD IS VALID FOR MY PROJECT
 - BEST PRISMA DATABASE SECURITY MEASURES - IN THE VERSION IM USING
 - ADD SOFT DELETE IN PRISMA WHERE IS A GOOD IDEA AND IF ITS NEDDED
 

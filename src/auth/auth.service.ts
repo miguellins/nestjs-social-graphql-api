@@ -8,38 +8,45 @@ import {
 import { JwtService } from "@nestjs/jwt";
 
 import { PasswordService } from "@/common/security/password.service";
+import { parseWithBadRequest } from "@/common/zod/parse-with-zod";
+
+import {
+  loginCommandSchema,
+  type LoginCommand,
+} from "@/auth/schemas/login-command.schema";
 
 import { PrismaService } from "@/prisma.service";
 import { Prisma } from "@prisma/client";
+
+/**
+ * Handles authentication workflows for the auth module
+ */
 
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
 
+  // Injects dependencies used by the auth workflow
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly passwordService: PasswordService,
-  ) { }
+  ) {}
 
-  async login(input: { username: string; password: string }) {
-    const username = input.username?.trim().toLowerCase();
-    const password = input.password?.trim();
-
-    // Fail fast (keeps service predictable + avoids weird edge cases)
-    if (!username) throw new BadRequestException("Username is required");
-    if (!password) throw new BadRequestException("Password is required");
+  // Validates credentials and returns an access token for a valid user
+  async login(input: LoginCommand) {
+    const credentials = this.parseLoginInput(input);
 
     try {
       const user = await this.prisma.user.findUnique({
-        where: { username },
+        where: { username: credentials.username },
         select: { id: true, username: true, password: true },
       });
 
       if (!user) throw new UnauthorizedException("Invalid credentials");
 
       const verification = await this.passwordService.verifyPassword(
-        password,
+        credentials.password,
         user.password,
       );
 
@@ -79,5 +86,14 @@ export class AuthService {
 
       throw new InternalServerErrorException("Login failed");
     }
+  }
+
+  // Parses and normalizes login input before authentication logic runs
+  private parseLoginInput(input: LoginCommand) {
+    return parseWithBadRequest(
+      loginCommandSchema,
+      input,
+      "Invalid login input",
+    );
   }
 }

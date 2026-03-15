@@ -2,88 +2,34 @@
 # THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
 # ------------------------------------------------------
 
-"""
-GraphQL Object Type that exposes aggregated relationship metrics for a User
-
-What it does:
-- Returns lightweight numeric summaries instead of full relational data
-- Prevents expensive nested queries
-- Improves API performance
-- Keeps responses predictable and scalable
-
-Why this matters:
-Fetching entire arrays (posts, followers, likes) can become extremely expensive as the
-application grows
-
-Example problem: A user with 50k followers would generate a massive payload
-
-Returning counts instead:
-- Faster queries
-- Smaller responses
-- Better mobile performance
-- Lower database load
-
-Architectural benefit:
-This follows a very common production pattern:
-"Return metadata first, fetch details only when needed"
-
-Clients can decide:
-- Show the count only
-- Lazily load the full list later
-
-Prisma optimization:
-These values are typically retrieved using '_count', which is highly efficient at the
-database level
-
-Security benefit:
-- Avois unintentionally exposing relationship data
-"""
+"""Aggregated user relationship counts"""
 type UserCounts {
-  """Total number of posts created by the user."""
+  """Total posts created by the user"""
   posts: Int!
 
-  """Total number of likes performed by the user across all posts."""
+  """Total likes made by the user"""
   likes: Int!
 
-  """Total number of users following this account."""
+  """Total followers"""
   followers: Int!
 
-  """Total number of accounts this user is currently following."""
+  """Total accounts this user follows"""
   following: Int!
 }
 
-"""
-GraphQL Object Type representing a SAFE public view of a user
-
-What it does:
-- Exposes only non-sensitive user data
-- Prevents accidental leakage of private fields
-- Creates a clear boundary between public API data and internal DB models
-- Improves long-term API security
-
-Security benefits:
-- Email is intentionally excluded
-- Password is NEVER exposed
-- Reduces attack surface if the API is compromised
-
-Architectural benefit:
-- Treat this as your "public contract"
-- Even if your database schema changes, clients remain protected
-"""
+"""Public GraphQL user model"""
 type SafeUser implements PublicUserIdentity {
   id: ID!
   name: String!
   username: String!
 
-  """Timestamp indicating when the user account was originally created."""
+  """When the user account was created"""
   createdAt: DateTime!
 
-  """Timestamp of the most recent profile update or modification."""
+  """When the user was last updated"""
   updatedAt: DateTime!
 
-  """
-  Aggregated counts of related entities such as posts, followers, and following. Only included when explicitly requested.
-  """
+  """Related entity counts when explicitly requested"""
   _count: UserCounts
 }
 
@@ -176,14 +122,7 @@ type DeleteResponse {
   message: String!
 }
 
-"""
-Small public-safe user shape for nested objects
-
-What it does:
-- exposes only the minimal user fields needed in lists and nested relations
-- avoids overfetching data in nested GraphQL objects
-- prevents schema mismatch when only a subset of user fields is selected
-"""
+"""Small public user shape for nested objects"""
 type SafeUserPreview implements PublicUserIdentity {
   id: ID!
   name: String!
@@ -325,7 +264,7 @@ type PostCounts {
 }
 
 """
-Detailed GraphQL Object Type representing a single Post.
+Detailed GraphQL Object Type representing a single Post
 
 What it does:
 - Provides a rich, client-ready representation of a post
@@ -395,7 +334,7 @@ What it does:
 Architecture note:
 Think of this as the shared public post shape used by list queries,
 nested relations, and write operations, while PostDetail remains the
-richer single-resource view.
+richer single-resource view
 
 This layered approach is very common in production systems because it allows you
 to scale without rewriting your schema
@@ -527,10 +466,10 @@ type Like {
 }
 
 """
-GraphQL object returned by authentication operations.
+GraphQL object returned by authentication operations
 
 Exposes the signed JWT access token that clients use to authenticate
-subsequent protected requests.
+subsequent protected requests
 """
 type AuthPayload {
   """JWT access token returned after successful authentication."""
@@ -657,15 +596,9 @@ input LoginInput {
 }
 
 """
-GraphQL Input Type used when creating a new user
+GraphQL input used to create a user
 
-What it does:
-- Validates incoming data at the API boundary
-- Prevents bad data from reaching the database
-- Enforces consistent formatting
-- Improves security
-
-Acts as the first security layer
+Validates and trims client input before it reaches the service layer
 """
 input CreateUserInput {
   """Public display name chosen by the user."""
@@ -682,23 +615,9 @@ input CreateUserInput {
 }
 
 """
-GraphQL Input Type used when updating an existing user
+GraphQL input used to update a user
 
-What it does:
-- Validates partial updates safely
-- Allows flexible mutations without requiring all fields
-- Normalizes incoming data before it reaches the service layer
-- Protects database integrity
-
-Security benefits:
-- Prevents empty or malformed updates
-- Restricts username format
-- Enforces password length best-practices (bcrypt-safe)
-- Avoids invalid email formats
-
-Design note:
-All fields are optional because updates are PATCH-style
-Only the provided fields will be modified
+Supports partial updates and validates provided fields before they reach the service layer
 """
 input UpdateUserInput {
   """Updated public display name."""

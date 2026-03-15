@@ -177,7 +177,7 @@ describe("UsersService", () => {
           name: "   ",
           email: "a@a.com",
           username: "john",
-          password: "pass",
+          password: "password123",
         }),
       ).rejects.toBeInstanceOf(BadRequestException);
 
@@ -186,7 +186,7 @@ describe("UsersService", () => {
           name: "John",
           email: "   ",
           username: "john",
-          password: "pass",
+          password: "password123",
         }),
       ).rejects.toBeInstanceOf(BadRequestException);
 
@@ -195,7 +195,7 @@ describe("UsersService", () => {
           name: "John",
           email: "a@a.com",
           username: "   ",
-          password: "pass",
+          password: "password123",
         }),
       ).rejects.toBeInstanceOf(BadRequestException);
 
@@ -226,11 +226,11 @@ describe("UsersService", () => {
         name: "  John  ",
         email: "  A@A.COM  ",
         username: "  JoHn  ",
-        password: "  pass  ",
+        password: "  password123  ",
       };
       const res = await service.createUser(input);
 
-      expect(passwordMock.hashPassword).toHaveBeenCalledWith("pass");
+      expect(passwordMock.hashPassword).toHaveBeenCalledWith("password123");
 
       expect(prismaMock.user.create).toHaveBeenCalledWith({
         data: {
@@ -268,7 +268,7 @@ describe("UsersService", () => {
           name: "John",
           email: "a@a.com",
           username: "john",
-          password: "pass",
+          password: "password123",
         }),
       ).rejects.toBeInstanceOf(ConflictException);
     });
@@ -289,7 +289,7 @@ describe("UsersService", () => {
           name: "John",
           email: "a@a.com",
           username: "john",
-          password: "pass",
+          password: "password123",
         }),
       ).rejects.toBeInstanceOf(ConflictException);
     });
@@ -309,7 +309,7 @@ describe("UsersService", () => {
           name: "John",
           email: "a@a.com",
           username: "john",
-          password: "pass",
+          password: "password123",
         }),
       ).rejects.toBeInstanceOf(ConflictException);
     });
@@ -323,7 +323,7 @@ describe("UsersService", () => {
           name: "John",
           email: "a@a.com",
           username: "john",
-          password: "pass",
+          password: "password123",
         }),
       ).rejects.toBeInstanceOf(InternalServerErrorException);
     });
@@ -365,9 +365,9 @@ describe("UsersService", () => {
         username: "john",
       });
 
-      await service.updateUser({ password: "  newpass  " }, 1);
+      await service.updateUser({ password: "  newpass123  " }, 1);
 
-      expect(passwordMock.hashPassword).toHaveBeenCalledWith("newpass");
+      expect(passwordMock.hashPassword).toHaveBeenCalledWith("newpass123");
 
       expect(prismaMock.user.update).toHaveBeenCalledWith({
         where: { id: 1 },
@@ -413,7 +413,7 @@ describe("UsersService", () => {
       prismaMock.user.update.mockRejectedValue(err);
 
       await expect(
-        service.updateUser({ name: "ok" }, 1),
+        service.updateUser({ name: "okay" }, 1),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -459,7 +459,7 @@ describe("UsersService", () => {
       prismaMock.user.update.mockRejectedValue(new Error("boom"));
 
       await expect(
-        service.updateUser({ name: "ok" }, 1),
+        service.updateUser({ name: "okay" }, 1),
       ).rejects.toBeInstanceOf(InternalServerErrorException);
     });
   });

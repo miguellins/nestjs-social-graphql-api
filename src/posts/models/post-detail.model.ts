@@ -12,7 +12,7 @@ import { PostCounts } from "@/posts/models/post-counts.model";
 import { SafeCommentDTO } from "@/comments/models/safe-comment.model";
 
 /**
- * Detailed GraphQL Object Type representing a single Post.
+ * Detailed GraphQL Object Type representing a single Post
  *
  * What it does:
  * - Provides a rich, client-ready representation of a post

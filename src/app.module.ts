@@ -23,6 +23,10 @@ import { AuthModule } from "@/auth/auth.module";
 
 import { validateEnv } from "@/config/env/env.schema";
 
+/**
+ * Composes the root application module and global infrastructure setup
+ */
+
 @Module({
   imports: [
     // Loads and exposes environment variables globally
@@ -75,4 +79,4 @@ import { validateEnv } from "@/config/env/env.schema";
     },
   ],
 })
-export class AppModule { }
+export class AppModule {}

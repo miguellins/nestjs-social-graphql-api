@@ -13,4 +13,4 @@ export class SafeUserPreview extends PickType(SafeUser, [
   "id",
   "name",
   "username",
-] as const) { }
+] as const) {}

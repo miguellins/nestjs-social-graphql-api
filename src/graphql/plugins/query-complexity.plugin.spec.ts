@@ -32,6 +32,14 @@ describe("query-complexity.plugin", () => {
     });
   });
 
+  it("throws when a positive integer option is invalid", () => {
+    expect(() =>
+      getQueryComplexityPluginOptions({
+        GRAPHQL_COMPLEXITY_MAX: "0",
+      }),
+    ).toThrow();
+  });
+
   it("logs normal operation complexity without rejecting the request", async () => {
     const logSpy = jest
       .spyOn(Logger.prototype, "log")

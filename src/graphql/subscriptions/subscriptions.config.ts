@@ -1,15 +1,14 @@
 import { JwtService } from "@nestjs/jwt";
 import { Logger } from "@nestjs/common";
 
+import { subscriptionConnectionParamsSchema } from "@/graphql/subscriptions/schemas/subscription-connection-params.schema";
 import type { SubscriptionExtra } from "@/graphql/config/graphql-context.types";
 
 /**
- * Creates the GraphQL subscription transport configuration
- *
- * Handles websocket connection timeouts, keepalive behavior, and authentication
- * of subscription clients before they can receive realtime events.
+ * Configures GraphQL websocket subscriptions and connection authentication
  */
 
+// Builds the GraphQL websocket transport configuration
 export function createGraphqlSubscriptionsConfig(jwtService: JwtService) {
   const logger = new Logger("GraphQLModule");
 
@@ -30,22 +29,9 @@ export function createGraphqlSubscriptionsConfig(jwtService: JwtService) {
         );
 
         const extra = context.extra as SubscriptionExtra;
-
-        const auth =
-          context.connectionParams?.authorization ??
-          context.connectionParams?.Authorization;
-
-        if (!auth) {
-          throw new Error(
-            "Missing authorization in websocket connection params",
-          );
-        }
-
-        if (typeof auth !== "string" || !auth.startsWith("Bearer ")) {
-          throw new Error("Authorization must be in format: Bearer <token>");
-        }
-
-        const token = auth.slice(7);
+        const token = subscriptionConnectionParamsSchema.parse(
+          context.connectionParams ?? {},
+        );
 
         try {
           const payload = await jwtService.verifyAsync<{ sub: number }>(token);

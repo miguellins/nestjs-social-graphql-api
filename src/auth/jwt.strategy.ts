@@ -1,4 +1,5 @@
 import { PassportStrategy } from "@nestjs/passport";
+import { ConfigService } from "@nestjs/config";
 import { Injectable } from "@nestjs/common";
 
 import {
@@ -8,19 +9,17 @@ import {
 } from "passport-jwt";
 
 /**
- * Passport JWT strategy used to authenticate protected requests.
- *
- * Extracts the bearer token from the Authorization header, validates it with
- * the configured JWT secret, and maps the token payload into the authenticated
- * request user shape consumed by guards and resolvers.
+ * Authenticates protected requests with bearer JWT tokens
  */
 
 type JwtPayload = { sub: number };
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy, "jwt") {
-  constructor() {
-    const secret = process.env.JWT_SECRET;
+  // Configures the passport JWT strategy with the application secret
+  constructor(configService: ConfigService) {
+    const secret = configService.get<string>("JWT_SECRET");
+
     if (!secret) throw new Error("JWT_SECRET is not set");
 
     const jwtFromRequest: JwtFromRequestFunction =
@@ -33,6 +32,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, "jwt") {
     });
   }
 
+  // Maps the JWT payload into the request user shape
   validate(payload: JwtPayload) {
     return { id: payload.sub };
   }

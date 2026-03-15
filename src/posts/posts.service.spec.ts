@@ -213,23 +213,26 @@ describe("PostsService", () => {
       ).rejects.toBeInstanceOf(BadRequestException);
 
       await expect(
-        service.createPost({ title: "ok", content: "   " }, 1),
+        service.createPost({ title: "okay", content: "   " }, 1),
       ).rejects.toBeInstanceOf(BadRequestException);
 
       expect(prismaMock.post.create).not.toHaveBeenCalled();
     });
 
     it("creates post with trimmed inputs, bumps/invalidates caches and returns post", async () => {
-      const created = { id: 1, title: "T", content: "C" };
+      const created = { id: 1, title: "Test", content: "Content" };
       prismaMock.post.create.mockResolvedValue(created);
 
-      const input: CreatePostInput = { title: "  T  ", content: "  C  " };
+      const input: CreatePostInput = {
+        title: "  Test  ",
+        content: "  Content  ",
+      };
       const res = await service.createPost(input, 7);
 
       expect(prismaMock.post.create).toHaveBeenCalledWith({
         data: {
-          title: "T",
-          content: "C",
+          title: "Test",
+          content: "Content",
           author: { connect: { id: 7 } },
         },
         select: SafePostListSelect,
@@ -250,7 +253,7 @@ describe("PostsService", () => {
       prismaMock.post.create.mockRejectedValue(err1);
 
       await expect(
-        service.createPost({ title: "t", content: "c" }, 1),
+        service.createPost({ title: "Test", content: "Content" }, 1),
       ).rejects.toBeInstanceOf(NotFoundException);
 
       const err2 = new Prisma.PrismaClientKnownRequestError("missing", {
@@ -260,7 +263,7 @@ describe("PostsService", () => {
       prismaMock.post.create.mockRejectedValue(err2);
 
       await expect(
-        service.createPost({ title: "t", content: "c" }, 1),
+        service.createPost({ title: "Test", content: "Content" }, 1),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -268,7 +271,7 @@ describe("PostsService", () => {
       prismaMock.post.create.mockRejectedValue(new Error("boom"));
 
       await expect(
-        service.createPost({ title: "t", content: "c" }, 1),
+        service.createPost({ title: "Test", content: "Content" }, 1),
       ).rejects.toBeInstanceOf(InternalServerErrorException);
     });
   });
@@ -295,7 +298,7 @@ describe("PostsService", () => {
       prismaMock.post.findUnique.mockResolvedValue(null);
 
       await expect(
-        service.updatePost(1, { title: "ok" }, 1),
+        service.updatePost(1, { title: "okay" }, 1),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -303,7 +306,7 @@ describe("PostsService", () => {
       prismaMock.post.findUnique.mockResolvedValue({ id: 1, authorId: 999 });
 
       await expect(
-        service.updatePost(1, { title: "ok" }, 1),
+        service.updatePost(1, { title: "okay" }, 1),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -341,7 +344,7 @@ describe("PostsService", () => {
       prismaMock.post.update.mockRejectedValue(err);
 
       await expect(
-        service.updatePost(1, { title: "ok" }, 7),
+        service.updatePost(1, { title: "okay" }, 7),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -349,7 +352,7 @@ describe("PostsService", () => {
       prismaMock.post.findUnique.mockRejectedValue(new Error("boom"));
 
       await expect(
-        service.updatePost(1, { title: "ok" }, 1),
+        service.updatePost(1, { title: "okay" }, 1),
       ).rejects.toBeInstanceOf(InternalServerErrorException);
     });
   });

@@ -6,7 +6,7 @@ import helmet from "helmet";
  * Applies global HTTP security middleware during application bootstrap
  *
  * Helmet adds defensive headers for common web vulnerabilities while keeping
- * development ergonomics intact by relaxing CSP outside production.
+ * development ergonomics intact by relaxing CSP outside production
  */
 
 export function setupSecurity(app: INestApplication): void {

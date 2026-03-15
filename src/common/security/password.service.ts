@@ -1,11 +1,18 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 
-import { PASSWORD_HASH_PREFIX, SALT_ROUNDS } from "@/common/constants/security.constants";
+import {
+  PASSWORD_HASH_PREFIX,
+  SALT_ROUNDS,
+} from "@/common/constants/security.constants";
+
+import { createHmac } from "crypto";
 
 import * as bcrypt from "bcrypt";
 
-import { createHmac } from "crypto";
+/**
+ * Centralizes password hashing and verification for the application
+ */
 
 type PasswordVerificationResult = {
   isValid: boolean;
@@ -17,6 +24,7 @@ export class PasswordService {
   private readonly logger = new Logger(PasswordService.name);
   private readonly pepper: string;
 
+  // Loads the password pepper from validated configuration
   constructor(private readonly configService: ConfigService) {
     const pepper = this.configService.get<string>("PASSWORD_PEPPER");
 
@@ -25,6 +33,7 @@ export class PasswordService {
     this.pepper = pepper;
   }
 
+  // Hashes a password with HMAC peppering and bcrypt
   async hashPassword(password: string): Promise<string> {
     const peppered = this.pepperPassword(password);
     const hash = await bcrypt.hash(peppered, SALT_ROUNDS);
@@ -32,6 +41,7 @@ export class PasswordService {
     return `${PASSWORD_HASH_PREFIX}${hash}`;
   }
 
+  // Verifies the stored password hash and upgrades legacy hashes when needed
   async verifyPassword(
     password: string,
     storedHash: string,
@@ -57,10 +67,12 @@ export class PasswordService {
     };
   }
 
+  // Detects whether a stored hash already uses the peppered format
   private isPepperedHash(hash: string): boolean {
     return hash.startsWith(PASSWORD_HASH_PREFIX);
   }
 
+  // Applies the configured pepper before bcrypt processing
   private pepperPassword(password: string): string {
     return createHmac("sha256", this.pepper)
       .update(password, "utf8")

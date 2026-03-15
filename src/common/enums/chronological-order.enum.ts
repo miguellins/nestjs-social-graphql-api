@@ -4,7 +4,7 @@ import { registerEnumType } from "@nestjs/graphql";
  * Shared GraphQL enum for controlling chronological list ordering
  *
  * Used by list queries that support switching between newest-first and
- * oldest-first results.
+ * oldest-first results
  */
 
 export enum ChronologicalOrder {

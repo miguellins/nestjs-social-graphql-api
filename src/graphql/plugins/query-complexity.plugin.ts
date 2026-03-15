@@ -1,4 +1,8 @@
 import { Logger } from "@nestjs/common";
+import type {
+  ApolloServerPlugin,
+  GraphQLRequestContextDidResolveOperation,
+} from "@apollo/server";
 
 import {
   fieldExtensionsEstimator,
@@ -12,10 +16,11 @@ import {
   type SelectionNode,
 } from "graphql";
 
-import type {
-  ApolloServerPlugin,
-  GraphQLRequestContextDidResolveOperation,
-} from "@apollo/server";
+import { queryComplexityOptionsSchema } from "@/graphql/plugins/query-complexity-options.schema";
+
+/**
+ * Enforces and logs GraphQL query complexity using validated configuration
+ */
 
 type QueryComplexityPluginOptions = {
   enforce: boolean;
@@ -27,57 +32,23 @@ type QueryComplexityPluginOptions = {
 
 const SUBSCRIPTION_OPERATION = "subscription";
 
-function readBoolean(value: string | undefined, fallback: boolean): boolean {
-  if (value === undefined) return fallback;
-
-  return value.toLowerCase() === "true";
-}
-
-function readPositiveInt(
-  value: string | undefined,
-  fallback: number,
-  label: string,
-): number {
-  if (value === undefined) return fallback;
-
-  const parsed = Number.parseInt(value, 10);
-
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    throw new Error(`${label} must be a positive integer`);
-  }
-
-  return parsed;
-}
-
+// Reads complexity options from runtime configuration input
 export function getQueryComplexityPluginOptions(
-  env: NodeJS.ProcessEnv,
+  env: Record<string, unknown>,
 ): QueryComplexityPluginOptions {
-  const warnAt = readPositiveInt(
-    env.GRAPHQL_COMPLEXITY_WARN_AT,
-    100,
-    "GRAPHQL_COMPLEXITY_WARN_AT",
-  );
-
-  const maxComplexity = readPositiveInt(
-    env.GRAPHQL_COMPLEXITY_MAX,
-    500,
-    "GRAPHQL_COMPLEXITY_MAX",
-  );
+  const parsed = queryComplexityOptionsSchema.parse(env);
 
   return {
-    // Start rollout in log-only mode to avoid impacting existing clients.
-    enforce: readBoolean(env.GRAPHQL_COMPLEXITY_ENFORCE, false),
-    log: readBoolean(env.GRAPHQL_COMPLEXITY_LOG, true),
-    warnAt,
-    maxComplexity,
-    maxQueryNodes: readPositiveInt(
-      env.GRAPHQL_COMPLEXITY_MAX_QUERY_NODES,
-      2_000,
-      "GRAPHQL_COMPLEXITY_MAX_QUERY_NODES",
-    ),
+    // Start rollout in log-only mode to avoid impacting existing clients
+    enforce: parsed.GRAPHQL_COMPLEXITY_ENFORCE,
+    log: parsed.GRAPHQL_COMPLEXITY_LOG,
+    warnAt: parsed.GRAPHQL_COMPLEXITY_WARN_AT,
+    maxComplexity: parsed.GRAPHQL_COMPLEXITY_MAX,
+    maxQueryNodes: parsed.GRAPHQL_COMPLEXITY_MAX_QUERY_NODES,
   };
 }
 
+// Skips complexity checks for subscriptions and introspection queries
 function shouldSkipComplexityCheck(
   requestContext: GraphQLRequestContextDidResolveOperation<object>,
 ): boolean {
@@ -94,6 +65,7 @@ function shouldSkipComplexityCheck(
   );
 }
 
+// Detects introspection fields inside a selection set
 function containsIntrospectionSelection(
   selections: readonly SelectionNode[] | undefined,
 ): boolean {
@@ -110,6 +82,7 @@ function containsIntrospectionSelection(
   });
 }
 
+// Resolves the operation name used in logs and errors
 function formatOperationName(
   requestContext: GraphQLRequestContextDidResolveOperation<object>,
 ): string {
@@ -120,6 +93,7 @@ function formatOperationName(
   );
 }
 
+// Calculates GraphQL complexity for the current operation
 function calculateComplexity(
   schema: GraphQLSchema,
   requestContext: GraphQLRequestContextDidResolveOperation<object>,
@@ -147,8 +121,9 @@ function calculateComplexity(
   });
 }
 
+// Creates the Apollo plugin that enforces query-complexity rules
 export function createQueryComplexityPlugin(
-  env: NodeJS.ProcessEnv,
+  env: Record<string, unknown>,
 ): ApolloServerPlugin<object> {
   const options = getQueryComplexityPluginOptions(env);
   const logger = new Logger("GraphQLComplexity");

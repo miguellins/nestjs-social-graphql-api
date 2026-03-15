@@ -65,7 +65,10 @@ describe("PasswordService", () => {
     compareMock.mockResolvedValueOnce(true);
     hashMock.mockResolvedValue("$2b$12$new-peppered-hash");
 
-    const result = await service.verifyPassword("secret123", "$2b$12$legacy-hash");
+    const result = await service.verifyPassword(
+      "secret123",
+      "$2b$12$legacy-hash",
+    );
 
     expect(result).toEqual({
       isValid: true,

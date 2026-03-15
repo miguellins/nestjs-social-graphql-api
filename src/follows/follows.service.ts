@@ -21,14 +21,20 @@ import { SafeFollowDTO, SafeFollowSelect } from "@/follows/dto/safe-follow.dto";
 import { Prisma, NotificationType } from "@prisma/client";
 import { PrismaService } from "@/prisma.service";
 
+/**
+ * Handles follow queries and follow-management workflows
+ */
+
 @Injectable()
 export class FollowsService {
+  // Injects the services used by follow workflows
   constructor(
     private readonly prisma: PrismaService,
     private readonly cacheHelper: CacheHelperService,
     private readonly notificationsService: NotificationsService,
   ) {}
 
+  // Lists follows with bounded pagination and cache support
   async findFollows(params?: {
     take?: number;
     orderBy?: ChronologicalOrder;
@@ -60,6 +66,7 @@ export class FollowsService {
     );
   }
 
+  // Returns one follow record by id
   async getFollow(id: number): Promise<SafeFollowDTO> {
     const cacheKey = `follow:detail:${id}`;
 
@@ -80,6 +87,7 @@ export class FollowsService {
     );
   }
 
+  // Creates a follow relationship for the current user
   async createFollow(
     currentUserId: number,
     followingId: number,
@@ -154,6 +162,7 @@ export class FollowsService {
     }
   }
 
+  // Deletes a follow relationship owned by the current user
   async deleteFollow(id: number, currentUserId: number) {
     try {
       // Supports both:

@@ -15,7 +15,7 @@ import { PostCounts } from "@/posts/models/post-counts.model";
  * Architecture note:
  * Think of this as the shared public post shape used by list queries,
  * nested relations, and write operations, while PostDetail remains the
- * richer single-resource view.
+ * richer single-resource view
  *
  * This layered approach is very common in production systems because it allows you
  * to scale without rewriting your schema

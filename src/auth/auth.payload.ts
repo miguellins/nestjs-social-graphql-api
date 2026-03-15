@@ -1,10 +1,10 @@
 import { ObjectType } from "@nestjs/graphql";
 
 /**
- * GraphQL object returned by authentication operations.
+ * GraphQL object returned by authentication operations
  *
  * Exposes the signed JWT access token that clients use to authenticate
- * subsequent protected requests.
+ * subsequent protected requests
  */
 
 @ObjectType()

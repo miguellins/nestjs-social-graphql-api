@@ -154,6 +154,19 @@ describe("NotificationsService", () => {
         expect.any(String),
       );
     });
+
+    it("throws before touching Prisma when the payload is invalid", async () => {
+      await expect(
+        service.createAndPublishNotification({
+          recipientId: 1,
+          actorId: 2,
+          type: NotificationType.USER_FOLLOWED,
+          title: "   ",
+        }),
+      ).rejects.toThrow();
+
+      expect(prismaMock.notification.create).not.toHaveBeenCalled();
+    });
   });
 
   describe("findMyNotifications", () => {

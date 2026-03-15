@@ -9,21 +9,30 @@ import { AuthResolver } from "@/auth/auth.resolver";
 import { AuthService } from "@/auth/auth.service";
 import { JwtStrategy } from "@/auth/jwt.strategy";
 
+import type { StringValue } from "ms";
+
+/**
+ * Wires authentication providers and JWT configuration for the auth module
+ */
+
 @Module({
   imports: [
     PassportModule,
     PasswordModule,
     JwtModule.registerAsync({
       inject: [ConfigService],
+      // Builds JWT module options from validated configuration
       useFactory: (config: ConfigService) => {
         const secret = config.get<string>("JWT_SECRET");
+        const expiresIn = config.get<string>("JWT_EXPIRES_IN");
 
         if (!secret) throw new Error("JWT_SECRET is not defined");
+        if (!expiresIn) throw new Error("JWT_EXPIRES_IN is not defined");
 
         return {
           secret,
           signOptions: {
-            expiresIn: "7d",
+            expiresIn: expiresIn as StringValue,
           },
         };
       },
@@ -32,4 +41,4 @@ import { JwtStrategy } from "@/auth/jwt.strategy";
   providers: [AuthService, AuthResolver, JwtStrategy],
   exports: [AuthService, JwtModule],
 })
-export class AuthModule { }
+export class AuthModule {}

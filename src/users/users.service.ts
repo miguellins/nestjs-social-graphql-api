@@ -3,41 +3,47 @@ import {
   Injectable,
   InternalServerErrorException,
   NotFoundException,
-  BadRequestException,
 } from "@nestjs/common";
 
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
 import { PasswordService } from "@/common/security/password.service";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
+import { parseWithBadRequest } from "@/common/zod/parse-with-zod";
 import {
   ChronologicalOrder,
   toSortDirection,
 } from "@/common/enums/chronological-order.enum";
 
 import { SafeUserDTO, SafeUserSelect } from "@/users/dto/safe-user.dto";
-import { CreateUserInput } from "@/users/dto/create-user.input";
-import { UpdateUserInput } from "@/users/dto/update-user.input";
+import {
+  type CreateUserCommand,
+  type UpdateUserCommand,
+  createUserCommandSchema,
+  updateUserCommandSchema,
+} from "@/users/schemas/user-write.schema";
 
 import { PrismaService } from "@/prisma.service";
 import { Prisma } from "@prisma/client";
+
+/**
+ * Handles user queries and account-management workflows
+ */
 
 type PaginationParams = {
   take?: number;
   orderBy?: ChronologicalOrder;
 };
 
-/**
- * Responsible for business logic and data operations
- */
-
 @Injectable()
 export class UsersService {
+  // Injects the services used by user workflows
   constructor(
     private readonly prisma: PrismaService,
     private readonly cacheHelper: CacheHelperService,
     private readonly passwordService: PasswordService,
-  ) { }
+  ) {}
 
+  // Lists users with bounded pagination and cache support
   async findUsers(params?: PaginationParams): Promise<SafeUserDTO[]> {
     // Ensures the value never exceeds MAX_TAKE (number of records per request)
     const limit = Math.min(
@@ -73,6 +79,7 @@ export class UsersService {
     );
   }
 
+  // Returns one safe user profile by id
   async getUser(id: number): Promise<SafeUserDTO> {
     const cacheKey = `user:safe:${id}`;
 
@@ -93,27 +100,20 @@ export class UsersService {
     );
   }
 
-  async createUser(input: CreateUserInput): Promise<SafeUserDTO> {
-    // Normalize user inputs
-    const name = input.name.trim();
-    const email = input.email.trim().toLowerCase();
-    const username = input.username.trim().toLowerCase();
-    const password = input.password.trim();
-
-    const requiredFields = { name, email, username, password };
-
-    for (const [key, value] of Object.entries(requiredFields)) {
-      if (!value) throw new BadRequestException(`${key} is required`);
-    }
+  // Creates a new user with a hashed password
+  async createUser(input: CreateUserCommand): Promise<SafeUserDTO> {
+    const data = this.parseCreateUserInput(input);
 
     try {
-      const passwordHash = await this.passwordService.hashPassword(password);
+      const passwordHash = await this.passwordService.hashPassword(
+        data.password,
+      );
 
       const user = await this.prisma.user.create({
         data: {
-          name,
-          email,
-          username,
+          name: data.name,
+          email: data.email,
+          username: data.username,
           password: passwordHash,
         },
 
@@ -155,43 +155,33 @@ export class UsersService {
     }
   }
 
+  // Updates the current user with the provided fields
   async updateUser(
-    input: UpdateUserInput,
+    input: UpdateUserCommand,
     currentUserId: number,
   ): Promise<SafeUserDTO> {
-    // Require at least one field to update, prevents empty updates
-    const hasAnyField = Object.values(input).some((v) => v !== undefined);
-
-    if (!hasAnyField) {
-      throw new BadRequestException("No fields provided to update");
-    }
+    const normalizedInput = this.parseUpdateUserInput(input);
 
     // Build the update payload safely only including provided fields
     const data: Prisma.UserUpdateInput = {};
 
     // Copy fields and normalize
-    if (input.name !== undefined) {
-      const name = input.name.trim();
-      if (!name) throw new BadRequestException("Name cannot be empty");
-      data.name = name;
+    if (normalizedInput.name !== undefined) {
+      data.name = normalizedInput.name;
     }
 
-    if (input.email !== undefined) {
-      const email = input.email.trim().toLowerCase();
-      if (!email) throw new BadRequestException("Email cannot be empty");
-      data.email = email;
+    if (normalizedInput.email !== undefined) {
+      data.email = normalizedInput.email;
     }
 
-    if (input.username !== undefined) {
-      const username = input.username.trim().toLowerCase();
-      if (!username) throw new BadRequestException("Username cannot be empty");
-      data.username = username;
+    if (normalizedInput.username !== undefined) {
+      data.username = normalizedInput.username;
     }
 
-    if (input.password !== undefined) {
-      const pw = input.password.trim();
-      if (!pw) throw new BadRequestException("Password cannot be empty");
-      data.password = await this.passwordService.hashPassword(pw);
+    if (normalizedInput.password !== undefined) {
+      data.password = await this.passwordService.hashPassword(
+        normalizedInput.password,
+      );
     }
 
     try {
@@ -239,6 +229,7 @@ export class UsersService {
     }
   }
 
+  // Deletes the current user and clears related cache entries
   async deleteUser(currentUserId: number) {
     try {
       // 'delete' is intentional:
@@ -266,5 +257,23 @@ export class UsersService {
       // Do not leak internal DB errors
       throw new InternalServerErrorException("Failed to delete user");
     }
+  }
+
+  // Parses and normalizes create-user input for the service layer
+  private parseCreateUserInput(input: CreateUserCommand) {
+    return parseWithBadRequest(
+      createUserCommandSchema,
+      input,
+      "Invalid user input",
+    );
+  }
+
+  // Parses and normalizes update-user input for the service layer
+  private parseUpdateUserInput(input: UpdateUserCommand) {
+    return parseWithBadRequest(
+      updateUserCommandSchema,
+      input,
+      "Invalid user input",
+    );
   }
 }

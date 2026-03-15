@@ -7,9 +7,13 @@ import { CommentsService } from "@/comments/comments.service";
 
 import { PrismaModule } from "@/prisma.module";
 
+/**
+ * Registers the comments module providers and dependencies
+ */
+
 @Module({
   imports: [PrismaModule, CacheHelpersModule],
   providers: [CommentsService, CommentsResolver],
   exports: [CommentsService],
 })
-export class CommentsModule { }
+export class CommentsModule {}

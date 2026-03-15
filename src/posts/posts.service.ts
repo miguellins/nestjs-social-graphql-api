@@ -7,13 +7,13 @@ import {
 } from "@nestjs/common";
 
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
-
 import { DeleteResponse } from "@/common/types/delete-response.type";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
 import {
   ChronologicalOrder,
   toSortDirection,
 } from "@/common/enums/chronological-order.enum";
+import { parseWithBadRequest } from "@/common/zod/parse-with-zod";
 
 import {
   SafePostDetailDTO,
@@ -23,12 +23,19 @@ import {
   SafePostListDTO,
   SafePostListSelect,
 } from "@/posts/dto/safe-post-list.dto";
-
-import { CreatePostInput } from "@/posts/dto/create-post.input";
-import { UpdatePostInput } from "@/posts/dto/update-post.input";
+import {
+  type CreatePostCommand,
+  type UpdatePostCommand,
+  createPostCommandSchema,
+  updatePostCommandSchema,
+} from "@/posts/schemas/post-write.schema";
 
 import { PrismaService } from "@/prisma.service";
 import { Prisma } from "@prisma/client";
+
+/**
+ * Handles post creation, queries, updates, and deletion workflows
+ */
 
 type PaginationParams = {
   take?: number;
@@ -39,17 +46,15 @@ type FindPostsParams = PaginationParams & {
   q?: string;
 };
 
-/**
- * Responsible for business logic and data operations
- */
-
 @Injectable()
 export class PostsService {
+  // Injects the services used by post workflows
   constructor(
     private readonly prisma: PrismaService,
     private readonly cacheHelper: CacheHelperService,
   ) {}
 
+  // Returns the feed for the current user and followed authors
   async myFeed(
     currentUserId: number,
     params?: PaginationParams,
@@ -92,6 +97,7 @@ export class PostsService {
     });
   }
 
+  // Lists posts with optional search and bounded pagination
   async findPosts(params?: FindPostsParams): Promise<SafePostListDTO[]> {
     // Ensures the value never exceeds MAX_TAKE (number of records per request)
     const take = Math.min(
@@ -135,6 +141,7 @@ export class PostsService {
     );
   }
 
+  // Returns a post detail view and increments its view counter
   async getPost(id: number): Promise<SafePostDetailDTO> {
     const cacheKey = `posts:detail:${id}`;
 
@@ -204,23 +211,18 @@ export class PostsService {
     };
   }
 
+  // Creates a new post for the current user
   async createPost(
-    input: CreatePostInput,
+    input: CreatePostCommand,
     currentUserId: number,
   ): Promise<SafePostListDTO> {
-    // Normalize inputs
-    const title = input.title?.trim();
-    const content = input.content?.trim();
-
-    // Validates
-    if (!title) throw new BadRequestException("Title cannot be empty");
-    if (!content) throw new BadRequestException("Content cannot be empty");
+    const data = this.parseCreatePostInput(input);
 
     try {
       const post = await this.prisma.post.create({
         data: {
-          title,
-          content,
+          title: data.title,
+          content: data.content,
           author: { connect: { id: currentUserId } },
         },
 
@@ -246,32 +248,23 @@ export class PostsService {
     }
   }
 
+  // Updates a post owned by the current user
   async updatePost(
     id: number,
-    input: UpdatePostInput,
+    input: UpdatePostCommand,
     currentUserId: number,
   ): Promise<SafePostListDTO> {
-    // Require at least one field
-    const hasAnyField =
-      input.title !== undefined || input.content !== undefined;
-
-    if (!hasAnyField) {
-      throw new BadRequestException("No fields provided to update");
-    }
+    const normalizedInput = this.parseUpdatePostInput(input);
 
     // Build update payload safely
     const data: Prisma.PostUpdateInput = {};
 
-    if (input.title !== undefined) {
-      const title = input.title.trim();
-      if (!title) throw new BadRequestException("Title cannot be empty");
-      data.title = title;
+    if (normalizedInput.title !== undefined) {
+      data.title = normalizedInput.title;
     }
 
-    if (input.content !== undefined) {
-      const content = input.content.trim();
-      if (!content) throw new BadRequestException("Content cannot be empty");
-      data.content = content;
+    if (normalizedInput.content !== undefined) {
+      data.content = normalizedInput.content;
     }
 
     try {
@@ -322,6 +315,7 @@ export class PostsService {
     }
   }
 
+  // Deletes a post owned by the current user
   async deletePost(id: number, currentUserId: number): Promise<DeleteResponse> {
     try {
       // Check existence and ownership
@@ -368,5 +362,23 @@ export class PostsService {
 
       throw new InternalServerErrorException("Failed to delete post");
     }
+  }
+
+  // Parses and normalizes create-post input for the service layer
+  private parseCreatePostInput(input: CreatePostCommand) {
+    return parseWithBadRequest(
+      createPostCommandSchema,
+      input,
+      "Invalid post input",
+    );
+  }
+
+  // Parses and normalizes update-post input for the service layer
+  private parseUpdatePostInput(input: UpdatePostCommand) {
+    return parseWithBadRequest(
+      updatePostCommandSchema,
+      input,
+      "Invalid post input",
+    );
   }
 }

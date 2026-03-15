@@ -12,7 +12,7 @@ import { GqlThrottlerGuard } from "./qgl-throttler.guard";
 
 describe("GqlThrottlerGuard", () => {
   it("adapts GraphQL context to req/res expected by ThrottlerGuard", () => {
-    // Avoid constructor DI requirements from ThrottlerGuard in unit test context.
+    // Avoid constructor DI requirements from ThrottlerGuard in unit test context
     const guard = Object.create(
       GqlThrottlerGuard.prototype,
     ) as GqlThrottlerGuard;
