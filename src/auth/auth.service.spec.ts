@@ -3,13 +3,18 @@ import {
   InternalServerErrorException,
   UnauthorizedException,
 } from "@nestjs/common";
+
 import { Test, TestingModule } from "@nestjs/testing";
+
 import { JwtService } from "@nestjs/jwt";
+
 import { Prisma } from "@prisma/client";
 
-import { AuthService } from "./auth.service";
 import { PasswordService } from "@/common/security/password.service";
+
 import { PrismaService } from "@/prisma.service";
+
+import { AuthService } from "./auth.service";
 
 describe("AuthService", () => {
   let service: AuthService;

@@ -1,4 +1,5 @@
-import { ValidationPipe, type INestApplication } from "@nestjs/common";
+import type { INestApplication } from "@nestjs/common";
+import { ValidationPipe } from "@nestjs/common";
 
 /**
  * Configures the global validation pipe used by GraphQL and HTTP requests

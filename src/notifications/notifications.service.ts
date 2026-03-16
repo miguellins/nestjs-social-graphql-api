@@ -1,23 +1,19 @@
 import { Injectable, Logger } from "@nestjs/common";
 
-import { pubSub } from "@/graphql/subscriptions/pubsub";
-
-import { DeleteResponse } from "@/common/types/delete-response.type";
-import { PAGINATION } from "@/common/constants/hard-cap.constants";
 import {
   ChronologicalOrder,
   toSortDirection,
 } from "@/common/enums/chronological-order.enum";
+import { DeleteResponse } from "@/common/types/delete-response.type";
+import { PAGINATION } from "@/common/constants/hard-cap.constants";
 
+import { pubSub } from "@/graphql/subscriptions/pubsub";
+
+import { createNotificationInputSchema } from "@/notifications/schemas/create-notification.schema";
+import type { CreateNotificationInput } from "@/notifications/schemas/create-notification.schema";
 import { NotificationReadStatus } from "@/notifications/enums/notification-read-status.enum";
-import {
-  createNotificationInputSchema,
-  type CreateNotificationInput,
-} from "@/notifications/schemas/create-notification.schema";
-import {
-  NotificationSelect,
-  type SafeNotificationDTO,
-} from "@/notifications/dto/notifications.dto";
+import type { SafeNotificationDTO } from "@/notifications/dto/notifications.dto";
+import { NotificationSelect } from "@/notifications/dto/notifications.dto";
 
 import { PrismaService } from "@/prisma.service";
 

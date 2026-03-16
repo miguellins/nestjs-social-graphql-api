@@ -4,16 +4,24 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from "@nestjs/common";
+
 import { Test, TestingModule } from "@nestjs/testing";
+
 import { Prisma } from "@prisma/client";
 
-import { LikesService } from "./likes.service";
-import { NotificationsService } from "@/notifications/notifications.service";
-import { PrismaService } from "@/prisma.service";
-import { CacheHelperService } from "@/common/cache/cache-helper.service";
-import { PAGINATION } from "@/common/constants/hard-cap.constants";
 import { ChronologicalOrder } from "@/common/enums/chronological-order.enum";
+
+import { CacheHelperService } from "@/common/cache/cache-helper.service";
+
+import { PAGINATION } from "@/common/constants/hard-cap.constants";
+
 import { LikeDetailSelect } from "@/likes/dto/like-detail.dto";
+
+import { NotificationsService } from "@/notifications/notifications.service";
+
+import { PrismaService } from "@/prisma.service";
+
+import { LikesService } from "./likes.service";
 
 describe("LikesService", () => {
   let service: LikesService;

@@ -1,4 +1,6 @@
-import { Prisma, NotificationType } from "@prisma/client";
+import { NotificationType } from "@prisma/client";
+
+import type { Prisma } from "@prisma/client";
 
 /**
  * Safe Notification DTO

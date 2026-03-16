@@ -1,18 +1,14 @@
-import { Resolver, Query, Mutation, Args, Int } from "@nestjs/graphql";
+import { Args, Int, Mutation, Query, Resolver } from "@nestjs/graphql";
 import { Throttle } from "@nestjs/throttler";
 
 import { CurrentUser } from "@/common/decorators/current-user.decorator";
-import { Public } from "@/common/decorators/auth.decorator";
-
 import { THROTTLE_LIMITS } from "@/common/constants/throttle.constants";
-
 import { DeleteResponse } from "@/common/types/delete-response.type";
-
-import { FindLikesArgs } from "@/likes/args/find-likes.args";
+import { Public } from "@/common/decorators/auth.decorator";
 
 import { LikeListItem } from "@/likes/models/like-list-item.model";
 import { Like } from "@/likes/models/likes.model";
-
+import { FindLikesArgs } from "@/likes/args/find-likes.args";
 import { LikesService } from "@/likes/likes.service";
 
 @Resolver(() => Like)

@@ -1,22 +1,20 @@
 import { Logger } from "@nestjs/common";
-import type {
-  ApolloServerPlugin,
-  GraphQLRequestContextDidResolveOperation,
-} from "@apollo/server";
 
 import {
   fieldExtensionsEstimator,
   getComplexity,
   simpleEstimator,
 } from "graphql-query-complexity";
-import {
-  GraphQLError,
-  Kind,
-  type GraphQLSchema,
-  type SelectionNode,
-} from "graphql";
 
 import { queryComplexityOptionsSchema } from "@/graphql/plugins/query-complexity-options.schema";
+
+import type {
+  ApolloServerPlugin,
+  GraphQLRequestContextDidResolveOperation,
+} from "@apollo/server";
+
+import type { GraphQLSchema, SelectionNode } from "graphql";
+import { GraphQLError, Kind } from "graphql";
 
 /**
  * Enforces and logs GraphQL query complexity using validated configuration

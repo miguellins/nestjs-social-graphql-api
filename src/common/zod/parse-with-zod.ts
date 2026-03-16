@@ -1,6 +1,7 @@
 import { BadRequestException } from "@nestjs/common";
 
-import { ZodError, type ZodType } from "zod";
+import type { ZodType } from "zod";
+import { ZodError } from "zod";
 
 /**
  * Wraps Zod parsing and converts validation errors into BadRequestException

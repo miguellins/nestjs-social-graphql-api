@@ -7,10 +7,12 @@ import { GqlExecutionContext } from "@nestjs/graphql";
 import { AuthGuard } from "@nestjs/passport";
 import { Reflector } from "@nestjs/core";
 
-import type { Request } from "express";
-import { GraphQLResolveInfo, OperationTypeNode } from "graphql";
-
 import { IS_PUBLIC_KEY } from "@/common/decorators/auth.decorator";
+
+import type { GraphQLResolveInfo } from "graphql";
+import { OperationTypeNode } from "graphql";
+
+import type { Request } from "express";
 
 type AuthenticatedUser = {
   id: number;

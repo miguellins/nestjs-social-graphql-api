@@ -1,4 +1,4 @@
-import { Prisma } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 
 /**
  * Safe representation of a Post used in list-based queries

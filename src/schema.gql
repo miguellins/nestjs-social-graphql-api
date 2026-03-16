@@ -2,6 +2,11 @@
 # THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
 # ------------------------------------------------------
 
+type DeleteResponse {
+  """Human-readable message describing the result of the mutation."""
+  message: String!
+}
+
 """Aggregated user relationship counts"""
 type UserCounts {
   """Total posts created by the user"""
@@ -115,11 +120,6 @@ type NotificationDTO {
 enum NotificationType {
   USER_FOLLOWED
   POST_LIKED
-}
-
-type DeleteResponse {
-  """Human-readable message describing the result of the mutation."""
-  message: String!
 }
 
 """Small public user shape for nested objects"""
@@ -264,65 +264,6 @@ type PostCounts {
 }
 
 """
-Detailed GraphQL Object Type representing a single Post
-
-What it does:
-- Provides a rich, client-ready representation of a post
-- Includes relational previews while avoiding heavy nested objects
-- Maintains a safe API contract by exposing only non-sensitive data
-
-When to use:
-This type should be returned ONLY for single-resource queries, such as 'postById'
-
-Design philosophy:
-LIST - lightweight, fast, scalable
-DETAIL - richer, but still optimized
-
-Performance strategy:
-Even though this is a "detail" object, relations are still previews
-Avoid returning full relational trees
-
-Security benefit:
-Uses SafeUserPreview instead of the full User model to prevent accidental exposure
-of private user data
-"""
-type PostDetail {
-  """
-  Unique identifier of the post. Used for referencing, routing, and relation mapping.
-  """
-  id: ID!
-
-  """Timestamp indicating when the post was originally created."""
-  createdAt: DateTime!
-
-  """Timestamp indicating the last time the post was updated."""
-  updatedAt: DateTime!
-
-  """
-  Total number of times the post detail view has been accessed successfully.
-  """
-  viewsCount: Int!
-
-  """Public safe preview of the user who authored the post."""
-  author: SafeUserPreview!
-
-  """Aggregated metadata related to the post."""
-  _count: PostCounts!
-
-  """Optional lightweight list of likes associated with the post."""
-  likes: [LikePreview!]
-
-  """Optional lightweight list of comments associated with the post."""
-  comments: [SafeCommentDTO!]
-
-  """Title of the post."""
-  title: String!
-
-  """Main textual content of the post."""
-  content: String!
-}
-
-"""
 Core GraphQL Object Type representing a Post
 
 What it does:
@@ -463,6 +404,65 @@ type Like {
 
   """Identifier of the post that was liked."""
   postId: Int!
+}
+
+"""
+Detailed GraphQL Object Type representing a single Post
+
+What it does:
+- Provides a rich, client-ready representation of a post
+- Includes relational previews while avoiding heavy nested objects
+- Maintains a safe API contract by exposing only non-sensitive data
+
+When to use:
+This type should be returned ONLY for single-resource queries, such as 'postById'
+
+Design philosophy:
+LIST - lightweight, fast, scalable
+DETAIL - richer, but still optimized
+
+Performance strategy:
+Even though this is a "detail" object, relations are still previews
+Avoid returning full relational trees
+
+Security benefit:
+Uses SafeUserPreview instead of the full User model to prevent accidental exposure
+of private user data
+"""
+type PostDetail {
+  """
+  Unique identifier of the post. Used for referencing, routing, and relation mapping.
+  """
+  id: ID!
+
+  """Timestamp indicating when the post was originally created."""
+  createdAt: DateTime!
+
+  """Timestamp indicating the last time the post was updated."""
+  updatedAt: DateTime!
+
+  """
+  Total number of times the post detail view has been accessed successfully.
+  """
+  viewsCount: Int!
+
+  """Public safe preview of the user who authored the post."""
+  author: SafeUserPreview!
+
+  """Aggregated metadata related to the post."""
+  _count: PostCounts!
+
+  """Optional lightweight list of likes associated with the post."""
+  likes: [LikePreview!]
+
+  """Optional lightweight list of comments associated with the post."""
+  comments: [SafeCommentDTO!]
+
+  """Title of the post."""
+  title: String!
+
+  """Main textual content of the post."""
+  content: String!
 }
 
 """

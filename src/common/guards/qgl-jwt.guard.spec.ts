@@ -1,7 +1,12 @@
-import { ExecutionContext } from "@nestjs/common";
-import { Reflector } from "@nestjs/core";
 import { GqlExecutionContext } from "@nestjs/graphql";
-import { Request } from "express";
+
+import { ExecutionContext } from "@nestjs/common";
+
+import { Reflector } from "@nestjs/core";
+
+import { GqlJwtGuard } from "./qgl-jwt.guard";
+
+import type { Request } from "express";
 
 const canActivateMock = jest.fn<unknown, [ExecutionContext]>();
 
@@ -20,8 +25,6 @@ jest.mock("@nestjs/graphql", () => ({
     create: jest.fn(),
   },
 }));
-
-import { GqlJwtGuard } from "./qgl-jwt.guard";
 
 describe("GqlJwtGuard", () => {
   let guard: GqlJwtGuard;

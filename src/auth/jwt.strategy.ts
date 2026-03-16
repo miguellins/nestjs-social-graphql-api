@@ -2,11 +2,8 @@ import { PassportStrategy } from "@nestjs/passport";
 import { ConfigService } from "@nestjs/config";
 import { Injectable } from "@nestjs/common";
 
-import {
-  ExtractJwt,
-  Strategy,
-  type JwtFromRequestFunction,
-} from "passport-jwt";
+import type { JwtFromRequestFunction } from "passport-jwt";
+import { ExtractJwt, Strategy } from "passport-jwt";
 
 /**
  * Authenticates protected requests with bearer JWT tokens

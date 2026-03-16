@@ -1,5 +1,7 @@
 import { ArgumentsHost, HttpException, HttpStatus } from "@nestjs/common";
+
 import { GqlArgumentsHost } from "@nestjs/graphql";
+
 import { Prisma } from "@prisma/client";
 
 import { GlobalGqlExceptionFilter } from "./gql-exception.filter";

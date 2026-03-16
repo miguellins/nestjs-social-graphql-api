@@ -5,16 +5,24 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from "@nestjs/common";
+
 import { Test, TestingModule } from "@nestjs/testing";
+
 import { Prisma } from "@prisma/client";
 
-import { FollowsService } from "./follows.service";
-import { PrismaService } from "@/prisma.service";
-import { CacheHelperService } from "@/common/cache/cache-helper.service";
-import { NotificationsService } from "@/notifications/notifications.service";
-import { PAGINATION } from "@/common/constants/hard-cap.constants";
 import { ChronologicalOrder } from "@/common/enums/chronological-order.enum";
+
+import { CacheHelperService } from "@/common/cache/cache-helper.service";
+
+import { PAGINATION } from "@/common/constants/hard-cap.constants";
+
 import { SafeFollowSelect } from "@/follows/dto/safe-follow.dto";
+
+import { NotificationsService } from "@/notifications/notifications.service";
+
+import { PrismaService } from "@/prisma.service";
+
+import { FollowsService } from "./follows.service";
 
 describe("FollowsService", () => {
   let service: FollowsService;

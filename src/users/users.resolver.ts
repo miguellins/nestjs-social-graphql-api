@@ -1,4 +1,4 @@
-import { Resolver, Mutation, Query, Args, Int } from "@nestjs/graphql";
+import { Args, Int, Mutation, Query, Resolver } from "@nestjs/graphql";
 import { Throttle } from "@nestjs/throttler";
 
 import { CurrentUser } from "@/common/decorators/current-user.decorator";
@@ -7,11 +7,9 @@ import { DeleteResponse } from "@/common/types/delete-response.type";
 import { PaginationArgs } from "@/common/args/pagination.args";
 import { Public } from "@/common/decorators/auth.decorator";
 
-import { UpdateUserInput } from "@/users/dto/update-user.input";
 import { CreateUserInput } from "@/users/dto/create-user.input";
-
+import { UpdateUserInput } from "@/users/dto/update-user.input";
 import { SafeUser } from "@/users/models/safe-user.model";
-
 import { UsersService } from "@/users/users.service";
 
 /**

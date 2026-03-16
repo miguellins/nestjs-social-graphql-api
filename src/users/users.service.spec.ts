@@ -4,18 +4,28 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from "@nestjs/common";
+
 import { Test, TestingModule } from "@nestjs/testing";
+
 import { Prisma } from "@prisma/client";
 
-import { UsersService } from "./users.service";
-import { PrismaService } from "@/prisma.service";
-import { CacheHelperService } from "@/common/cache/cache-helper.service";
-import { PasswordService } from "@/common/security/password.service";
-import { PAGINATION } from "@/common/constants/hard-cap.constants";
 import { ChronologicalOrder } from "@/common/enums/chronological-order.enum";
-import { SafeUserSelect } from "@/users/dto/safe-user.dto";
+
+import { CacheHelperService } from "@/common/cache/cache-helper.service";
+
+import { PasswordService } from "@/common/security/password.service";
+
+import { PAGINATION } from "@/common/constants/hard-cap.constants";
+
+import { PrismaService } from "@/prisma.service";
+
 import { CreateUserInput } from "@/users/dto/create-user.input";
+
 import { UpdateUserInput } from "@/users/dto/update-user.input";
+
+import { SafeUserSelect } from "@/users/dto/safe-user.dto";
+
+import { UsersService } from "./users.service";
 
 describe("UsersService", () => {
   let service: UsersService;

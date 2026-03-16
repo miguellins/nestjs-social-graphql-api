@@ -1,4 +1,5 @@
-import { Transform, type TransformFnParams } from "class-transformer";
+import type { TransformFnParams } from "class-transformer";
+import { Transform } from "class-transformer";
 
 /**
  * Trims whitespace from string values

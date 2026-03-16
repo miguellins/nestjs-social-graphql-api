@@ -4,18 +4,28 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from "@nestjs/common";
+
 import { Test, TestingModule } from "@nestjs/testing";
+
 import { Prisma } from "@prisma/client";
 
-import { PostsService } from "./posts.service";
-import { PrismaService } from "@/prisma.service";
-import { CacheHelperService } from "@/common/cache/cache-helper.service";
-import { PAGINATION } from "@/common/constants/hard-cap.constants";
 import { ChronologicalOrder } from "@/common/enums/chronological-order.enum";
-import { SafePostListSelect } from "@/posts/dto/safe-post-list.dto";
+
+import { CacheHelperService } from "@/common/cache/cache-helper.service";
+
+import { PAGINATION } from "@/common/constants/hard-cap.constants";
+
 import { SafePostDetailSelect } from "@/posts/dto/safe-post-detail.dto";
+
+import { SafePostListSelect } from "@/posts/dto/safe-post-list.dto";
+
 import { CreatePostInput } from "@/posts/dto/create-post.input";
+
 import { UpdatePostInput } from "@/posts/dto/update-post.input";
+
+import { PrismaService } from "@/prisma.service";
+
+import { PostsService } from "./posts.service";
 
 describe("PostsService", () => {
   let service: PostsService;

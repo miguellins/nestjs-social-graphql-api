@@ -1,18 +1,16 @@
-import { Resolver, Query, Mutation, Args, Int } from "@nestjs/graphql";
+import { Args, Int, Mutation, Query, Resolver } from "@nestjs/graphql";
 import { Throttle } from "@nestjs/throttler";
 
 import { CurrentUser } from "@/common/decorators/current-user.decorator";
 import { THROTTLE_LIMITS } from "@/common/constants/throttle.constants";
 import { DeleteResponse } from "@/common/types/delete-response.type";
 import { PaginationArgs } from "@/common/args/pagination.args";
-import { FindPostsArgs } from "@/posts/args/find-posts.args";
 import { Public } from "@/common/decorators/auth.decorator";
 
 import { CreatePostInput } from "@/posts/dto/create-post.input";
 import { UpdatePostInput } from "@/posts/dto/update-post.input";
-
+import { FindPostsArgs } from "@/posts/args/find-posts.args";
 import { PostsService } from "@/posts/posts.service";
-
 import { PostDetail } from "@/posts/models/post-detail.model";
 import { Post } from "@/posts/models/posts.model";
 

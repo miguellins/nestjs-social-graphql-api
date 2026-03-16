@@ -1,9 +1,8 @@
-import { IsEnum, IsInt, IsOptional, Max, Min } from "class-validator";
-
 import { ArgsType, Field, Int } from "@nestjs/graphql";
 
-import { ChronologicalOrder } from "@/common/enums/chronological-order.enum";
+import { IsEnum, IsInt, IsOptional, Max, Min } from "class-validator";
 
+import { ChronologicalOrder } from "@/common/enums/chronological-order.enum";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
 
 @ArgsType()

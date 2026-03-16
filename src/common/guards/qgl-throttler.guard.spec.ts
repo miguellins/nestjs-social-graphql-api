@@ -1,14 +1,16 @@
-import { ExecutionContext } from "@nestjs/common";
 import { GqlExecutionContext } from "@nestjs/graphql";
-import { Request, Response } from "express";
+
+import { ExecutionContext } from "@nestjs/common";
+
+import { GqlThrottlerGuard } from "./qgl-throttler.guard";
+
+import type { Request, Response } from "express";
 
 jest.mock("@nestjs/graphql", () => ({
   GqlExecutionContext: {
     create: jest.fn(),
   },
 }));
-
-import { GqlThrottlerGuard } from "./qgl-throttler.guard";
 
 describe("GqlThrottlerGuard", () => {
   it("adapts GraphQL context to req/res expected by ThrottlerGuard", () => {

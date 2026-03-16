@@ -1,10 +1,9 @@
 import {
-  Catch,
   ArgumentsHost,
+  Catch,
   HttpException,
   HttpStatus,
 } from "@nestjs/common";
-
 import { GqlArgumentsHost, GqlExceptionFilter } from "@nestjs/graphql";
 
 import { Prisma } from "@prisma/client";

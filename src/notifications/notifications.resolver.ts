@@ -8,16 +8,16 @@ import {
 } from "@nestjs/graphql";
 import { Throttle } from "@nestjs/throttler";
 
-import type { GqlContext } from "@/graphql/config/graphql-context.types";
-import { pubSub } from "@/graphql/subscriptions/pubsub";
+import { CurrentUser } from "@/common/decorators/current-user.decorator";
+import { THROTTLE_LIMITS } from "@/common/constants/throttle.constants";
+import { DeleteResponse } from "@/common/types/delete-response.type";
 
 import { FindNotificationsArgs } from "@/notifications/args/find-notifications.args";
 import { NotificationsService } from "@/notifications/notifications.service";
 import { NotificationDTO } from "@/notifications/models/notification.model";
 
-import { CurrentUser } from "@/common/decorators/current-user.decorator";
-import { THROTTLE_LIMITS } from "@/common/constants/throttle.constants";
-import { DeleteResponse } from "@/common/types/delete-response.type";
+import type { GqlContext } from "@/graphql/config/graphql-context.types";
+import { pubSub } from "@/graphql/subscriptions/pubsub";
 
 @Resolver(() => NotificationDTO)
 export class NotificationsResolver {

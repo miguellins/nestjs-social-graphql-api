@@ -1,7 +1,7 @@
-import {
-  type FieldMiddleware,
-  type MiddlewareContext,
-  type NextFn,
+import type {
+  FieldMiddleware,
+  MiddlewareContext,
+  NextFn,
 } from "@nestjs/graphql";
 
 /**

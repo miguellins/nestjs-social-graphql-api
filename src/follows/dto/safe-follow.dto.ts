@@ -1,6 +1,6 @@
-import { SafeUserPreview } from "@/users/models/safe-user-preview.model";
+import type { SafeUserPreview } from "@/users/models/safe-user-preview.model";
 
-import { Prisma } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 
 /**
  * Safe Follow DTO

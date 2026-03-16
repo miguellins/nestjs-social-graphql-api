@@ -1,4 +1,5 @@
 import { ArgsType, Field } from "@nestjs/graphql";
+
 import { IsOptional } from "class-validator";
 
 import { NotificationReadStatus } from "@/notifications/enums/notification-read-status.enum";

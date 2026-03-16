@@ -7,18 +7,19 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 
-import { NotificationsService } from "@/notifications/notifications.service";
-import { CacheHelperService } from "@/common/cache/cache-helper.service";
-
-import { PAGINATION } from "@/common/constants/hard-cap.constants";
 import {
   ChronologicalOrder,
   toSortDirection,
 } from "@/common/enums/chronological-order.enum";
+import { CacheHelperService } from "@/common/cache/cache-helper.service";
+import { PAGINATION } from "@/common/constants/hard-cap.constants";
 
-import { SafeFollowDTO, SafeFollowSelect } from "@/follows/dto/safe-follow.dto";
+import type { SafeFollowDTO } from "@/follows/dto/safe-follow.dto";
+import { SafeFollowSelect } from "@/follows/dto/safe-follow.dto";
 
-import { Prisma, NotificationType } from "@prisma/client";
+import { NotificationsService } from "@/notifications/notifications.service";
+
+import { NotificationType, Prisma } from "@prisma/client";
 import { PrismaService } from "@/prisma.service";
 
 /**

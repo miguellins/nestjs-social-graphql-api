@@ -3,23 +3,24 @@ import { CacheModule } from "@nestjs/cache-manager";
 import { ThrottlerModule } from "@nestjs/throttler";
 import { GraphQLModule } from "@nestjs/graphql";
 import { ApolloDriver } from "@nestjs/apollo";
-import { JwtService } from "@nestjs/jwt";
 import { APP_GUARD } from "@nestjs/core";
+import { JwtService } from "@nestjs/jwt";
 import { Module } from "@nestjs/common";
-
-import { GqlThrottlerGuard } from "@/common/guards/qgl-throttler.guard";
-import { GqlJwtGuard } from "@/common/guards/qgl-jwt.guard";
-
-import { createGraphqlConfig } from "@/graphql/config/graphql.config";
-import { cacheModuleConfig } from "@/cache/config/cache.config";
 
 import { NotificationsModule } from "@/notifications/notifications.module";
 import { CommentsModule } from "@/comments/comments.module";
 import { FollowsModule } from "@/follows/follows.module";
-import { UsersModule } from "@/users/users.module";
-import { PostsModule } from "@/posts/posts.module";
 import { LikesModule } from "@/likes/likes.module";
+import { PostsModule } from "@/posts/posts.module";
+import { UsersModule } from "@/users/users.module";
 import { AuthModule } from "@/auth/auth.module";
+
+import { createGraphqlConfig } from "@/graphql/config/graphql.config";
+
+import { cacheModuleConfig } from "@/cache/config/cache.config";
+
+import { GqlThrottlerGuard } from "@/common/guards/qgl-throttler.guard";
+import { GqlJwtGuard } from "@/common/guards/qgl-jwt.guard";
 
 import { validateEnv } from "@/config/env/env.schema";
 

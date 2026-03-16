@@ -6,11 +6,9 @@ import {
   ObjectType,
 } from "@nestjs/graphql";
 
-import { Post } from "@/posts/models/posts.model";
-
 import { Follow } from "@/follows/models/follows.model";
-
 import { Like } from "@/likes/models/likes.model";
+import { Post } from "@/posts/models/posts.model";
 
 @ObjectType()
 export class User {

@@ -1,4 +1,4 @@
-import { Field, ObjectType, GraphQLISODateTime } from "@nestjs/graphql";
+import { Field, GraphQLISODateTime, ObjectType } from "@nestjs/graphql";
 
 import { PublicUserIdentity } from "@/users/models/public-user-identity.interface";
 import { UserCounts } from "@/users/models/user-counts.model";

@@ -1,9 +1,9 @@
 import { ArgsType, Field } from "@nestjs/graphql";
 
+import { CreateCommentInput } from "@/comments/dto/create-comment.input";
+
 import { ValidateNested } from "class-validator";
 import { Type } from "class-transformer";
-
-import { CreateCommentInput } from "@/comments/dto/create-comment.input";
 
 @ArgsType()
 export class CreateCommentArgs {

@@ -4,23 +4,19 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 
-import { CacheHelperService } from "@/common/cache/cache-helper.service";
-import { DeleteResponse } from "@/common/types/delete-response.type";
-import { PAGINATION } from "@/common/constants/hard-cap.constants";
-import { parseWithBadRequest } from "@/common/zod/parse-with-zod";
+import { createCommentCommandSchema } from "@/comments/schemas/create-comment.schema";
+import type { CreateCommentCommand } from "@/comments/schemas/create-comment.schema";
+import type { SafeCommentDTO } from "@/comments/dto/safe-comment.dto";
+import { SafeCommentSelect } from "@/comments/dto/safe-comment.dto";
+
 import {
   ChronologicalOrder,
   toSortDirection,
 } from "@/common/enums/chronological-order.enum";
-
-import {
-  createCommentCommandSchema,
-  type CreateCommentCommand,
-} from "@/comments/schemas/create-comment.schema";
-import {
-  SafeCommentSelect,
-  type SafeCommentDTO,
-} from "@/comments/dto/safe-comment.dto";
+import { CacheHelperService } from "@/common/cache/cache-helper.service";
+import { DeleteResponse } from "@/common/types/delete-response.type";
+import { PAGINATION } from "@/common/constants/hard-cap.constants";
+import { parseWithBadRequest } from "@/common/zod/parse-with-zod";
 
 import { PrismaService } from "@/prisma.service";
 

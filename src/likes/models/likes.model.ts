@@ -1,9 +1,9 @@
 import {
   Field,
+  GraphQLISODateTime,
   ID,
   Int,
   ObjectType,
-  GraphQLISODateTime,
 } from "@nestjs/graphql";
 
 import { User } from "@/users/models/users.model";

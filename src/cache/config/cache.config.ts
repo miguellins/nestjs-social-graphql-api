@@ -1,10 +1,10 @@
-import { type CacheModuleAsyncOptions } from "@nestjs/cache-manager";
+import type { CacheModuleAsyncOptions } from "@nestjs/cache-manager";
 import { ConfigService } from "@nestjs/config";
+
+import SuperJSON from "superjson";
 
 import KeyvRedis from "@keyv/redis";
 import Keyv from "keyv";
-
-import SuperJSON from "superjson";
 
 /**
  * Async CacheModule configuration for the application's global Redis-backed cache

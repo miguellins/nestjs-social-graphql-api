@@ -7,13 +7,11 @@ import {
 } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 
+import { loginCommandSchema } from "@/auth/schemas/login-command.schema";
+import type { LoginCommand } from "@/auth/schemas/login-command.schema";
+
 import { PasswordService } from "@/common/security/password.service";
 import { parseWithBadRequest } from "@/common/zod/parse-with-zod";
-
-import {
-  loginCommandSchema,
-  type LoginCommand,
-} from "@/auth/schemas/login-command.schema";
 
 import { PrismaService } from "@/prisma.service";
 import { Prisma } from "@prisma/client";

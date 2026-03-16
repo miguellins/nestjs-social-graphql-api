@@ -1,7 +1,7 @@
 import { ObjectType, PickType } from "@nestjs/graphql";
 
-import { SafeUser } from "@/users/models/safe-user.model";
 import { PublicUserIdentity } from "@/users/models/public-user-identity.interface";
+import { SafeUser } from "@/users/models/safe-user.model";
 
 /**
  * Lightweight public-safe representation of a notification actor

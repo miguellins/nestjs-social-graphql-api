@@ -1,7 +1,6 @@
 import { Module } from "@nestjs/common";
 
 import { NotificationsModule } from "@/notifications/notifications.module";
-
 import { CacheHelpersModule } from "@/common/cache/cache-helpers.module";
 
 import { FollowsResolver } from "@/follows/follows.resolver";

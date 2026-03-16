@@ -1,13 +1,14 @@
-import { ApolloDriver, type ApolloDriverConfig } from "@nestjs/apollo";
+import type { ApolloDriverConfig } from "@nestjs/apollo";
 import { ConfigService } from "@nestjs/config";
+import { ApolloDriver } from "@nestjs/apollo";
 import { JwtService } from "@nestjs/jwt";
 
-import { createGraphqlSubscriptionsConfig } from "@/graphql/subscriptions/subscriptions.config";
-import { createQueryComplexityPlugin } from "@/graphql/plugins/query-complexity.plugin";
 import type {
   GqlContext,
   SubscriptionExtra,
 } from "@/graphql/config/graphql-context.types";
+import { createGraphqlSubscriptionsConfig } from "@/graphql/subscriptions/subscriptions.config";
+import { createQueryComplexityPlugin } from "@/graphql/plugins/query-complexity.plugin";
 
 import type { GraphQLFormattedError } from "graphql";
 

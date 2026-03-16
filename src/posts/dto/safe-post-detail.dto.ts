@@ -1,13 +1,9 @@
-import {
-  SafePostListSelect,
-  SafePostListDTO,
-} from "@/posts/dto/safe-post-list.dto";
-import {
-  SafeCommentDTO,
-  SafeCommentSelect,
-} from "@/comments/dto/safe-comment.dto";
+import { SafeCommentSelect } from "@/comments/dto/safe-comment.dto";
+import type { SafeCommentDTO } from "@/comments/dto/safe-comment.dto";
+import { SafePostListSelect } from "@/posts/dto/safe-post-list.dto";
+import type { SafePostListDTO } from "@/posts/dto/safe-post-list.dto";
 
-import { Prisma } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 
 /**
  * Extended safe representation of a Post used for detailed views

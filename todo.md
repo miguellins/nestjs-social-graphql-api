@@ -43,11 +43,9 @@ deleteComment(commentId: Int!): DeleteResponse!
 //---//---//---// //---//---//---//
 //---//---//---// //---//---//---//
 
-# ABOUT ZOD VALIDATION:
+# PROMPT:
 
-Reset all data from DATABASE
-Check all Queries and Mutations:
-Test everything
+Check all .dto and .model files with JSDoc file and edit the comment to be more simple and direct
 
 //---//---//---// //---//---//---//
 //---//---//---// //---//---//---//
@@ -59,21 +57,7 @@ Test everything
 
 # About Zod:
 
-Consider Zod later for:
-reusable service/domain command schemas in users and posts, if you want to eliminate repeated normalization and support more than just GraphQL entry points
-
-The best long-term structure for this codebase is hybrid:
-
-- GraphQL code-first classes remain the transport/schema layer.
-- Zod becomes the runtime parsing layer for unknown data and reusable domain contracts.
-- Env validation moves to Zod immediately.
-
-What changed:
-
-- Added centralized env validation in env.schema.ts and wired it into app.module.ts. Your app now validates required env vars and coerces numeric/boolean config at startup.
-- Moved jwt.strategy.ts off direct process.env reads and onto ConfigService, which is cleaner and aligned with the new env validation.
-- Added Zod runtime parsing for websocket connection params in subscription-connection-params.schema.ts and integrated it into subscriptions.config.ts.
-- Added a Zod-backed internal notification contract in create-notification.schema.ts, and notifications.service.ts now validates payloads before touching Prisma. The existing type alias in create-notification.input.ts remains as the stable import surface.
+CREATE A PROMPT TO EXPLAIN WHAT ZOD DO IN THE PROJECT:
 
 //---//---//---// //---//---//---//
 //---//---//---// //---//---//---//

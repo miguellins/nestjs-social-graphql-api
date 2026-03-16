@@ -1,3 +1,5 @@
+import { InputType } from "@nestjs/graphql";
+
 import {
   IsEmail,
   IsNotEmpty,
@@ -8,8 +10,6 @@ import {
 } from "class-validator";
 
 import { Trim } from "@/common/transformer/trim.transformer";
-
-import { InputType } from "@nestjs/graphql";
 
 /**
  * GraphQL input used to create a user

@@ -1,14 +1,20 @@
-import { Logger } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 
-import { NotificationReadStatus } from "@/notifications/enums/notification-read-status.enum";
-import { NotificationsService } from "./notifications.service";
+import { Logger } from "@nestjs/common";
+
+import { NotificationType } from "@prisma/client";
+
+import { PAGINATION } from "@/common/constants/hard-cap.constants";
 
 import { pubSub } from "@/graphql/subscriptions/pubsub";
-import { PAGINATION } from "@/common/constants/hard-cap.constants";
-import { PrismaService } from "@/prisma.service";
+
+import { NotificationReadStatus } from "@/notifications/enums/notification-read-status.enum";
+
 import { NotificationSelect } from "@/notifications/dto/notifications.dto";
-import { NotificationType } from "@prisma/client";
+
+import { PrismaService } from "@/prisma.service";
+
+import { NotificationsService } from "./notifications.service";
 
 describe("NotificationsService", () => {
   let service: NotificationsService;

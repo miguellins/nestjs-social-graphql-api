@@ -1,10 +1,12 @@
-import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 
-import { PASSWORD_HASH_PREFIX } from "@/common/constants/security.constants";
-import { PasswordService } from "@/common/security/password.service";
+import { ConfigService } from "@nestjs/config";
 
 import * as bcrypt from "bcrypt";
+
+import { PASSWORD_HASH_PREFIX } from "@/common/constants/security.constants";
+
+import { PasswordService } from "@/common/security/password.service";
 
 jest.mock("bcrypt", () => ({
   hash: jest.fn(),

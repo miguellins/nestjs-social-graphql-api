@@ -1,8 +1,8 @@
 import { ArgsType, Field } from "@nestjs/graphql";
+
 import { IsOptional, IsString, MaxLength } from "class-validator";
 
 import { PaginationArgs } from "@/common/args/pagination.args";
-
 import { Trim } from "@/common/transformer/trim.transformer";
 
 const MAX_QUERY_LENGTH = 50;
