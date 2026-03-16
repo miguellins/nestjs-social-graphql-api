@@ -18,20 +18,9 @@ registerEnumType(NotificationType, {
 });
 
 /**
- * GraphQL Object Type representing a user notification
+ * GraphQL model for notifications
  *
- * What it does:
- * - Defines the API contract used by notification queries/subscriptions
- * - Provides recipient-safe event metadata for client rendering
- * - Supports read state, timestamps, and optional related entity references
- *
- * Design philosophy:
- * - Notification objects should include enough context for UX
- * - Keep relational data minimal through dedicated preview objects
- *
- * Performance benefit:
- * - Flat scalar fields plus lightweight actor preview reduce payload cost
- * - Works well for polling and real-time subscription streams
+ * Exposes the public notification fields returned by the API
  */
 
 /** Notification entity delivered to a recipient user. */

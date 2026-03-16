@@ -1,7 +1,9 @@
 import { z } from "zod";
 
 /**
- * Defines the runtime create-comment payload used by CommentsService
+ * Zod schema for comment creation
+ *
+ * Validates comment data for the service layer
  */
 
 export const createCommentCommandSchema = z.object({

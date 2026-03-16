@@ -3,21 +3,9 @@ import { NotificationType } from "@prisma/client";
 import type { Prisma } from "@prisma/client";
 
 /**
- * Safe Notification DTO
+ * Internal notification DTO and Prisma select
  *
- * What it does:
- * - Defines the exact notification shape returned by the service layer
- * - Includes only public-safe relational actor preview fields
- * - Creates a strict contract between Prisma query result and API mapping
- *
- * Why it exists:
- * - Avoids returning raw Prisma Notification model objects
- * - Prevents accidental inclusion of unrelated/internal fields
- * - Keeps notification payloads predictable for clients
- *
- * Design philosophy:
- * - Services return DTOs, not database models
- * - Select and DTO must stay aligned for type-safe responses
+ * Defines the safe notification shape used by services
  */
 
 export type SafeNotificationDTO = {

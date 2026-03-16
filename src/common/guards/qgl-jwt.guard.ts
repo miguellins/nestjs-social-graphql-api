@@ -14,6 +14,12 @@ import { OperationTypeNode } from "graphql";
 
 import type { Request } from "express";
 
+/**
+ * GraphQL JWT guard
+ *
+ * Enforces authentication on protected GraphQL operations
+ */
+
 type AuthenticatedUser = {
   id: number;
 };

@@ -5,9 +5,9 @@ import type {
 } from "@nestjs/graphql";
 
 /**
- * Normalizes short output text before returning it to the client
- * - trims leading/trailing whitespace
- * - collapses repeated internal whitespace
+ * GraphQL field middleware for text output
+ *
+ * Trims string values before they are returned
  */
 
 // Middleware that trims and normalizes whitespace in GraphQL string field outputs

@@ -1,40 +1,15 @@
-import { SafeCommentSelect } from "@/comments/dto/safe-comment.dto";
 import type { SafeCommentDTO } from "@/comments/dto/safe-comment.dto";
-import { SafePostListSelect } from "@/posts/dto/safe-post-list.dto";
+import { SafeCommentSelect } from "@/comments/dto/safe-comment.dto";
+
 import type { SafePostListDTO } from "@/posts/dto/safe-post-list.dto";
+import { SafePostListSelect } from "@/posts/dto/safe-post-list.dto";
 
 import type { Prisma } from "@prisma/client";
 
 /**
- * Extended safe representation of a Post used for detailed views
+ * Internal post detail DTO and Prisma select
  *
- * What it does:
- * - Builds on top of SafePostListDTO to avoid duplication
- * - Adds fields required for richer post queries
- * - Maintains a safe contract between the services layer and API
- *
- * Why extend instead of rewrite:
- * - Promotes DRY principle (Dont repeat yourself)
- * - Keeps list and detail responses consistent
- * - Makes future schema changes safer and easier
- *
- * Added fields:
- * - 'updatedAt' helps clients detect edits and refresh caches
- * - 'viewsCount' exposes how many times the post detail was viewed
- * - '_count.comments' exposes the number of related comments
- * - 'likes' provides a preview of engagement without requiring another query
- * - 'comments' provides a lightweight preview of post discussion
- *
- * Design decision:
- * - The likes array contains a lightweight user preview instead of the full User object
- * - The comments array contains a safe nested comment preview
- *
- * Scalability note:
- * - 'likes' and 'comments' should be limited in the service layer when needed prevent
- * large payloads and DB strain
- *
- * Important:
- * This DTO should only be used for single-post / detail endpoints
+ * Defines the safe post detail shape used by services
  */
 
 export type SafePostDetailDTO = SafePostListDTO & {

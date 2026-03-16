@@ -10,6 +10,12 @@ import { FindFollowsArgs } from "@/follows/args/find-follows.args";
 import { FollowsService } from "@/follows/follows.service";
 import { Follow } from "@/follows/models/follows.model";
 
+/**
+ * GraphQL resolver for follows
+ *
+ * Exposes follow queries and mutations
+ */
+
 @Resolver(() => Follow)
 export class FollowsResolver {
   constructor(private readonly followsService: FollowsService) {}

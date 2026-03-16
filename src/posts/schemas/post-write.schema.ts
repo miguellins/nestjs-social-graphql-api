@@ -1,7 +1,9 @@
 import { z } from "zod";
 
 /**
- * Defines the runtime post write payloads used by PostsService
+ * Zod schemas for post writes
+ *
+ * Validates create and update data for the post service
  */
 
 export const createPostCommandSchema = z.object({

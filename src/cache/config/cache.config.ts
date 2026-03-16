@@ -7,10 +7,9 @@ import KeyvRedis from "@keyv/redis";
 import Keyv from "keyv";
 
 /**
- * Async CacheModule configuration for the application's global Redis-backed cache
+ * Cache module configuration
  *
- * Builds a Keyv store on top of Redis and uses SuperJSON so cached values keep
- * richer JavaScript types while remaining portable across cache reads/writes
+ * Builds the Redis-backed cache store for the app
  */
 
 export const cacheModuleConfig: CacheModuleAsyncOptions = {

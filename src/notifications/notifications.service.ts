@@ -18,7 +18,9 @@ import { NotificationSelect } from "@/notifications/dto/notifications.dto";
 import { PrismaService } from "@/prisma.service";
 
 /**
- * Handles notification creation, delivery, and read-state queries
+ * Service for notification workflows
+ *
+ * Creates, lists, and updates notifications
  */
 
 type PaginationParams = {

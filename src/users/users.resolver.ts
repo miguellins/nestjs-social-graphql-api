@@ -13,7 +13,9 @@ import { SafeUser } from "@/users/models/safe-user.model";
 import { UsersService } from "@/users/users.service";
 
 /**
- * Responsible for resolving fields of the SafeUser GraphQL type
+ * GraphQL resolver for users
+ *
+ * Exposes user queries and mutations
  */
 
 @Resolver(() => SafeUser)

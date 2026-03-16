@@ -1,7 +1,9 @@
 import { z } from "zod";
 
 /**
- * Defines and validates the application's environment configuration
+ * Zod schema for environment variables
+ *
+ * Validates required configuration at startup
  */
 
 // Parses positive integer environment values

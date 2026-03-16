@@ -10,6 +10,12 @@ import { Follow } from "@/follows/models/follows.model";
 import { Like } from "@/likes/models/likes.model";
 import { Post } from "@/posts/models/posts.model";
 
+/**
+ * GraphQL model for users
+ *
+ * Defines the full user shape available in the schema
+ */
+
 @ObjectType()
 export class User {
   @Field(() => ID)

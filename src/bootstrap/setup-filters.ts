@@ -3,10 +3,9 @@ import type { INestApplication } from "@nestjs/common";
 import { GlobalGqlExceptionFilter } from "@/common/filters/gql-exception.filter";
 
 /**
- * Registers the global GraphQL exception filter used across the application
+ * Bootstrap helper for global filters
  *
- * This keeps Prisma errors and Nest HTTP exceptions normalized before they
- * are returned to GraphQL clients
+ * Registers the GraphQL exception filter
  */
 
 export function setupFilters(app: INestApplication): void {

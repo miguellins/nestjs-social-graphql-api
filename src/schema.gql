@@ -2,12 +2,21 @@
 # THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
 # ------------------------------------------------------
 
+"""
+GraphQL type for delete results
+
+Returns the success state of delete operations
+"""
 type DeleteResponse {
   """Human-readable message describing the result of the mutation."""
   message: String!
 }
 
-"""Aggregated user relationship counts"""
+"""
+GraphQL model for user counts
+
+Exposes aggregate user metrics for API responses
+"""
 type UserCounts {
   """Total posts created by the user"""
   posts: Int!
@@ -22,7 +31,11 @@ type UserCounts {
   following: Int!
 }
 
-"""Public GraphQL user model"""
+"""
+GraphQL model for safe users
+
+Exposes the non-sensitive user fields returned by the API
+"""
 type SafeUser implements PublicUserIdentity {
   id: ID!
   name: String!
@@ -50,12 +63,9 @@ A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date
 scalar DateTime
 
 """
-Lightweight public-safe representation of a notification actor
+GraphQL model for notification actors
 
-What it does:
-- Exposes only minimal actor data required by notification UIs
-- Prevents sensitive user fields from being returned in nested objects
-- Keeps notification payloads small and predictable
+Exposes the public actor fields shown in notifications
 """
 type NotificationActorDTO implements PublicUserIdentity {
   id: ID!
@@ -64,20 +74,9 @@ type NotificationActorDTO implements PublicUserIdentity {
 }
 
 """
-GraphQL Object Type representing a user notification
+GraphQL model for notifications
 
-What it does:
-- Defines the API contract used by notification queries/subscriptions
-- Provides recipient-safe event metadata for client rendering
-- Supports read state, timestamps, and optional related entity references
-
-Design philosophy:
-- Notification objects should include enough context for UX
-- Keep relational data minimal through dedicated preview objects
-
-Performance benefit:
-- Flat scalar fields plus lightweight actor preview reduce payload cost
-- Works well for polling and real-time subscription streams
+Exposes the public notification fields returned by the API
 """
 type NotificationDTO {
   """Unique identifier of the notification record."""
@@ -122,7 +121,11 @@ enum NotificationType {
   POST_LIKED
 }
 
-"""Small public user shape for nested objects"""
+"""
+GraphQL model for user previews
+
+Exposes a minimal public user shape for nested fields
+"""
 type SafeUserPreview implements PublicUserIdentity {
   id: ID!
   name: String!
@@ -130,12 +133,9 @@ type SafeUserPreview implements PublicUserIdentity {
 }
 
 """
-Public-safe GraphQL model returned for comment queries and mutations
+GraphQL model for public comments
 
-What it does:
-- exposes only comment fields that are safe for API clients
-- includes a lightweight author preview for nested rendering
-- defines the GraphQL output contract independently from Prisma select logic
+Exposes the safe comment fields returned by the API
 """
 type SafeCommentDTO {
   """Unique identifier of the comment."""
@@ -161,15 +161,9 @@ type SafeCommentDTO {
 }
 
 """
-Follow relationship between two users
+GraphQL model for follows
 
-What it does:
-- Represents a directional edge: follower - following
-- Exposes both foreign keys + optional user previews
-
-Why SafeUserPreview:
-- Prevents leaking private user fields
-- Keeps nested queries lightweight (better performance)
+Exposes the public follow fields returned by the API
 """
 type Follow {
   """Unique identifier of the follow relationship record."""
@@ -192,29 +186,9 @@ type Follow {
 }
 
 """
-Lightweight representation of a Like used in relational queries
+GraphQL model for post like previews
 
-What it does:
-- Exposes only the essential data needed by the client
-- Prevents returning the full Like or User models
-- Keeps nested responses performant and scalable
-
-Why it exists:
-Returning full relational objects inside arrays (likes - users) can quickly create
-very heavy payloads
-
-This preview pattern ensures:
-- Smaller responses
-- Faster queries
-- Better API scalability
-
-Design philosophy:
-Detail objects should still be optimized
-Even when fetching a single post, nested relations must remain lightweight
-
-Security benefit:
-Uses SafeUserPreview instead of the full User type to avoid leaking sensitive user
-data such as email or password
+Exposes lightweight like data for nested post fields
 """
 type LikePreview {
   """
@@ -230,30 +204,9 @@ type LikePreview {
 }
 
 """
-Aggregated relationship counts for a Post
+GraphQL model for post counts
 
-What it does:
-- Exposes engagement metrics without loading full relational data
-- Prevents expensive nested queries
-- Keeps API responses small and fast
-
-Why it exists:
-Counting in the database is significantly cheaper than returning large arrays
-of related records
-
-Example - Instead of returning 5,000 likes - return { likes: 5000 }
-
-Design philosophy:
-Prefer counts for list and detail views
-Fetch full relations only when truly necessary
-
-Performance benefit:
-- Reduces DB load
-- Improves response time
-- Helps APIs scale under heavy traffic
-
-Future scalability:
-This object can grow safely as product evolves
+Exposes aggregate post metrics for API responses
 """
 type PostCounts {
   """Total number of likes associated with this post."""
@@ -264,28 +217,9 @@ type PostCounts {
 }
 
 """
-Core GraphQL Object Type representing a Post
+GraphQL model for posts
 
-What it does:
-- Defines the base shape of a post returned by the API
-- Exposes only safe, client-ready data
-- Keeps relational depth shallow for better performance
-- Acts as a reusable foundation across queries and mutations
-
-Architecture note:
-Think of this as the shared public post shape used by list queries,
-nested relations, and write operations, while PostDetail remains the
-richer single-resource view
-
-This layered approach is very common in production systems because it allows you
-to scale without rewriting your schema
-
-Security benefit:
-Uses SafeUserPreview to avoid exposing sensitive user fields such as email,
-password, tokens, etc
-
-Performance strategy:
-Includes aggregated counts instead of full relational arrays
+Exposes the public post fields returned by the API
 """
 type Post {
   """
@@ -310,26 +244,9 @@ type Post {
 }
 
 """
-GraphQL ObjectType representing a lightweight Like response
+GraphQL model for like list items
 
-What it does:
-- Exposes only the necessary fields for list queries
-- Prevents deep relational nesting
-- Keeps payload small and predictable
-- Improves performance for high-volume endpoints
-
-Security layer:
-- Uses SafeUserPreview instead of full User
-- Uses Post instead of PostDetail
-- Ensures no sensitive user data is exposed
-
-Design philosophy:
-List endpoints should always return the smallest useful shape
-Heavy objects belong to single-record detail queries
-
-Lightweight DTOs protect both:
-- Database performance
-- API stability
+Exposes public like data for list responses
 """
 type LikeListItem {
   """
@@ -347,6 +264,11 @@ type LikeListItem {
   post: Post!
 }
 
+"""
+GraphQL model for users
+
+Defines the full user shape available in the schema
+"""
 type User {
   id: ID!
   createdAt: DateTime!
@@ -367,25 +289,9 @@ type User {
 }
 
 """
-Full Like GraphQL ObjectType
+GraphQL model for likes
 
-What it represents:
-- A direct mapping of the Like database entity
-- Exposes relational structure between User and Post
-
-Important:
-This is a "raw entity shape"
-It is heavier and more sensitive than LikeListItem
-
-What it does:
-- Exposes relational data (user)
-- Keeps foreign keys visible (userId, postId)
-- Suitable for internal or admin-level queries
-
-Security considerations:
-- Uses full User object (NOT SafeUserPreview)
-- Can expose more user data depending on User model design
-- Should NOT be used in public list endpoints
+Exposes the public like fields returned by the API
 """
 type Like {
   """
@@ -407,27 +313,9 @@ type Like {
 }
 
 """
-Detailed GraphQL Object Type representing a single Post
+GraphQL model for post details
 
-What it does:
-- Provides a rich, client-ready representation of a post
-- Includes relational previews while avoiding heavy nested objects
-- Maintains a safe API contract by exposing only non-sensitive data
-
-When to use:
-This type should be returned ONLY for single-resource queries, such as 'postById'
-
-Design philosophy:
-LIST - lightweight, fast, scalable
-DETAIL - richer, but still optimized
-
-Performance strategy:
-Even though this is a "detail" object, relations are still previews
-Avoid returning full relational trees
-
-Security benefit:
-Uses SafeUserPreview instead of the full User model to prevent accidental exposure
-of private user data
+Exposes the detailed post view returned by the API
 """
 type PostDetail {
   """
@@ -466,10 +354,9 @@ type PostDetail {
 }
 
 """
-GraphQL object returned by authentication operations
+GraphQL payload for authentication responses
 
-Exposes the signed JWT access token that clients use to authenticate
-subsequent protected requests
+Returns the access token after a successful login
 """
 type AuthPayload {
   """JWT access token returned after successful authentication."""
@@ -587,6 +474,11 @@ type Mutation {
   ): DeleteResponse!
 }
 
+"""
+GraphQL input for login requests
+
+Validates the credentials sent by the client
+"""
 input LoginInput {
   """Username used to authenticate the user."""
   username: String!
@@ -596,9 +488,9 @@ input LoginInput {
 }
 
 """
-GraphQL input used to create a user
+GraphQL input for user creation
 
-Validates and trims client input before it reaches the service layer
+Validates and trims registration data
 """
 input CreateUserInput {
   """Public display name chosen by the user."""
@@ -615,9 +507,9 @@ input CreateUserInput {
 }
 
 """
-GraphQL input used to update a user
+GraphQL input for user updates
 
-Supports partial updates and validates provided fields before they reach the service layer
+Validates partial user data before it reaches the service layer
 """
 input UpdateUserInput {
   """Updated public display name."""
@@ -632,26 +524,9 @@ input UpdateUserInput {
 }
 
 """
-GraphQL Input Type used when creating a new Post
+GraphQL input for post creation
 
-What it does:
-- Validates incoming data before it reaches the service layer
-- Prevents empty or malformed posts from being stored
-- Enforces consistent formatting
-- Protects the database from low-quality data
-
-Why this matters:
-- Posts are user-generated content - one of the highest-risk entry points
-
-Strong validation helps prevent:
-- Spam content
-- Accidental empty posts
-- Extremely large payloads
-- Formatting inconsistencies
-
-Security layer:
-- This acts as the first boundary of trust
-- Never rely only on frontend validation
+Validates the data sent to create a post
 """
 input CreatePostInput {
   """Title shown for the post."""
@@ -662,17 +537,9 @@ input CreatePostInput {
 }
 
 """
-GraphQL Input Type used when updating an existing post
+GraphQL input for post updates
 
-What it does:
-- Validates incoming data before it reaches the service layer
-- Allows partial updates (PATCH-style behavior)
-- Normalizes string input to maintain database consistency
-- Prevents empty or malformed values from being stored
-
-Security role:
-- Second defensive layer after authentication
-- Ensures only properly formatted data is processed
+Validates partial post data before it reaches the service layer
 """
 input UpdatePostInput {
   """Title shown for the post."""
@@ -683,13 +550,9 @@ input UpdatePostInput {
 }
 
 """
-GraphQL input used to create a new comment on a post
+GraphQL input for comment creation
 
-What it does:
-- receives the comment text from the client
-- receives the target post ID
-- validates the input before it reaches the service layer
-- trims extra spaces from the comment content
+Validates the data sent to create a comment
 """
 input CreateCommentInput {
   """Unique identifier of the post that will receive the new comment."""

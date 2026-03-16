@@ -1,7 +1,9 @@
 import { z } from "zod";
 
 /**
- * Defines the runtime login payload shape used by AuthService
+ * Zod schema for login commands
+ *
+ * Validates and normalizes login data for the auth service
  */
 
 export const loginCommandSchema = z.object({

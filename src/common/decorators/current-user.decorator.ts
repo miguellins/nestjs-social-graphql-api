@@ -4,8 +4,9 @@ import { GqlExecutionContext } from "@nestjs/graphql";
 import type { GqlContext } from "@/graphql/config/graphql-context.types";
 
 /**
- * GraphQL parameter decorator that extracts the authenticated user
- * from either the HTTP request context or the subscription context
+ * GraphQL parameter decorator for the current user
+ *
+ * Reads the authenticated user from the GraphQL context
  */
 
 export const CurrentUser = createParamDecorator(

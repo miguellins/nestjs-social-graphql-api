@@ -3,12 +3,9 @@ import { Field, ID, Int, ObjectType } from "@nestjs/graphql";
 import { SafeUserPreview } from "@/users/models/safe-user-preview.model";
 
 /**
- * Public-safe GraphQL model returned for comment queries and mutations
+ * GraphQL model for public comments
  *
- * What it does:
- * - exposes only comment fields that are safe for API clients
- * - includes a lightweight author preview for nested rendering
- * - defines the GraphQL output contract independently from Prisma select logic
+ * Exposes the safe comment fields returned by the API
  */
 
 @ObjectType()

@@ -29,7 +29,9 @@ import { PrismaService } from "@/prisma.service";
 import { Prisma } from "@prisma/client";
 
 /**
- * Handles user queries and account-management workflows
+ * Service for user workflows
+ *
+ * Creates, reads, updates, and deletes user accounts
  */
 
 type PaginationParams = {

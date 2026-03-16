@@ -45,7 +45,13 @@ deleteComment(commentId: Int!): DeleteResponse!
 
 # PROMPT:
 
-Check all .dto and .model files with JSDoc file and edit the comment to be more simple and direct
+Create a prompt to see if is suitable:
+Do my project have:
+graphql-depth-limitlimits query nesting depth to prevent deeply nested attacks
+
+dataloaderbatches and caches database calls to solve the N+1 query problem in resolvers
+
+graphql-scalarsyou likely need DateTime, UUID or EmailAddress in your schema
 
 //---//---//---// //---//---//---//
 //---//---//---// //---//---//---//

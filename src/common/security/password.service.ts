@@ -11,7 +11,9 @@ import { createHmac } from "crypto";
 import * as bcrypt from "bcrypt";
 
 /**
- * Centralizes password hashing and verification for the application
+ * Password security service
+ *
+ * Hashes and verifies passwords with pepper support
  */
 
 type PasswordVerificationResult = {

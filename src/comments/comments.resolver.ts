@@ -11,6 +11,12 @@ import { CurrentUser } from "@/common/decorators/current-user.decorator";
 import { THROTTLE_LIMITS } from "@/common/constants/throttle.constants";
 import { DeleteResponse } from "@/common/types/delete-response.type";
 
+/**
+ * GraphQL resolver for comments
+ *
+ * Exposes comment queries and mutations
+ */
+
 @Resolver(() => SafeCommentDTO)
 export class CommentsResolver {
   constructor(private readonly commentsService: CommentsService) {}

@@ -17,7 +17,9 @@ import type { Request, Response } from "express";
 import { join } from "path";
 
 /**
- * Builds the root GraphQL configuration for the application
+ * GraphQL module configuration factory
+ *
+ * Builds the Apollo GraphQL settings for the app
  */
 
 // Creates the GraphQL module options from shared services and config

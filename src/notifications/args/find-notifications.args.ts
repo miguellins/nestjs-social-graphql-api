@@ -6,6 +6,12 @@ import { NotificationReadStatus } from "@/notifications/enums/notification-read-
 
 import { PaginationArgs } from "@/common/args/pagination.args";
 
+/**
+ * GraphQL args for notification queries
+ *
+ * Validates list options and read-status filters
+ */
+
 @ArgsType()
 export class FindNotificationsArgs extends PaginationArgs {
   @IsOptional()

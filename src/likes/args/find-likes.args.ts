@@ -4,6 +4,12 @@ import { IsInt, IsOptional, Min } from "class-validator";
 
 import { PaginationArgs } from "@/common/args/pagination.args";
 
+/**
+ * GraphQL args for like queries
+ *
+ * Validates the target post id and list options
+ */
+
 @ArgsType()
 export class FindLikesArgs extends PaginationArgs {
   // Optional filter by post

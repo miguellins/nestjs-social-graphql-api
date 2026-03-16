@@ -1,9 +1,9 @@
 import type { Prisma } from "@prisma/client";
 
 /**
- * Safe user shape returned by the service layer
+ * Internal user DTO and Prisma select
  *
- * Excludes sensitive fields such as password and email
+ * Defines the safe user shape used by services
  */
 
 export type SafeUserDTO = {

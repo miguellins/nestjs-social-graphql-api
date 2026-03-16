@@ -28,6 +28,12 @@ type FindLikesParams = {
   userId?: number;
 };
 
+/**
+ * Service for like workflows
+ *
+ * Creates, lists, and deletes likes
+ */
+
 @Injectable()
 export class LikesService {
   constructor(

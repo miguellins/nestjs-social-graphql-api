@@ -4,12 +4,9 @@ import { PublicUserIdentity } from "@/users/models/public-user-identity.interfac
 import { SafeUser } from "@/users/models/safe-user.model";
 
 /**
- * Lightweight public-safe representation of a notification actor
+ * GraphQL model for notification actors
  *
- * What it does:
- * - Exposes only minimal actor data required by notification UIs
- * - Prevents sensitive user fields from being returned in nested objects
- * - Keeps notification payloads small and predictable
+ * Exposes the public actor fields shown in notifications
  */
 
 /** Minimal safe representation of the actor who triggered a notification. */

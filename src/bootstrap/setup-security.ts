@@ -3,10 +3,9 @@ import type { INestApplication } from "@nestjs/common";
 import helmet from "helmet";
 
 /**
- * Applies global HTTP security middleware during application bootstrap
+ * Bootstrap helper for security middleware
  *
- * Helmet adds defensive headers for common web vulnerabilities while keeping
- * development ergonomics intact by relaxing CSP outside production
+ * Applies Helmet and related HTTP protections
  */
 
 export function setupSecurity(app: INestApplication): void {

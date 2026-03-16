@@ -25,7 +25,9 @@ import { GqlJwtGuard } from "@/common/guards/qgl-jwt.guard";
 import { validateEnv } from "@/config/env/env.schema";
 
 /**
- * Composes the root application module and global infrastructure setup
+ * Root NestJS application module
+ *
+ * Wires together global infrastructure and feature modules
  */
 
 @Module({

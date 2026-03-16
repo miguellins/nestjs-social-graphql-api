@@ -1,18 +1,7 @@
 /**
- * Centralized rate-limit configuration
+ * Shared throttle configuration
  *
- * limit - how many requests are allowed
- * ttl - time window in seconds
- *
- * Example
- * limit: 60, ttl: 60 = 60 requests every 60 seconds (1 minute)
- *
- * Protect from:
- * - brute force attacks
- * - bot traffic
- * - accidental client retry loops
- * - database overload
- * - destructive abuse
+ * Defines rate limits for application operations
  */
 
 export const THROTTLE_LIMITS = {

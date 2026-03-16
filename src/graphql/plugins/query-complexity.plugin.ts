@@ -17,7 +17,9 @@ import type { GraphQLSchema, SelectionNode } from "graphql";
 import { GraphQLError, Kind } from "graphql";
 
 /**
- * Enforces and logs GraphQL query complexity using validated configuration
+ * GraphQL query complexity plugin
+ *
+ * Rejects operations that exceed the configured complexity limit
  */
 
 type QueryComplexityPluginOptions = {

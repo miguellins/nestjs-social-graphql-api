@@ -2,10 +2,9 @@ import type { INestApplication } from "@nestjs/common";
 import { ValidationPipe } from "@nestjs/common";
 
 /**
- * Configures the global validation pipe used by GraphQL and HTTP requests
+ * Bootstrap helper for request validation
  *
- * This centralizes whitelist enforcement, rejection of unknown fields, and
- * automatic payload transformation into DTO and args classes
+ * Registers the global validation pipe
  */
 
 export function setupValidation(app: INestApplication): void {

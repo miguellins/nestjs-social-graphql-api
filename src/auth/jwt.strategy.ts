@@ -6,7 +6,9 @@ import type { JwtFromRequestFunction } from "passport-jwt";
 import { ExtractJwt, Strategy } from "passport-jwt";
 
 /**
- * Authenticates protected requests with bearer JWT tokens
+ * Passport JWT strategy for GraphQL authentication
+ *
+ * Validates bearer tokens and attaches the user id
  */
 
 type JwtPayload = { sub: number };

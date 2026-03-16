@@ -32,7 +32,9 @@ import type { SafePostListDTO } from "@/posts/dto/safe-post-list.dto";
 import { SafePostListSelect } from "@/posts/dto/safe-post-list.dto";
 
 /**
- * Handles post creation, queries, updates, and deletion workflows
+ * Service for post workflows
+ *
+ * Creates, lists, updates, and deletes posts
  */
 
 type PaginationParams = {

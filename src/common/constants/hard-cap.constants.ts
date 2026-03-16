@@ -1,11 +1,7 @@
 /**
- * Shared pagination and hard-cap values for GraphQL list queries
+ * Shared pagination limit constants
  *
- * MAX_TAKE / DEFAULT_TAKE:
- * - Default and maximum values for general paginated list endpoints
- *
- * MAX_TAKE_LIKES / DEFAULT_TAKE_LIKES:
- * - Default and maximum values for nested likes previews on post detail queries
+ * Defines default and maximum list sizes
  */
 
 export const PAGINATION = {

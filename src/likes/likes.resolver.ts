@@ -11,6 +11,12 @@ import { Like } from "@/likes/models/likes.model";
 import { FindLikesArgs } from "@/likes/args/find-likes.args";
 import { LikesService } from "@/likes/likes.service";
 
+/**
+ * GraphQL resolver for likes
+ *
+ * Exposes like queries and mutations
+ */
+
 @Resolver(() => Like)
 export class LikeResolver {
   constructor(private readonly likesService: LikesService) {}

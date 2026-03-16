@@ -3,26 +3,9 @@ import { Inject, Injectable } from "@nestjs/common";
 import type { Cache } from "@nestjs/cache-manager";
 
 /**
- * CacheHelperService
+ * Cache helper service
  *
- * Centralized infrastructure service responsible for handling application-level
- * caching logic
- *
- * Responsibilities:
- * - Abstract direct interaction with NestJS CacheManager
- * - Provide explicit read and write cache methods
- * - Implement read-through caching pattern (getOrSet)
- * - Support scalable list invalidation via version keys
- *
- * Architectural role:
- * - Infrastructure layer (not business/domain logic)
- * - Used by Posts, Users, Likes, Follows, and Comments modules
- * - Keeps services clean and focused on database + validation logic
- *
- * Design goals:
- * - Explicit API: get / set / del / getOrSet
- * - Predictable version-based invalidation
- * - Redis-ready and cluster-safe
+ * Wraps cache reads, writes, and invalidation helpers
  */
 
 @Injectable()

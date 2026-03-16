@@ -12,9 +12,9 @@ import {
 import { Trim } from "@/common/transformer/trim.transformer";
 
 /**
- * GraphQL input used to create a user
+ * GraphQL input for user creation
  *
- * Validates and trims client input before it reaches the service layer
+ * Validates and trims registration data
  */
 
 @InputType()

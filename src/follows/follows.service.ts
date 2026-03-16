@@ -23,7 +23,9 @@ import { NotificationType, Prisma } from "@prisma/client";
 import { PrismaService } from "@/prisma.service";
 
 /**
- * Handles follow queries and follow-management workflows
+ * Service for follow workflows
+ *
+ * Creates, lists, and deletes follow relationships
  */
 
 @Injectable()

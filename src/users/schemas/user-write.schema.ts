@@ -1,7 +1,9 @@
 import { z } from "zod";
 
 /**
- * Defines the runtime user write payloads used by UsersService
+ * Zod schemas for user writes
+ *
+ * Validates create and update data for the user service
  */
 
 const usernameRegex = /^[a-zA-Z0-9_]+$/;

@@ -1,10 +1,9 @@
 import { registerEnumType } from "@nestjs/graphql";
 
 /**
- * Shared GraphQL enum for controlling chronological list ordering
+ * Shared enum for chronological sorting
  *
- * Used by list queries that support switching between newest-first and
- * oldest-first results
+ * Defines list order options and maps them to Prisma sort directions
  */
 
 export enum ChronologicalOrder {

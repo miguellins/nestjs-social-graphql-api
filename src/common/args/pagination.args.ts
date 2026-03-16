@@ -5,6 +5,12 @@ import { IsEnum, IsInt, IsOptional, Max, Min } from "class-validator";
 import { ChronologicalOrder } from "@/common/enums/chronological-order.enum";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
 
+/**
+ * Shared GraphQL args for pagination
+ *
+ * Validates list limits and sort order
+ */
+
 @ArgsType()
 export class PaginationArgs {
   @Field(() => Int, {

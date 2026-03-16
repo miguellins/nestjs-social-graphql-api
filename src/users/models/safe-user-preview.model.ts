@@ -4,7 +4,9 @@ import { PublicUserIdentity } from "@/users/models/public-user-identity.interfac
 import { SafeUser } from "@/users/models/safe-user.model";
 
 /**
- * Small public user shape for nested objects
+ * GraphQL model for user previews
+ *
+ * Exposes a minimal public user shape for nested fields
  */
 
 /** Minimal public user representation for nested fields */

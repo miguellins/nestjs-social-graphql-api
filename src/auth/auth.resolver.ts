@@ -8,6 +8,12 @@ import { AuthService } from "@/auth/auth.service";
 import { THROTTLE_LIMITS } from "@/common/constants/throttle.constants";
 import { Public } from "@/common/decorators/auth.decorator";
 
+/**
+ * GraphQL resolver for authentication
+ *
+ * Exposes the login mutation
+ */
+
 @Resolver()
 export class AuthResolver {
   constructor(private readonly authService: AuthService) {}

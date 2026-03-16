@@ -5,7 +5,9 @@ import { subscriptionConnectionParamsSchema } from "@/graphql/subscriptions/sche
 import type { SubscriptionExtra } from "@/graphql/config/graphql-context.types";
 
 /**
- * Configures GraphQL websocket subscriptions and connection authentication
+ * GraphQL subscriptions configuration
+ *
+ * Authenticates and builds the subscription context
  */
 
 // Builds the GraphQL websocket transport configuration

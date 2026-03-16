@@ -3,7 +3,9 @@ import { NotificationType } from "@prisma/client";
 import { z } from "zod";
 
 /**
- * Defines the runtime notification payload shared across modules
+ * Zod schema for notification creation
+ *
+ * Validates notification data shared across modules
  */
 
 export const createNotificationInputSchema = z.object({

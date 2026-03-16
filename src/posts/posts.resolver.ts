@@ -15,7 +15,9 @@ import { PostDetail } from "@/posts/models/post-detail.model";
 import { Post } from "@/posts/models/posts.model";
 
 /**
- * Responsible for resolving fields of the Post GraphQL type
+ * GraphQL resolver for posts
+ *
+ * Exposes post queries and mutations
  */
 
 @Resolver(() => Post)

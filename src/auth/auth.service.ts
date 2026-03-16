@@ -17,7 +17,9 @@ import { PrismaService } from "@/prisma.service";
 import { Prisma } from "@prisma/client";
 
 /**
- * Handles authentication workflows for the auth module
+ * Service for authentication workflows
+ *
+ * Validates credentials and issues access tokens
  */
 
 @Injectable()

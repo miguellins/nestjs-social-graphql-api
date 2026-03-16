@@ -5,6 +5,12 @@ import { IsOptional, IsString, MaxLength } from "class-validator";
 import { PaginationArgs } from "@/common/args/pagination.args";
 import { Trim } from "@/common/transformer/trim.transformer";
 
+/**
+ * GraphQL args for post queries
+ *
+ * Validates search text and pagination options
+ */
+
 const MAX_QUERY_LENGTH = 50;
 
 @ArgsType()

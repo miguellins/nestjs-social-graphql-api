@@ -11,13 +11,9 @@ import {
 import { Trim } from "@/common/transformer/trim.transformer";
 
 /**
- * GraphQL input used to create a new comment on a post
+ * GraphQL input for comment creation
  *
- * What it does:
- * - receives the comment text from the client
- * - receives the target post ID
- * - validates the input before it reaches the service layer
- * - trims extra spaces from the comment content
+ * Validates the data sent to create a comment
  */
 
 @InputType()

@@ -9,25 +9,9 @@ import {
 import { User } from "@/users/models/users.model";
 
 /**
- * Full Like GraphQL ObjectType
+ * GraphQL model for likes
  *
- * What it represents:
- * - A direct mapping of the Like database entity
- * - Exposes relational structure between User and Post
- *
- * Important:
- * This is a "raw entity shape"
- * It is heavier and more sensitive than LikeListItem
- *
- * What it does:
- * - Exposes relational data (user)
- * - Keeps foreign keys visible (userId, postId)
- * - Suitable for internal or admin-level queries
- *
- * Security considerations:
- * - Uses full User object (NOT SafeUserPreview)
- * - Can expose more user data depending on User model design
- * - Should NOT be used in public list endpoints
+ * Exposes the public like fields returned by the API
  */
 
 /** Core representation of a Like entity. Connects a user to a post and exposes minimal relational data. */

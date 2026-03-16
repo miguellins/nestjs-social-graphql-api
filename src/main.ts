@@ -6,6 +6,12 @@ import { setupFilters } from "@/bootstrap/setup-filters";
 
 import { AppModule } from "@/app.module";
 
+/**
+ * Application bootstrap entry point
+ *
+ * Creates and configures the NestJS server
+ */
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 

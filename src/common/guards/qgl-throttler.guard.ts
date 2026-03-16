@@ -7,6 +7,12 @@ import { OperationTypeNode } from "graphql";
 
 import type { Request, Response } from "express";
 
+/**
+ * GraphQL throttling guard
+ *
+ * Applies request throttling to GraphQL operations
+ */
+
 type GraphQLContext = {
   req: Request;
   res: Response;

@@ -3,25 +3,15 @@ import type { SafeUserPreview } from "@/users/models/safe-user-preview.model";
 import type { Prisma } from "@prisma/client";
 
 /**
+ * Internal follow DTO and Prisma select
+ *
+ * Defines the safe follow shape used by services
+ */
+
+/**
  * Safe Follow DTO
  *
- * What it does:
- * - Defines the exact shape returned by the Follow service
- * - Prevents leaking sensitive user fields
- * - Establishes a strict contract between service layer and API
- *
- * Why it exists:
- * - Avoids returning raw Prisma Follow model
- * - Prevents exposing full User objects
- * - Keeps relational responses lightweight and predictable
- *
- * Security benefit:
- * - Only SafeUserPreview is returned for follower/following
- * - Never exposes email, password, roles, or internal flags
- *
- * Design philosophy:
- * - Services return DTOs, never raw database models
- * - Always expose the smallest safe shape possible
+ * Defines the exact shape returned by the Follow service
  */
 
 export type SafeFollowDTO = {

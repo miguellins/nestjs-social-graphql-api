@@ -1,7 +1,9 @@
 import { z } from "zod";
 
 /**
- * Defines the runtime config shape for GraphQL query-complexity settings
+ * Zod schema for query complexity options
+ *
+ * Validates plugin configuration from the environment
  */
 
 // Parses boolean complexity options from string input

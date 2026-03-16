@@ -19,6 +19,12 @@ import { NotificationDTO } from "@/notifications/models/notification.model";
 import type { GqlContext } from "@/graphql/config/graphql-context.types";
 import { pubSub } from "@/graphql/subscriptions/pubsub";
 
+/**
+ * GraphQL resolver for notifications
+ *
+ * Exposes notification queries and subscriptions
+ */
+
 @Resolver(() => NotificationDTO)
 export class NotificationsResolver {
   constructor(private readonly notificationsService: NotificationsService) {}

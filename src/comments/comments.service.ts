@@ -21,7 +21,9 @@ import { parseWithBadRequest } from "@/common/zod/parse-with-zod";
 import { PrismaService } from "@/prisma.service";
 
 /**
- * Handles comment creation, listing, and deletion workflows
+ * Service for comment workflows
+ *
+ * Creates, lists, and deletes comments
  */
 
 type FindCommentsByPostParams = {

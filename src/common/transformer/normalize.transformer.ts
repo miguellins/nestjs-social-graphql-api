@@ -2,12 +2,9 @@ import type { TransformFnParams } from "class-transformer";
 import { Transform } from "class-transformer";
 
 /**
- * Trims whitespace and converts string to lowercase
- * @example
+ * Class-transformer decorator for normalized text
  *
- * @Normalize()
- * @IsEmail()
- * email: string;
+ * Lowercases and trims string input values
  */
 
 export const Normalize = (): PropertyDecorator =>

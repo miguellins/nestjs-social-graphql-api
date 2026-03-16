@@ -9,10 +9,9 @@ import { GqlArgumentsHost, GqlExceptionFilter } from "@nestjs/graphql";
 import { Prisma } from "@prisma/client";
 
 /**
- * This file centralizes GraphQL error normalization for the application
+ * GraphQL exception filter
  *
- * It maps known Prisma and Nest exceptions into predictable HttpException
- * responses so GraphQL clients receive a consistent error payload
+ * Normalizes Prisma and Nest errors for API responses
  */
 
 type GqlErrorResponseShape = {

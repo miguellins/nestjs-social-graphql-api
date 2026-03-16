@@ -4,7 +4,9 @@ import { PublicUserIdentity } from "@/users/models/public-user-identity.interfac
 import { UserCounts } from "@/users/models/user-counts.model";
 
 /**
- * Public GraphQL user model
+ * GraphQL model for safe users
+ *
+ * Exposes the non-sensitive user fields returned by the API
  */
 
 /** Public user representation with non-sensitive fields */

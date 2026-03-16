@@ -9,15 +9,9 @@ import {
 import { SafeUserPreview } from "@/users/models/safe-user-preview.model";
 
 /**
- * Follow relationship between two users
+ * GraphQL model for follows
  *
- * What it does:
- * - Represents a directional edge: follower - following
- * - Exposes both foreign keys + optional user previews
- *
- * Why SafeUserPreview:
- * - Prevents leaking private user fields
- * - Keeps nested queries lightweight (better performance)
+ * Exposes the public follow fields returned by the API
  */
 
 /** Core representation of a Follow relationship between two users. */

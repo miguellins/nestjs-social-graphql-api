@@ -4,7 +4,9 @@ import type { ZodType } from "zod";
 import { ZodError } from "zod";
 
 /**
- * Wraps Zod parsing and converts validation errors into BadRequestException
+ * Zod parsing helper
+ *
+ * Converts schema validation failures into bad request errors
  */
 
 // Parses input with Zod and throws a Nest bad-request error on validation failure

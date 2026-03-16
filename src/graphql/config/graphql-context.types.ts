@@ -1,6 +1,12 @@
 import type { Request, Response } from "express";
 
 /**
+ * GraphQL context type definitions
+ *
+ * Describes the request and subscription context shape
+ */
+
+/**
  * Extra data attached to a GraphQL WebSocket subscription connection
  *
  * This object lives on `context.extra` for subscription operations and stores

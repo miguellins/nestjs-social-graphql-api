@@ -1,7 +1,9 @@
 import { z } from "zod";
 
 /**
- * Parses websocket connection params and extracts the bearer token
+ * Zod schema for subscription connection params
+ *
+ * Validates authentication data sent during subscription setup
  */
 
 export const subscriptionConnectionParamsSchema = z

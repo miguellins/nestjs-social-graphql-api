@@ -2,12 +2,9 @@ import type { TransformFnParams } from "class-transformer";
 import { Transform } from "class-transformer";
 
 /**
- * Trims whitespace from string values
- * @example
+ * Class-transformer decorator for trimmed text
  *
- * @Trim()
- * @IsString()
- * name: string;
+ * Removes extra whitespace from string input values
  */
 
 export const Trim = (): PropertyDecorator =>

@@ -1,12 +1,9 @@
 import { registerEnumType } from "@nestjs/graphql";
 
 /**
- * GraphQL enum used to filter notifications by read state
+ * GraphQL enum for notification read status
  *
- * Supports returning:
- * - all notifications
- * - only read notifications
- * - only unread notifications
+ * Defines the filters used in notification queries
  */
 
 export enum NotificationReadStatus {

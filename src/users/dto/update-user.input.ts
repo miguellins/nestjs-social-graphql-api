@@ -14,9 +14,9 @@ import { Normalize } from "@/common/transformer/normalize.transformer";
 import { Trim } from "@/common/transformer/trim.transformer";
 
 /**
- * GraphQL input used to update a user
+ * GraphQL input for user updates
  *
- * Supports partial updates and validates provided fields before they reach the service layer
+ * Validates partial user data before it reaches the service layer
  */
 
 @InputType()
