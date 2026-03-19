@@ -152,6 +152,9 @@ export class PostsService {
       PAGINATION.MAX_TAKE_LIKES,
     );
 
+    // Clamp number of comments returned to the allowed pagination bounds
+    const commentsTake = Math.min(PAGINATION.DEFAULT_TAKE, PAGINATION.MAX_TAKE);
+
     let updatedViewCount: number;
 
     try {
@@ -192,6 +195,16 @@ export class PostsService {
               },
 
               select: SafePostDetailSelect.likes.select,
+            },
+
+            comments: {
+              take: commentsTake,
+
+              orderBy: {
+                createdAt: "desc",
+              },
+
+              select: SafePostDetailSelect.comments.select,
             },
           },
         });

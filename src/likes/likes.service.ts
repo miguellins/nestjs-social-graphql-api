@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   Injectable,
   InternalServerErrorException,
+  Logger,
   NotFoundException,
 } from "@nestjs/common";
 
@@ -36,6 +37,8 @@ type FindLikesParams = {
 
 @Injectable()
 export class LikesService {
+  private readonly logger = new Logger(LikesService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly cacheHelper: CacheHelperService,
@@ -169,7 +172,10 @@ export class LikesService {
           entityId: postId,
         });
       } catch (error) {
-        console.error("Failed to create like notification", error);
+        this.logger.error(
+          "Failed to create like notification",
+          error instanceof Error ? error.stack : undefined,
+        );
       }
 
       return like;

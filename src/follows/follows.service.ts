@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Injectable,
   InternalServerErrorException,
+  Logger,
   NotFoundException,
 } from "@nestjs/common";
 
@@ -30,6 +31,8 @@ import { PrismaService } from "@/prisma.service";
 
 @Injectable()
 export class FollowsService {
+  private readonly logger = new Logger(FollowsService.name);
+
   // Injects the services used by follow workflows
   constructor(
     private readonly prisma: PrismaService,
@@ -145,7 +148,10 @@ export class FollowsService {
           entityId: follow.id,
         });
       } catch (error) {
-        console.error("Failed to create follow notification", error);
+        this.logger.error(
+          "Failed to create follow notification",
+          error instanceof Error ? error.stack : undefined,
+        );
       }
 
       return follow;

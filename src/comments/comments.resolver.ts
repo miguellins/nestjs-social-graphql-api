@@ -38,6 +38,7 @@ export class CommentsResolver {
     return this.commentsService.findCommentsByPost({
       postId: args.postId,
       take: args.take,
+      orderBy: args.orderBy,
     });
   }
 

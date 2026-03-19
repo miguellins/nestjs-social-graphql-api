@@ -26,9 +26,7 @@ export function createGraphqlSubscriptionsConfig(jwtService: JwtService) {
         connectionParams?: Record<string, unknown> | null;
         extra: unknown;
       }) => {
-        logger.debug(
-          `WS connection attempt — params: ${JSON.stringify(context.connectionParams)}`,
-        );
+        logger.debug("WS connection attempt");
 
         const extra = context.extra as SubscriptionExtra;
         const token = subscriptionConnectionParamsSchema.parse(

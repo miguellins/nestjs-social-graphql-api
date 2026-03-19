@@ -2,6 +2,7 @@ import {
   ConflictException,
   ForbiddenException,
   InternalServerErrorException,
+  Logger,
   NotFoundException,
 } from "@nestjs/common";
 
@@ -303,6 +304,28 @@ describe("LikesService", () => {
       expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:posts:list");
 
       expect(res).toEqual(like);
+    });
+
+    it("returns like even if notification publish fails", async () => {
+      const loggerErrorSpy = jest
+        .spyOn(Logger.prototype, "error")
+        .mockImplementation(() => undefined);
+
+      const like = { id: 1, userId: 10, postId: 20 };
+      prismaMock.$transaction.mockResolvedValue([like, { id: 20 }]);
+      notificationsMock.createAndPublishNotification.mockRejectedValue(
+        new Error("notify failed"),
+      );
+
+      const res = await service.createLike(10, 20);
+
+      expect(res).toEqual(like);
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        "Failed to create like notification",
+        expect.any(String),
+      );
+
+      loggerErrorSpy.mockRestore();
     });
 
     it("throws ConflictException on P2002 (already liked)", async () => {

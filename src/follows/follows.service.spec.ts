@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
   InternalServerErrorException,
+  Logger,
   NotFoundException,
 } from "@nestjs/common";
 
@@ -238,8 +239,8 @@ describe("FollowsService", () => {
     });
 
     it("returns follow even if notification publish fails", async () => {
-      const consoleErrorSpy = jest
-        .spyOn(console, "error")
+      const loggerErrorSpy = jest
+        .spyOn(Logger.prototype, "error")
         .mockImplementation(() => undefined);
 
       prismaMock.user.findUnique
@@ -255,12 +256,12 @@ describe("FollowsService", () => {
       const res = await service.createFollow(1, 2);
 
       expect(res).toEqual(created);
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
         "Failed to create follow notification",
-        expect.any(Error),
+        expect.any(String),
       );
 
-      consoleErrorSpy.mockRestore();
+      loggerErrorSpy.mockRestore();
     });
 
     it("throws ConflictException on unique constraint (P2002)", async () => {

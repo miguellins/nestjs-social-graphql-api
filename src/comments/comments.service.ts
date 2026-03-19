@@ -83,6 +83,9 @@ export class CommentsService {
     // Invalidate the cached post detail because comments changed
     await this.cacheHelper.del(`posts:detail:${data.postId}`);
 
+    // Invalidate the version key for the posts list since a comment was added
+    await this.cacheHelper.bumpVersion("v:posts:list");
+
     return comment;
   }
 
@@ -167,6 +170,9 @@ export class CommentsService {
 
     // Invalidate the cached post detail because comments changed
     await this.cacheHelper.del(`posts:detail:${comment.postId}`);
+
+    // Bump posts list version since the comment has been deleted
+    await this.cacheHelper.bumpVersion("v:posts:list");
 
     return {
       message: "Comment deleted successfully",

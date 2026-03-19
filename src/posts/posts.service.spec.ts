@@ -168,7 +168,7 @@ describe("PostsService", () => {
   });
 
   describe("getPost", () => {
-    it("returns post and uses likes hard cap defaults in select (take 20) and caches with 60s TTL", async () => {
+    it("returns post and uses bounded preview caps for likes/comments in the detail select", async () => {
       prismaMock.post.update.mockResolvedValue({ viewsCount: 42 });
       prismaMock.post.findUnique.mockResolvedValue({ id: 10, viewsCount: 1 });
 
@@ -200,6 +200,11 @@ describe("PostsService", () => {
             take: 20,
             orderBy: { createdAt: "desc" },
             select: SafePostDetailSelect.likes.select,
+          },
+          comments: {
+            take: 20,
+            orderBy: { createdAt: "desc" },
+            select: SafePostDetailSelect.comments.select,
           },
         },
       });

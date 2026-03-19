@@ -48,8 +48,10 @@ describe("CommentsService", () => {
 
   const cacheMock: {
     del: jest.Mock;
+    bumpVersion: jest.Mock;
   } = {
     del: jest.fn(),
+    bumpVersion: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -143,6 +145,7 @@ describe("CommentsService", () => {
       );
 
       expect(cacheMock.del).toHaveBeenCalledWith("posts:detail:1");
+      expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:posts:list");
       expect(res).toEqual(created);
     });
   });
@@ -251,6 +254,7 @@ describe("CommentsService", () => {
       const res = await service.deleteComment(1, 10);
 
       expect(cacheMock.del).toHaveBeenCalledWith("posts:detail:3");
+      expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:posts:list");
       expect(res).toEqual({ message: "Comment deleted successfully" });
     });
   });

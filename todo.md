@@ -17,9 +17,41 @@
 
 
 # TO FIX:
-Low: src/comments/comments.resolver.ts (line 22) violates the updated style rule for clean formatting/import hygiene. The constructor has {} spacing that Prettier flags.
+Check if any query was affect by the changes, list all of them and what as affected
+Should i create a .env for prod or dev?
 
-Low: src/notifications/notifications.service.ts (line 37) has the same formatting issue in the constructor and is also flagged by Prettier.
+
+ - [`likes.service.ts`] and [`follows.service.ts`] still use `console.error` for best-effort notification failures; switching to Nest `Logger` is reasonable but not required.
+
+- [`qgl-throttler.guard.ts`] skips subscription operations entirely, so subscription throttling is effectively a separate design problem; I left that alone.
+
+- Offset `take` pagination is acceptable at your current small caps, though cursor pagination would scale better for very large feeds per Prisma docs.
+
+- Notification logging style in likes/follows: worth a separate low-risk cleanup, but not required for correctness.
+
+- Subscription throttling design: current guard intentionally skips subscription operations, and a real fix there needs a broader WS-specific decision.
+
+
+
+
+Why dont use the ChronologicalOrder in this orderby?:
+/src/posts/posts.service.ts b/src/posts/posts.service.ts
+             likes: {
+               take: likesTake,
+               orderBy: {
+                 createdAt: "desc",
+               },
+               select: SafePostDetailSelect.likes.select,
+             },
++            comments: {
++              take: commentsTake,
++              orderBy: {
++                createdAt: "desc",
++              },
++              select: SafePostDetailSelect.comments.select,
++            },
+
+
 
 
 //---//---//---// //---//---//---//
