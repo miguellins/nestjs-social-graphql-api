@@ -34,7 +34,7 @@ export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
 
   // Injects the services used by notification workflows
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   // Creates a notification record and publishes it to subscribers
   async createAndPublishNotification(

@@ -4,7 +4,36 @@
 - CREATE AN BIG AND WELL EXPLAINING PROMPT TO CODEX CREATE README.MD FILE - ASKS IF GRAPHQL QUERIES SHOULD BE INSIDE THE FILE
 - UPDATE THE .GITIGNORE FILE
 
+
 //---//---//---// //---//---//---//
+
+
+# NEXT FEATURE
+- Search for Database/Prisma (separate in md) best practices and create a prompt to add in the AGENTS.md and check my project
+- Search for Error Handling (see if there is difference for pure typescript, for NestJs or for Prisma) best practices, list all of them and add them to AGENTS.md
+
+
+//---//---//---// //---//---//---//
+
+
+# TO FIX:
+Low: src/comments/comments.resolver.ts (line 22) violates the updated style rule for clean formatting/import hygiene. The constructor has {} spacing that Prettier flags.
+
+Low: src/notifications/notifications.service.ts (line 37) has the same formatting issue in the constructor and is also flagged by Prettier.
+
+
+//---//---//---// //---//---//---//
+
+
+# TEXT TO CONVERT TO PROMPT IN GPT
+
+
+
+
+
+
+//---//---//---// //---//---//---//
+
 
 # Current Operation Signatures
 
@@ -39,25 +68,4 @@ deleteFollow(id: Int!): DeleteResponse!
 createComment(input: CreateCommentInput!): SafeCommentDTO!
 deleteComment(commentId: Int!): DeleteResponse!
 
-//---//---//---// //---//---//---//
-//---//---//---// //---//---//---//
-
-
-# PROMPT
-# RULES
-
-
-Create a dependecies.md file with the depencies (exclude the)
-
-
-//---//---//---// //---//---//---//
-//---//---//---// //---//---//---//
-
-
-# About Zod:
-
-CREATE A PROMPT TO EXPLAIN WHAT ZOD DO IN THE PROJECT:
-
-
-//---//---//---// //---//---//---//
 //---//---//---// //---//---//---//

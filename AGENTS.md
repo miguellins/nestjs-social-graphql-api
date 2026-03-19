@@ -15,7 +15,7 @@ This file defines the working rules for contributors and coding agents in this r
 - API style: GraphQL code-first with Apollo
 - Database: Prisma + MySQL
 - Cache: `@nestjs/cache-manager` + Keyv + Redis
-- Validation: `class-validator` at GraphQL DTO boundary and `zod` inside service command parsing
+- Validation: `class-validator` at the GraphQL DTO boundary, and `zod` for service-layer command parsing in modules that follow that pattern
 - Auth: JWT with Passport, GraphQL-aware guards, public resolver opt-out via `@Public()`
 - Language: TypeScript with strict-ish compiler settings and type-aware ESLint
 
@@ -26,6 +26,7 @@ This file defines the working rules for contributors and coding agents in this r
 - Do not expose sensitive Prisma fields directly through GraphQL models. Use safe DTO/select patterns already present in the repo.
 - Do not bypass validation. GraphQL inputs must use DTO classes with decorators, and service-layer commands must be parsed with the module’s Zod schema when that pattern already exists.
 - Do not remove pagination caps. Always clamp `take` using `PAGINATION` constants.
+- Never return unlimited rows from list-style queries.
 - Do not introduce wildcard cache deletion. Use detail-key deletion plus version-key bumps for list invalidation.
 - Do not leak internal error details to GraphQL clients. Throw explicit Nest exceptions or sanitized fallback errors.
 - Do not put business logic in modules, decorators, or bootstrap helpers.
@@ -36,8 +37,9 @@ This file defines the working rules for contributors and coding agents in this r
 - Keep feature code grouped by module under `src/<feature>/`.
 - Follow the existing folder split when adding module files.
 - `args/` is for GraphQL argument classes.
-- `dto/` is for GraphQL input/output DTO helpers and Prisma select constants.
-- `models/` is for GraphQL object types.
+- `dto/` is for GraphQL inputs, output DTO helpers, and Prisma select constants.
+- `models/` is for GraphQL object types when the module follows that convention.
+- If a module already exposes GraphQL object types from `dto/`, preserve that module’s existing pattern instead of forcing a move to `models/`.
 - `schemas/` is for Zod command schemas.
 - `<feature>.service.ts` contains domain logic.
 - `<feature>.resolver.ts` contains GraphQL entry points.
@@ -47,7 +49,7 @@ This file defines the working rules for contributors and coding agents in this r
 
 ## Naming Rules
 
-- Name GraphQL object types with domain-oriented names already used by the repo, such as `SafeUser`, `Post`, `PostDetail`, `NotificationDTO`.
+- Name GraphQL object types using the module’s existing public naming convention, such as `SafeUser`, `Post`, `PostDetail`, or `NotificationDTO`.
 - Name GraphQL input types with the `Input` suffix.
 - Name service-layer Zod command types with the `Command` suffix.
 - Name Zod schemas with clear action names like `createUserCommandSchema`.
@@ -57,8 +59,8 @@ This file defines the working rules for contributors and coding agents in this r
 ## Resolver Rules
 
 - Resolvers should mostly do four things: declare GraphQL shape, attach auth metadata, attach throttling, and pass arguments to services.
-- Public operations must be marked with `@Public()`.
-- Apply `@Throttle()` to every resolver operation using the shared categories in `THROTTLE_LIMITS`.
+- Public queries and mutations must be marked with `@Public()`.
+- Apply `@Throttle()` to every applicable query and mutation using the shared categories in `THROTTLE_LIMITS`.
 - Use `@CurrentUser()` to access the authenticated user instead of reading GraphQL context manually, except when implementing subscription-specific filtering.
 - Prefer `@Args()` argument objects for grouped query params such as pagination and filters.
 - Keep resolver return types explicit when useful for readability and consistency.
@@ -73,12 +75,13 @@ This file defines the working rules for contributors and coding agents in this r
 - Translate known Prisma errors into precise Nest exceptions.
 - Use `InternalServerErrorException` as a sanitized fallback for unexpected persistence failures.
 - Re-throw intentional domain exceptions instead of wrapping them again.
+- Do not wrap entire service methods in broad `try/catch` blocks unless needed for Prisma error mapping, external side-effect handling, or sanitized fallback errors.
 
 ## Validation Rules
 
 - GraphQL boundary validation belongs in DTO/input classes with `class-validator`.
 - Input normalization at the DTO boundary should use existing transformers such as `@Trim()`.
-- Service-level command parsing belongs in Zod schemas under `schemas/`.
+- When a module uses service-level command parsing, keep its Zod schemas under `schemas/`.
 - When parsing with Zod in services, use `parseWithBadRequest(...)` unless there is a deliberate reason to throw the raw Zod error.
 - Keep normalization rules consistent with existing behavior.
 - Trim user-entered text where appropriate.
@@ -119,6 +122,7 @@ This file defines the working rules for contributors and coding agents in this r
 - Use version bumps for list invalidation.
 - Keep cache keys deterministic and parameter-aware.
 - When a write affects related entities, invalidate related caches too.
+- Invalidate only the caches actually affected by the write. Do not use broad cache invalidation when a precise detail-key delete plus version bump is enough.
 - Existing example: creating a post bumps post lists and invalidates user-related cached views.
 - Existing example: creating/deleting comments invalidates post detail.
 - Existing example: updating/deleting a post invalidates its detail and bumps list versions.
@@ -134,7 +138,7 @@ This file defines the working rules for contributors and coding agents in this r
 ## DTO and Model Rules
 
 - Keep GraphQL input classes focused on input validation and transformation.
-- Keep GraphQL object models aligned with what the API returns, not with full Prisma models.
+-- Keep GraphQL object models/DTOs aligned with what the API returns, not with full Prisma models.
 - Never expose secrets such as password hashes.
 - Prefer explicit safe DTO/select exports like `SafeUserSelect`, `SafePostListSelect`, and `NotificationSelect`.
 - If a field is nullable in GraphQL, declare it intentionally with the appropriate decorator options.
@@ -165,7 +169,10 @@ This file defines the working rules for contributors and coding agents in this r
 ## Style Rules
 
 - Match the current import style: external imports first, internal `@/` imports next, type-only imports where appropriate.
-- Keep comments useful and specific. This repo already uses explanatory comments for intent-heavy logic; preserve that style without narrating trivial code.
+- Keep imports grouped, minimal, stable, and free of unused entries.
+- Avoid mixing many import styles unnecessarily.
+- Prefer the repository's established `@/` alias for internal imports.
+- Keep comments useful and specific.
 - Prefer explicit local variables for normalized values and cache keys.
 - Keep functions and methods readable over overly compact.
 - Stay compatible with the current TypeScript and ESLint configuration. Do not introduce patterns that fight type-aware linting without a reason.
@@ -199,3 +206,12 @@ This file defines the working rules for contributors and coding agents in this r
 - Auth, throttling, cache invalidation, and pagination rules are respected.
 - Tests cover the changed behavior.
 - Lint and tests should pass before considering the work complete.
+
+## Final Check Before Completion
+
+- Code compiles cleanly.
+- Lint passes.
+- Tests for changed behavior are updated.
+- GraphQL schema changes are code-first and not manually edited in generated files.
+- Auth, throttling, pagination, and cache invalidation rules are preserved.
+- No sensitive fields are exposed.
