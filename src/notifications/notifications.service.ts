@@ -6,6 +6,7 @@ import {
 } from "@/common/enums/chronological-order.enum";
 import { DeleteResponse } from "@/common/types/delete-response.type";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
+import { parseWithBadRequest } from "@/common/zod/parse-with-zod";
 
 import { pubSub } from "@/graphql/subscriptions/pubsub";
 
@@ -33,13 +34,17 @@ export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
 
   // Injects the services used by notification workflows
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   // Creates a notification record and publishes it to subscribers
   async createAndPublishNotification(
     input: CreateNotificationInput,
   ): Promise<SafeNotificationDTO | null> {
-    const data = createNotificationInputSchema.parse(input);
+    const data = parseWithBadRequest(
+      createNotificationInputSchema,
+      input,
+      "Invalid notification input",
+    );
 
     // Do not create notifications for your own actions
     if (data.recipientId === data.actorId) return null;

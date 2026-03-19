@@ -1,5 +1,4 @@
 # AFTER EVERYTHING IS DONE:
-
 - ADD DOCKER
 - ADD GIT LAB
 - CREATE AN BIG AND WELL EXPLAINING PROMPT TO CODEX CREATE README.MD FILE - ASKS IF GRAPHQL QUERIES SHOULD BE INSIDE THE FILE
@@ -43,65 +42,22 @@ deleteComment(commentId: Int!): DeleteResponse!
 //---//---//---// //---//---//---//
 //---//---//---// //---//---//---//
 
-# PROMPT:
 
-Create a prompt to see if is suitable:
-Do my project have:
-graphql-depth-limitlimits query nesting depth to prevent deeply nested attacks
+# PROMPT
+# RULES
 
-dataloaderbatches and caches database calls to solve the N+1 query problem in resolvers
 
-graphql-scalarsyou likely need DateTime, UUID or EmailAddress in your schema
+Create a dependecies.md file with the depencies (exclude the)
+
 
 //---//---//---// //---//---//---//
 //---//---//---// //---//---//---//
 
-## Prompt for Clean Up
-
-//---//---//---// //---//---//---//
-//---//---//---// //---//---//---//
 
 # About Zod:
 
 CREATE A PROMPT TO EXPLAIN WHAT ZOD DO IN THE PROJECT:
 
-//---//---//---// //---//---//---//
-//---//---//---// //---//---//---//
 
 //---//---//---// //---//---//---//
-//---//---//---// //---//---//---//
-
-//---//---//---// //---//---//---//
-//---//---//---// //---//---//---//
-
-### Recommended Architecture
-
-//---//---//---// //---//---//---//
-//---//---//---// //---//---//---//
-
-### Recommended Folder Structure
-
-//---//---//---// //---//---//---//
-//---//---//---// //---//---//---//
-
-//---//---//---// //---//---//---//
-//---//---//---// //---//---//---//
-
-//---//---//---// //---//---//---//
-
-## SUGGESTED IMPLEMENTATION EXAMPLES:
-
-## RECOMMENDATION FOR YOUR PROJECT:
-
-//---//---//---// //---//---//---//
-
-# NEXT PROMPT (FOR NOT INTERRUPT THE LOGIC IN THE CHAT):
-
-//---//---//---// //---//---//---//
-
-# NEXT IDEA:
-
-- BEST PRISMA DATABASE SECURITY MEASURES - IN THE VERSION IM USING
-- ADD SOFT DELETE IN PRISMA WHERE IS A GOOD IDEA AND IF ITS NEDDED
-
 //---//---//---// //---//---//---//

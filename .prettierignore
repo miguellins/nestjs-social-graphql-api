@@ -4,3 +4,4 @@ coverage
 src/schema.gql
 prisma/migrations
 package-lock.json
+*.md

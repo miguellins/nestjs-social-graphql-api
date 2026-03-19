@@ -19,9 +19,9 @@ import { DeleteResponse } from "@/common/types/delete-response.type";
 
 @Resolver(() => SafeCommentDTO)
 export class CommentsResolver {
-  constructor(private readonly commentsService: CommentsService) {}
+  constructor(private readonly commentsService: CommentsService) { }
 
-  @Throttle({ default: THROTTLE_LIMITS.READ })
+  @Throttle({ default: THROTTLE_LIMITS.MUTATION })
   @Mutation(() => SafeCommentDTO, { name: "createComment" })
   async createComment(
     @Args() args: CreateCommentArgs,

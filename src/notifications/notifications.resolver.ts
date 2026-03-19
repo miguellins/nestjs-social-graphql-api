@@ -97,6 +97,7 @@ export class NotificationsResolver {
       return payload.notificationReceived.recipientId === subscriberId;
     },
   })
+  @Throttle({ default: THROTTLE_LIMITS.LIST })
   notificationReceived() {
     return pubSub.asyncIterableIterator("notificationReceived");
   }
