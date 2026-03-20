@@ -1,7 +1,6 @@
 import {
   BadRequestException,
   ForbiddenException,
-  InternalServerErrorException,
   NotFoundException,
 } from "@nestjs/common";
 
@@ -293,12 +292,12 @@ describe("PostsService", () => {
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
-    it("throws InternalServerErrorException for unknown errors", async () => {
+    it("lets unexpected create errors bubble for the global filter to normalize", async () => {
       prismaMock.post.create.mockRejectedValue(new Error("boom"));
 
       await expect(
         service.createPost({ title: "Test", content: "Content" }, 1),
-      ).rejects.toBeInstanceOf(InternalServerErrorException);
+      ).rejects.toThrow("boom");
     });
   });
 
@@ -374,12 +373,12 @@ describe("PostsService", () => {
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
-    it("throws InternalServerErrorException for unexpected errors", async () => {
+    it("lets unexpected update errors bubble for the global filter to normalize", async () => {
       prismaMock.post.findUnique.mockRejectedValue(new Error("boom"));
 
-      await expect(
-        service.updatePost(1, { title: "okay" }, 1),
-      ).rejects.toBeInstanceOf(InternalServerErrorException);
+      await expect(service.updatePost(1, { title: "okay" }, 1)).rejects.toThrow(
+        "boom",
+      );
     });
   });
 
@@ -428,12 +427,10 @@ describe("PostsService", () => {
       );
     });
 
-    it("throws InternalServerErrorException for unexpected errors", async () => {
+    it("lets unexpected delete errors bubble for the global filter to normalize", async () => {
       prismaMock.post.findUnique.mockRejectedValue(new Error("boom"));
 
-      await expect(service.deletePost(1, 1)).rejects.toBeInstanceOf(
-        InternalServerErrorException,
-      );
+      await expect(service.deletePost(1, 1)).rejects.toThrow("boom");
     });
   });
 });

@@ -1,6 +1,8 @@
+import { Inject, Injectable, Logger } from "@nestjs/common";
 import { CACHE_MANAGER } from "@nestjs/cache-manager";
-import { Inject, Injectable } from "@nestjs/common";
 import type { Cache } from "@nestjs/cache-manager";
+
+import { runBestEffort } from "@/common/errors/run-best-effort";
 
 /**
  * Cache helper service
@@ -10,6 +12,8 @@ import type { Cache } from "@nestjs/cache-manager";
 
 @Injectable()
 export class CacheHelperService {
+  private readonly logger = new Logger(CacheHelperService.name);
+
   constructor(@Inject(CACHE_MANAGER) private readonly cache: Cache) {}
 
   /**
@@ -75,7 +79,15 @@ export class CacheHelperService {
 
     const data = await factory();
 
-    await this.set(key, data, ttlMs);
+    // Keep cache population failures from masking a successful factory result
+    await runBestEffort(
+      this.logger,
+      "error",
+      `Failed to populate cache for key ${key}`,
+      async () => {
+        await this.set(key, data, ttlMs);
+      },
+    );
 
     return data;
   }

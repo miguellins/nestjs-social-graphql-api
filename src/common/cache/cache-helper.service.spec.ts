@@ -1,4 +1,5 @@
 import { CACHE_MANAGER } from "@nestjs/cache-manager";
+import { Logger } from "@nestjs/common";
 
 import { Test, TestingModule } from "@nestjs/testing";
 
@@ -103,6 +104,30 @@ describe("CacheHelperService", () => {
       expect(factory).toHaveBeenCalledTimes(1);
       expect(cacheMock.set).toHaveBeenCalledWith("k", { ok: true }, 1000);
       expect(res).toEqual({ ok: true });
+    });
+
+    it("returns fresh data even when cache population fails", async () => {
+      const loggerErrorSpy = jest
+        .spyOn(Logger.prototype, "error")
+        .mockImplementation(() => undefined);
+
+      cacheMock.get.mockResolvedValue(undefined);
+      cacheMock.set.mockRejectedValueOnce(new Error("cache down"));
+
+      const factory = jest.fn(() => Promise.resolve({ ok: true }));
+
+      await expect(service.getOrSet("k", factory, 1000)).resolves.toEqual({
+        ok: true,
+      });
+
+      expect(cacheMock.set).toHaveBeenCalledWith("k", { ok: true }, 1000);
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        "Failed to populate cache for key k",
+        expect.any(String),
+      );
+
+      loggerErrorSpy.mockRestore();
+      cacheMock.set.mockResolvedValue(undefined);
     });
 
     it("does NOT set cache when factory throws", async () => {
