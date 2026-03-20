@@ -138,7 +138,7 @@ This file defines the working rules for contributors and coding agents in this r
 ## DTO and Model Rules
 
 - Keep GraphQL input classes focused on input validation and transformation.
--- Keep GraphQL object models/DTOs aligned with what the API returns, not with full Prisma models.
+- Keep GraphQL object models/DTOs aligned with what the API returns, not with full Prisma models.
 - Never expose secrets such as password hashes.
 - Prefer explicit safe DTO/select exports like `SafeUserSelect`, `SafePostListSelect`, and `NotificationSelect`.
 - If a field is nullable in GraphQL, declare it intentionally with the appropriate decorator options.
@@ -176,6 +176,27 @@ This file defines the working rules for contributors and coding agents in this r
 - Prefer explicit local variables for normalized values and cache keys.
 - Keep functions and methods readable over overly compact.
 - Stay compatible with the current TypeScript and ESLint configuration. Do not introduce patterns that fight type-aware linting without a reason.
+
+## Output and Reference Formatting Rules
+
+- When referencing project files in reviews, prompts, summaries, recommendations, or reports, use plain filenames or short repo-relative paths only.
+- Never return markdown links for project files.
+- Never use this format:
+  - `[posts.service.ts](/home/mlins/Desktop/nestjs_graphql/src/posts/posts.service.ts)`
+  - `[name of the file](path)`
+- Never return absolute local filesystem paths in outputs.
+- If the filename is already clear enough, return only the plain filename.
+- If extra context is needed, return a short repo-relative path in plain text, not as a markdown link.
+- Good examples:
+  - `posts.service.ts`
+  - `users.service.ts`
+  - `graphql.config.ts`
+  - `src/posts/posts.service.ts`
+- Bad examples:
+  - `[posts.service.ts](/home/mlins/Desktop/nestjs_graphql/src/posts/posts.service.ts)`
+  - `[users.service.ts](src/users/users.service.ts)`
+  - `[name of the file](path)`
+- Do not add redundant path formatting when the file name is already being returned clearly.
 
 ## Change Management Rules
 
