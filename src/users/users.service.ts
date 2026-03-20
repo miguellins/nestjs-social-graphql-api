@@ -1,7 +1,7 @@
 import {
   ConflictException,
   Injectable,
-  InternalServerErrorException,
+  Logger,
   NotFoundException,
 } from "@nestjs/common";
 
@@ -13,6 +13,7 @@ import { CacheHelperService } from "@/common/cache/cache-helper.service";
 import { PasswordService } from "@/common/security/password.service";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
 import { parseWithBadRequest } from "@/common/zod/parse-with-zod";
+import { runBestEffort } from "@/common/errors/run-best-effort";
 
 import {
   createUserCommandSchema,
@@ -41,6 +42,9 @@ type PaginationParams = {
 
 @Injectable()
 export class UsersService {
+  // Logger for UsersService domain errors and best-effort operations
+  private readonly logger = new Logger(UsersService.name);
+
   // Injects the services used by user workflows
   constructor(
     private readonly prisma: PrismaService,
@@ -108,13 +112,13 @@ export class UsersService {
   // Creates a new user with a hashed password
   async createUser(input: CreateUserCommand): Promise<SafeUserDTO> {
     const data = this.parseCreateUserInput(input);
+    const passwordHash = await this.passwordService.hashPassword(data.password);
+
+    // Store the created user outside the try block so cache refresh can reuse it
+    let user: SafeUserDTO;
 
     try {
-      const passwordHash = await this.passwordService.hashPassword(
-        data.password,
-      );
-
-      const user = await this.prisma.user.create({
+      user = await this.prisma.user.create({
         data: {
           name: data.name,
           email: data.email,
@@ -124,23 +128,14 @@ export class UsersService {
 
         select: SafeUserSelect,
       });
-
-      await this.cacheHelper.set(`user:safe:${user.id}`, user, 5 * 60_000);
-
-      await this.cacheHelper.bumpVersion("v:user:list");
-
-      return user;
     } catch (err) {
-      // Handle known Prisma errors (like unique constraint violations)
       if (err instanceof Prisma.PrismaClientKnownRequestError) {
-        // P2002 = Unique constraint failed
+        // Keep unique-field conflicts explicit instead of deferring to a generic duplicate message.
         if (err.code === "P2002") {
-          // err.meta?.target usually contains which unique field(s) failed
           const target = (
             err.meta as { target?: string[] | string } | undefined
           )?.target;
 
-          // Give a more precise conflict message (professional UX)
           if (Array.isArray(target)) {
             if (target.includes("email")) {
               throw new ConflictException("Email already exists");
@@ -155,9 +150,21 @@ export class UsersService {
         }
       }
 
-      // For anything unexpected, do NOT leak internal details to clients
-      throw new InternalServerErrorException("Failed to create user");
+      throw err;
     }
+
+    // Keep cache refresh failures from masking a committed user creation
+    await runBestEffort(
+      this.logger,
+      "error",
+      `Failed to refresh caches after creating user ${user.id}`,
+      async () => {
+        await this.cacheHelper.set(`user:safe:${user.id}`, user, 5 * 60_000);
+        await this.cacheHelper.bumpVersion("v:user:list");
+      },
+    );
+
+    return user;
   }
 
   // Updates the current user with the provided fields
@@ -189,28 +196,21 @@ export class UsersService {
       );
     }
 
+    // Store the updated user outside the try block so cache refresh can reuse it
+    let updated: SafeUserDTO;
+
     try {
-      const updated = await this.prisma.user.update({
+      updated = await this.prisma.user.update({
         where: { id: currentUserId },
         data,
         select: SafeUserSelect,
       });
-
-      await this.cacheHelper.set(
-        `user:safe:${currentUserId}`,
-        updated, // no DB call; use what we already have
-        5 * 60_000,
-      );
-
-      await this.cacheHelper.bumpVersion("v:user:list");
-
-      return updated;
     } catch (err) {
-      // If user doesnt exist, prisma throws P2025 on update
       if (err instanceof Prisma.PrismaClientKnownRequestError) {
+        // Preserve the local not-found response for update races.
         if (err.code === "P2025") throw new NotFoundException("User not found");
 
-        // P2002 = unique constraints failed (email/username already exists)
+        // Keep unique-field conflicts explicit instead of deferring to a generic duplicate message.
         if (err.code === "P2002") {
           const target = (
             err.meta as { target?: string[] | string } | undefined
@@ -229,39 +229,56 @@ export class UsersService {
         }
       }
 
-      // Unknown error
-      throw new InternalServerErrorException("Failed to update user");
+      throw err;
     }
+
+    // Keep cache refresh failures from masking a committed user update
+    await runBestEffort(
+      this.logger,
+      "error",
+      `Failed to refresh caches after updating user ${currentUserId}`,
+      async () => {
+        await this.cacheHelper.set(
+          `user:safe:${currentUserId}`,
+          updated,
+          5 * 60_000,
+        );
+        await this.cacheHelper.bumpVersion("v:user:list");
+      },
+    );
+
+    return updated;
   }
 
   // Deletes the current user and clears related cache entries
   async deleteUser(currentUserId: number) {
     try {
-      // 'delete' is intentional:
-      // - it guarantees exactly ONE record
-      // - Prisma throws if the user does not exist
       await this.prisma.user.delete({
         where: { id: currentUserId },
       });
-
-      // Remove the deleted user's detail cache
-      await this.cacheHelper.del(`user:safe:${currentUserId}`);
-
-      // Invalidate all cached user lists via version bump
-      await this.cacheHelper.bumpVersion("v:user:list");
-
-      return {
-        message: "User deleted successfully",
-      };
     } catch (err) {
-      // Prisma throws P2025 when record does not exist
       if (err instanceof Prisma.PrismaClientKnownRequestError) {
+        // Preserve the local not-found response for delete races.
         if (err.code === "P2025") throw new NotFoundException("User not found");
       }
 
-      // Do not leak internal DB errors
-      throw new InternalServerErrorException("Failed to delete user");
+      throw err;
     }
+
+    // Keep cache refresh failures from masking a committed user deletion
+    await runBestEffort(
+      this.logger,
+      "error",
+      `Failed to refresh caches after deleting user ${currentUserId}`,
+      async () => {
+        await this.cacheHelper.del(`user:safe:${currentUserId}`);
+        await this.cacheHelper.bumpVersion("v:user:list");
+      },
+    );
+
+    return {
+      message: "User deleted successfully",
+    };
   }
 
   // Parses and normalizes create-user input for the service layer

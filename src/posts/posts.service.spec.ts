@@ -213,11 +213,22 @@ describe("PostsService", () => {
     });
 
     it("throws NotFoundException when post does not exist", async () => {
-      prismaMock.post.update.mockRejectedValue(new Error("not found"));
+      prismaMock.post.update.mockRejectedValue(
+        new Prisma.PrismaClientKnownRequestError("not found", {
+          code: "P2025",
+          clientVersion: "test",
+        }),
+      );
 
       await expect(service.getPost(999)).rejects.toBeInstanceOf(
         NotFoundException,
       );
+    });
+
+    it("rethrows unexpected increment failures instead of misclassifying them as not found", async () => {
+      prismaMock.post.update.mockRejectedValue(new Error("db offline"));
+
+      await expect(service.getPost(999)).rejects.toThrow("db offline");
     });
   });
 

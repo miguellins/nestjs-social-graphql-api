@@ -7,6 +7,7 @@ import {
 import { DeleteResponse } from "@/common/types/delete-response.type";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
 import { parseWithBadRequest } from "@/common/zod/parse-with-zod";
+import { runBestEffort } from "@/common/errors/run-best-effort";
 
 import { pubSub } from "@/graphql/subscriptions/pubsub";
 
@@ -55,16 +56,17 @@ export class NotificationsService {
       select: NotificationSelect,
     });
 
-    try {
-      await pubSub.publish("notificationReceived", {
-        notificationReceived: notification,
-      });
-    } catch (error) {
-      this.logger.error(
-        "Failed to publish notification subscription event",
-        error instanceof Error ? error.stack : undefined,
-      );
-    }
+    // Keep realtime delivery best-effort because the notification write already succeeded
+    await runBestEffort(
+      this.logger,
+      "error",
+      "Failed to publish notification subscription event",
+      async () => {
+        await pubSub.publish("notificationReceived", {
+          notificationReceived: notification,
+        });
+      },
+    );
 
     return notification;
   }

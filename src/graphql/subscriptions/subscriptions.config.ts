@@ -28,21 +28,29 @@ export function createGraphqlSubscriptionsConfig(jwtService: JwtService) {
       }) => {
         logger.debug("WS connection attempt");
 
-        const extra = context.extra as SubscriptionExtra;
-        const token = subscriptionConnectionParamsSchema.parse(
-          context.connectionParams ?? {},
-        );
-
         try {
+          const extra = context.extra as SubscriptionExtra;
+          const token = subscriptionConnectionParamsSchema.parse(
+            context.connectionParams ?? {},
+          );
           const payload = await jwtService.verifyAsync<{ sub: number }>(token);
+
+          // Reject tokens that do not carry the numeric user id expected by subscriptions
+          if (typeof payload.sub !== "number") {
+            throw new Error("Invalid subscription token payload");
+          }
 
           extra.user = {
             id: payload.sub,
           };
 
           logger.debug(`WS authenticated — userId: ${extra.user.id}`);
-        } catch {
-          throw new Error("Invalid or expired websocket token");
+        } catch (error) {
+          // Keep handshake failures explicit for clients without leaking verification details
+          const reason = error instanceof Error ? `: ${error.name}` : "";
+
+          logger.warn(`WS authentication failed${reason}`);
+          throw new Error("Unauthorized");
         }
       },
     },

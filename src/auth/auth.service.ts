@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  HttpException,
   Injectable,
   InternalServerErrorException,
   Logger,
@@ -12,9 +13,9 @@ import type { LoginCommand } from "@/auth/schemas/login-command.schema";
 
 import { PasswordService } from "@/common/security/password.service";
 import { parseWithBadRequest } from "@/common/zod/parse-with-zod";
+import { runBestEffort } from "@/common/errors/run-best-effort";
 
 import { PrismaService } from "@/prisma.service";
-import { Prisma } from "@prisma/client";
 
 /**
  * Service for authentication workflows
@@ -54,17 +55,19 @@ export class AuthService {
         throw new UnauthorizedException("Invalid credentials");
       }
 
+      // Keep legacy-hash upgrades from failing an otherwise successful login
       if (verification.upgradedHash) {
-        try {
-          await this.prisma.user.update({
-            where: { id: user.id },
-            data: { password: verification.upgradedHash },
-          });
-        } catch {
-          this.logger.warn(
-            `Failed to upgrade legacy password hash for userId=${user.id}`,
-          );
-        }
+        await runBestEffort(
+          this.logger,
+          "warn",
+          `Failed to upgrade legacy password hash for userId=${user.id}`,
+          async () => {
+            await this.prisma.user.update({
+              where: { id: user.id },
+              data: { password: verification.upgradedHash },
+            });
+          },
+        );
       }
 
       const payload = { sub: user.id };
@@ -73,16 +76,22 @@ export class AuthService {
         access_token: await this.jwtService.signAsync(payload),
       };
     } catch (err) {
-      if (err instanceof Prisma.PrismaClientKnownRequestError) {
-        throw new InternalServerErrorException("Login failed");
-      }
-
       if (
         err instanceof UnauthorizedException ||
         err instanceof BadRequestException
       ) {
         throw err;
       }
+
+      // Preserve already-sanitized HTTP errors instead of wrapping them again
+      if (err instanceof HttpException) {
+        throw err;
+      }
+
+      this.logger.error(
+        "Unexpected login failure",
+        err instanceof Error ? err.stack : undefined,
+      );
 
       throw new InternalServerErrorException("Login failed");
     }

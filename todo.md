@@ -1,3 +1,9 @@
+# TO REVIEW CHANGES:
+via the Source Control panel
+click the branch name in the bottom-left status bar
+then use the "Compare with..." option to pick master
+
+
 # AFTER EVERYTHING IS DONE:
 - ADD DOCKER
 - ADD GIT LAB
@@ -9,47 +15,20 @@
 
 
 # NEXT FEATURE
-- Search for Database/Prisma (separate in md) best practices and create a prompt to add in the AGENTS.md and check my project
-- Search for Error Handling (see if there is difference for pure typescript, for NestJs or for Prisma) best practices, list all of them and add them to AGENTS.md
 
 
 //---//---//---// //---//---//---//
 
 
 # TO FIX:
-Check if any query was affect by the changes, list all of them and what as affected
-Should i create a .env for prod or dev?
 
+CREATE A PROMPT TO IMPROVE THE CODEX ANSWERS TO FIX THIS:
 
- - [`likes.service.ts`] and [`follows.service.ts`] still use `console.error` for best-effort notification failures; switching to Nest `Logger` is reasonable but not required.
+ADD TO AGENTS.md RULES:
+NEVER ADD THESE PATHS IN THE RETURN OF PROMPTS:
+[posts.service.ts](/home/mlins/Desktop/nestjs_graphql/src/posts/posts.service.ts)
 
-- [`qgl-throttler.guard.ts`] skips subscription operations entirely, so subscription throttling is effectively a separate design problem; I left that alone.
-
-- Offset `take` pagination is acceptable at your current small caps, though cursor pagination would scale better for very large feeds per Prisma docs.
-
-- Notification logging style in likes/follows: worth a separate low-risk cleanup, but not required for correctness.
-
-- Subscription throttling design: current guard intentionally skips subscription operations, and a real fix there needs a broader WS-specific decision.
-
-
-
-
-Why dont use the ChronologicalOrder in this orderby?:
-/src/posts/posts.service.ts b/src/posts/posts.service.ts
-             likes: {
-               take: likesTake,
-               orderBy: {
-                 createdAt: "desc",
-               },
-               select: SafePostDetailSelect.likes.select,
-             },
-+            comments: {
-+              take: commentsTake,
-+              orderBy: {
-+                createdAt: "desc",
-+              },
-+              select: SafePostDetailSelect.comments.select,
-+            },
+Since you already return [posts.service.ts]
 
 
 
@@ -58,6 +37,15 @@ Why dont use the ChronologicalOrder in this orderby?:
 
 
 # TEXT TO CONVERT TO PROMPT IN GPT
+
+
+
+
+
+
+
+**Shared Helper**
+Repeated local logic was real, so I extracted [run-best-effort.ts]. It centralizes the narrow case the global filter cannot help with: post-success follow-up work that should be logged but must not flip a committed operation into an error.
 
 
 

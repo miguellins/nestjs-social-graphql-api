@@ -1,6 +1,7 @@
 import {
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from "@nestjs/common";
 
@@ -17,6 +18,7 @@ import { CacheHelperService } from "@/common/cache/cache-helper.service";
 import { DeleteResponse } from "@/common/types/delete-response.type";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
 import { parseWithBadRequest } from "@/common/zod/parse-with-zod";
+import { runBestEffort } from "@/common/errors/run-best-effort";
 
 import { PrismaService } from "@/prisma.service";
 
@@ -34,6 +36,8 @@ type FindCommentsByPostParams = {
 
 @Injectable()
 export class CommentsService {
+  private readonly logger = new Logger(CommentsService.name);
+
   // Injects the services used by comment workflows
   constructor(
     private readonly prisma: PrismaService,
@@ -80,11 +84,16 @@ export class CommentsService {
       return createdComment;
     });
 
-    // Invalidate the cached post detail because comments changed
-    await this.cacheHelper.del(`posts:detail:${data.postId}`);
-
-    // Invalidate the version key for the posts list since a comment was added
-    await this.cacheHelper.bumpVersion("v:posts:list");
+    // Keep cache refresh failures from masking a committed comment creation
+    await runBestEffort(
+      this.logger,
+      "error",
+      `Failed to invalidate caches after creating comment on post ${data.postId}`,
+      async () => {
+        await this.cacheHelper.del(`posts:detail:${data.postId}`);
+        await this.cacheHelper.bumpVersion("v:posts:list");
+      },
+    );
 
     return comment;
   }
@@ -168,11 +177,16 @@ export class CommentsService {
       });
     });
 
-    // Invalidate the cached post detail because comments changed
-    await this.cacheHelper.del(`posts:detail:${comment.postId}`);
-
-    // Bump posts list version since the comment has been deleted
-    await this.cacheHelper.bumpVersion("v:posts:list");
+    // Keep cache refresh failures from masking a committed comment deletion
+    await runBestEffort(
+      this.logger,
+      "error",
+      `Failed to invalidate caches after deleting comment ${commentId}`,
+      async () => {
+        await this.cacheHelper.del(`posts:detail:${comment.postId}`);
+        await this.cacheHelper.bumpVersion("v:posts:list");
+      },
+    );
 
     return {
       message: "Comment deleted successfully",

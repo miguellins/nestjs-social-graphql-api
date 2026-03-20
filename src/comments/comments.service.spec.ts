@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ForbiddenException,
+  Logger,
   NotFoundException,
 } from "@nestjs/common";
 
@@ -148,6 +149,37 @@ describe("CommentsService", () => {
       expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:posts:list");
       expect(res).toEqual(created);
     });
+
+    it("returns the created comment even if cache invalidation fails", async () => {
+      const loggerErrorSpy = jest
+        .spyOn(Logger.prototype, "error")
+        .mockImplementation(() => undefined);
+
+      prismaMock.post.findUnique.mockResolvedValue({ id: 1 });
+      prismaMock.$transaction.mockResolvedValue({
+        id: 99,
+        content: "hello",
+        authorId: 10,
+        postId: 1,
+      });
+      cacheMock.del.mockRejectedValueOnce(new Error("cache down"));
+
+      await expect(
+        service.createComment({ content: "hello", postId: 1 }, 10),
+      ).resolves.toEqual({
+        id: 99,
+        content: "hello",
+        authorId: 10,
+        postId: 1,
+      });
+
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        "Failed to invalidate caches after creating comment on post 1",
+        expect.any(String),
+      );
+
+      loggerErrorSpy.mockRestore();
+    });
   });
 
   describe("findCommentsByPost", () => {
@@ -256,6 +288,31 @@ describe("CommentsService", () => {
       expect(cacheMock.del).toHaveBeenCalledWith("posts:detail:3");
       expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:posts:list");
       expect(res).toEqual({ message: "Comment deleted successfully" });
+    });
+
+    it("returns success even if cache invalidation fails after delete", async () => {
+      const loggerErrorSpy = jest
+        .spyOn(Logger.prototype, "error")
+        .mockImplementation(() => undefined);
+
+      prismaMock.comment.findUnique.mockResolvedValue({
+        id: 1,
+        authorId: 10,
+        postId: 3,
+      });
+      prismaMock.$transaction.mockResolvedValue(undefined);
+      cacheMock.del.mockRejectedValueOnce(new Error("cache down"));
+
+      await expect(service.deleteComment(1, 10)).resolves.toEqual({
+        message: "Comment deleted successfully",
+      });
+
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        "Failed to invalidate caches after deleting comment 1",
+        expect.any(String),
+      );
+
+      loggerErrorSpy.mockRestore();
     });
   });
 });

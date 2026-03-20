@@ -1,4 +1,8 @@
-import { Injectable, Logger } from "@nestjs/common";
+import {
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+} from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 
 import {
@@ -37,10 +41,20 @@ export class PasswordService {
 
   // Hashes a password with HMAC peppering and bcrypt
   async hashPassword(password: string): Promise<string> {
-    const peppered = this.pepperPassword(password);
-    const hash = await bcrypt.hash(peppered, SALT_ROUNDS);
+    try {
+      const peppered = this.pepperPassword(password);
+      const hash = await bcrypt.hash(peppered, SALT_ROUNDS);
 
-    return `${PASSWORD_HASH_PREFIX}${hash}`;
+      return `${PASSWORD_HASH_PREFIX}${hash}`;
+    } catch (error) {
+      // Hide bcrypt internals from callers while keeping an operational log
+      this.logger.error(
+        "Failed to hash password",
+        error instanceof Error ? error.stack : undefined,
+      );
+
+      throw new InternalServerErrorException("Password processing failed");
+    }
   }
 
   // Verifies the stored password hash and upgrades legacy hashes when needed
@@ -48,25 +62,42 @@ export class PasswordService {
     password: string,
     storedHash: string,
   ): Promise<PasswordVerificationResult> {
-    if (this.isPepperedHash(storedHash)) {
-      const isValid = await bcrypt.compare(
-        this.pepperPassword(password),
-        storedHash.slice(PASSWORD_HASH_PREFIX.length),
+    try {
+      if (this.isPepperedHash(storedHash)) {
+        const isValid = await bcrypt.compare(
+          this.pepperPassword(password),
+          storedHash.slice(PASSWORD_HASH_PREFIX.length),
+        );
+
+        return { isValid };
+      }
+
+      const isLegacyValid = await bcrypt.compare(password, storedHash);
+
+      if (!isLegacyValid) return { isValid: false };
+
+      this.logger.log(
+        "Upgrading legacy bcrypt password hash to peppered format",
       );
 
-      return { isValid };
+      return {
+        isValid: true,
+        upgradedHash: await this.hashPassword(password),
+      };
+    } catch (error) {
+      // Re-throw the sanitized hashing failure produced during legacy-hash upgrades
+      if (error instanceof InternalServerErrorException) {
+        throw error;
+      }
+
+      // Hide bcrypt internals from callers while keeping an operational log
+      this.logger.error(
+        "Failed to verify password",
+        error instanceof Error ? error.stack : undefined,
+      );
+
+      throw new InternalServerErrorException("Password processing failed");
     }
-
-    const isLegacyValid = await bcrypt.compare(password, storedHash);
-
-    if (!isLegacyValid) return { isValid: false };
-
-    this.logger.log("Upgrading legacy bcrypt password hash to peppered format");
-
-    return {
-      isValid: true,
-      upgradedHash: await this.hashPassword(password),
-    };
   }
 
   // Detects whether a stored hash already uses the peppered format

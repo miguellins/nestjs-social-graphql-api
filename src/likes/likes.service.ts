@@ -2,7 +2,6 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
-  InternalServerErrorException,
   Logger,
   NotFoundException,
 } from "@nestjs/common";
@@ -13,6 +12,7 @@ import {
 } from "@/common/enums/chronological-order.enum";
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
+import { runBestEffort } from "@/common/errors/run-best-effort";
 
 import type { LikeDetailDTO } from "@/likes/dto/like-detail.dto";
 import { LikeDetailSelect } from "@/likes/dto/like-detail.dto";
@@ -61,6 +61,7 @@ export class LikesService {
 
     const cacheKey = `likes:list:v${v}:${take}:p${postId ?? "all"}:u${userId ?? "all"}:order=${orderby}`;
 
+    // Let unexpected read failures bubble so the global filter remains the main normalizer
     return this.cacheHelper.getOrSet(
       cacheKey,
       async () => {
@@ -87,27 +88,21 @@ export class LikesService {
   async getLike(id: number): Promise<LikeDetailDTO> {
     const cacheKey = `like:detail:${id}`;
 
-    try {
-      return await this.cacheHelper.getOrSet(
-        cacheKey,
-        async () => {
-          const like = await this.prisma.like.findUnique({
-            where: { id },
+    return this.cacheHelper.getOrSet(
+      cacheKey,
+      async () => {
+        const like = await this.prisma.like.findUnique({
+          where: { id },
 
-            select: LikeDetailSelect,
-          });
+          select: LikeDetailSelect,
+        });
 
-          if (!like) throw new NotFoundException("Like not found");
+        if (!like) throw new NotFoundException("Like not found");
 
-          return like;
-        },
-        30_000,
-      );
-    } catch (err) {
-      if (err instanceof NotFoundException) throw err;
-
-      throw new InternalServerErrorException("Failed to fetch like");
-    }
+        return like;
+      },
+      30_000,
+    );
   }
 
   async createLike(
@@ -136,9 +131,12 @@ export class LikesService {
     if (!currentUser) throw new NotFoundException("Current user not found");
     if (!post) throw new NotFoundException("Post not found");
 
+    // Store the created like outside the try block so follow-up work can reuse it
+    let like: LikeDetailDTO;
+
     try {
       // Single transaction to keep the like row creation and post counter update consistent
-      const [like] = await this.prisma.$transaction([
+      [like] = await this.prisma.$transaction([
         this.prisma.like.create({
           data: {
             userId: currentUserId,
@@ -154,15 +152,40 @@ export class LikesService {
           select: { id: true },
         }),
       ]);
+    } catch (err: unknown) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError) {
+        // Keep duplicate likes as an explicit business conflict
+        if (err.code === "P2002") {
+          throw new ConflictException("You already liked this post");
+        }
 
-      // Invalidate / bump cache only for data affected by this write
-      await this.cacheHelper.bumpVersion("v:likes:list");
-      await this.cacheHelper.del(`posts:detail:${postId}`);
-      await this.cacheHelper.bumpVersion("v:posts:list");
+        // Preserve the post-not-found domain response for relation races
+        if (err.code === "P2003" || err.code === "P2025") {
+          throw new NotFoundException("Post not found");
+        }
+      }
 
-      // Notifications are best-effort:
-      // the like should succeed even if real-time delivery fails
-      try {
+      throw err;
+    }
+
+    // Keep cache refresh failures from masking a committed like creation
+    await runBestEffort(
+      this.logger,
+      "error",
+      `Failed to invalidate caches after creating like for post ${postId}`,
+      async () => {
+        await this.cacheHelper.bumpVersion("v:likes:list");
+        await this.cacheHelper.del(`posts:detail:${postId}`);
+        await this.cacheHelper.bumpVersion("v:posts:list");
+      },
+    );
+
+    // Keep notification delivery best-effort because the like write already succeeded
+    await runBestEffort(
+      this.logger,
+      "error",
+      `Failed to create like notification for post ${postId}`,
+      async () => {
         await this.notificationsService.createAndPublishNotification({
           recipientId: post.authorId,
           actorId: currentUserId,
@@ -171,52 +194,33 @@ export class LikesService {
           body: `${currentUser.username} liked your post`,
           entityId: postId,
         });
-      } catch (error) {
-        this.logger.error(
-          "Failed to create like notification",
-          error instanceof Error ? error.stack : undefined,
-        );
-      }
+      },
+    );
 
-      return like;
-    } catch (err: unknown) {
-      // Unique constraint: same user already liked the same post
-      if (err instanceof Prisma.PrismaClientKnownRequestError) {
-        if (err.code === "P2002") {
-          throw new ConflictException("You already liked this post");
-        }
-
-        // Foreign key / missing record problems
-        if (err.code === "P2003" || err.code === "P2025") {
-          throw new NotFoundException("Post not found");
-        }
-      }
-
-      throw new InternalServerErrorException("Failed to create like");
-    }
+    return like;
   }
 
   async deleteLike(id: number, currentUserId: number) {
+    // Validate existence + ownership + post target
+    const like = await this.prisma.like.findUnique({
+      where: { id },
+
+      select: {
+        id: true,
+        userId: true,
+        postId: true,
+      },
+    });
+
+    if (!like) throw new NotFoundException("Like not found");
+
+    if (like.userId !== currentUserId) {
+      throw new ForbiddenException(
+        "You do not have permission to delete this like",
+      );
+    }
+
     try {
-      // Validate existence + ownership + post target
-      const like = await this.prisma.like.findUnique({
-        where: { id },
-
-        select: {
-          id: true,
-          userId: true,
-          postId: true,
-        },
-      });
-
-      if (!like) throw new NotFoundException("Like not found");
-
-      if (like.userId !== currentUserId) {
-        throw new ForbiddenException(
-          "You do not have permission to delete this like",
-        );
-      }
-
       // Delete like + decrement counter safely
       await this.prisma.$transaction(async (tx) => {
         // Delete frist so the counter is only decremented if the like really exists
@@ -235,34 +239,33 @@ export class LikesService {
           select: { id: true },
         });
       });
-
-      // Invalidate / bump only the caches affected by this write
-      await this.cacheHelper.del(`like:detail:${id}`);
-      await this.cacheHelper.bumpVersion("v:likes:list");
-
-      await this.cacheHelper.del(`posts:detail:${like.postId}`);
-      await this.cacheHelper.bumpVersion("v:posts:list");
-
-      return {
-        message: "Like deleted successfully",
-      };
     } catch (err) {
-      if (
-        err instanceof NotFoundException ||
-        err instanceof ForbiddenException
-      ) {
-        throw err;
-      }
-
-      // Optional: if post was deleted but like existed (FK / race conditions)
       if (
         err instanceof Prisma.PrismaClientKnownRequestError &&
         err.code === "P2025"
       ) {
+        // Preserve the local not-found response when the like or post disappears mid-delete
         throw new NotFoundException("Like or post not found");
       }
 
-      throw new InternalServerErrorException("Failed to delete like");
+      throw err;
     }
+
+    // Keep cache refresh failures from masking a committed like deletion
+    await runBestEffort(
+      this.logger,
+      "error",
+      `Failed to invalidate caches after deleting like ${id}`,
+      async () => {
+        await this.cacheHelper.del(`like:detail:${id}`);
+        await this.cacheHelper.bumpVersion("v:likes:list");
+        await this.cacheHelper.del(`posts:detail:${like.postId}`);
+        await this.cacheHelper.bumpVersion("v:posts:list");
+      },
+    );
+
+    return {
+      message: "Like deleted successfully",
+    };
   }
 }

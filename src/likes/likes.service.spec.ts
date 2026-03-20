@@ -1,7 +1,6 @@
 import {
   ConflictException,
   ForbiddenException,
-  InternalServerErrorException,
   Logger,
   NotFoundException,
 } from "@nestjs/common";
@@ -273,12 +272,10 @@ describe("LikesService", () => {
       );
     });
 
-    it("wraps unexpected errors as InternalServerErrorException", async () => {
+    it("lets unexpected read errors bubble for the global filter to normalize", async () => {
       prismaMock.like.findUnique.mockRejectedValue(new Error("boom"));
 
-      await expect(service.getLike(1)).rejects.toBeInstanceOf(
-        InternalServerErrorException,
-      );
+      await expect(service.getLike(1)).rejects.toThrow("boom");
     });
   });
 
@@ -321,7 +318,27 @@ describe("LikesService", () => {
 
       expect(res).toEqual(like);
       expect(loggerErrorSpy).toHaveBeenCalledWith(
-        "Failed to create like notification",
+        "Failed to create like notification for post 20",
+        expect.any(String),
+      );
+
+      loggerErrorSpy.mockRestore();
+    });
+
+    it("returns like even if cache invalidation fails after commit", async () => {
+      const loggerErrorSpy = jest
+        .spyOn(Logger.prototype, "error")
+        .mockImplementation(() => undefined);
+
+      const like = { id: 1, userId: 10, postId: 20 };
+      prismaMock.$transaction.mockResolvedValue([like, { id: 20 }]);
+      cacheMock.bumpVersion.mockRejectedValueOnce(new Error("cache down"));
+
+      const res = await service.createLike(10, 20);
+
+      expect(res).toEqual(like);
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        "Failed to invalidate caches after creating like for post 20",
         expect.any(String),
       );
 
@@ -363,12 +380,10 @@ describe("LikesService", () => {
       );
     });
 
-    it("throws InternalServerErrorException for unknown errors", async () => {
+    it("lets unexpected write errors bubble for the global filter to normalize", async () => {
       prismaMock.$transaction.mockRejectedValue(new Error("boom"));
 
-      await expect(service.createLike(10, 20)).rejects.toBeInstanceOf(
-        InternalServerErrorException,
-      );
+      await expect(service.createLike(10, 20)).rejects.toThrow("boom");
     });
   });
 
@@ -453,12 +468,35 @@ describe("LikesService", () => {
       );
     });
 
-    it("throws InternalServerErrorException for unknown errors", async () => {
+    it("returns success even if cache invalidation fails after delete", async () => {
+      const loggerErrorSpy = jest
+        .spyOn(Logger.prototype, "error")
+        .mockImplementation(() => undefined);
+
+      prismaMock.like.findUnique.mockResolvedValue({
+        id: 1,
+        userId: 10,
+        postId: 20,
+      });
+      prismaMock.$transaction.mockResolvedValue(undefined);
+      cacheMock.del.mockRejectedValueOnce(new Error("cache down"));
+
+      await expect(service.deleteLike(1, 10)).resolves.toEqual({
+        message: "Like deleted successfully",
+      });
+
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        "Failed to invalidate caches after deleting like 1",
+        expect.any(String),
+      );
+
+      loggerErrorSpy.mockRestore();
+    });
+
+    it("lets unexpected delete errors bubble for the global filter to normalize", async () => {
       prismaMock.like.findUnique.mockRejectedValue(new Error("boom"));
 
-      await expect(service.deleteLike(1, 10)).rejects.toBeInstanceOf(
-        InternalServerErrorException,
-      );
+      await expect(service.deleteLike(1, 10)).rejects.toThrow("boom");
     });
   });
 });

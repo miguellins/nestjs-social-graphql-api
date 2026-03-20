@@ -2,7 +2,6 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
-  InternalServerErrorException,
   Logger,
   NotFoundException,
 } from "@nestjs/common";
@@ -257,7 +256,30 @@ describe("FollowsService", () => {
 
       expect(res).toEqual(created);
       expect(loggerErrorSpy).toHaveBeenCalledWith(
-        "Failed to create follow notification",
+        "Failed to create follow notification for user 2",
+        expect.any(String),
+      );
+
+      loggerErrorSpy.mockRestore();
+    });
+
+    it("returns follow even if cache invalidation fails after commit", async () => {
+      const loggerErrorSpy = jest
+        .spyOn(Logger.prototype, "error")
+        .mockImplementation(() => undefined);
+
+      prismaMock.user.findUnique
+        .mockResolvedValueOnce({ id: 2 })
+        .mockResolvedValueOnce({ id: 1, username: "alice" });
+
+      const created = { id: 50, followerId: 1, followingId: 2 };
+      prismaMock.follow.create.mockResolvedValue(created);
+      cacheMock.bumpVersion.mockRejectedValueOnce(new Error("cache down"));
+
+      await expect(service.createFollow(1, 2)).resolves.toEqual(created);
+
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        "Failed to invalidate caches after creating follow 50",
         expect.any(String),
       );
 
@@ -302,13 +324,11 @@ describe("FollowsService", () => {
       );
     });
 
-    it("throws InternalServerErrorException for unknown errors", async () => {
+    it("lets unexpected write errors bubble for the global filter to normalize", async () => {
       prismaMock.user.findUnique.mockResolvedValue({ id: 2 });
       prismaMock.follow.create.mockRejectedValue(new Error("boom"));
 
-      await expect(service.createFollow(1, 2)).rejects.toBeInstanceOf(
-        InternalServerErrorException,
-      );
+      await expect(service.createFollow(1, 2)).rejects.toThrow("boom");
     });
   });
 
@@ -399,12 +419,36 @@ describe("FollowsService", () => {
       );
     });
 
-    it("throws InternalServerErrorException for unexpected errors", async () => {
+    it("returns success even if cache invalidation fails after delete", async () => {
+      const loggerErrorSpy = jest
+        .spyOn(Logger.prototype, "error")
+        .mockImplementation(() => undefined);
+
+      prismaMock.follow.findUnique.mockResolvedValue({
+        id: 10,
+        followerId: 1,
+        followingId: 2,
+      });
+
+      prismaMock.follow.delete.mockResolvedValue({ id: 10 });
+      cacheMock.del.mockRejectedValueOnce(new Error("cache down"));
+
+      await expect(service.deleteFollow(10, 1)).resolves.toEqual({
+        message: "Follow deleted successfully",
+      });
+
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        "Failed to invalidate caches after deleting follow 10",
+        expect.any(String),
+      );
+
+      loggerErrorSpy.mockRestore();
+    });
+
+    it("lets unexpected delete errors bubble for the global filter to normalize", async () => {
       prismaMock.follow.findUnique.mockRejectedValue(new Error("boom"));
 
-      await expect(service.deleteFollow(10, 1)).rejects.toBeInstanceOf(
-        InternalServerErrorException,
-      );
+      await expect(service.deleteFollow(10, 1)).rejects.toThrow("boom");
     });
   });
 });

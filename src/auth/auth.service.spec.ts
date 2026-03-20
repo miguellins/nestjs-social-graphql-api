@@ -208,6 +208,22 @@ describe("AuthService", () => {
       ).rejects.toBeInstanceOf(InternalServerErrorException);
     });
 
+    it("rethrows sanitized HttpExceptions from PasswordService unchanged", async () => {
+      findUniqueMock.mockResolvedValue({
+        id: 1,
+        username: "john",
+        password: "hashed",
+      });
+
+      verifyPasswordMock.mockRejectedValue(
+        new InternalServerErrorException("Password processing failed"),
+      );
+
+      await expect(
+        service.login({ username: "john", password: "pass" }),
+      ).rejects.toThrow("Password processing failed");
+    });
+
     it("throws InternalServerErrorException for unexpected errors", async () => {
       findUniqueMock.mockRejectedValue(new Error("random"));
 

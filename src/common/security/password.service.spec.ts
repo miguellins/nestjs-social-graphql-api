@@ -1,3 +1,5 @@
+import { InternalServerErrorException, Logger } from "@nestjs/common";
+
 import { Test, TestingModule } from "@nestjs/testing";
 
 import { ConfigService } from "@nestjs/config";
@@ -84,5 +86,35 @@ describe("PasswordService", () => {
     const result = await service.verifyPassword("secret123", "$2b$12$bad-hash");
 
     expect(result).toEqual({ isValid: false });
+  });
+
+  it("throws InternalServerErrorException when bcrypt hashing fails", async () => {
+    hashMock.mockRejectedValue(new Error("bcrypt down"));
+
+    await expect(service.hashPassword("secret123")).rejects.toBeInstanceOf(
+      InternalServerErrorException,
+    );
+  });
+
+  it("throws InternalServerErrorException when bcrypt compare fails", async () => {
+    const loggerSpy = jest
+      .spyOn(Logger.prototype, "error")
+      .mockImplementation(() => undefined);
+
+    compareMock.mockRejectedValue(new Error("bcrypt down"));
+
+    await expect(
+      service.verifyPassword(
+        "secret123",
+        `${PASSWORD_HASH_PREFIX}$2b$12$current-hash`,
+      ),
+    ).rejects.toBeInstanceOf(InternalServerErrorException);
+
+    expect(loggerSpy).toHaveBeenCalledWith(
+      "Failed to verify password",
+      expect.any(String),
+    );
+
+    loggerSpy.mockRestore();
   });
 });

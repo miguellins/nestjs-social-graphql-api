@@ -1,7 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
-  InternalServerErrorException,
+  Logger,
   NotFoundException,
 } from "@nestjs/common";
 
@@ -335,7 +335,43 @@ describe("UsersService", () => {
           username: "john",
           password: "password123",
         }),
-      ).rejects.toBeInstanceOf(InternalServerErrorException);
+      ).rejects.toThrow("boom");
+    });
+
+    it("returns the created user even if cache refresh fails", async () => {
+      const loggerErrorSpy = jest
+        .spyOn(Logger.prototype, "error")
+        .mockImplementation(() => undefined);
+
+      passwordMock.hashPassword.mockResolvedValue("hashedPw");
+      prismaMock.user.create.mockResolvedValue({
+        id: 10,
+        name: "John",
+        email: "a@a.com",
+        username: "john",
+      });
+      cacheMock.set.mockRejectedValueOnce(new Error("cache down"));
+
+      await expect(
+        service.createUser({
+          name: "John",
+          email: "a@a.com",
+          username: "john",
+          password: "password123",
+        }),
+      ).resolves.toEqual({
+        id: 10,
+        name: "John",
+        email: "a@a.com",
+        username: "john",
+      });
+
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        "Failed to refresh caches after creating user 10",
+        expect.any(String),
+      );
+
+      loggerErrorSpy.mockRestore();
     });
   });
 
@@ -465,12 +501,12 @@ describe("UsersService", () => {
       ).rejects.toBeInstanceOf(ConflictException);
     });
 
-    it("throws InternalServerErrorException for unknown errors", async () => {
+    it("lets unexpected update errors bubble for the global filter to normalize", async () => {
       prismaMock.user.update.mockRejectedValue(new Error("boom"));
 
-      await expect(
-        service.updateUser({ name: "okay" }, 1),
-      ).rejects.toBeInstanceOf(InternalServerErrorException);
+      await expect(service.updateUser({ name: "okay" }, 1)).rejects.toThrow(
+        "boom",
+      );
     });
   });
 
@@ -502,12 +538,30 @@ describe("UsersService", () => {
       );
     });
 
-    it("throws InternalServerErrorException for unknown errors", async () => {
+    it("returns success even if cache refresh fails after delete", async () => {
+      const loggerErrorSpy = jest
+        .spyOn(Logger.prototype, "error")
+        .mockImplementation(() => undefined);
+
+      prismaMock.user.delete.mockResolvedValue({ id: 1 });
+      cacheMock.del.mockRejectedValueOnce(new Error("cache down"));
+
+      await expect(service.deleteUser(1)).resolves.toEqual({
+        message: "User deleted successfully",
+      });
+
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        "Failed to refresh caches after deleting user 1",
+        expect.any(String),
+      );
+
+      loggerErrorSpy.mockRestore();
+    });
+
+    it("lets unexpected delete errors bubble for the global filter to normalize", async () => {
       prismaMock.user.delete.mockRejectedValue(new Error("boom"));
 
-      await expect(service.deleteUser(1)).rejects.toBeInstanceOf(
-        InternalServerErrorException,
-      );
+      await expect(service.deleteUser(1)).rejects.toThrow("boom");
     });
   });
 });

@@ -1,8 +1,7 @@
 import {
-  BadRequestException,
   ForbiddenException,
   Injectable,
-  InternalServerErrorException,
+  Logger,
   NotFoundException,
 } from "@nestjs/common";
 
@@ -17,6 +16,7 @@ import { CacheHelperService } from "@/common/cache/cache-helper.service";
 import { DeleteResponse } from "@/common/types/delete-response.type";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
 import { parseWithBadRequest } from "@/common/zod/parse-with-zod";
+import { runBestEffort } from "@/common/errors/run-best-effort";
 
 import {
   createPostCommandSchema,
@@ -48,6 +48,8 @@ type FindPostsParams = PaginationParams & {
 
 @Injectable()
 export class PostsService {
+  private readonly logger = new Logger(PostsService.name);
+
   // Injects the services used by post workflows
   constructor(
     private readonly prisma: PrismaService,
@@ -174,8 +176,15 @@ export class PostsService {
       });
 
       updatedViewCount = updatedPost.viewsCount;
-    } catch {
-      throw new NotFoundException("Post not found");
+    } catch (err) {
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === "P2025"
+      ) {
+        throw new NotFoundException("Post not found");
+      }
+
+      throw err;
     }
 
     const post = await this.cacheHelper.getOrSet(
@@ -231,8 +240,11 @@ export class PostsService {
   ): Promise<SafePostListDTO> {
     const data = this.parseCreatePostInput(input);
 
+    // Store the created post outside the try block so follow-up cache work can reuse it
+    let post: SafePostListDTO;
+
     try {
-      const post = await this.prisma.post.create({
+      post = await this.prisma.post.create({
         data: {
           title: data.title,
           content: data.content,
@@ -241,24 +253,30 @@ export class PostsService {
 
         select: SafePostListSelect,
       });
-
-      await this.cacheHelper.bumpVersion("v:posts:list");
-
-      await this.cacheHelper.del(`user:safe:${currentUserId}`);
-      await this.cacheHelper.bumpVersion("v:user:list");
-
-      return post;
     } catch (err) {
-      // Handle known Prisma errors cleanly
       if (err instanceof Prisma.PrismaClientKnownRequestError) {
-        // If author id does not exist / relation failds (common on connect)
+        // Translate missing author references into the local domain error for this workflow.
         if (err.code === "P2003" || err.code === "P2025") {
           throw new NotFoundException("Author not found");
         }
       }
 
-      throw new InternalServerErrorException("Failed to create post");
+      throw err;
     }
+
+    // Keep cache refresh failures from masking a committed post creation
+    await runBestEffort(
+      this.logger,
+      "error",
+      `Failed to invalidate caches after creating post ${post.id}`,
+      async () => {
+        await this.cacheHelper.bumpVersion("v:posts:list");
+        await this.cacheHelper.del(`user:safe:${currentUserId}`);
+        await this.cacheHelper.bumpVersion("v:user:list");
+      },
+    );
+
+    return post;
   }
 
   // Updates a post owned by the current user
@@ -280,101 +298,103 @@ export class PostsService {
       data.content = normalizedInput.content;
     }
 
+    // Fetch minimal fields needed for ownership + existence
+    const existing = await this.prisma.post.findUnique({
+      where: { id },
+
+      select: {
+        id: true,
+        authorId: true,
+      },
+    });
+
+    if (!existing) throw new NotFoundException("Post not found");
+
+    if (existing.authorId !== currentUserId) {
+      throw new ForbiddenException(
+        "You do not have permission to update this post",
+      );
+    }
+
+    // Store the updated post outside the try block so follow-up cache work can reuse it
+    let post: SafePostListDTO;
+
     try {
-      // Fetch minimal fields needed for ownership + existence
-      const existing = await this.prisma.post.findUnique({
-        where: { id },
-
-        select: {
-          id: true,
-          authorId: true,
-        },
-      });
-
-      if (!existing) throw new NotFoundException("Post not found");
-
-      if (existing.authorId !== currentUserId) {
-        throw new ForbiddenException(
-          "You do not have permission to update this post",
-        );
-      }
-
-      const post = await this.prisma.post.update({
+      post = await this.prisma.post.update({
         where: { id },
         data,
 
         select: SafePostListSelect,
       });
-
-      // Invalidate / bump only the caches affected by this write
-      await this.cacheHelper.del(`posts:detail:${id}`);
-      await this.cacheHelper.bumpVersion("v:posts:list");
-
-      return post;
     } catch (err) {
-      if (
-        err instanceof BadRequestException ||
-        err instanceof ForbiddenException ||
-        err instanceof NotFoundException
-      ) {
-        throw err;
-      }
-
       if (err instanceof Prisma.PrismaClientKnownRequestError) {
+        // Preserve the not-found domain response for update races
         if (err.code === "P2025") throw new NotFoundException("Post not found");
       }
 
-      throw new InternalServerErrorException("Failed to update post");
+      throw err;
     }
+
+    // Keep cache refresh failures from masking a committed post update
+    await runBestEffort(
+      this.logger,
+      "error",
+      `Failed to invalidate caches after updating post ${id}`,
+      async () => {
+        await this.cacheHelper.del(`posts:detail:${id}`);
+        await this.cacheHelper.bumpVersion("v:posts:list");
+      },
+    );
+
+    return post;
   }
 
   // Deletes a post owned by the current user
   async deletePost(id: number, currentUserId: number): Promise<DeleteResponse> {
+    // Check existence and ownership
+    const existing = await this.prisma.post.findUnique({
+      where: { id },
+      select: { id: true, authorId: true },
+    });
+
+    if (!existing) throw new NotFoundException("Post not found");
+
+    if (existing.authorId !== currentUserId) {
+      throw new ForbiddenException(
+        "You do not have permission to delete this post",
+      );
+    }
+
     try {
-      // Check existence and ownership
-      const existing = await this.prisma.post.findUnique({
-        where: { id },
-        select: { id: true, authorId: true },
-      });
-
-      if (!existing) throw new NotFoundException("Post not found");
-
-      if (existing.authorId !== currentUserId) {
-        throw new ForbiddenException(
-          "You do not have permission to delete this post",
-        );
-      }
-
       await this.prisma.post.delete({
         where: { id },
       });
-
-      // Invalidate / bump only the caches affected by this write
-      await this.cacheHelper.del(`posts:detail:${id}`);
-      await this.cacheHelper.bumpVersion("v:posts:list");
-
-      return {
-        message: "Post deleted successfully",
-      };
     } catch (err) {
-      // If someone deleted it between the check and the delete
       if (
         err instanceof Prisma.PrismaClientKnownRequestError &&
         err.code === "P2025"
       ) {
+        // Preserve the not-found domain response for delete races
         throw new NotFoundException("Post not found");
       }
 
-      // Keep intentional domain errors
-      if (
-        err instanceof NotFoundException ||
-        err instanceof ForbiddenException
-      ) {
-        throw err;
-      }
-
-      throw new InternalServerErrorException("Failed to delete post");
+      throw err;
     }
+
+    // Keep cache refresh failures from masking a committed post deletion
+    await runBestEffort(
+      this.logger,
+      "error",
+      `Failed to invalidate caches after deleting post ${id}`,
+      async () => {
+        await this.cacheHelper.del(`posts:detail:${id}`);
+        await this.cacheHelper.bumpVersion("v:posts:list");
+      },
+    );
+
+    return {
+      message: "Post deleted successfully",
+    };
   }
 
   // Parses and normalizes create-post input for the service layer

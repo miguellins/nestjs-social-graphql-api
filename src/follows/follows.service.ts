@@ -3,7 +3,6 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
-  InternalServerErrorException,
   Logger,
   NotFoundException,
 } from "@nestjs/common";
@@ -14,6 +13,7 @@ import {
 } from "@/common/enums/chronological-order.enum";
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
+import { runBestEffort } from "@/common/errors/run-best-effort";
 
 import type { SafeFollowDTO } from "@/follows/dto/safe-follow.dto";
 import { SafeFollowSelect } from "@/follows/dto/safe-follow.dto";
@@ -123,22 +123,51 @@ export class FollowsService {
 
     if (!currentUser) throw new NotFoundException("Current user not found");
 
+    // Store the created follow outside the try block so follow-up work can reuse it
+    let follow: SafeFollowDTO;
+
     try {
       // Rely on @@unique([followerId, followingId]) to prevent duplicates safely
-      const follow = await this.prisma.follow.create({
+      follow = await this.prisma.follow.create({
         data: { followerId, followingId },
 
         select: SafeFollowSelect,
       });
+    } catch (err: unknown) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError) {
+        // Preserve the target-user not-found response for relation races
+        if (err.code === "P2003" || err.code === "P2025") {
+          throw new NotFoundException("User to follow not found");
+        }
 
-      await this.cacheHelper.bumpVersion("v:follows:list");
+        // Keep duplicate follows as an explicit business conflict
+        if (err.code === "P2002") {
+          throw new ConflictException("You already follow this user");
+        }
+      }
 
-      await this.cacheHelper.del(`user:safe:${followerId}`);
-      await this.cacheHelper.del(`user:safe:${followingId}`);
+      throw err;
+    }
 
-      await this.cacheHelper.bumpVersion("v:user:list");
+    // Keep cache refresh failures from masking a committed follow creation
+    await runBestEffort(
+      this.logger,
+      "error",
+      `Failed to invalidate caches after creating follow ${follow.id}`,
+      async () => {
+        await this.cacheHelper.bumpVersion("v:follows:list");
+        await this.cacheHelper.del(`user:safe:${followerId}`);
+        await this.cacheHelper.del(`user:safe:${followingId}`);
+        await this.cacheHelper.bumpVersion("v:user:list");
+      },
+    );
 
-      try {
+    // Keep notification delivery best-effort because the follow write already succeeded
+    await runBestEffort(
+      this.logger,
+      "error",
+      `Failed to create follow notification for user ${followingId}`,
+      async () => {
         await this.notificationsService.createAndPublishNotification({
           recipientId: followingId,
           actorId: followerId,
@@ -147,104 +176,83 @@ export class FollowsService {
           body: `${currentUser.username} started following you`,
           entityId: follow.id,
         });
-      } catch (error) {
-        this.logger.error(
-          "Failed to create follow notification",
-          error instanceof Error ? error.stack : undefined,
-        );
-      }
+      },
+    );
 
-      return follow;
-    } catch (err: unknown) {
-      // Duplicate follow attempt (unique constraint)
-      if (err instanceof Prisma.PrismaClientKnownRequestError) {
-        if (err.code === "P2003" || err.code === "P2025") {
-          throw new NotFoundException("User to follow not found");
-        }
-
-        if (err.code === "P2002") {
-          throw new ConflictException("You already follow this user");
-        }
-      }
-
-      throw new InternalServerErrorException("Failed to create follow");
-    }
+    return follow;
   }
 
   // Deletes a follow relationship owned by the current user
   async deleteFollow(id: number, currentUserId: number) {
-    try {
-      // Supports both:
-      // - follow relation id
-      // - following user id (common "unfollow user" UX)
-      const ownByFollowingId = await this.prisma.follow.findUnique({
-        where: {
-          followerId_followingId: {
-            followerId: currentUserId,
-            followingId: id,
-          },
+    // Supports both:
+    // - follow relation id
+    // - following user id (common "unfollow user" UX)
+    const ownByFollowingId = await this.prisma.follow.findUnique({
+      where: {
+        followerId_followingId: {
+          followerId: currentUserId,
+          followingId: id,
         },
+      },
+
+      select: {
+        id: true,
+        followerId: true,
+        followingId: true,
+      },
+    });
+
+    const existing =
+      ownByFollowingId ??
+      (await this.prisma.follow.findUnique({
+        where: { id },
 
         select: {
           id: true,
           followerId: true,
           followingId: true,
         },
-      });
+      }));
 
-      const existing =
-        ownByFollowingId ??
-        (await this.prisma.follow.findUnique({
-          where: { id },
+    if (!existing) throw new NotFoundException("Follow not found");
 
-          select: {
-            id: true,
-            followerId: true,
-            followingId: true,
-          },
-        }));
+    if (existing.followerId !== currentUserId) {
+      throw new ForbiddenException(
+        "You do not have permission to delete this follow",
+      );
+    }
 
-      if (!existing) throw new NotFoundException("Follow not found");
-
-      if (existing.followerId !== currentUserId) {
-        throw new ForbiddenException(
-          "You do not have permission to delete this follow",
-        );
-      }
-
+    try {
       await this.prisma.follow.delete({
         where: { id: existing.id },
       });
-
-      await this.cacheHelper.del(`follow:detail:${existing.id}`);
-
-      await this.cacheHelper.bumpVersion("v:follows:list");
-
-      await this.cacheHelper.del(`user:safe:${existing.followerId}`);
-      await this.cacheHelper.del(`user:safe:${existing.followingId}`);
-
-      await this.cacheHelper.bumpVersion("v:user:list");
-
-      return {
-        message: "Follow deleted successfully",
-      };
     } catch (err: unknown) {
-      // If it was deleted between check and delete (race condition)
       if (err instanceof Prisma.PrismaClientKnownRequestError) {
+        // Preserve the local not-found response when the follow disappears mid-delete
         if (err.code === "P2025") {
           throw new NotFoundException("Follow not found");
         }
       }
 
-      // Keep domain errors
-      if (
-        err instanceof NotFoundException ||
-        err instanceof ForbiddenException
-      ) {
-        throw err;
-      }
-
-      throw new InternalServerErrorException("Failed to delete follow");
+      throw err;
     }
+
+    // Keep cache refresh failures from masking a committed follow deletion
+    await runBestEffort(
+      this.logger,
+      "error",
+      `Failed to invalidate caches after deleting follow ${existing.id}`,
+      async () => {
+        await this.cacheHelper.del(`follow:detail:${existing.id}`);
+        await this.cacheHelper.bumpVersion("v:follows:list");
+        await this.cacheHelper.del(`user:safe:${existing.followerId}`);
+        await this.cacheHelper.del(`user:safe:${existing.followingId}`);
+        await this.cacheHelper.bumpVersion("v:user:list");
+      },
+    );
+
+    return {
+      message: "Follow deleted successfully",
+    };
   }
 }
