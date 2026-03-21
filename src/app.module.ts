@@ -7,6 +7,7 @@ import { APP_GUARD } from "@nestjs/core";
 import { JwtService } from "@nestjs/jwt";
 import { Module } from "@nestjs/common";
 
+import { GraphqlSubscriptionsModule } from "@/graphql/subscriptions/graphql-subscriptions.module";
 import { NotificationsModule } from "@/notifications/notifications.module";
 import { CommentsModule } from "@/comments/comments.module";
 import { FollowsModule } from "@/follows/follows.module";
@@ -70,6 +71,7 @@ import { validateEnv } from "@/config/env/env.schema";
     AuthModule,
     NotificationsModule,
     CommentsModule,
+    GraphqlSubscriptionsModule,
   ],
   providers: [
     {

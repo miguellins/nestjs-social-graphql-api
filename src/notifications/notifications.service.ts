@@ -9,7 +9,7 @@ import { PAGINATION } from "@/common/constants/hard-cap.constants";
 import { parseWithBadRequest } from "@/common/zod/parse-with-zod";
 import { runBestEffort } from "@/common/errors/run-best-effort";
 
-import { pubSub } from "@/graphql/subscriptions/pubsub";
+import { GraphqlPubSubService } from "@/graphql/subscriptions/graphql-pubsub.service";
 
 import { createNotificationInputSchema } from "@/notifications/schemas/create-notification.schema";
 import type { CreateNotificationInput } from "@/notifications/schemas/create-notification.schema";
@@ -35,7 +35,10 @@ export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
 
   // Injects the services used by notification workflows
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly graphqlPubSub: GraphqlPubSubService,
+  ) {}
 
   // Creates a notification record and publishes it to subscribers
   async createAndPublishNotification(
@@ -62,7 +65,7 @@ export class NotificationsService {
       "error",
       "Failed to publish notification subscription event",
       async () => {
-        await pubSub.publish("notificationReceived", {
+        await this.graphqlPubSub.publish("notificationReceived", {
           notificationReceived: notification,
         });
       },

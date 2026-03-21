@@ -28,6 +28,12 @@ export const envSchema = z.object({
   JWT_EXPIRES_IN: z.string().trim().min(1).default("7d"),
   PASSWORD_PEPPER: z.string().trim().min(1, "PASSWORD_PEPPER is required"),
   REDIS_URL: z.string().trim().min(1, "REDIS_URL is required"),
+  GRAPHQL_SUBSCRIPTIONS_REDIS_URL: z.string().trim().min(1).optional(),
+  GRAPHQL_SUBSCRIPTIONS_REDIS_NAMESPACE: z
+    .string()
+    .trim()
+    .min(1)
+    .default("graphql-subscriptions"),
   NODE_ENV: z
     .enum(["development", "test", "production"])
     .default("development"),

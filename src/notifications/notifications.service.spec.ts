@@ -5,8 +5,7 @@ import { Logger } from "@nestjs/common";
 import { NotificationType } from "@prisma/client";
 
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
-
-import { pubSub } from "@/graphql/subscriptions/pubsub";
+import { GraphqlPubSubService } from "@/graphql/subscriptions/graphql-pubsub.service";
 
 import { NotificationReadStatus } from "@/notifications/enums/notification-read-status.enum";
 
@@ -39,6 +38,11 @@ describe("NotificationsService", () => {
     },
   };
 
+  const graphqlPubSubMock = {
+    publish: jest.fn<Promise<void>, [string, Record<string, unknown>]>(),
+    asyncIterableIterator: jest.fn(),
+  };
+
   const mockNotification = {
     id: 1,
     type: NotificationType.USER_FOLLOWED,
@@ -63,6 +67,10 @@ describe("NotificationsService", () => {
           provide: PrismaService,
           useValue: prismaMock,
         },
+        {
+          provide: GraphqlPubSubService,
+          useValue: graphqlPubSubMock,
+        },
       ],
     }).compile();
 
@@ -84,15 +92,11 @@ describe("NotificationsService", () => {
         entityId: 99,
       };
 
-      const publishSpy = jest
-        .spyOn(pubSub, "publish")
-        .mockResolvedValue(true as never);
-
       const result = await service.createAndPublishNotification(input);
 
       expect(result).toBeNull();
       expect(prismaMock.notification.create).not.toHaveBeenCalled();
-      expect(publishSpy).not.toHaveBeenCalled();
+      expect(graphqlPubSubMock.publish).not.toHaveBeenCalled();
     });
 
     it("should create and publish notification", async () => {
@@ -107,9 +111,7 @@ describe("NotificationsService", () => {
 
       prismaMock.notification.create.mockResolvedValue(mockNotification);
 
-      const publishSpy = jest
-        .spyOn(pubSub, "publish")
-        .mockResolvedValue(true as never);
+      graphqlPubSubMock.publish.mockResolvedValue(undefined);
 
       const result = await service.createAndPublishNotification(input);
 
@@ -125,9 +127,12 @@ describe("NotificationsService", () => {
         select: NotificationSelect,
       });
 
-      expect(publishSpy).toHaveBeenCalledWith("notificationReceived", {
-        notificationReceived: mockNotification,
-      });
+      expect(graphqlPubSubMock.publish).toHaveBeenCalledWith(
+        "notificationReceived",
+        {
+          notificationReceived: mockNotification,
+        },
+      );
 
       expect(result).toEqual(mockNotification);
     });
@@ -144,9 +149,7 @@ describe("NotificationsService", () => {
 
       prismaMock.notification.create.mockResolvedValue(mockNotification);
 
-      jest
-        .spyOn(pubSub, "publish")
-        .mockRejectedValue(new Error("PubSub failed"));
+      graphqlPubSubMock.publish.mockRejectedValue(new Error("PubSub failed"));
 
       const loggerSpy = jest
         .spyOn(Logger.prototype, "error")

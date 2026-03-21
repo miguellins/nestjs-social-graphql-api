@@ -16,8 +16,8 @@ import { FindNotificationsArgs } from "@/notifications/args/find-notifications.a
 import { NotificationsService } from "@/notifications/notifications.service";
 import { NotificationDTO } from "@/notifications/models/notification.model";
 
+import { GraphqlPubSubService } from "@/graphql/subscriptions/graphql-pubsub.service";
 import type { GqlContext } from "@/graphql/config/graphql-context.types";
-import { pubSub } from "@/graphql/subscriptions/pubsub";
 
 /**
  * GraphQL resolver for notifications
@@ -27,7 +27,10 @@ import { pubSub } from "@/graphql/subscriptions/pubsub";
 
 @Resolver(() => NotificationDTO)
 export class NotificationsResolver {
-  constructor(private readonly notificationsService: NotificationsService) {}
+  constructor(
+    private readonly notificationsService: NotificationsService,
+    private readonly graphqlPubSub: GraphqlPubSubService,
+  ) {}
 
   @Throttle({ default: THROTTLE_LIMITS.LIST })
   @Query(() => [NotificationDTO], { name: "myNotifications" })
@@ -99,6 +102,6 @@ export class NotificationsResolver {
   })
   @Throttle({ default: THROTTLE_LIMITS.LIST })
   notificationReceived() {
-    return pubSub.asyncIterableIterator("notificationReceived");
+    return this.graphqlPubSub.asyncIterableIterator("notificationReceived");
   }
 }
