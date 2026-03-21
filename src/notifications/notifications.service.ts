@@ -4,7 +4,7 @@ import {
   ChronologicalOrder,
   toSortDirection,
 } from "@/common/enums/chronological-order.enum";
-import { DeleteResponse } from "@/common/types/delete-response.type";
+import { MessageResponse } from "@/common/types/message-response.type";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
 import { parseWithBadRequest } from "@/common/zod/parse-with-zod";
 import { runBestEffort } from "@/common/errors/run-best-effort";
@@ -125,7 +125,7 @@ export class NotificationsService {
   async markAsRead(
     notificationId: number,
     userId: number,
-  ): Promise<DeleteResponse> {
+  ): Promise<MessageResponse> {
     const result = await this.prisma.notification.updateMany({
       where: {
         id: notificationId,
@@ -144,7 +144,7 @@ export class NotificationsService {
   }
 
   // Marks all unread notifications as read for the current user
-  async markAllAsRead(userId: number): Promise<DeleteResponse> {
+  async markAllAsRead(userId: number): Promise<MessageResponse> {
     await this.prisma.notification.updateMany({
       where: {
         recipientId: userId,

@@ -10,7 +10,7 @@ import { Throttle } from "@nestjs/throttler";
 
 import { CurrentUser } from "@/common/decorators/current-user.decorator";
 import { THROTTLE_LIMITS } from "@/common/constants/throttle.constants";
-import { DeleteResponse } from "@/common/types/delete-response.type";
+import { MessageResponse } from "@/common/types/message-response.type";
 
 import { FindNotificationsArgs } from "@/notifications/args/find-notifications.args";
 import { NotificationsService } from "@/notifications/notifications.service";
@@ -54,19 +54,19 @@ export class NotificationsResolver {
   }
 
   @Throttle({ default: THROTTLE_LIMITS.MUTATION })
-  @Mutation(() => DeleteResponse, { name: "markNotificationAsRead" })
+  @Mutation(() => MessageResponse, { name: "markNotificationAsRead" })
   async markNotificationAsRead(
     @CurrentUser() user: { id: number },
     @Args("notificationId", { type: () => Int }) notificationId: number,
-  ): Promise<DeleteResponse> {
+  ): Promise<MessageResponse> {
     return this.notificationsService.markAsRead(notificationId, user.id);
   }
 
   @Throttle({ default: THROTTLE_LIMITS.MUTATION })
-  @Mutation(() => DeleteResponse, { name: "markAllNotificationsAsRead" })
+  @Mutation(() => MessageResponse, { name: "markAllNotificationsAsRead" })
   async markAllNotificationsAsRead(
     @CurrentUser() user: { id: number },
-  ): Promise<DeleteResponse> {
+  ): Promise<MessageResponse> {
     return this.notificationsService.markAllAsRead(user.id);
   }
 

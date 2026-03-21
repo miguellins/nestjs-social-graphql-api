@@ -15,7 +15,7 @@ import {
   toSortDirection,
 } from "@/common/enums/chronological-order.enum";
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
-import { DeleteResponse } from "@/common/types/delete-response.type";
+import { MessageResponse } from "@/common/types/message-response.type";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
 import { parseWithBadRequest } from "@/common/zod/parse-with-zod";
 import { runBestEffort } from "@/common/errors/run-best-effort";
@@ -139,7 +139,7 @@ export class CommentsService {
   async deleteComment(
     commentId: number,
     currentUserId: number,
-  ): Promise<DeleteResponse> {
+  ): Promise<MessageResponse> {
     // Find the comment to validate ownership and know which post to update
     const comment = await this.prisma.comment.findUnique({
       where: { id: commentId },

@@ -11,6 +11,7 @@ import {
   toSortDirection,
 } from "@/common/enums/chronological-order.enum";
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
+import { MessageResponse } from "@/common/types/message-response.type";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
 import { runBestEffort } from "@/common/errors/run-best-effort";
 
@@ -200,7 +201,10 @@ export class LikesService {
     return like;
   }
 
-  async deleteLike(id: number, currentUserId: number) {
+  async deleteLike(
+    id: number,
+    currentUserId: number,
+  ): Promise<MessageResponse> {
     // Validate existence + ownership + post target
     const like = await this.prisma.like.findUnique({
       where: { id },
@@ -223,7 +227,7 @@ export class LikesService {
     try {
       // Delete like + decrement counter safely
       await this.prisma.$transaction(async (tx) => {
-        // Delete frist so the counter is only decremented if the like really exists
+        // Delete first so the counter is only decremented if the like really exists
         await tx.like.delete({ where: { id: like.id } });
 
         // Decrement likesCount, but never let it go below 0

@@ -9,7 +9,7 @@ import { CommentsService } from "@/comments/comments.service";
 
 import { CurrentUser } from "@/common/decorators/current-user.decorator";
 import { THROTTLE_LIMITS } from "@/common/constants/throttle.constants";
-import { DeleteResponse } from "@/common/types/delete-response.type";
+import { MessageResponse } from "@/common/types/message-response.type";
 
 /**
  * GraphQL resolver for comments
@@ -43,11 +43,11 @@ export class CommentsResolver {
   }
 
   @Throttle({ default: THROTTLE_LIMITS.DESTRUCTIVE })
-  @Mutation(() => DeleteResponse, { name: "deleteComment" })
+  @Mutation(() => MessageResponse, { name: "deleteComment" })
   async deleteComment(
     @Args() args: DeleteCommentArgs,
     @CurrentUser() user: { id: number },
-  ): Promise<DeleteResponse> {
+  ): Promise<MessageResponse> {
     return this.commentsService.deleteComment(args.commentId, user.id);
   }
 }

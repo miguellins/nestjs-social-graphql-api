@@ -10,6 +10,7 @@ import {
   toSortDirection,
 } from "@/common/enums/chronological-order.enum";
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
+import { MessageResponse } from "@/common/types/message-response.type";
 import { PasswordService } from "@/common/security/password.service";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
 import { parseWithBadRequest } from "@/common/zod/parse-with-zod";
@@ -251,7 +252,7 @@ export class UsersService {
   }
 
   // Deletes the current user and clears related cache entries
-  async deleteUser(currentUserId: number) {
+  async deleteUser(currentUserId: number): Promise<MessageResponse> {
     try {
       await this.prisma.user.delete({
         where: { id: currentUserId },

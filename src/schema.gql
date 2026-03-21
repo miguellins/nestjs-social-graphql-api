@@ -3,12 +3,12 @@
 # ------------------------------------------------------
 
 """
-GraphQL type for delete results
+GraphQL type for generic mutation results
 
-Returns the success state of delete operations
+Returns a human-readable success message
 """
-type DeleteResponse {
-  """Human-readable message describing the result of the mutation."""
+type MessageResponse {
+  """Human-readable message describing the result of the mutation"""
   message: String!
 }
 
@@ -452,18 +452,20 @@ enum NotificationReadStatus {
 
 type Mutation {
   login(input: LoginInput!): AuthPayload!
+  requestPasswordReset(input: RequestPasswordResetInput!): MessageResponse!
+  resetPassword(input: ResetPasswordInput!): MessageResponse!
   createUser(input: CreateUserInput!): SafeUser!
   updateMe(input: UpdateUserInput!): SafeUser!
-  deleteMe: DeleteResponse!
+  deleteMe: MessageResponse!
   createPost(input: CreatePostInput!): Post!
   updatePost(id: Int!, input: UpdatePostInput!): Post!
-  deletePost(id: Int!): DeleteResponse!
+  deletePost(id: Int!): MessageResponse!
   createLike(postId: Int!): LikeListItem!
-  deleteLike(id: Int!): DeleteResponse!
-  markNotificationAsRead(notificationId: Int!): DeleteResponse!
-  markAllNotificationsAsRead: DeleteResponse!
+  deleteLike(id: Int!): MessageResponse!
+  markNotificationAsRead(notificationId: Int!): MessageResponse!
+  markAllNotificationsAsRead: MessageResponse!
   createFollow(followingId: Int!): Follow!
-  deleteFollow(id: Int!): DeleteResponse!
+  deleteFollow(id: Int!): MessageResponse!
   createComment(
     """Payload used to create a new comment."""
     input: CreateCommentInput!
@@ -471,7 +473,7 @@ type Mutation {
   deleteComment(
     """Unique id of the target comment."""
     commentId: Int!
-  ): DeleteResponse!
+  ): MessageResponse!
 }
 
 """
@@ -485,6 +487,31 @@ input LoginInput {
 
   """Plain-text password submitted during login."""
   password: String!
+}
+
+"""
+GraphQL input for password reset initiation
+
+Accepts the email address that should receive reset instructions
+"""
+input RequestPasswordResetInput {
+  """Email address that should receive password reset instructions."""
+  email: String!
+}
+
+"""
+GraphQL input for password reset completion
+
+Accepts the reset token and the new password
+"""
+input ResetPasswordInput {
+  """
+  Raw password reset token from the local file sink or future email delivery.
+  """
+  token: String!
+
+  """New plain-text password that will be hashed before persistence."""
+  newPassword: String!
 }
 
 """

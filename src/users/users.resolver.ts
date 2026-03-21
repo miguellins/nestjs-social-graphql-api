@@ -3,7 +3,7 @@ import { Throttle } from "@nestjs/throttler";
 
 import { CurrentUser } from "@/common/decorators/current-user.decorator";
 import { THROTTLE_LIMITS } from "@/common/constants/throttle.constants";
-import { DeleteResponse } from "@/common/types/delete-response.type";
+import { MessageResponse } from "@/common/types/message-response.type";
 import { PaginationArgs } from "@/common/args/pagination.args";
 import { Public } from "@/common/decorators/auth.decorator";
 
@@ -54,8 +54,10 @@ export class UsersResolver {
   }
 
   @Throttle({ default: THROTTLE_LIMITS.DESTRUCTIVE })
-  @Mutation(() => DeleteResponse, { name: "deleteMe" })
-  async deleteMe(@CurrentUser() user: { id: number }): Promise<DeleteResponse> {
+  @Mutation(() => MessageResponse, { name: "deleteMe" })
+  async deleteMe(
+    @CurrentUser() user: { id: number },
+  ): Promise<MessageResponse> {
     return this.usersService.deleteUser(user.id);
   }
 }

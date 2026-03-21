@@ -12,6 +12,7 @@ import {
   toSortDirection,
 } from "@/common/enums/chronological-order.enum";
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
+import { MessageResponse } from "@/common/types/message-response.type";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
 import { runBestEffort } from "@/common/errors/run-best-effort";
 
@@ -183,7 +184,10 @@ export class FollowsService {
   }
 
   // Deletes a follow relationship owned by the current user
-  async deleteFollow(id: number, currentUserId: number) {
+  async deleteFollow(
+    id: number,
+    currentUserId: number,
+  ): Promise<MessageResponse> {
     // Supports both:
     // - follow relation id
     // - following user id (common "unfollow user" UX)
