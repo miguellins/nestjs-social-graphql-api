@@ -76,6 +76,12 @@ This file defines the working rules for contributors and coding agents in this r
 - Use `InternalServerErrorException` as a sanitized fallback for unexpected persistence failures.
 - Re-throw intentional domain exceptions instead of wrapping them again.
 - Do not wrap entire service methods in broad `try/catch` blocks unless needed for Prisma error mapping, external side-effect handling, or sanitized fallback errors.
+- Treat the database write path as the source of truth and keep core correctness strict.
+- Use transactions for operations that must succeed or fail together.
+- Treat cache invalidation, subscription publish, notification delivery, analytics, and similar follow-up work as best-effort side effects only when the system remains correct if they fail after the main write commits.
+- Do not make the mutation fail after a committed database write only because a non-critical post-commit side effect failed.
+- If a non-critical post-commit side effect fails, prefer success plus logging over a false-negative mutation failure.
+- Do not apply this rule to validation, authorization, password/security logic, required counter consistency, token invalidation, or any step that is part of the core business guarantee.
 
 ## Validation Rules
 
@@ -95,6 +101,9 @@ This file defines the working rules for contributors and coding agents in this r
 - Subscription authentication belongs in the GraphQL subscription configuration and subscription context handling, not in resolver business logic.
 - Keep HTTP-level security setup centralized in bootstrap helpers like `setup-security.ts`.
 - Preserve fail-fast environment validation through `src/config/env/env.schema.ts` when adding new env vars.
+- For account-recovery or identity-sensitive flows such as password reset, avoid leaking whether an account exists through user-facing responses.
+- Prefer generic initiation responses and secure token handling for reset or verification workflows.
+- Do not log raw reset, verification, or other sensitive one-time tokens.
 
 ## GraphQL Rules
 
@@ -103,6 +112,9 @@ This file defines the working rules for contributors and coding agents in this r
 - Keep GraphQL errors sanitized. Do not add formatting that leaks stack traces or internal metadata.
 - When adding expensive queries, respect the existing query complexity infrastructure.
 - For subscriptions, ensure the published payload shape matches the resolver subscription field name.
+- Keep GraphQL errors sanitized.
+- When the project intentionally exposes safe machine-readable error fields such as `code` or other structured metadata, preserve them instead of reducing everything to message-only responses.
+- If the current runtime still formats errors as message-only, treat structured error preservation as the preferred direction for future improvements rather than assuming it is already fully implemented everywhere.
 
 ## Prisma Rules
 
@@ -113,6 +125,9 @@ This file defines the working rules for contributors and coding agents in this r
 - Check existence and ownership explicitly when that leads to clearer domain errors.
 - Translate known Prisma codes like `P2002`, `P2003`, and `P2025` into user-facing Nest exceptions.
 - If a new feature adds a denormalized counter, keep increment/decrement operations transactionally consistent.
+- Reuse a single shared `PrismaService` / `PrismaClient` lifecycle for the application process.
+- Do not create ad hoc Prisma clients inside feature services, helpers, or request-scoped flows.
+- Avoid patterns that accidentally create multiple connection pools unless there is a deliberate infrastructure reason.
 
 ## Cache Rules
 
@@ -134,6 +149,10 @@ This file defines the working rules for contributors and coding agents in this r
 - Default pagination should use the shared defaults in `PAGINATION`.
 - Default chronological ordering should remain newest-first unless the feature explicitly requires another default.
 - Reuse `ChronologicalOrder` and `toSortDirection(...)` instead of inventing new order enums for the same concept.
+- Keep list queries bounded with shared pagination caps and explicit ordering.
+- When introducing or redesigning list APIs that are expected to support real multi-page frontend usage, prefer a real pagination contract such as cursor-based pagination with clear next-page semantics.
+- Avoid extending `take`-only list contracts for new scalable user-facing flows when a practical multi-page contract is required.
+- Treat cursor-style pagination as the preferred direction for future expansion, even if older parts of the codebase still use capped `take` plus ordering.
 
 ## DTO and Model Rules
 
@@ -149,6 +168,14 @@ This file defines the working rules for contributors and coding agents in this r
 - Publish subscription events only after the database write succeeds.
 - If publish fails, log it without failing the write operation unless the product requirement explicitly changes.
 - Subscription filtering must use the authenticated subscriber id from GraphQL context and must not trust client-supplied recipient ids.
+- Use `runBestEffort` only for non-critical post-success side effects.
+- Good candidates include cache invalidation, cache refresh, subscription publish, notification delivery, analytics, and similar follow-up work.
+- Do not use `runBestEffort` for core database writes, required transactions, validation, auth checks, ownership checks, password logic, or any step that must fail the request if it fails.
+- Before using `runBestEffort`, ask whether the system is still correct if that step fails after the database write has already succeeded.
+- Treat realtime subscriptions as a delivery acceleration layer, not the source of truth.
+- Persist notification/event state in the database before publishing realtime updates when the feature requires durability.
+- Do not rely on in-memory pubsub as the long-term architecture for features that must work across multiple app instances.
+- Prefer shared realtime transport such as Redis-backed pubsub or another broker-backed approach when the feature is intended for multi-instance deployment.
 
 ## Environment Rules
 
@@ -176,10 +203,13 @@ This file defines the working rules for contributors and coding agents in this r
 - Prefer explicit local variables for normalized values and cache keys.
 - Keep functions and methods readable over overly compact.
 - Stay compatible with the current TypeScript and ESLint configuration. Do not introduce patterns that fight type-aware linting without a reason.
+- If the same narrow logic is repeated across multiple files, extract it into a small shared helper only when the repetition is real and the abstraction clearly improves readability, consistency, and modularity.
+- Do not create shared helpers for one-off logic or vague abstractions.
+- Prefer small, well-named helpers in the appropriate shared/common area over copy-pasted repeated error-handling or side-effect patterns.
 
 ## Output and Reference Formatting Rules
 
-- When referencing project files in reviews, prompts, summaries, recommendations, or reports, use plain filenames or short repo-relative paths only.
+- When referencing project files in reviews, prompts, summaries, recommendations, reports, or change explanations, use plain filenames or short repo-relative paths only.
 - Never return markdown links for project files.
 - Never use this format:
   - `[posts.service.ts](/home/mlins/Desktop/nestjs_graphql/src/posts/posts.service.ts)`
@@ -197,6 +227,53 @@ This file defines the working rules for contributors and coding agents in this r
   - `[users.service.ts](src/users/users.service.ts)`
   - `[name of the file](path)`
 - Do not add redundant path formatting when the file name is already being returned clearly.
+- Whenever files are changed, always include a clean final explanation section called `Change Summary`.
+
+The `Change Summary` must always contain these sections:
+
+1. **What changed**
+   - List the files, functions, classes, modules, configs, or structures that were changed.
+   - Be specific about what was added, removed, renamed, moved, or updated.
+
+2. **Why it changed**
+   - Explain the reason for the change.
+   - State whether it was done for bug fixing, readability, consistency, validation, architecture, maintainability, security, or performance.
+
+3. **How it works now**
+   - Briefly explain the new behavior after the change.
+   - Mention any important flow updates, API behavior changes, validation changes, typing changes, or runtime differences.
+
+4. **Anything important to review**
+   - Mention breaking changes, migration needs, required env/config updates, manual checks, follow-up work, or anything that should be verified.
+
+Rules for this summary:
+- Keep it clean, direct, and easy to scan.
+- Do not be vague.
+- Do not say only `updated file X` without explaining what changed.
+- Do not dump raw diffs unless explicitly requested.
+- Prefer grouped summaries by file or by feature.
+- Even for small edits, still include the full summary format in a shorter version.
+- If no files were changed, explicitly say: **No files were changed**.
+- In the summary, reference files using the formatting rules above:
+  - plain filename when enough
+  - otherwise short repo-relative path
+  - never markdown file links
+  - never absolute local paths
+
+Preferred format:
+### Change Summary
+
+**What changed**
+- ...
+
+**Why it changed**
+- ...
+
+**How it works now**
+- ...
+
+**Anything important to review**
+- ...
 
 ## Change Management Rules
 
