@@ -9,7 +9,6 @@ import {
 import { SafeUserPreview } from "@/users/models/safe-user-preview.model";
 import { SafeCommentDTO } from "@/comments/models/safe-comment.model";
 import { LikePreview } from "@/posts/models/like-preview.model";
-import { PostCounts } from "@/posts/models/post-counts.model";
 
 /**
  * GraphQL model for post details
@@ -25,9 +24,11 @@ export class PostDetail {
   id: number;
 
   /** Title of the post. */
+  @Field()
   title: string;
 
   /** Main textual content of the post. */
+  @Field()
   content: string;
 
   /** Timestamp indicating when the post was originally created. */
@@ -38,6 +39,14 @@ export class PostDetail {
   @Field(() => GraphQLISODateTime)
   updatedAt: Date;
 
+  /** Total number of likes associated with the post. */
+  @Field(() => Int)
+  likesCount: number;
+
+  /** Total number of comments associated with the post. */
+  @Field(() => Int)
+  commentsCount: number;
+
   /** Total number of times the post detail view has been accessed successfully. */
   @Field(() => Int)
   viewsCount: number;
@@ -45,10 +54,6 @@ export class PostDetail {
   /** Public safe preview of the user who authored the post. */
   @Field(() => SafeUserPreview)
   author: SafeUserPreview;
-
-  /** Aggregated metadata related to the post. */
-  @Field(() => PostCounts)
-  _count: PostCounts;
 
   /** Optional lightweight list of likes associated with the post. */
   @Field(() => [LikePreview], {

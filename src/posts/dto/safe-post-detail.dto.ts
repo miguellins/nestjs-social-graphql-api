@@ -16,8 +16,6 @@ export type SafePostDetailDTO = SafePostListDTO & {
   updatedAt: Date;
   viewsCount: number;
 
-  _count: SafePostListDTO["_count"];
-
   likes?: {
     id: number;
     createdAt: Date;
@@ -38,7 +36,6 @@ export type SafePostDetailDTO = SafePostListDTO & {
  * Extends the list select and adds:
  * - updatedAt
  * - viewsCount
- * - comments count
  * - likes preview
  * - comments preview
  */
@@ -48,13 +45,6 @@ export const SafePostDetailSelect = {
 
   updatedAt: true,
   viewsCount: true,
-
-  _count: {
-    select: {
-      likes: true,
-      comments: true,
-    },
-  },
 
   likes: {
     select: {

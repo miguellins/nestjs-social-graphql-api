@@ -1,7 +1,12 @@
-import { Field, GraphQLISODateTime, ID, ObjectType } from "@nestjs/graphql";
+import {
+  Field,
+  GraphQLISODateTime,
+  ID,
+  Int,
+  ObjectType,
+} from "@nestjs/graphql";
 
 import { SafeUserPreview } from "@/users/models/safe-user-preview.model";
-import { PostCounts } from "@/posts/models/post-counts.model";
 
 /**
  * GraphQL model for posts
@@ -17,20 +22,26 @@ export class Post {
   id: number;
 
   /** Title of the post. */
+  @Field()
   title: string;
 
   /** Main textual content of the post. */
+  @Field()
   content: string;
 
   /** Timestamp indicating when the post was originally created. */
   @Field(() => GraphQLISODateTime)
   createdAt: Date;
 
+  /** Total number of likes associated with the post. */
+  @Field(() => Int)
+  likesCount: number;
+
+  /** Total number of comments associated with the post. */
+  @Field(() => Int)
+  commentsCount: number;
+
   /** Public safe preview of the user who authored the post. */
   @Field(() => SafeUserPreview)
   author: SafeUserPreview;
-
-  /** Aggregated metadata related to the post. */
-  @Field(() => PostCounts)
-  _count: PostCounts;
 }

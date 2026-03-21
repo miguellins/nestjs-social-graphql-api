@@ -204,19 +204,6 @@ type LikePreview {
 }
 
 """
-GraphQL model for post counts
-
-Exposes aggregate post metrics for API responses
-"""
-type PostCounts {
-  """Total number of likes associated with this post."""
-  likes: Int!
-
-  """Total number of comments associated with this post."""
-  comments: Int!
-}
-
-"""
 GraphQL model for posts
 
 Exposes the public post fields returned by the API
@@ -227,20 +214,23 @@ type Post {
   """
   id: ID!
 
-  """Timestamp indicating when the post was originally created."""
-  createdAt: DateTime!
-
-  """Public safe preview of the user who authored the post."""
-  author: SafeUserPreview!
-
-  """Aggregated metadata related to the post."""
-  _count: PostCounts!
-
   """Title of the post."""
   title: String!
 
   """Main textual content of the post."""
   content: String!
+
+  """Timestamp indicating when the post was originally created."""
+  createdAt: DateTime!
+
+  """Total number of likes associated with the post."""
+  likesCount: Int!
+
+  """Total number of comments associated with the post."""
+  commentsCount: Int!
+
+  """Public safe preview of the user who authored the post."""
+  author: SafeUserPreview!
 }
 
 """
@@ -323,11 +313,23 @@ type PostDetail {
   """
   id: ID!
 
+  """Title of the post."""
+  title: String!
+
+  """Main textual content of the post."""
+  content: String!
+
   """Timestamp indicating when the post was originally created."""
   createdAt: DateTime!
 
   """Timestamp indicating the last time the post was updated."""
   updatedAt: DateTime!
+
+  """Total number of likes associated with the post."""
+  likesCount: Int!
+
+  """Total number of comments associated with the post."""
+  commentsCount: Int!
 
   """
   Total number of times the post detail view has been accessed successfully.
@@ -337,20 +339,11 @@ type PostDetail {
   """Public safe preview of the user who authored the post."""
   author: SafeUserPreview!
 
-  """Aggregated metadata related to the post."""
-  _count: PostCounts!
-
   """Optional lightweight list of likes associated with the post."""
   likes: [LikePreview!]
 
   """Optional lightweight list of comments associated with the post."""
   comments: [SafeCommentDTO!]
-
-  """Title of the post."""
-  title: String!
-
-  """Main textual content of the post."""
-  content: String!
 }
 
 """

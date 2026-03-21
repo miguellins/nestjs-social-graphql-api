@@ -14,13 +14,8 @@ via the GitLens Inspect
 
 
 # NEXT FEATURE
-
-
 - implement cursor pagination
 
-- use denormalized post counters consistently
-
-- stop synchronously incrementing views on hot reads
 
 
 
@@ -42,8 +37,8 @@ via the GitLens Inspect
 
 
 # The Problem:
-No password reset
 
+stop synchronously incrementing views on hot reads
 
 
 # ABOUT THE NEW IMPLEMENTATION:
