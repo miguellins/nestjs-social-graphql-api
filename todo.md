@@ -15,8 +15,22 @@ via the GitLens Inspect
 
 # NEXT FEATURE
 - implement cursor pagination
+- Introduce a real pagination pattern first. This is the single biggest API quality upgrade
 
 
+Missing for a realistic MVP:
+- User profile by username.
+- User avatar/profile photo.
+- Bio and profile metadata.
+- User posts-by-author query.
+- Real pagination.
+- Comment editing.
+- Saved posts/bookmarks.
+- Basic report/block.
+- Email verification and password reset.
+- Session revocation.
+- Notification preferences.
+- Better post model than required `title + content`.
 
 
 //---//---//---// //---//---//---//
@@ -24,22 +38,29 @@ via the GitLens Inspect
 
 # TO FIX:
 
+In the whole project the dates are returned like this:
+2026-03-21 14:24:12.398
+
+Is there any way to improve this? I want to dates be returned in this format:
+03/21/2026 02:24:12 PM
 
 
 
 
-# QUESTIONS:
+
+# QUESTIONS ABOUT THE NEW FEATURE:
 
 
 
-
+6
+How can i fix this?:
+- The broader `src/posts/posts.service.spec.ts` file still contains three pre-existing unrelated failures around generic persistence-error expectations in create/update/delete.
 
 
 
 # The Problem:
 
 stop synchronously incrementing views on hot reads
-
 
 # ABOUT THE NEW IMPLEMENTATION:
 

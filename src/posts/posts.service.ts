@@ -1,6 +1,8 @@
 import {
   ForbiddenException,
+  HttpException,
   Injectable,
+  InternalServerErrorException,
   Logger,
   NotFoundException,
 } from "@nestjs/common";
@@ -45,6 +47,8 @@ type PaginationParams = {
 type FindPostsParams = PaginationParams & {
   q?: string;
 };
+
+const POST_DETAIL_CACHE_TTL_MS = 60_000;
 
 @Injectable()
 export class PostsService {
@@ -157,36 +161,6 @@ export class PostsService {
     // Clamp number of comments returned to the allowed pagination bounds
     const commentsTake = Math.min(PAGINATION.DEFAULT_TAKE, PAGINATION.MAX_TAKE);
 
-    let updatedViewCount: number;
-
-    try {
-      // Increment viewsCount on every successful detail request
-      const updatedPost = await this.prisma.post.update({
-        where: { id },
-
-        data: {
-          viewsCount: {
-            increment: 1,
-          },
-        },
-
-        select: {
-          viewsCount: true,
-        },
-      });
-
-      updatedViewCount = updatedPost.viewsCount;
-    } catch (err) {
-      if (
-        err instanceof Prisma.PrismaClientKnownRequestError &&
-        err.code === "P2025"
-      ) {
-        throw new NotFoundException("Post not found");
-      }
-
-      throw err;
-    }
-
     const post = await this.cacheHelper.getOrSet(
       cacheKey,
       async () => {
@@ -222,15 +196,24 @@ export class PostsService {
 
         return postDetail;
       },
-      60_000, // Detail cache TTL
+      POST_DETAIL_CACHE_TTL_MS,
     );
 
-    // Never trust cached viewsCount here
-    // Always return the latest value after the increment above
-    return {
-      ...post,
-      viewsCount: updatedViewCount,
-    };
+    // Keep hot reads cache-friendly and move view tracking into a non-blocking follow-up
+    void runBestEffort(
+      this.logger,
+      "warn",
+      `Failed to update viewsCount asynchronously for post ${id}`,
+      async () => {
+        await this.incrementPostViewsCount(
+          id,
+          cacheKey,
+          POST_DETAIL_CACHE_TTL_MS,
+        );
+      },
+    );
+
+    return post;
   }
 
   // Creates a new post for the current user
@@ -261,7 +244,7 @@ export class PostsService {
         }
       }
 
-      throw err;
+      this.throwUnexpectedPersistenceFailure("create post", err);
     }
 
     // Keep cache refresh failures from masking a committed post creation
@@ -298,28 +281,28 @@ export class PostsService {
       data.content = normalizedInput.content;
     }
 
-    // Fetch minimal fields needed for ownership + existence
-    const existing = await this.prisma.post.findUnique({
-      where: { id },
-
-      select: {
-        id: true,
-        authorId: true,
-      },
-    });
-
-    if (!existing) throw new NotFoundException("Post not found");
-
-    if (existing.authorId !== currentUserId) {
-      throw new ForbiddenException(
-        "You do not have permission to update this post",
-      );
-    }
-
     // Store the updated post outside the try block so follow-up cache work can reuse it
     let post: SafePostListDTO;
 
     try {
+      // Fetch minimal fields needed for ownership + existence
+      const existing = await this.prisma.post.findUnique({
+        where: { id },
+
+        select: {
+          id: true,
+          authorId: true,
+        },
+      });
+
+      if (!existing) throw new NotFoundException("Post not found");
+
+      if (existing.authorId !== currentUserId) {
+        throw new ForbiddenException(
+          "You do not have permission to update this post",
+        );
+      }
+
       post = await this.prisma.post.update({
         where: { id },
         data,
@@ -327,12 +310,14 @@ export class PostsService {
         select: SafePostListSelect,
       });
     } catch (err) {
+      if (err instanceof HttpException) throw err;
+
       if (err instanceof Prisma.PrismaClientKnownRequestError) {
         // Preserve the not-found domain response for update races
         if (err.code === "P2025") throw new NotFoundException("Post not found");
       }
 
-      throw err;
+      this.throwUnexpectedPersistenceFailure("update post", err);
     }
 
     // Keep cache refresh failures from masking a committed post update
@@ -354,25 +339,27 @@ export class PostsService {
     id: number,
     currentUserId: number,
   ): Promise<MessageResponse> {
-    // Check existence and ownership
-    const existing = await this.prisma.post.findUnique({
-      where: { id },
-      select: { id: true, authorId: true },
-    });
-
-    if (!existing) throw new NotFoundException("Post not found");
-
-    if (existing.authorId !== currentUserId) {
-      throw new ForbiddenException(
-        "You do not have permission to delete this post",
-      );
-    }
-
     try {
+      // Check existence and ownership
+      const existing = await this.prisma.post.findUnique({
+        where: { id },
+        select: { id: true, authorId: true },
+      });
+
+      if (!existing) throw new NotFoundException("Post not found");
+
+      if (existing.authorId !== currentUserId) {
+        throw new ForbiddenException(
+          "You do not have permission to delete this post",
+        );
+      }
+
       await this.prisma.post.delete({
         where: { id },
       });
     } catch (err) {
+      if (err instanceof HttpException) throw err;
+
       if (
         err instanceof Prisma.PrismaClientKnownRequestError &&
         err.code === "P2025"
@@ -381,7 +368,7 @@ export class PostsService {
         throw new NotFoundException("Post not found");
       }
 
-      throw err;
+      this.throwUnexpectedPersistenceFailure("delete post", err);
     }
 
     // Keep cache refresh failures from masking a committed post deletion
@@ -415,6 +402,65 @@ export class PostsService {
       updatePostCommandSchema,
       input,
       "Invalid post input",
+    );
+  }
+
+  private throwUnexpectedPersistenceFailure(
+    action: "create post" | "update post" | "delete post",
+    err: unknown,
+  ): never {
+    this.logger.error(
+      `Unexpected persistence failure while trying to ${action}`,
+      err instanceof Error ? err.stack : undefined,
+    );
+
+    throw new InternalServerErrorException(`Failed to ${action}`);
+  }
+
+  private async incrementPostViewsCount(
+    id: number,
+    cacheKey: string,
+    detailCacheTtlMs: number,
+  ): Promise<void> {
+    let updatedPost: { viewsCount: number };
+
+    try {
+      updatedPost = await this.prisma.post.update({
+        where: { id },
+
+        data: {
+          viewsCount: {
+            increment: 1,
+          },
+        },
+
+        select: {
+          viewsCount: true,
+        },
+      });
+    } catch (err) {
+      // The detail response already succeeded, so a concurrent delete should not surface as a read failure.
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === "P2025"
+      ) {
+        return;
+      }
+
+      throw err;
+    }
+
+    const cachedPost = await this.cacheHelper.get<SafePostDetailDTO>(cacheKey);
+
+    if (!cachedPost) return;
+
+    await this.cacheHelper.set(
+      cacheKey,
+      {
+        ...cachedPost,
+        viewsCount: updatedPost.viewsCount,
+      },
+      detailCacheTtlMs,
     );
   }
 }

@@ -50,11 +50,15 @@ describe("PostsService", () => {
   };
 
   const cacheMock: {
+    get: jest.Mock;
+    set: jest.Mock;
     getVersion: jest.Mock;
     bumpVersion: jest.Mock;
     del: jest.Mock;
     getOrSet: jest.Mock;
   } = {
+    get: jest.fn(),
+    set: jest.fn(),
     getVersion: jest.fn(),
     bumpVersion: jest.fn(),
     del: jest.fn(),
@@ -67,6 +71,18 @@ describe("PostsService", () => {
   beforeEach(async () => {
     jest.clearAllMocks();
     mem.clear();
+
+    cacheMock.get.mockImplementation((key: string) =>
+      Promise.resolve(mem.get(key)),
+    );
+    cacheMock.set.mockImplementation((key: string, value: unknown) => {
+      mem.set(key, value);
+      return Promise.resolve();
+    });
+    cacheMock.del.mockImplementation((key: string) => {
+      mem.delete(key);
+      return Promise.resolve();
+    });
 
     cacheMock.getOrSet.mockImplementation(
       async (key: string, factory: () => Promise<unknown>) => {
@@ -168,23 +184,18 @@ describe("PostsService", () => {
   });
 
   describe("getPost", () => {
-    it("returns post and uses bounded preview caps for likes/comments in the detail select", async () => {
-      prismaMock.post.update.mockResolvedValue({ viewsCount: 42 });
+    it("returns post detail immediately and updates viewsCount asynchronously", async () => {
+      let resolveUpdate!: (value: { viewsCount: number }) => void;
+
+      prismaMock.post.update.mockReturnValue(
+        new Promise((resolve: (value: { viewsCount: number }) => void) => {
+          resolveUpdate = resolve;
+        }),
+      );
+
       prismaMock.post.findUnique.mockResolvedValue({ id: 10, viewsCount: 1 });
 
       const res = await service.getPost(10);
-
-      expect(prismaMock.post.update).toHaveBeenCalledWith({
-        where: { id: 10 },
-        data: {
-          viewsCount: {
-            increment: 1,
-          },
-        },
-        select: {
-          viewsCount: true,
-        },
-      });
 
       expect(cacheMock.getOrSet).toHaveBeenCalledWith(
         "posts:detail:10",
@@ -209,26 +220,64 @@ describe("PostsService", () => {
         },
       });
 
-      expect(res).toEqual({ id: 10, viewsCount: 42 });
+      expect(res).toEqual({ id: 10, viewsCount: 1 });
+
+      expect(prismaMock.post.update).toHaveBeenCalledWith({
+        where: { id: 10 },
+        data: {
+          viewsCount: {
+            increment: 1,
+          },
+        },
+        select: {
+          viewsCount: true,
+        },
+      });
+
+      resolveUpdate({ viewsCount: 42 });
+    });
+
+    it("patches the cached viewsCount after the asynchronous increment succeeds", async () => {
+      const cachedPost = { id: 10, viewsCount: 1 };
+
+      prismaMock.post.findUnique.mockResolvedValue(cachedPost);
+      prismaMock.post.update.mockResolvedValue({ viewsCount: 42 });
+
+      const res = await service.getPost(10);
+
+      expect(res).toEqual(cachedPost);
+
+      await new Promise(setImmediate);
+
+      expect(cacheMock.set).toHaveBeenCalledWith(
+        "posts:detail:10",
+        { id: 10, viewsCount: 42 },
+        60_000,
+      );
     });
 
     it("throws NotFoundException when post does not exist", async () => {
-      prismaMock.post.update.mockRejectedValue(
-        new Prisma.PrismaClientKnownRequestError("not found", {
-          code: "P2025",
-          clientVersion: "test",
-        }),
-      );
+      prismaMock.post.findUnique.mockResolvedValue(null);
 
       await expect(service.getPost(999)).rejects.toBeInstanceOf(
         NotFoundException,
       );
+
+      expect(prismaMock.post.update).not.toHaveBeenCalled();
     });
 
-    it("rethrows unexpected increment failures instead of misclassifying them as not found", async () => {
+    it("keeps the read response successful when the async viewsCount increment fails", async () => {
+      prismaMock.post.findUnique.mockResolvedValue({ id: 10, viewsCount: 1 });
       prismaMock.post.update.mockRejectedValue(new Error("db offline"));
 
-      await expect(service.getPost(999)).rejects.toThrow("db offline");
+      await expect(service.getPost(10)).resolves.toEqual({
+        id: 10,
+        viewsCount: 1,
+      });
+
+      await new Promise(setImmediate);
+
+      expect(cacheMock.set).not.toHaveBeenCalled();
     });
   });
 

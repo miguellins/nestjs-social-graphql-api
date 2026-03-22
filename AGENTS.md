@@ -272,8 +272,59 @@ Preferred format:
 **How it works now**
 - ...
 
+**Query impact**
+```graphql
+query SomeOperation {
+  ...
+}
+```
+```JSON
+{
+  "someVariable": "value"
+}
+```
+
 **Anything important to review**
 - ...
+
+
+Preferred format:
+### Change Summary
+
+**What changed**
+- ...
+
+**Why it changed**
+- ...
+
+**How it works now**
+- ...
+
+**Query impact**
+```graphql
+query SomeOperation {
+  ...
+}
+```
+```JSON
+{
+  "someVariable": "value"
+}
+```
+
+**Anything important to review**
+- ...
+
+
+## Change Management Rules
+
+- Preserve existing public GraphQL names unless a breaking change is explicitly intended.
+- If you add a feature module, wire it through `AppModule` and follow the global guard/throttle architecture already used.
+- If you add new list or detail reads, decide and document whether they need caching.
+- If you add writes that affect cached reads, add invalidation in the same change.
+- If you add new auth-sensitive mutations, enforce ownership or authorization checks in the service.
+- If you add Prisma schema changes, keep indexes and uniqueness constraints aligned with the query patterns the feature will use.
+
 
 ## Change Management Rules
 
