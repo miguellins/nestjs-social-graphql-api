@@ -6,6 +6,8 @@ import {
   ObjectType,
 } from "@nestjs/graphql";
 
+import { FormattedDateTimeField } from "@/graphql/fields/formatted-date-time-field.decorator";
+
 import { SafeUserPreview } from "@/users/models/safe-user-preview.model";
 import { SafeCommentDTO } from "@/comments/models/safe-comment.model";
 import { LikePreview } from "@/posts/models/like-preview.model";
@@ -35,9 +37,23 @@ export class PostDetail {
   @Field(() => GraphQLISODateTime)
   createdAt: Date;
 
+  /** Presentation-friendly UTC timestamp for UI display. */
+  @FormattedDateTimeField("createdAt", {
+    description:
+      "Presentation-friendly UTC timestamp for when the post was originally created.",
+  })
+  createdAtFormatted?: string;
+
   /** Timestamp indicating the last time the post was updated. */
   @Field(() => GraphQLISODateTime)
   updatedAt: Date;
+
+  /** Presentation-friendly UTC timestamp for UI display. */
+  @FormattedDateTimeField("updatedAt", {
+    description:
+      "Presentation-friendly UTC timestamp for when the post was last updated.",
+  })
+  updatedAtFormatted?: string;
 
   /** Total number of likes associated with the post. */
   @Field(() => Int)

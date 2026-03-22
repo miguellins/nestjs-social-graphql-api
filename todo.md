@@ -14,9 +14,6 @@ via the GitLens Inspect
 
 
 # NEXT FEATURE
-- implement cursor pagination
-- Introduce a real pagination pattern first. This is the single biggest API quality upgrade
-
 
 Missing for a realistic MVP:
 - User profile by username.
@@ -27,7 +24,7 @@ Missing for a realistic MVP:
 - Comment editing.
 - Saved posts/bookmarks.
 - Basic report/block.
-- Email verification and password reset.
+- Email verification.
 - Session revocation.
 - Notification preferences.
 - Better post model than required `title + content`.
@@ -38,11 +35,6 @@ Missing for a realistic MVP:
 
 # TO FIX:
 
-In the whole project the dates are returned like this:
-2026-03-21 14:24:12.398
-
-Is there any way to improve this? I want to dates be returned in this format:
-03/21/2026 02:24:12 PM
 
 
 
@@ -52,15 +44,12 @@ Is there any way to improve this? I want to dates be returned in this format:
 
 
 
-6
-How can i fix this?:
-- The broader `src/posts/posts.service.spec.ts` file still contains three pre-existing unrelated failures around generic persistence-error expectations in create/update/delete.
 
 
 
 # The Problem:
 
-stop synchronously incrementing views on hot reads
+
 
 # ABOUT THE NEW IMPLEMENTATION:
 
@@ -96,10 +85,6 @@ Implemented a production-minded password reset flow that fits the existing auth 
   - Added `User.passwordResetTokens`.
   - Added `PasswordResetToken` with `userId`, `tokenHash`, `expiresAt`, `usedAt`, `createdAt`, unique `tokenHash`, and indexes on `userId` and `expiresAt`.
   - Why: dedicated reset-token storage is the simplest explicit model for this codebase.
-
-- `prisma/migrations/20260321120000_password_reset_tokens/migration.sql`
-  - Added the SQL migration creating `PasswordResetToken` and its foreign key to `User`.
-  - Why: keeps the schema change reviewable and deployable.
 
 - `src/config/env/env.schema.ts`
   - Added `PASSWORD_RESET_TOKEN_TTL_MINUTES` with default `30`.
@@ -325,3 +310,257 @@ Important behavior:
 
 
 //---//---//---// //---//---//---//
+
+
+# ABOUT THE WEBSOCKET:
+
+# HOW TO USE WEBSOCKET
+
+## STEP 1
+
+### ENTER THE GRAPHQL WS URL
+
+ws://localhost:3000/graphql
+
+### IMPORTANT
+
+Use the `graphql-transport-ws` WebSocket subprotocol when connecting.
+
+---
+
+## STEP 2
+
+### CLICK CONNECT
+
+Postman opens a raw WebSocket connection, but for `graphql-ws` subscriptions you still need to send the protocol messages manually as JSON frames.
+
+---
+
+## STEP 3
+
+### SEND THE `connection_init` MESSAGE
+
+```json
+{
+  "type": "connection_init",
+  "payload": {
+    "authorization": "Bearer YOUR_JWT_TOKEN"
+  }
+}
+```
+
+### WHAT YOU SHOULD SEE BACK:
+
+```json
+{
+  "type": "connection_ack"
+}
+```
+
+---
+
+## STEP 4
+
+### START THE SUBSCRIPTION
+
+After the ack, send a subscribe message.
+
+```json
+{
+  "id": "1",
+  "type": "subscribe",
+  "payload": {
+    "query": "subscription NotificationReceived { notificationReceived { id type title body isRead readAt entityId actorId recipientId createdAt updatedAt actor { id username name } } }"
+  }
+}
+```
+
+---
+
+## STEP 5
+
+### TRIGGER THE EVENT FROM ANOTHER REQUEST
+
+Keep that WebSocket tab open.
+
+In another Postman tab:
+- keep the WebSocket connected as the recipient user
+- log in as a different user in the other request
+- call your `createFollow` mutation or `createLike` mutation
+
+---
+
+## STEP 6
+
+### WATCH THE WEBSOCKET MESSAGES
+
+If it works, Postman should receive a message shaped roughly like:
+
+```json
+{
+  "id": "1",
+  "type": "next",
+  "payload": {
+    "data": {
+      "notificationReceived": {
+        "id": 123,
+        "type": "USER_FOLLOWED",
+        "title": "New follower",
+        "body": "john started following you",
+        "isRead": false,
+        "readAt": null,
+        "entityId": 45,
+        "actorId": 12,
+        "recipientId": 34,
+        "createdAt": "2026-03-22T12:00:00.000Z",
+        "updatedAt": "2026-03-22T12:00:00.000Z",
+        "actor": {
+          "id": 12,
+          "username": "john",
+          "name": "John"
+        }
+      }
+    }
+  }
+}
+```
+
+---
+
+## STEP 7
+
+### OPTIONAL STOP MESSAGE
+
+When you're done, you can stop the subscription with:
+
+```json
+{
+  "id": "1",
+  "type": "complete"
+}
+```
+
+
+
+//---//---//---// //---//---//---//
+
+
+# ABOUT THE DATE FORMAT FEATURE:
+
+The date handling now follows a simpler and cleaner split between raw API values and UI-friendly values.
+
+The custom `date-time.scalar` was removed, so raw GraphQL date fields now use Nest/Apollo’s default `DateTime` behavior again. At the same time, separate presentation-only fields were kept so the API can still return human-readable date strings when needed.
+
+That means fields like `createdAt`, `updatedAt`, and `readAt` remain raw machine-friendly timestamps, while companion fields like `createdAtFormatted`, `updatedAtFormatted`, and `readAtFormatted` return formatted strings such as `03/21/2026 02:24:12 PM`.
+
+This is the current behavior:
+
+- Raw fields:
+  - `createdAt`
+  - `updatedAt`
+  - `readAt`
+
+- Presentation-only fields:
+  - `createdAtFormatted`
+  - `updatedAtFormatted`
+  - `readAtFormatted`
+
+The raw fields are still the source of truth and are better for sorting, comparisons, filters, and frontend logic. The formatted fields exist only to make UI rendering easier without forcing clients to format dates themselves.
+
+**Changed files**
+
+- `graphql.config.ts`
+  - What changed: removed the custom `DateTime` resolver registration.
+  - Why it changed: raw date handling now falls back to the standard GraphQL `DateTime` scalar, which is enough for this codebase because resolvers are returning real `Date` objects.
+
+- `date-time.scalar.ts`
+  - What changed: deleted the custom raw `DateTime` scalar.
+  - Why it changed: the project now uses the simpler setup of standard raw dates plus separate presentation-only fields.
+
+- `date-time.scalar.spec.ts`
+  - What changed: deleted the scalar-specific tests.
+  - Why it changed: those tests only validated the removed custom scalar.
+
+No database or Prisma date storage was changed. Dates should remain stored as real datetime values in the database. That is still the best choice.
+
+**How it works now**
+- Raw GraphQL date fields use the default `DateTime` serialization.
+- Presentation-only fields return formatted strings for UI use.
+- The formatting is separate from the raw date contract.
+- The database still stores real datetime values, not presentation strings.
+
+**Example query**
+```graphql
+query Example {
+  me {
+    createdAt
+    createdAtFormatted
+    updatedAt
+    updatedAtFormatted
+  }
+}
+```
+
+**Example response**
+```json
+{
+  "data": {
+    "me": {
+      "createdAt": "2026-03-21T14:24:12.398Z",
+      "createdAtFormatted": "03/21/2026 02:24:12 PM",
+      "updatedAt": "2026-03-22T10:00:00.000Z",
+      "updatedAtFormatted": "03/22/2026 10:00:00 AM"
+    }
+  }
+}
+```
+
+**Important detail to keep in mind**
+
+This setup depends on services continuing to return real `Date` objects for raw date fields. If a future code path starts returning SQL-style date strings instead of `Date` objects, the default GraphQL scalar may not normalize them automatically.
+
+
+### Change Summary
+
+**What changed**
+- Removed the custom `DateTime` scalar files: `src/graphql/scalars/date-time.scalar.ts` and `src/graphql/scalars/date-time.scalar.spec.ts`.
+- Updated `src/graphql/config/graphql.config.ts` to stop overriding the GraphQL `DateTime` scalar.
+- Kept the presentation-only fields, now using names like `createdAtFormatted`, `updatedAtFormatted`, and `readAtFormatted`.
+
+**Why it changed**
+- To simplify the backend and rely on the default GraphQL `DateTime` behavior for raw dates.
+- To keep UI-oriented formatting explicit through separate presentation-only fields instead of customizing the core raw date contract.
+
+**How it works now**
+- Raw fields like `createdAt`, `updatedAt`, and `readAt` use the default GraphQL `DateTime` serialization.
+- Presentation-only fields like `createdAtFormatted` return formatted strings for UI use.
+- The database still stores normal datetime values and does not store presentation-formatted strings.
+
+**Query impact**
+```graphql
+query Example {
+  me {
+    createdAt
+    createdAtFormatted
+    updatedAt
+    updatedAtFormatted
+  }
+}
+```
+```json
+{
+  "data": {
+    "me": {
+      "createdAt": "2026-03-21T14:24:12.398Z",
+      "createdAtFormatted": "03/21/2026 02:24:12 PM",
+      "updatedAt": "2026-03-22T10:00:00.000Z",
+      "updatedAtFormatted": "03/22/2026 10:00:00 AM"
+    }
+  }
+}
+```
+
+**Anything important to review**
+- This relies on services continuing to return real `Date` objects for raw date fields.
+- If a future path starts returning SQL-style date strings instead of `Date` objects, the default scalar may not normalize them.
+- No env or database migration changes are needed.

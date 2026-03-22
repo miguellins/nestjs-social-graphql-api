@@ -6,6 +6,8 @@ import {
   ObjectType,
 } from "@nestjs/graphql";
 
+import { FormattedDateTimeField } from "@/graphql/fields/formatted-date-time-field.decorator";
+
 import { SafeUserPreview } from "@/users/models/safe-user-preview.model";
 
 /**
@@ -24,6 +26,13 @@ export class Follow {
   /** Timestamp indicating when the follow relationship was created. */
   @Field(() => GraphQLISODateTime)
   createdAt: Date;
+
+  /** Presentation-friendly UTC timestamp for UI display. */
+  @FormattedDateTimeField("createdAt", {
+    description:
+      "Presentation-friendly UTC timestamp for when the follow relationship was created.",
+  })
+  createdAtFormatted?: string;
 
   /** Identifier of the user who initiated the follow action (the follower). */
   @Field(() => Int)

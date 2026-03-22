@@ -1,5 +1,7 @@
 import { Field, GraphQLISODateTime, ID, ObjectType } from "@nestjs/graphql";
 
+import { FormattedDateTimeField } from "@/graphql/fields/formatted-date-time-field.decorator";
+
 import { SafeUserPreview } from "@/users/models/safe-user-preview.model";
 
 /**
@@ -18,6 +20,13 @@ export class LikePreview {
   /** Timestamp indicating when the like was created. */
   @Field(() => GraphQLISODateTime)
   createdAt: Date;
+
+  /** Presentation-friendly UTC timestamp for UI display. */
+  @FormattedDateTimeField("createdAt", {
+    description:
+      "Presentation-friendly UTC timestamp for when the like was created.",
+  })
+  createdAtFormatted?: string;
 
   /** Public safe preview of the user who performed the like. */
   @Field(() => SafeUserPreview)

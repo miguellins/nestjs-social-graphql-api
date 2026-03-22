@@ -44,8 +44,18 @@ type SafeUser implements PublicUserIdentity {
   """When the user account was created"""
   createdAt: DateTime!
 
+  """
+  Presentation-friendly UTC timestamp for when the user account was created.
+  """
+  createdAtFormatted: String
+
   """When the user was last updated"""
   updatedAt: DateTime!
+
+  """
+  Presentation-friendly UTC timestamp for when the user was last updated.
+  """
+  updatedAtFormatted: String
 
   """Related entity counts when explicitly requested"""
   _count: UserCounts
@@ -91,6 +101,11 @@ type NotificationDTO {
   """Timestamp when notification was marked as read."""
   readAt: DateTime
 
+  """
+  Presentation-friendly UTC timestamp for when the notification was marked as read.
+  """
+  readAtFormatted: String
+
   """Optional related entity id (follow, like, post, etc.)."""
   entityId: Int
 
@@ -106,8 +121,18 @@ type NotificationDTO {
   """Timestamp indicating when the notification was created."""
   createdAt: DateTime!
 
+  """
+  Presentation-friendly UTC timestamp for when the notification was created.
+  """
+  createdAtFormatted: String
+
   """Timestamp indicating the latest update on this notification."""
   updatedAt: DateTime!
+
+  """
+  Presentation-friendly UTC timestamp for when the notification was last updated.
+  """
+  updatedAtFormatted: String
 
   """Optional detailed message body."""
   body: String
@@ -141,6 +166,14 @@ type SafeCommentDTO {
   """Unique identifier of the comment."""
   id: ID!
 
+  """Presentation-friendly UTC timestamp for when the comment was created."""
+  createdAtFormatted: String
+
+  """
+  Presentation-friendly UTC timestamp for when the comment was last updated.
+  """
+  updatedAtFormatted: String
+
   """Identifier of the user who authored the comment."""
   authorId: Int!
 
@@ -172,6 +205,11 @@ type Follow {
   """Timestamp indicating when the follow relationship was created."""
   createdAt: DateTime!
 
+  """
+  Presentation-friendly UTC timestamp for when the follow relationship was created.
+  """
+  createdAtFormatted: String
+
   """Identifier of the user who initiated the follow action (the follower)."""
   followerId: Int!
 
@@ -199,6 +237,9 @@ type LikePreview {
   """Timestamp indicating when the like was created."""
   createdAt: DateTime!
 
+  """Presentation-friendly UTC timestamp for when the like was created."""
+  createdAtFormatted: String
+
   """Public safe preview of the user who performed the like."""
   user: SafeUserPreview!
 }
@@ -222,6 +263,11 @@ type Post {
 
   """Timestamp indicating when the post was originally created."""
   createdAt: DateTime!
+
+  """
+  Presentation-friendly UTC timestamp for when the post was originally created.
+  """
+  createdAtFormatted: String
 
   """Total number of likes associated with the post."""
   likesCount: Int!
@@ -247,6 +293,9 @@ type LikeListItem {
   """Timestamp indicating when the like was created."""
   createdAt: DateTime!
 
+  """Presentation-friendly UTC timestamp for when the like was created."""
+  createdAtFormatted: String
+
   """Public safe preview of the user who performed the like."""
   user: SafeUserPreview!
 
@@ -262,7 +311,17 @@ Defines the full user shape available in the schema
 type User {
   id: ID!
   createdAt: DateTime!
+
+  """
+  Presentation-friendly UTC timestamp for when the user account was created.
+  """
+  createdAtFormatted: String
   updatedAt: DateTime!
+
+  """
+  Presentation-friendly UTC timestamp for when the user account was last updated.
+  """
+  updatedAtFormatted: String
   posts: [Post!]
   likes: [Like!]
   followers: [Follow!]
@@ -291,6 +350,9 @@ type Like {
 
   """Timestamp indicating when the like was created."""
   createdAt: DateTime!
+
+  """Presentation-friendly UTC timestamp for when the like was created."""
+  createdAtFormatted: String
 
   """Identifier of the user who performed the like."""
   userId: Int
@@ -322,8 +384,18 @@ type PostDetail {
   """Timestamp indicating when the post was originally created."""
   createdAt: DateTime!
 
+  """
+  Presentation-friendly UTC timestamp for when the post was originally created.
+  """
+  createdAtFormatted: String
+
   """Timestamp indicating the last time the post was updated."""
   updatedAt: DateTime!
+
+  """
+  Presentation-friendly UTC timestamp for when the post was last updated.
+  """
+  updatedAtFormatted: String
 
   """Total number of likes associated with the post."""
   likesCount: Int!
