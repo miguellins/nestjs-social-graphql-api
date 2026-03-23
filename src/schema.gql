@@ -437,6 +437,10 @@ type Query {
     orderBy: ChronologicalOrder
   ): [SafeUser!]!
   userById(id: Int!): SafeUser!
+  userByUsername(
+    """Public username used to identify a user profile."""
+    username: String!
+  ): SafeUser!
   posts(
     """Maximum number of items to return (1-50)."""
     take: Int

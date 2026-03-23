@@ -16,7 +16,6 @@ via the GitLens Inspect
 # NEXT FEATURE
 
 Missing for a realistic MVP:
-- User profile by username.
 - User avatar/profile photo.
 - Bio and profile metadata.
 - User posts-by-author query.
@@ -29,6 +28,15 @@ Missing for a realistic MVP:
 - Notification preferences.
 - Better post model than required `title + content`.
 
+# Per Module
+Comments
+- No update/edit mutation.
+
+Notifications
+- Only two notification types.
+- `entityId` is polymorphic but weakly typed.
+- Delivery is only DB row + in-memory pubsub.
+
 
 //---//---//---// //---//---//---//
 
@@ -40,20 +48,25 @@ Missing for a realistic MVP:
 
 
 
+
 # QUESTIONS ABOUT THE NEW FEATURE:
 
+1
 
-
+maluco jsd sds
 
 
 
 # The Problem:
 
-
+Add userByUsername to search User by username beyond just userById
 
 # ABOUT THE NEW IMPLEMENTATION:
 
-
+Optional Improvements
+- Consider extracting cache TTL literals such as 5 * 60_000 and 60_000 into small local constants if the users module keeps growing.
+- Consider a future broader cache-invalidation strategy for cached post/comment/follow/like views that embed SafeUserPreview fields after username/name changes. That is a wider architectural concern, not just a users.service.ts issue.
+- Consider a small users-domain cache key helper/constants file if more user read variants are added later.
 
 
 

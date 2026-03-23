@@ -1,12 +1,15 @@
 import { z } from "zod";
 
+import {
+  USERNAME_REGEX,
+  USERNAME_REGEX_MESSAGE,
+} from "@/users/constants/username.constants";
+
 /**
  * Zod schemas for user writes
  *
  * Validates create and update data for the user service
  */
-
-const usernameRegex = /^[a-zA-Z0-9_]+$/;
 
 export const createUserCommandSchema = z.object({
   name: z.string().trim().min(1, "name is required").min(3).max(20),
@@ -25,8 +28,8 @@ export const createUserCommandSchema = z.object({
     .min(1, "username is required")
     .min(3)
     .max(15)
-    .regex(usernameRegex, {
-      message: "username can only contain letters, numbers and underscore",
+    .regex(USERNAME_REGEX, {
+      message: USERNAME_REGEX_MESSAGE,
     }),
   password: z.string().trim().min(1, "password is required").min(8).max(72),
 });
@@ -56,8 +59,8 @@ export const updateUserCommandSchema = z
       .min(1, "Username cannot be empty")
       .min(3)
       .max(15)
-      .regex(usernameRegex, {
-        message: "username can only contain letters, numbers and underscore",
+      .regex(USERNAME_REGEX, {
+        message: USERNAME_REGEX_MESSAGE,
       })
       .optional(),
     password: z

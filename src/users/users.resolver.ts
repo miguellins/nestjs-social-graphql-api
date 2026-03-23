@@ -7,6 +7,7 @@ import { MessageResponse } from "@/common/types/message-response.type";
 import { PaginationArgs } from "@/common/args/pagination.args";
 import { Public } from "@/common/decorators/auth.decorator";
 
+import { GetUserByUsernameArgs } from "@/users/args/get-user-by-username.args";
 import { CreateUserInput } from "@/users/dto/create-user.input";
 import { UpdateUserInput } from "@/users/dto/update-user.input";
 import { SafeUser } from "@/users/models/safe-user.model";
@@ -34,6 +35,13 @@ export class UsersResolver {
   @Query(() => SafeUser, { name: "userById" })
   async userById(@Args("id", { type: () => Int }) id: number) {
     return this.usersService.getUser(id);
+  }
+
+  @Public()
+  @Throttle({ default: THROTTLE_LIMITS.READ })
+  @Query(() => SafeUser, { name: "userByUsername" })
+  async userByUsername(@Args() args: GetUserByUsernameArgs): Promise<SafeUser> {
+    return this.usersService.getUserByUsername(args.username);
   }
 
   // Set to Public

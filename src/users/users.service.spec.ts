@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  InternalServerErrorException,
   Logger,
   NotFoundException,
 } from "@nestjs/common";
@@ -50,12 +51,14 @@ describe("UsersService", () => {
   };
 
   const cacheMock: {
+    get: jest.Mock;
     getVersion: jest.Mock;
     bumpVersion: jest.Mock;
     del: jest.Mock;
     getOrSet: jest.Mock;
     set: jest.Mock;
   } = {
+    get: jest.fn(),
     getVersion: jest.fn(),
     bumpVersion: jest.fn(),
     del: jest.fn(),
@@ -180,6 +183,70 @@ describe("UsersService", () => {
     });
   });
 
+  describe("getUserByUsername", () => {
+    it("normalizes username, resolves by username on cache miss, and seeds both caches", async () => {
+      cacheMock.get.mockResolvedValueOnce(undefined);
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: 7,
+        name: "John",
+        username: "john",
+      });
+
+      const res = await service.getUserByUsername("  JoHn  ");
+
+      expect(cacheMock.get).toHaveBeenCalledWith("user:lookup:username:john");
+      expect(prismaMock.user.findUnique).toHaveBeenCalledWith({
+        where: { username: "john" },
+        select: SafeUserSelect,
+      });
+      expect(cacheMock.set).toHaveBeenNthCalledWith(
+        1,
+        "user:safe:7",
+        res,
+        5 * 60_000,
+      );
+      expect(cacheMock.set).toHaveBeenNthCalledWith(
+        2,
+        "user:lookup:username:john",
+        7,
+        5 * 60_000,
+      );
+      expect(res).toEqual({
+        id: 7,
+        name: "John",
+        username: "john",
+      });
+    });
+
+    it("reuses the canonical id lookup when the username alias cache hits", async () => {
+      cacheMock.get.mockResolvedValueOnce(7);
+      prismaMock.user.findUnique.mockResolvedValue({ id: 7 });
+
+      const res = await service.getUserByUsername("john");
+
+      expect(cacheMock.get).toHaveBeenCalledWith("user:lookup:username:john");
+      expect(cacheMock.getOrSet).toHaveBeenCalledWith(
+        "user:safe:7",
+        expect.any(Function),
+        5 * 60_000,
+      );
+      expect(prismaMock.user.findUnique).toHaveBeenCalledWith({
+        where: { id: 7 },
+        select: SafeUserSelect,
+      });
+      expect(res).toEqual({ id: 7 });
+    });
+
+    it("throws NotFoundException when username does not exist", async () => {
+      cacheMock.get.mockResolvedValueOnce(undefined);
+      prismaMock.user.findUnique.mockResolvedValue(null);
+
+      await expect(service.getUserByUsername("missing")).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+  });
+
   describe("createUser", () => {
     it("throws BadRequestException when required fields are empty after trim", async () => {
       await expect(
@@ -255,6 +322,11 @@ describe("UsersService", () => {
       expect(cacheMock.set).toHaveBeenCalledWith(
         "user:safe:10",
         created,
+        5 * 60_000,
+      );
+      expect(cacheMock.set).toHaveBeenCalledWith(
+        "user:lookup:username:john",
+        10,
         5 * 60_000,
       );
       expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:user:list");
@@ -335,7 +407,7 @@ describe("UsersService", () => {
           username: "john",
           password: "password123",
         }),
-      ).rejects.toThrow("boom");
+      ).rejects.toBeInstanceOf(InternalServerErrorException);
     });
 
     it("returns the created user even if cache refresh fails", async () => {
@@ -423,6 +495,9 @@ describe("UsersService", () => {
     });
 
     it("updates user with normalized fields, caches profile, bumps list version", async () => {
+      prismaMock.user.findUnique.mockResolvedValue({
+        username: "olduser",
+      });
       prismaMock.user.update.mockResolvedValue({
         id: 2,
         name: "New Name",
@@ -448,7 +523,33 @@ describe("UsersService", () => {
         res,
         5 * 60_000,
       );
+      expect(cacheMock.del).toHaveBeenCalledWith(
+        "user:lookup:username:olduser",
+      );
+      expect(cacheMock.set).toHaveBeenCalledWith(
+        "user:lookup:username:newuser",
+        2,
+        5 * 60_000,
+      );
       expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:user:list");
+    });
+
+    it("does not prefetch the current username when username is not being updated", async () => {
+      prismaMock.user.update.mockResolvedValue({
+        id: 2,
+        name: "New Name",
+        email: "x@y.com",
+        username: "currentuser",
+      });
+
+      await service.updateUser({ name: "New Name" }, 2);
+
+      expect(prismaMock.user.findUnique).not.toHaveBeenCalled();
+      expect(cacheMock.set).toHaveBeenCalledWith(
+        "user:lookup:username:currentuser",
+        2,
+        5 * 60_000,
+      );
     });
 
     it("throws NotFoundException on Prisma P2025", async () => {
@@ -501,26 +602,28 @@ describe("UsersService", () => {
       ).rejects.toBeInstanceOf(ConflictException);
     });
 
-    it("lets unexpected update errors bubble for the global filter to normalize", async () => {
+    it("throws InternalServerErrorException for unexpected update errors", async () => {
       prismaMock.user.update.mockRejectedValue(new Error("boom"));
 
-      await expect(service.updateUser({ name: "okay" }, 1)).rejects.toThrow(
-        "boom",
+      await expect(service.updateUser({ name: "okay" }, 1)).rejects.toBeInstanceOf(
+        InternalServerErrorException,
       );
     });
   });
 
   describe("deleteUser", () => {
     it("deletes user, clears cache, bumps list version, and returns message", async () => {
-      prismaMock.user.delete.mockResolvedValue({ id: 1 });
+      prismaMock.user.delete.mockResolvedValue({ username: "john" });
 
       const res = await service.deleteUser(1);
 
       expect(prismaMock.user.delete).toHaveBeenCalledWith({
         where: { id: 1 },
+        select: { username: true },
       });
 
       expect(cacheMock.del).toHaveBeenCalledWith("user:safe:1");
+      expect(cacheMock.del).toHaveBeenCalledWith("user:lookup:username:john");
       expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:user:list");
 
       expect(res).toEqual({ message: "User deleted successfully" });
@@ -558,10 +661,12 @@ describe("UsersService", () => {
       loggerErrorSpy.mockRestore();
     });
 
-    it("lets unexpected delete errors bubble for the global filter to normalize", async () => {
+    it("throws InternalServerErrorException for unexpected delete errors", async () => {
       prismaMock.user.delete.mockRejectedValue(new Error("boom"));
 
-      await expect(service.deleteUser(1)).rejects.toThrow("boom");
+      await expect(service.deleteUser(1)).rejects.toBeInstanceOf(
+        InternalServerErrorException,
+      );
     });
   });
 });

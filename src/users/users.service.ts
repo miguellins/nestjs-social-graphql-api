@@ -1,6 +1,7 @@
 import {
   ConflictException,
   Injectable,
+  InternalServerErrorException,
   Logger,
   NotFoundException,
 } from "@nestjs/common";
@@ -24,6 +25,10 @@ import type {
   CreateUserCommand,
   UpdateUserCommand,
 } from "@/users/schemas/user-write.schema";
+import {
+  getUserByUsernameCommandSchema,
+  type GetUserByUsernameCommand,
+} from "@/users/schemas/user-read.schema";
 import type { SafeUserDTO } from "@/users/dto/safe-user.dto";
 import { SafeUserSelect } from "@/users/dto/safe-user.dto";
 
@@ -91,7 +96,7 @@ export class UsersService {
 
   // Returns one safe user profile by id
   async getUser(id: number): Promise<SafeUserDTO> {
-    const cacheKey = `user:safe:${id}`;
+    const cacheKey = this.getUserCacheKey(id);
 
     return this.cacheHelper.getOrSet(
       cacheKey,
@@ -108,6 +113,43 @@ export class UsersService {
       },
       5 * 60_000, // Cache user profile longer than list (profiles change less often)
     );
+  }
+
+  // Returns one safe user profile by username using id as the canonical cache identity
+  async getUserByUsername(username: string): Promise<SafeUserDTO> {
+    const normalized = this.parseGetUserByUsernameInput({ username });
+
+    const lookupCacheKey = this.getUserUsernameLookupCacheKey(
+      normalized.username,
+    );
+
+    const cachedId = await this.cacheHelper.get<number>(lookupCacheKey);
+
+    if (cachedId !== undefined) {
+      return this.getUser(cachedId);
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { username: normalized.username },
+      select: SafeUserSelect,
+    });
+
+    if (!user) {
+      throw new NotFoundException(
+        `User with username "${normalized.username}" not found`,
+      );
+    }
+
+    await runBestEffort(
+      this.logger,
+      "error",
+      `Failed to refresh caches after looking up user ${user.id} by username`,
+      async () => {
+        await this.cacheSafeUser(user);
+      },
+    );
+
+    return user;
   }
 
   // Creates a new user with a hashed password
@@ -133,25 +175,11 @@ export class UsersService {
       if (err instanceof Prisma.PrismaClientKnownRequestError) {
         // Keep unique-field conflicts explicit instead of deferring to a generic duplicate message.
         if (err.code === "P2002") {
-          const target = (
-            err.meta as { target?: string[] | string } | undefined
-          )?.target;
-
-          if (Array.isArray(target)) {
-            if (target.includes("email")) {
-              throw new ConflictException("Email already exists");
-            }
-            if (target.includes("username")) {
-              throw new ConflictException("Username already exists");
-            }
-          }
-
-          // Fallback if meta is missing
-          throw new ConflictException("Username or email already exists");
+          this.throwUserUniqueConflict(err, "Username or email already exists");
         }
       }
 
-      throw err;
+      this.throwUnexpectedPersistenceFailure("create user", err);
     }
 
     // Keep cache refresh failures from masking a committed user creation
@@ -160,7 +188,7 @@ export class UsersService {
       "error",
       `Failed to refresh caches after creating user ${user.id}`,
       async () => {
-        await this.cacheHelper.set(`user:safe:${user.id}`, user, 5 * 60_000);
+        await this.cacheSafeUser(user);
         await this.cacheHelper.bumpVersion("v:user:list");
       },
     );
@@ -174,6 +202,17 @@ export class UsersService {
     currentUserId: number,
   ): Promise<SafeUserDTO> {
     const normalizedInput = this.parseUpdateUserInput(input);
+    const existingUser =
+      normalizedInput.username !== undefined
+        ? await this.prisma.user.findUnique({
+            where: { id: currentUserId },
+            select: { username: true },
+          })
+        : null;
+
+    if (normalizedInput.username !== undefined && !existingUser) {
+      throw new NotFoundException("User not found");
+    }
 
     // Build the update payload safely only including provided fields
     const data: Prisma.UserUpdateInput = {};
@@ -213,24 +252,11 @@ export class UsersService {
 
         // Keep unique-field conflicts explicit instead of deferring to a generic duplicate message.
         if (err.code === "P2002") {
-          const target = (
-            err.meta as { target?: string[] | string } | undefined
-          )?.target;
-
-          if (Array.isArray(target)) {
-            if (target.includes("email")) {
-              throw new ConflictException("Email already exists");
-            }
-            if (target.includes("username")) {
-              throw new ConflictException("Username already exists");
-            }
-          }
-
-          throw new ConflictException("Email or username already exists");
+          this.throwUserUniqueConflict(err, "Email or username already exists");
         }
       }
 
-      throw err;
+      this.throwUnexpectedPersistenceFailure("update user", err);
     }
 
     // Keep cache refresh failures from masking a committed user update
@@ -239,11 +265,16 @@ export class UsersService {
       "error",
       `Failed to refresh caches after updating user ${currentUserId}`,
       async () => {
-        await this.cacheHelper.set(
-          `user:safe:${currentUserId}`,
-          updated,
-          5 * 60_000,
-        );
+        if (
+          existingUser !== null &&
+          existingUser.username !== updated.username
+        ) {
+          await this.cacheHelper.del(
+            this.getUserUsernameLookupCacheKey(existingUser.username),
+          );
+        }
+
+        await this.cacheSafeUser(updated);
         await this.cacheHelper.bumpVersion("v:user:list");
       },
     );
@@ -253,9 +284,12 @@ export class UsersService {
 
   // Deletes the current user and clears related cache entries
   async deleteUser(currentUserId: number): Promise<MessageResponse> {
+    let deletedUser: { username: string };
+
     try {
-      await this.prisma.user.delete({
+      deletedUser = await this.prisma.user.delete({
         where: { id: currentUserId },
+        select: { username: true },
       });
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError) {
@@ -263,7 +297,7 @@ export class UsersService {
         if (err.code === "P2025") throw new NotFoundException("User not found");
       }
 
-      throw err;
+      this.throwUnexpectedPersistenceFailure("delete user", err);
     }
 
     // Keep cache refresh failures from masking a committed user deletion
@@ -272,7 +306,10 @@ export class UsersService {
       "error",
       `Failed to refresh caches after deleting user ${currentUserId}`,
       async () => {
-        await this.cacheHelper.del(`user:safe:${currentUserId}`);
+        await this.cacheHelper.del(this.getUserCacheKey(currentUserId));
+        await this.cacheHelper.del(
+          this.getUserUsernameLookupCacheKey(deletedUser.username),
+        );
         await this.cacheHelper.bumpVersion("v:user:list");
       },
     );
@@ -298,5 +335,63 @@ export class UsersService {
       input,
       "Invalid user input",
     );
+  }
+
+  // Parses and normalizes public username lookup input for the service layer
+  private parseGetUserByUsernameInput(input: GetUserByUsernameCommand) {
+    return parseWithBadRequest(
+      getUserByUsernameCommandSchema,
+      input,
+      "Invalid user lookup input",
+    );
+  }
+
+  private getUserCacheKey(id: number): string {
+    return `user:safe:${id}`;
+  }
+
+  private getUserUsernameLookupCacheKey(username: string): string {
+    return `user:lookup:username:${username}`;
+  }
+
+  private async cacheSafeUser(user: SafeUserDTO): Promise<void> {
+    await this.cacheHelper.set(this.getUserCacheKey(user.id), user, 5 * 60_000);
+    await this.cacheHelper.set(
+      this.getUserUsernameLookupCacheKey(user.username),
+      user.id,
+      5 * 60_000,
+    );
+  }
+
+  private throwUserUniqueConflict(
+    err: Prisma.PrismaClientKnownRequestError,
+    fallbackMessage: string,
+  ): never {
+    const target = (err.meta as { target?: string[] | string } | undefined)
+      ?.target;
+
+    if (Array.isArray(target)) {
+      if (target.includes("email")) {
+        throw new ConflictException("Email already exists");
+      }
+
+      if (target.includes("username")) {
+        throw new ConflictException("Username already exists");
+      }
+    }
+
+    throw new ConflictException(fallbackMessage);
+  }
+
+  private throwUnexpectedPersistenceFailure(
+    action: "create user" | "update user" | "delete user",
+    err: unknown,
+  ): never {
+    this.logger.error(
+      `Unexpected persistence failure while trying to ${action}`,
+      err instanceof Error ? err.stack : undefined,
+    );
+
+    throw new InternalServerErrorException(`Failed to ${action}`);
   }
 }
