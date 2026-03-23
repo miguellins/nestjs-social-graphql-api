@@ -539,6 +539,13 @@ type Mutation {
     """Payload used to create a new comment."""
     input: CreateCommentInput!
   ): SafeCommentDTO!
+  updateComment(
+    """Unique id of the target comment."""
+    commentId: Int!
+
+    """Payload used to update an existing comment."""
+    input: UpdateCommentInput!
+  ): SafeCommentDTO!
   deleteComment(
     """Unique id of the target comment."""
     commentId: Int!
@@ -655,6 +662,16 @@ input CreateCommentInput {
   postId: Int!
 
   """Text content of the comment."""
+  content: String!
+}
+
+"""
+GraphQL input for comment updates
+
+Validates the data sent to update a comment
+"""
+input UpdateCommentInput {
+  """Updated text content of the comment."""
   content: String!
 }
 

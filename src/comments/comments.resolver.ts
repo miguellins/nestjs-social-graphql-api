@@ -4,6 +4,7 @@ import { Throttle } from "@nestjs/throttler";
 import { FindCommentsByPostArgs } from "@/comments/args/find-comments-by-post.args";
 import { CreateCommentArgs } from "@/comments/args/create-comment.args";
 import { DeleteCommentArgs } from "@/comments/args/delete-comment.args";
+import { UpdateCommentArgs } from "@/comments/args/update-comment.args";
 import { SafeCommentDTO } from "@/comments/models/safe-comment.model";
 import { CommentsService } from "@/comments/comments.service";
 
@@ -40,6 +41,19 @@ export class CommentsResolver {
       take: args.take,
       orderBy: args.orderBy,
     });
+  }
+
+  @Throttle({ default: THROTTLE_LIMITS.MUTATION })
+  @Mutation(() => SafeCommentDTO, { name: "updateComment" })
+  async updateComment(
+    @Args() args: UpdateCommentArgs,
+    @CurrentUser() user: { id: number },
+  ): Promise<SafeCommentDTO> {
+    return this.commentsService.updateComment(
+      args.commentId,
+      args.input,
+      user.id,
+    );
   }
 
   @Throttle({ default: THROTTLE_LIMITS.DESTRUCTIVE })
