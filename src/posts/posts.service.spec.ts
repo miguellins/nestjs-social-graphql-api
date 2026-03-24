@@ -30,6 +30,8 @@ import { PostsService } from "./posts.service";
 describe("PostsService", () => {
   let service: PostsService;
   let moduleRef: TestingModule;
+  const maxContent = "a".repeat(2000);
+  const tooLongContent = "a".repeat(2001);
 
   const prismaMock: {
     post: {
@@ -320,6 +322,32 @@ describe("PostsService", () => {
       expect(res).toEqual(created);
     });
 
+    it("creates post when content length is exactly 2000 characters", async () => {
+      const created = { id: 1, title: "Test", content: maxContent };
+      prismaMock.post.create.mockResolvedValue(created);
+
+      await expect(
+        service.createPost({ title: "Test", content: maxContent }, 1),
+      ).resolves.toEqual(created);
+
+      expect(prismaMock.post.create).toHaveBeenCalledWith({
+        data: {
+          title: "Test",
+          content: maxContent,
+          author: { connect: { id: 1 } },
+        },
+        select: SafePostListSelect,
+      });
+    });
+
+    it("throws BadRequestException when content exceeds 2000 characters on create", async () => {
+      await expect(
+        service.createPost({ title: "Test", content: tooLongContent }, 1),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      expect(prismaMock.post.create).not.toHaveBeenCalled();
+    });
+
     it("throws NotFoundException when Prisma errors P2003/P2025 (author not found)", async () => {
       const err1 = new Prisma.PrismaClientKnownRequestError("fk", {
         code: "P2003",
@@ -407,6 +435,32 @@ describe("PostsService", () => {
       expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:posts:list");
 
       expect(res).toEqual(updated);
+    });
+
+    it("updates post when content length is exactly 2000 characters", async () => {
+      prismaMock.post.findUnique.mockResolvedValue({ id: 1, authorId: 7 });
+
+      const updated = { id: 1, title: "Test", content: maxContent };
+      prismaMock.post.update.mockResolvedValue(updated);
+
+      await expect(
+        service.updatePost(1, { content: maxContent }, 7),
+      ).resolves.toEqual(updated);
+
+      expect(prismaMock.post.update).toHaveBeenCalledWith({
+        where: { id: 1 },
+        data: { content: maxContent },
+        select: SafePostListSelect,
+      });
+    });
+
+    it("throws BadRequestException when content exceeds 2000 characters on update", async () => {
+      await expect(
+        service.updatePost(1, { content: tooLongContent }, 1),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      expect(prismaMock.post.findUnique).not.toHaveBeenCalled();
+      expect(prismaMock.post.update).not.toHaveBeenCalled();
     });
 
     it("throws NotFoundException when Prisma update throws P2025", async () => {

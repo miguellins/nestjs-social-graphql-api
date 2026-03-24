@@ -25,6 +25,6 @@ export class CreatePostInput {
   @IsString()
   @IsNotEmpty()
   @MinLength(3)
-  @MaxLength(200)
+  @MaxLength(2000)
   content: string;
 }

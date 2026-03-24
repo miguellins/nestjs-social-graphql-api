@@ -8,7 +8,7 @@ import { z } from "zod";
 
 export const createPostCommandSchema = z.object({
   title: z.string().trim().min(1, "Title cannot be empty").min(3).max(50),
-  content: z.string().trim().min(1, "Content cannot be empty").min(3).max(200),
+  content: z.string().trim().min(1, "Content cannot be empty").min(3).max(2000),
 });
 
 export const updatePostCommandSchema = z
@@ -25,7 +25,7 @@ export const updatePostCommandSchema = z
       .trim()
       .min(1, "Content cannot be empty")
       .min(3)
-      .max(200)
+      .max(2000)
       .optional(),
   })
   .refine(
