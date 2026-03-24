@@ -28,15 +28,17 @@ import {
 import {
   createPostCommandSchema,
   updatePostCommandSchema,
+  type CreatePostCommand,
+  type UpdatePostCommand,
 } from "@/posts/schemas/post-write.schema";
-import type {
-  CreatePostCommand,
-  UpdatePostCommand,
-} from "@/posts/schemas/post-write.schema";
-import type { SafePostDetailDTO } from "@/posts/dto/safe-post-detail.dto";
-import { SafePostDetailSelect } from "@/posts/dto/safe-post-detail.dto";
-import type { SafePostListDTO } from "@/posts/dto/safe-post-list.dto";
-import { SafePostListSelect } from "@/posts/dto/safe-post-list.dto";
+import {
+  type SafePostDetailDTO,
+  SafePostDetailSelect,
+} from "@/posts/dto/safe-post-detail.dto";
+import {
+  type SafePostListDTO,
+  SafePostListSelect,
+} from "@/posts/dto/safe-post-list.dto";
 
 /**
  * Service for post workflows
@@ -346,6 +348,8 @@ export class PostsService {
         select: {
           id: true,
           authorId: true,
+          title: true,
+          content: true,
         },
       });
 
@@ -355,6 +359,10 @@ export class PostsService {
         throw new ForbiddenException(
           "You do not have permission to update this post",
         );
+      }
+
+      if (this.didPostContentChange(existing, normalizedInput)) {
+        data.editedAt = new Date();
       }
 
       post = await this.prisma.post.update({
@@ -502,6 +510,19 @@ export class PostsService {
 
   private getUserPostsListVersionKey(userId: number): string {
     return `v:user:${userId}:posts:list`;
+  }
+
+  private didPostContentChange(
+    existing: {
+      title: string | null;
+      content: string;
+    },
+    input: UpdatePostCommand,
+  ): boolean {
+    return (
+      (input.title !== undefined && input.title !== existing.title) ||
+      (input.content !== undefined && input.content !== existing.content)
+    );
   }
 
   private throwUnexpectedPersistenceFailure(

@@ -55,6 +55,19 @@ export class PostDetail {
   })
   updatedAtFormatted?: string;
 
+  /** Timestamp indicating when the post body or title was last meaningfully edited. */
+  @Field(() => GraphQLISODateTime, {
+    nullable: true,
+  })
+  editedAt: Date | null;
+
+  /** Presentation-friendly UTC timestamp for UI display. */
+  @FormattedDateTimeField("editedAt", {
+    description:
+      "Presentation-friendly UTC timestamp for when the post body or title was last meaningfully edited.",
+  })
+  editedAtFormatted?: string;
+
   /** Total number of likes associated with the post. */
   @Field(() => Int)
   likesCount: number;

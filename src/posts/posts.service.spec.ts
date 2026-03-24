@@ -265,7 +265,11 @@ describe("PostsService", () => {
         }),
       );
 
-      prismaMock.post.findUnique.mockResolvedValue({ id: 10, viewsCount: 1 });
+      prismaMock.post.findUnique.mockResolvedValue({
+        id: 10,
+        viewsCount: 1,
+        editedAt: null,
+      });
 
       const res = await service.getPost(10);
 
@@ -292,7 +296,7 @@ describe("PostsService", () => {
         },
       });
 
-      expect(res).toEqual({ id: 10, viewsCount: 1 });
+      expect(res).toEqual({ id: 10, viewsCount: 1, editedAt: null });
 
       expect(prismaMock.post.update).toHaveBeenCalledWith({
         where: { id: 10 },
@@ -310,7 +314,7 @@ describe("PostsService", () => {
     });
 
     it("patches the cached viewsCount after the asynchronous increment succeeds", async () => {
-      const cachedPost = { id: 10, viewsCount: 1 };
+      const cachedPost = { id: 10, viewsCount: 1, editedAt: null };
 
       prismaMock.post.findUnique.mockResolvedValue(cachedPost);
       prismaMock.post.update.mockResolvedValue({ viewsCount: 42 });
@@ -323,7 +327,7 @@ describe("PostsService", () => {
 
       expect(cacheMock.set).toHaveBeenCalledWith(
         "posts:detail:10",
-        { id: 10, viewsCount: 42 },
+        { id: 10, viewsCount: 42, editedAt: null },
         60_000,
       );
     });
@@ -339,12 +343,17 @@ describe("PostsService", () => {
     });
 
     it("keeps the read response successful when the async viewsCount increment fails", async () => {
-      prismaMock.post.findUnique.mockResolvedValue({ id: 10, viewsCount: 1 });
+      prismaMock.post.findUnique.mockResolvedValue({
+        id: 10,
+        viewsCount: 1,
+        editedAt: null,
+      });
       prismaMock.post.update.mockRejectedValue(new Error("db offline"));
 
       await expect(service.getPost(10)).resolves.toEqual({
         id: 10,
         viewsCount: 1,
+        editedAt: null,
       });
 
       await new Promise(setImmediate);
@@ -367,7 +376,7 @@ describe("PostsService", () => {
     });
 
     it("creates post with trimmed inputs, bumps/invalidates caches and returns post", async () => {
-      const created = { id: 1, title: "Test", content: "Content" };
+      const created = { id: 1, title: "Test", content: "Content", editedAt: null };
       prismaMock.post.create.mockResolvedValue(created);
 
       const input: CreatePostInput = {
@@ -394,7 +403,7 @@ describe("PostsService", () => {
     });
 
     it("creates a body-first post without title", async () => {
-      const created = { id: 1, title: null, content: "Content" };
+      const created = { id: 1, title: null, content: "Content", editedAt: null };
       prismaMock.post.create.mockResolvedValue(created);
 
       await expect(
@@ -411,7 +420,7 @@ describe("PostsService", () => {
     });
 
     it("creates post when content length is exactly 2000 characters", async () => {
-      const created = { id: 1, title: "Test", content: maxContent };
+      const created = { id: 1, title: "Test", content: maxContent, editedAt: null };
       prismaMock.post.create.mockResolvedValue(created);
 
       await expect(
@@ -426,6 +435,15 @@ describe("PostsService", () => {
         },
         select: SafePostListSelect,
       });
+    });
+
+    it("creates posts without an edited marker", async () => {
+      const created = { id: 1, title: "Test", content: "Content", editedAt: null };
+      prismaMock.post.create.mockResolvedValue(created);
+
+      await expect(
+        service.createPost({ title: "Test", content: "Content" }, 1),
+      ).resolves.toEqual(created);
     });
 
     it("throws BadRequestException when content exceeds 2000 characters on create", async () => {
@@ -502,9 +520,17 @@ describe("PostsService", () => {
     });
 
     it("updates post, invalidates detail cache, bumps list version, and returns post", async () => {
-      prismaMock.post.findUnique.mockResolvedValue({ id: 1, authorId: 7 });
+      prismaMock.post.findUnique.mockResolvedValue({
+        id: 1,
+        authorId: 7,
+        title: "Old",
+        content: "OldC",
+      });
 
-      const updated = { id: 1, title: "New", content: "NewC" };
+      const editedAt = new Date("2026-03-24T15:00:00.000Z");
+      jest.useFakeTimers().setSystemTime(editedAt);
+
+      const updated = { id: 1, title: "New", content: "NewC", editedAt };
       prismaMock.post.update.mockResolvedValue(updated);
 
       const input: UpdatePostInput = {
@@ -515,7 +541,7 @@ describe("PostsService", () => {
 
       expect(prismaMock.post.update).toHaveBeenCalledWith({
         where: { id: 1 },
-        data: { title: "New", content: "NewC" },
+        data: { title: "New", content: "NewC", editedAt },
         select: SafePostListSelect,
       });
 
@@ -524,12 +550,21 @@ describe("PostsService", () => {
       expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:user:7:posts:list");
 
       expect(res).toEqual(updated);
+      jest.useRealTimers();
     });
 
     it("updates a post without changing title when only content is provided", async () => {
-      prismaMock.post.findUnique.mockResolvedValue({ id: 1, authorId: 7 });
+      prismaMock.post.findUnique.mockResolvedValue({
+        id: 1,
+        authorId: 7,
+        title: null,
+        content: "Body",
+      });
 
-      const updated = { id: 1, title: null, content: "Updated body" };
+      const editedAt = new Date("2026-03-24T16:00:00.000Z");
+      jest.useFakeTimers().setSystemTime(editedAt);
+
+      const updated = { id: 1, title: null, content: "Updated body", editedAt };
       prismaMock.post.update.mockResolvedValue(updated);
 
       await expect(
@@ -538,15 +573,24 @@ describe("PostsService", () => {
 
       expect(prismaMock.post.update).toHaveBeenCalledWith({
         where: { id: 1 },
-        data: { content: "Updated body" },
+        data: { content: "Updated body", editedAt },
         select: SafePostListSelect,
       });
+      jest.useRealTimers();
     });
 
     it("clears the title when update input sets it to null", async () => {
-      prismaMock.post.findUnique.mockResolvedValue({ id: 1, authorId: 7 });
+      prismaMock.post.findUnique.mockResolvedValue({
+        id: 1,
+        authorId: 7,
+        title: "Headline",
+        content: "Body",
+      });
 
-      const updated = { id: 1, title: null, content: "Body" };
+      const editedAt = new Date("2026-03-24T17:00:00.000Z");
+      jest.useFakeTimers().setSystemTime(editedAt);
+
+      const updated = { id: 1, title: null, content: "Body", editedAt };
       prismaMock.post.update.mockResolvedValue(updated);
 
       await expect(service.updatePost(1, { title: null }, 7)).resolves.toEqual(
@@ -555,15 +599,50 @@ describe("PostsService", () => {
 
       expect(prismaMock.post.update).toHaveBeenCalledWith({
         where: { id: 1 },
-        data: { title: null },
+        data: { title: null, editedAt },
+        select: SafePostListSelect,
+      });
+      jest.useRealTimers();
+    });
+
+    it("does not set editedAt when normalized post input does not change title or content", async () => {
+      prismaMock.post.findUnique.mockResolvedValue({
+        id: 1,
+        authorId: 7,
+        title: "Headline",
+        content: "Body",
+      });
+
+      const updated = { id: 1, title: "Headline", content: "Body", editedAt: null };
+      prismaMock.post.update.mockResolvedValue(updated);
+
+      await expect(
+        service.updatePost(
+          1,
+          { title: "  Headline  ", content: "  Body  " },
+          7,
+        ),
+      ).resolves.toEqual(updated);
+
+      expect(prismaMock.post.update).toHaveBeenCalledWith({
+        where: { id: 1 },
+        data: { title: "Headline", content: "Body" },
         select: SafePostListSelect,
       });
     });
 
     it("updates post when content length is exactly 2000 characters", async () => {
-      prismaMock.post.findUnique.mockResolvedValue({ id: 1, authorId: 7 });
+      prismaMock.post.findUnique.mockResolvedValue({
+        id: 1,
+        authorId: 7,
+        title: "Test",
+        content: "Old",
+      });
 
-      const updated = { id: 1, title: "Test", content: maxContent };
+      const editedAt = new Date("2026-03-24T18:00:00.000Z");
+      jest.useFakeTimers().setSystemTime(editedAt);
+
+      const updated = { id: 1, title: "Test", content: maxContent, editedAt };
       prismaMock.post.update.mockResolvedValue(updated);
 
       await expect(
@@ -572,9 +651,10 @@ describe("PostsService", () => {
 
       expect(prismaMock.post.update).toHaveBeenCalledWith({
         where: { id: 1 },
-        data: { content: maxContent },
+        data: { content: maxContent, editedAt },
         select: SafePostListSelect,
       });
+      jest.useRealTimers();
     });
 
     it("throws BadRequestException when content exceeds 2000 characters on update", async () => {

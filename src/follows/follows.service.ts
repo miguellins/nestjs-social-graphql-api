@@ -16,8 +16,10 @@ import { MessageResponse } from "@/common/types/message-response.type";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
 import { runBestEffort } from "@/common/errors/run-best-effort";
 
-import type { SafeFollowDTO } from "@/follows/dto/safe-follow.dto";
-import { SafeFollowSelect } from "@/follows/dto/safe-follow.dto";
+import {
+  type SafeFollowDTO,
+  SafeFollowSelect,
+} from "@/follows/dto/safe-follow.dto";
 
 import { NotificationsService } from "@/notifications/notifications.service";
 

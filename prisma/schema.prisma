@@ -69,6 +69,7 @@ model Post {
   // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  editedAt  DateTime?
 
   // Stores the ID of the author (User)
   authorId Int

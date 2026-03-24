@@ -7,10 +7,14 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 
-import { createCommentCommandSchema } from "@/comments/schemas/create-comment.schema";
-import type { CreateCommentCommand } from "@/comments/schemas/create-comment.schema";
-import type { SafeCommentDTO } from "@/comments/dto/safe-comment.dto";
-import { SafeCommentSelect } from "@/comments/dto/safe-comment.dto";
+import {
+  createCommentCommandSchema,
+  type CreateCommentCommand,
+} from "@/comments/schemas/create-comment.schema";
+import {
+  type SafeCommentDTO,
+  SafeCommentSelect,
+} from "@/comments/dto/safe-comment.dto";
 import {
   updateCommentCommandSchema,
   type UpdateCommentCommand,

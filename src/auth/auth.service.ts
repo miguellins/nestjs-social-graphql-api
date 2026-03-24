@@ -9,15 +9,15 @@ import {
 import { ConfigService } from "@nestjs/config";
 import { JwtService } from "@nestjs/jwt";
 
-import { loginCommandSchema } from "@/auth/schemas/login-command.schema";
-import type { LoginCommand } from "@/auth/schemas/login-command.schema";
+import {
+  loginCommandSchema,
+  type LoginCommand,
+} from "@/auth/schemas/login-command.schema";
 import {
   requestPasswordResetCommandSchema,
   resetPasswordCommandSchema,
-} from "@/auth/schemas/password-reset-command.schema";
-import type {
-  RequestPasswordResetCommand,
-  ResetPasswordCommand,
+  type RequestPasswordResetCommand,
+  type ResetPasswordCommand,
 } from "@/auth/schemas/password-reset-command.schema";
 import { PasswordResetDeliveryService } from "@/auth/password-reset-delivery.service";
 

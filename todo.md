@@ -32,6 +32,7 @@ Missing for a realistic MVP:
 
 AFTER IMPLEMENTATION OF PHOTOS AND MEDIA PLAN:
 - Check if everything is correct
+- Reset and delete all migrations and migrate dev the new schema for start (Database with zero data)
 - Return All GraphQL operations affected
 - Test All Graphql operations manually with differrents users
 
@@ -44,6 +45,8 @@ AFTER IMPLEMENTATION OF PHOTOS AND MEDIA PLAN:
 
 
 # QUESTIONS ABOUT THE NEW FEATURE:
+
+
 
 
 

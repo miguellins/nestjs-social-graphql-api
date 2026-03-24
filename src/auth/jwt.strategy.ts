@@ -2,8 +2,11 @@ import { PassportStrategy } from "@nestjs/passport";
 import { ConfigService } from "@nestjs/config";
 import { Injectable } from "@nestjs/common";
 
-import type { JwtFromRequestFunction } from "passport-jwt";
-import { ExtractJwt, Strategy } from "passport-jwt";
+import {
+  ExtractJwt,
+  Strategy,
+  type JwtFromRequestFunction,
+} from "passport-jwt";
 
 /**
  * Passport JWT strategy for GraphQL authentication

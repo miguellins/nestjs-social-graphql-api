@@ -15,8 +15,10 @@ import { MessageResponse } from "@/common/types/message-response.type";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
 import { runBestEffort } from "@/common/errors/run-best-effort";
 
-import type { LikeDetailDTO } from "@/likes/dto/like-detail.dto";
-import { LikeDetailSelect } from "@/likes/dto/like-detail.dto";
+import {
+  type LikeDetailDTO,
+  LikeDetailSelect,
+} from "@/likes/dto/like-detail.dto";
 
 import { NotificationsService } from "@/notifications/notifications.service";
 

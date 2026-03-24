@@ -204,6 +204,9 @@ This file defines the working rules for contributors and coding agents in this r
 - Keep imports grouped, minimal, stable, and free of unused entries.
 - Avoid mixing many import styles unnecessarily.
 - Prefer the repository's established `@/` alias for internal imports.
+- If a file imports values and types from the same module in separate import statements, merge them into a single import statement when possible.
+- Prefer inline `type` imports in the same statement instead of duplicating imports from the same path.
+- Check modified files for duplicate imports from the same module and clean them up to the most readable merged form.
 - Keep comments useful and specific.
 - Prefer explicit local variables for normalized values and cache keys.
 - Keep functions and methods readable over overly compact.

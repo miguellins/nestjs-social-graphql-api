@@ -397,6 +397,16 @@ type PostDetail {
   """
   updatedAtFormatted: String
 
+  """
+  Timestamp indicating when the post body or title was last meaningfully edited.
+  """
+  editedAt: DateTime
+
+  """
+  Presentation-friendly UTC timestamp for when the post body or title was last meaningfully edited.
+  """
+  editedAtFormatted: String
+
   """Total number of likes associated with the post."""
   likesCount: Int!
 

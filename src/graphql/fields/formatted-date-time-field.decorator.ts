@@ -1,6 +1,9 @@
 import { applyDecorators } from "@nestjs/common";
-import type { FieldMiddleware, MiddlewareContext } from "@nestjs/graphql";
-import { Field } from "@nestjs/graphql";
+import {
+  Field,
+  type FieldMiddleware,
+  type MiddlewareContext,
+} from "@nestjs/graphql";
 
 /**
  * GraphQL field helper for formatted date-time output

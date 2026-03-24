@@ -11,11 +11,15 @@ import { runBestEffort } from "@/common/errors/run-best-effort";
 
 import { GraphqlPubSubService } from "@/graphql/subscriptions/graphql-pubsub.service";
 
-import { createNotificationInputSchema } from "@/notifications/schemas/create-notification.schema";
-import type { CreateNotificationInput } from "@/notifications/schemas/create-notification.schema";
+import {
+  createNotificationInputSchema,
+  type CreateNotificationInput,
+} from "@/notifications/schemas/create-notification.schema";
 import { NotificationReadStatus } from "@/notifications/enums/notification-read-status.enum";
-import type { SafeNotificationDTO } from "@/notifications/dto/notifications.dto";
-import { NotificationSelect } from "@/notifications/dto/notifications.dto";
+import {
+  NotificationSelect,
+  type SafeNotificationDTO,
+} from "@/notifications/dto/notifications.dto";
 
 import { PrismaService } from "@/prisma.service";
 

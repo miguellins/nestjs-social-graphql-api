@@ -20,17 +20,14 @@ import { runBestEffort } from "@/common/errors/run-best-effort";
 import {
   createUserCommandSchema,
   updateUserCommandSchema,
-} from "@/users/schemas/user-write.schema";
-import type {
-  CreateUserCommand,
-  UpdateUserCommand,
+  type CreateUserCommand,
+  type UpdateUserCommand,
 } from "@/users/schemas/user-write.schema";
 import {
   getUserByUsernameCommandSchema,
   type GetUserByUsernameCommand,
 } from "@/users/schemas/user-read.schema";
-import type { SafeUserDTO } from "@/users/dto/safe-user.dto";
-import { SafeUserSelect } from "@/users/dto/safe-user.dto";
+import { SafeUserSelect, type SafeUserDTO } from "@/users/dto/safe-user.dto";
 
 import { PrismaService } from "@/prisma.service";
 import { Prisma } from "@prisma/client";
