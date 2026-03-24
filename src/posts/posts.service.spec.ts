@@ -41,6 +41,9 @@ describe("PostsService", () => {
       update: jest.Mock;
       delete: jest.Mock;
     };
+    user: {
+      findUnique: jest.Mock;
+    };
   } = {
     post: {
       findMany: jest.fn(),
@@ -48,6 +51,9 @@ describe("PostsService", () => {
       create: jest.fn(),
       update: jest.fn(),
       delete: jest.fn(),
+    },
+    user: {
+      findUnique: jest.fn(),
     },
   };
 
@@ -185,6 +191,70 @@ describe("PostsService", () => {
     });
   });
 
+  describe("findPostsByUsername", () => {
+    it("normalizes username, caches timeline by author id, and returns posts", async () => {
+      cacheMock.getVersion.mockResolvedValue(4);
+      prismaMock.user.findUnique.mockResolvedValue({ id: 7 });
+      prismaMock.post.findMany.mockResolvedValue([{ id: 1 }]);
+
+      const res = await service.findPostsByUsername("  TeSter  ", {
+        take: PAGINATION.MAX_TAKE + 99,
+      });
+
+      expect(prismaMock.user.findUnique).toHaveBeenCalledWith({
+        where: { username: "tester" },
+        select: { id: true },
+      });
+      expect(cacheMock.set).toHaveBeenCalledWith(
+        "user:lookup:username:tester",
+        7,
+        5 * 60_000,
+      );
+      expect(cacheMock.getVersion).toHaveBeenCalledWith("v:user:7:posts:list");
+      expect(cacheMock.getOrSet).toHaveBeenCalledWith(
+        `user:7:posts:list:v4:take=${PAGINATION.MAX_TAKE}:order=${ChronologicalOrder.NEWEST}`,
+        expect.any(Function),
+        30_000,
+      );
+      expect(prismaMock.post.findMany).toHaveBeenCalledWith({
+        take: PAGINATION.MAX_TAKE,
+        where: { authorId: 7 },
+        orderBy: { createdAt: "desc" },
+        select: SafePostListSelect,
+      });
+      expect(res).toEqual([{ id: 1 }]);
+    });
+
+    it("uses cached username lookup id when available", async () => {
+      mem.set("user:lookup:username:tester", 7);
+      cacheMock.getVersion.mockResolvedValue(2);
+      prismaMock.post.findMany.mockResolvedValue([]);
+
+      await service.findPostsByUsername("tester");
+
+      expect(prismaMock.user.findUnique).not.toHaveBeenCalled();
+      expect(cacheMock.getVersion).toHaveBeenCalledWith("v:user:7:posts:list");
+    });
+
+    it("throws NotFoundException when author username does not exist", async () => {
+      prismaMock.user.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.findPostsByUsername("missing"),
+      ).rejects.toBeInstanceOf(NotFoundException);
+
+      expect(prismaMock.post.findMany).not.toHaveBeenCalled();
+    });
+
+    it("returns an empty list when the author exists but has no posts", async () => {
+      prismaMock.user.findUnique.mockResolvedValue({ id: 7 });
+      cacheMock.getVersion.mockResolvedValue(1);
+      prismaMock.post.findMany.mockResolvedValue([]);
+
+      await expect(service.findPostsByUsername("tester")).resolves.toEqual([]);
+    });
+  });
+
   describe("getPost", () => {
     it("returns post detail immediately and updates viewsCount asynchronously", async () => {
       let resolveUpdate!: (value: { viewsCount: number }) => void;
@@ -316,6 +386,7 @@ describe("PostsService", () => {
       });
 
       expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:posts:list");
+      expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:user:7:posts:list");
       expect(cacheMock.del).toHaveBeenCalledWith("user:safe:7");
       expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:user:list");
 
@@ -326,9 +397,9 @@ describe("PostsService", () => {
       const created = { id: 1, title: null, content: "Content" };
       prismaMock.post.create.mockResolvedValue(created);
 
-      await expect(service.createPost({ content: "  Content  " }, 7)).resolves.toEqual(
-        created,
-      );
+      await expect(
+        service.createPost({ content: "  Content  " }, 7),
+      ).resolves.toEqual(created);
 
       expect(prismaMock.post.create).toHaveBeenCalledWith({
         data: {
@@ -450,6 +521,7 @@ describe("PostsService", () => {
 
       expect(cacheMock.del).toHaveBeenCalledWith("posts:detail:1");
       expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:posts:list");
+      expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:user:7:posts:list");
 
       expect(res).toEqual(updated);
     });
@@ -564,6 +636,7 @@ describe("PostsService", () => {
 
       expect(cacheMock.del).toHaveBeenCalledWith("posts:detail:1");
       expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:posts:list");
+      expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:user:7:posts:list");
 
       expect(res).toEqual({ message: "Post deleted successfully" });
     });

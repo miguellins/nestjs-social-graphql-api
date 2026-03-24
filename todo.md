@@ -24,20 +24,16 @@ Missing for a realistic MVP:
 - Session revocation.
 - Notification preferences.
 
-# Per Module
-
-Notifications
-- Only two notification types.
-- `entityId` is polymorphic but weakly typed.
-- Delivery is only DB row + in-memory pubsub.
-
 
 //---//---//---// //---//---//---//
 
 
 # TO FIX:
 
-
+AFTER IMPLEMENTATION OF PHOTOS AND MEDIA PLAN:
+- Check if everything is correct
+- Return All GraphQL operations affected
+- Test All Graphql operations manually with differrents users
 
 
 
@@ -53,23 +49,17 @@ Notifications
 
 
 
-Make sure all post related fields are updated to the new fields. DONT MAKE THE CHANGES IN MIGRATIONS, only in prisma schema, and following the project pattern. Return ALL GRAPHQL OPERATIONS THAT WAS AFFECTED.
-
-
 
 
 # The Problem:
 
 Improvements in Models (Tables)
 
-Change by Models:
 
 
 
 //---//---//---// //---//---//---//
 
-
-I want to make improvements in the Post, create a plan for each "problem" (marked with ##), i want to implement one problema at once. Carefully. Return this list in the exact best order for implementation. Example: Return Change content at 200 characters in create-post.input.ts if that is the best first implementation to be made. I want a plan for each problem (marked with ##).
 
 # Post:
 
@@ -163,10 +153,6 @@ So the phrase means:
 - the current schema works technically
 - but it is still an MVP/training-level content model
 - a more realistic app would likely move beyond “every post must have a title and content”
-
-
-## Change content at 200 characters in create-post.input.ts
-Simple edit
 
 
 

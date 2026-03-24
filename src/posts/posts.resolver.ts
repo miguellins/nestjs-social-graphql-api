@@ -7,6 +7,7 @@ import { MessageResponse } from "@/common/types/message-response.type";
 import { PaginationArgs } from "@/common/args/pagination.args";
 import { Public } from "@/common/decorators/auth.decorator";
 
+import { FindPostsByUsernameArgs } from "@/posts/args/find-posts-by-username.args";
 import { CreatePostInput } from "@/posts/dto/create-post.input";
 import { UpdatePostInput } from "@/posts/dto/update-post.input";
 import { FindPostsArgs } from "@/posts/args/find-posts.args";
@@ -38,6 +39,15 @@ export class PostsResolver {
     @Args("id", { type: () => Int }) id: number,
   ): Promise<PostDetail> {
     return this.postsService.getPost(id);
+  }
+
+  @Public()
+  @Throttle({ default: THROTTLE_LIMITS.LIST })
+  @Query(() => [Post], { name: "postsByUsername" })
+  async postsByUsername(
+    @Args() args: FindPostsByUsernameArgs,
+  ): Promise<Post[]> {
+    return this.postsService.findPostsByUsername(args.username, args);
   }
 
   @Throttle({ default: THROTTLE_LIMITS.LIST })

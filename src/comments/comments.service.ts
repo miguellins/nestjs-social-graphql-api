@@ -9,12 +9,12 @@ import {
 
 import { createCommentCommandSchema } from "@/comments/schemas/create-comment.schema";
 import type { CreateCommentCommand } from "@/comments/schemas/create-comment.schema";
+import type { SafeCommentDTO } from "@/comments/dto/safe-comment.dto";
+import { SafeCommentSelect } from "@/comments/dto/safe-comment.dto";
 import {
   updateCommentCommandSchema,
   type UpdateCommentCommand,
 } from "@/comments/schemas/update-comment.schema";
-import type { SafeCommentDTO } from "@/comments/dto/safe-comment.dto";
-import { SafeCommentSelect } from "@/comments/dto/safe-comment.dto";
 
 import {
   ChronologicalOrder,
@@ -61,7 +61,7 @@ export class CommentsService {
     // Check if the target post exists before creating the comment
     const post = await this.prisma.post.findUnique({
       where: { id: data.postId },
-      select: { id: true },
+      select: { id: true, authorId: true },
     });
 
     if (!post) throw new NotFoundException("Post not found");
@@ -99,6 +99,9 @@ export class CommentsService {
       async () => {
         await this.cacheHelper.del(`posts:detail:${data.postId}`);
         await this.cacheHelper.bumpVersion("v:posts:list");
+        await this.cacheHelper.bumpVersion(
+          `v:user:${post.authorId}:posts:list`,
+        );
       },
     );
 
@@ -226,6 +229,11 @@ export class CommentsService {
         id: true,
         authorId: true,
         postId: true,
+        post: {
+          select: {
+            authorId: true,
+          },
+        },
       },
     });
 
@@ -263,6 +271,9 @@ export class CommentsService {
       async () => {
         await this.cacheHelper.del(`posts:detail:${comment.postId}`);
         await this.cacheHelper.bumpVersion("v:posts:list");
+        await this.cacheHelper.bumpVersion(
+          `v:user:${comment.post.authorId}:posts:list`,
+        );
       },
     );
 

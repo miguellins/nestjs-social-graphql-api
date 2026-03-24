@@ -96,7 +96,7 @@ describe("CommentsService", () => {
     });
 
     it("creates comment in transaction, increments counter and invalidates cache", async () => {
-      prismaMock.post.findUnique.mockResolvedValue({ id: 1 });
+      prismaMock.post.findUnique.mockResolvedValue({ id: 1, authorId: 7 });
 
       const created = {
         id: 99,
@@ -152,6 +152,7 @@ describe("CommentsService", () => {
 
       expect(cacheMock.del).toHaveBeenCalledWith("posts:detail:1");
       expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:posts:list");
+      expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:user:7:posts:list");
       expect(res).toEqual(created);
     });
 
@@ -160,7 +161,7 @@ describe("CommentsService", () => {
         .spyOn(Logger.prototype, "error")
         .mockImplementation(() => undefined);
 
-      prismaMock.post.findUnique.mockResolvedValue({ id: 1 });
+      prismaMock.post.findUnique.mockResolvedValue({ id: 1, authorId: 7 });
       prismaMock.$transaction.mockResolvedValue({
         id: 99,
         content: "hello",
@@ -254,6 +255,9 @@ describe("CommentsService", () => {
         id: 1,
         authorId: 10,
         postId: 3,
+        post: {
+          authorId: 7,
+        },
       });
 
       prismaMock.$transaction.mockImplementation(
@@ -292,6 +296,7 @@ describe("CommentsService", () => {
 
       expect(cacheMock.del).toHaveBeenCalledWith("posts:detail:3");
       expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:posts:list");
+      expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:user:7:posts:list");
       expect(res).toEqual({ message: "Comment deleted successfully" });
     });
 
@@ -304,6 +309,9 @@ describe("CommentsService", () => {
         id: 1,
         authorId: 10,
         postId: 3,
+        post: {
+          authorId: 7,
+        },
       });
       prismaMock.$transaction.mockResolvedValue(undefined);
       cacheMock.del.mockRejectedValueOnce(new Error("cache down"));

@@ -21,6 +21,11 @@ import { parseWithBadRequest } from "@/common/zod/parse-with-zod";
 import { runBestEffort } from "@/common/errors/run-best-effort";
 
 import {
+  getUserByUsernameCommandSchema,
+  type GetUserByUsernameCommand,
+} from "@/users/schemas/user-read.schema";
+
+import {
   createPostCommandSchema,
   updatePostCommandSchema,
 } from "@/posts/schemas/post-write.schema";
@@ -147,6 +152,47 @@ export class PostsService {
     );
   }
 
+  // Lists posts for one public author timeline using username as the stable lookup key
+  async findPostsByUsername(
+    username: string,
+    params?: PaginationParams,
+  ): Promise<SafePostListDTO[]> {
+    const normalized = this.parseGetUserByUsernameInput({ username });
+
+    const take = Math.min(
+      params?.take ?? PAGINATION.DEFAULT_TAKE,
+      PAGINATION.MAX_TAKE,
+    );
+
+    const orderby = params?.orderBy ?? ChronologicalOrder.NEWEST;
+
+    const authorId = await this.getUserIdByUsername(normalized.username);
+
+    const versionKey = this.getUserPostsListVersionKey(authorId);
+    const v = await this.cacheHelper.getVersion(versionKey);
+    const cacheKey = `user:${authorId}:posts:list:v${v}:take=${take}:order=${orderby}`;
+
+    return this.cacheHelper.getOrSet(
+      cacheKey,
+      async () => {
+        return this.prisma.post.findMany({
+          take,
+
+          where: {
+            authorId,
+          },
+
+          orderBy: {
+            createdAt: toSortDirection(orderby),
+          },
+
+          select: SafePostListSelect,
+        });
+      },
+      30_000,
+    );
+  }
+
   // Returns a post detail view and increments its view counter
   async getPost(id: number): Promise<SafePostDetailDTO> {
     const cacheKey = `posts:detail:${id}`;
@@ -259,6 +305,9 @@ export class PostsService {
       `Failed to invalidate caches after creating post ${post.id}`,
       async () => {
         await this.cacheHelper.bumpVersion("v:posts:list");
+        await this.cacheHelper.bumpVersion(
+          this.getUserPostsListVersionKey(currentUserId),
+        );
         await this.cacheHelper.del(`user:safe:${currentUserId}`);
         await this.cacheHelper.bumpVersion("v:user:list");
       },
@@ -333,6 +382,9 @@ export class PostsService {
       async () => {
         await this.cacheHelper.del(`posts:detail:${id}`);
         await this.cacheHelper.bumpVersion("v:posts:list");
+        await this.cacheHelper.bumpVersion(
+          this.getUserPostsListVersionKey(currentUserId),
+        );
       },
     );
 
@@ -384,6 +436,9 @@ export class PostsService {
       async () => {
         await this.cacheHelper.del(`posts:detail:${id}`);
         await this.cacheHelper.bumpVersion("v:posts:list");
+        await this.cacheHelper.bumpVersion(
+          this.getUserPostsListVersionKey(currentUserId),
+        );
       },
     );
 
@@ -408,6 +463,45 @@ export class PostsService {
       input,
       "Invalid post input",
     );
+  }
+
+  // Parses and normalizes public username lookup input for post timeline reads
+  private parseGetUserByUsernameInput(input: GetUserByUsernameCommand) {
+    return parseWithBadRequest(
+      getUserByUsernameCommandSchema,
+      input,
+      "Invalid post author lookup input",
+    );
+  }
+
+  private async getUserIdByUsername(username: string): Promise<number> {
+    const lookupCacheKey = this.getUserUsernameLookupCacheKey(username);
+    const cachedId = await this.cacheHelper.get<number>(lookupCacheKey);
+
+    if (cachedId !== undefined) {
+      return cachedId;
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { username },
+      select: { id: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException(`User with username "${username}" not found`);
+    }
+
+    await this.cacheHelper.set(lookupCacheKey, user.id, 5 * 60_000);
+
+    return user.id;
+  }
+
+  private getUserUsernameLookupCacheKey(username: string): string {
+    return `user:lookup:username:${username}`;
+  }
+
+  private getUserPostsListVersionKey(userId: number): string {
+    return `v:user:${userId}:posts:list`;
   }
 
   private throwUnexpectedPersistenceFailure(

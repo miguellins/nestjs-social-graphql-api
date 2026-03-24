@@ -454,6 +454,16 @@ type Query {
     q: String
   ): [Post!]!
   postById(id: Int!): PostDetail!
+  postsByUsername(
+    """Maximum number of items to return (1-50)."""
+    take: Int
+
+    """Controls chronological ordering for list results."""
+    orderBy: ChronologicalOrder
+
+    """Public username used to identify the post author timeline."""
+    username: String!
+  ): [Post!]!
   myFeed(
     """Maximum number of items to return (1-50)."""
     take: Int

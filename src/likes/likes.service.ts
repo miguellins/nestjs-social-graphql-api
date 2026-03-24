@@ -178,6 +178,9 @@ export class LikesService {
         await this.cacheHelper.bumpVersion("v:likes:list");
         await this.cacheHelper.del(`posts:detail:${postId}`);
         await this.cacheHelper.bumpVersion("v:posts:list");
+        await this.cacheHelper.bumpVersion(
+          `v:user:${post.authorId}:posts:list`,
+        );
       },
     );
 
@@ -213,6 +216,11 @@ export class LikesService {
         id: true,
         userId: true,
         postId: true,
+        post: {
+          select: {
+            authorId: true,
+          },
+        },
       },
     });
 
@@ -265,6 +273,9 @@ export class LikesService {
         await this.cacheHelper.bumpVersion("v:likes:list");
         await this.cacheHelper.del(`posts:detail:${like.postId}`);
         await this.cacheHelper.bumpVersion("v:posts:list");
+        await this.cacheHelper.bumpVersion(
+          `v:user:${like.post.authorId}:posts:list`,
+        );
       },
     );
 

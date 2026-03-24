@@ -605,9 +605,9 @@ describe("UsersService", () => {
     it("throws InternalServerErrorException for unexpected update errors", async () => {
       prismaMock.user.update.mockRejectedValue(new Error("boom"));
 
-      await expect(service.updateUser({ name: "okay" }, 1)).rejects.toBeInstanceOf(
-        InternalServerErrorException,
-      );
+      await expect(
+        service.updateUser({ name: "okay" }, 1),
+      ).rejects.toBeInstanceOf(InternalServerErrorException);
     });
   });
 
