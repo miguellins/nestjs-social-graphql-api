@@ -18,7 +18,7 @@ export type LikeDetailDTO = {
 
   post: {
     id: number;
-    title: string;
+    title: string | null;
     content: string;
     createdAt: Date;
     likesCount: number;

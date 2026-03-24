@@ -8,7 +8,7 @@ import type { Prisma } from "@prisma/client";
 
 export type SafePostListDTO = {
   id: number;
-  title: string;
+  title: string | null;
   content: string;
   createdAt: Date;
   likesCount: number;

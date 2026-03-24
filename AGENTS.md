@@ -128,6 +128,11 @@ This file defines the working rules for contributors and coding agents in this r
 - Reuse a single shared `PrismaService` / `PrismaClient` lifecycle for the application process.
 - Do not create ad hoc Prisma clients inside feature services, helpers, or request-scoped flows.
 - Avoid patterns that accidentally create multiple connection pools unless there is a deliberate infrastructure reason.
+- Never edit any file in `prisma/migrations/`.
+- Never create new migration files.
+- Never delete or rename migration files.
+- Prisma-related code changes must be limited to `prisma/schema.prisma` unless the user explicitly requests migration work.
+- If a change would normally require a migration, modify only `prisma/schema.prisma` and clearly state that migration generation/review is still required.
 
 ## Cache Rules
 

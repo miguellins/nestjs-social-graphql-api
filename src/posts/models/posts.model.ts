@@ -24,8 +24,8 @@ export class Post {
   id: number;
 
   /** Title of the post. */
-  @Field()
-  title: string;
+  @Field({ nullable: true })
+  title: string | null;
 
   /** Main textual content of the post. */
   @Field()

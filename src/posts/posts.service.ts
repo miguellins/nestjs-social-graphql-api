@@ -227,12 +227,17 @@ export class PostsService {
     let post: SafePostListDTO;
 
     try {
+      const createData: Prisma.PostCreateInput = {
+        content: data.content,
+        author: { connect: { id: currentUserId } },
+      };
+
+      if (data.title !== undefined) {
+        createData.title = data.title;
+      }
+
       post = await this.prisma.post.create({
-        data: {
-          title: data.title,
-          content: data.content,
-          author: { connect: { id: currentUserId } },
-        },
+        data: createData,
 
         select: SafePostListSelect,
       });

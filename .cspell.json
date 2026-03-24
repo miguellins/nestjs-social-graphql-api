@@ -22,7 +22,9 @@
     "signup",
     "throttler",
     "upsert",
-    "zod"
+    "zod",
+    "QLISO",
+    "autoincrement"
   ],
   "ignoreWords": [],
   "ignorePaths": [

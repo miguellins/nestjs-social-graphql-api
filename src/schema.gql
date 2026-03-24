@@ -256,7 +256,7 @@ type Post {
   id: ID!
 
   """Title of the post."""
-  title: String!
+  title: String
 
   """Main textual content of the post."""
   content: String!
@@ -376,7 +376,7 @@ type PostDetail {
   id: ID!
 
   """Title of the post."""
-  title: String!
+  title: String
 
   """Main textual content of the post."""
   content: String!
@@ -633,7 +633,7 @@ Validates the data sent to create a post
 """
 input CreatePostInput {
   """Title shown for the post."""
-  title: String!
+  title: String
 
   """Main textual body of the post."""
   content: String!

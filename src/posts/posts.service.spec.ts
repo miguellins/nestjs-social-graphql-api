@@ -284,7 +284,7 @@ describe("PostsService", () => {
   });
 
   describe("createPost", () => {
-    it("throws BadRequestException when title/content are empty after trim", async () => {
+    it("throws BadRequestException when provided title/content are empty after trim", async () => {
       await expect(
         service.createPost({ title: "   ", content: "ok" }, 1),
       ).rejects.toBeInstanceOf(BadRequestException);
@@ -320,6 +320,23 @@ describe("PostsService", () => {
       expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:user:list");
 
       expect(res).toEqual(created);
+    });
+
+    it("creates a body-first post without title", async () => {
+      const created = { id: 1, title: null, content: "Content" };
+      prismaMock.post.create.mockResolvedValue(created);
+
+      await expect(service.createPost({ content: "  Content  " }, 7)).resolves.toEqual(
+        created,
+      );
+
+      expect(prismaMock.post.create).toHaveBeenCalledWith({
+        data: {
+          content: "Content",
+          author: { connect: { id: 7 } },
+        },
+        select: SafePostListSelect,
+      });
     });
 
     it("creates post when content length is exactly 2000 characters", async () => {
@@ -435,6 +452,40 @@ describe("PostsService", () => {
       expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:posts:list");
 
       expect(res).toEqual(updated);
+    });
+
+    it("updates a post without changing title when only content is provided", async () => {
+      prismaMock.post.findUnique.mockResolvedValue({ id: 1, authorId: 7 });
+
+      const updated = { id: 1, title: null, content: "Updated body" };
+      prismaMock.post.update.mockResolvedValue(updated);
+
+      await expect(
+        service.updatePost(1, { content: "  Updated body  " }, 7),
+      ).resolves.toEqual(updated);
+
+      expect(prismaMock.post.update).toHaveBeenCalledWith({
+        where: { id: 1 },
+        data: { content: "Updated body" },
+        select: SafePostListSelect,
+      });
+    });
+
+    it("clears the title when update input sets it to null", async () => {
+      prismaMock.post.findUnique.mockResolvedValue({ id: 1, authorId: 7 });
+
+      const updated = { id: 1, title: null, content: "Body" };
+      prismaMock.post.update.mockResolvedValue(updated);
+
+      await expect(service.updatePost(1, { title: null }, 7)).resolves.toEqual(
+        updated,
+      );
+
+      expect(prismaMock.post.update).toHaveBeenCalledWith({
+        where: { id: 1 },
+        data: { title: null },
+        select: SafePostListSelect,
+      });
     });
 
     it("updates post when content length is exactly 2000 characters", async () => {
