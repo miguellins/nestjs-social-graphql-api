@@ -16,10 +16,11 @@ CREATE TABLE `User` (
 -- CreateTable
 CREATE TABLE `Post` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
-    `title` VARCHAR(191) NOT NULL,
+    `title` VARCHAR(191) NULL,
     `content` VARCHAR(191) NOT NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
+    `editedAt` DATETIME(3) NULL,
     `authorId` INTEGER NOT NULL,
     `likesCount` INTEGER NOT NULL DEFAULT 0,
     `commentsCount` INTEGER NOT NULL DEFAULT 0,
