@@ -11,6 +11,11 @@ import {
 
 import { Trim } from "@/common/transformer/trim.transformer";
 
+import {
+  USERNAME_REGEX,
+  USERNAME_REGEX_MESSAGE,
+} from "@/users/constants/username.constants";
+
 /**
  * GraphQL input for user creation
  *
@@ -42,8 +47,8 @@ export class CreateUserInput {
   @MinLength(3)
   @MaxLength(15)
   // Prevents special characters
-  @Matches(/^[a-zA-Z0-9_]+$/, {
-    message: "username can only contain letters, numbers and underscore",
+  @Matches(USERNAME_REGEX, {
+    message: USERNAME_REGEX_MESSAGE,
   })
   username: string;
 

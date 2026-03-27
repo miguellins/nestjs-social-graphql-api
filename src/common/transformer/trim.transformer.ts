@@ -1,5 +1,4 @@
-import type { TransformFnParams } from "class-transformer";
-import { Transform } from "class-transformer";
+import { Transform, type TransformFnParams } from "class-transformer";
 
 /**
  * Class-transformer decorator for trimmed text

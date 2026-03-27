@@ -2,8 +2,7 @@ import { ExecutionContext, Injectable } from "@nestjs/common";
 import { GqlExecutionContext } from "@nestjs/graphql";
 import { ThrottlerGuard } from "@nestjs/throttler";
 
-import type { GraphQLResolveInfo } from "graphql";
-import { OperationTypeNode } from "graphql";
+import { OperationTypeNode, type GraphQLResolveInfo } from "graphql";
 
 import type { Request, Response } from "express";
 

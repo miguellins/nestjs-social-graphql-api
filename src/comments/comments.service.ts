@@ -1,31 +1,42 @@
 import {
   ForbiddenException,
+  HttpException,
   Injectable,
+  InternalServerErrorException,
   Logger,
   NotFoundException,
 } from "@nestjs/common";
 
-import { createCommentCommandSchema } from "@/comments/schemas/create-comment.schema";
-import type { CreateCommentCommand } from "@/comments/schemas/create-comment.schema";
-import type { SafeCommentDTO } from "@/comments/dto/safe-comment.dto";
-import { SafeCommentSelect } from "@/comments/dto/safe-comment.dto";
+import {
+  createCommentCommandSchema,
+  type CreateCommentCommand,
+} from "@/comments/schemas/create-comment.schema";
+import {
+  type SafeCommentDTO,
+  SafeCommentSelect,
+} from "@/comments/dto/safe-comment.dto";
+import {
+  updateCommentCommandSchema,
+  type UpdateCommentCommand,
+} from "@/comments/schemas/update-comment.schema";
 
 import {
   ChronologicalOrder,
   toSortDirection,
 } from "@/common/enums/chronological-order.enum";
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
-import { DeleteResponse } from "@/common/types/delete-response.type";
+import { MessageResponse } from "@/common/types/message-response.type";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
 import { parseWithBadRequest } from "@/common/zod/parse-with-zod";
 import { runBestEffort } from "@/common/errors/run-best-effort";
 
 import { PrismaService } from "@/prisma.service";
+import { Prisma } from "@prisma/client";
 
 /**
  * Service for comment workflows
  *
- * Creates, lists, and deletes comments
+ * Creates, lists, updates, and deletes comments
  */
 
 type FindCommentsByPostParams = {
@@ -54,7 +65,7 @@ export class CommentsService {
     // Check if the target post exists before creating the comment
     const post = await this.prisma.post.findUnique({
       where: { id: data.postId },
-      select: { id: true },
+      select: { id: true, authorId: true },
     });
 
     if (!post) throw new NotFoundException("Post not found");
@@ -92,6 +103,9 @@ export class CommentsService {
       async () => {
         await this.cacheHelper.del(`posts:detail:${data.postId}`);
         await this.cacheHelper.bumpVersion("v:posts:list");
+        await this.cacheHelper.bumpVersion(
+          `v:user:${post.authorId}:posts:list`,
+        );
       },
     );
 
@@ -135,11 +149,82 @@ export class CommentsService {
     });
   }
 
+  // Updates a comment owned by the current user
+  async updateComment(
+    commentId: number,
+    input: UpdateCommentCommand,
+    currentUserId: number,
+  ): Promise<SafeCommentDTO> {
+    const data = this.parseUpdateCommentInput(input);
+
+    // Build update payload safely
+    const updateData: Prisma.CommentUpdateInput = {
+      content: data.content,
+    };
+
+    // Store the updated comment outside the try block so follow-up cache work can reuse it
+    let updatedComment: SafeCommentDTO;
+    let postId: number;
+
+    try {
+      // Fetch minimal fields needed for ownership + existence
+      const existing = await this.prisma.comment.findUnique({
+        where: { id: commentId },
+
+        select: {
+          id: true,
+          authorId: true,
+          postId: true,
+        },
+      });
+
+      if (!existing) throw new NotFoundException("Comment not found");
+
+      if (existing.authorId !== currentUserId) {
+        throw new ForbiddenException(
+          "You do not have permission to update this comment",
+        );
+      }
+
+      postId = existing.postId;
+
+      updatedComment = await this.prisma.comment.update({
+        where: { id: commentId },
+        data: updateData,
+
+        select: SafeCommentSelect,
+      });
+    } catch (err) {
+      if (err instanceof HttpException) throw err;
+
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === "P2025"
+      ) {
+        throw new NotFoundException("Comment not found");
+      }
+
+      this.throwUnexpectedPersistenceFailure("update comment", err);
+    }
+
+    // Keep cache refresh failures from masking a committed comment update
+    await runBestEffort(
+      this.logger,
+      "error",
+      `Failed to invalidate caches after updating comment ${commentId}`,
+      async () => {
+        await this.cacheHelper.del(`posts:detail:${postId}`);
+      },
+    );
+
+    return updatedComment;
+  }
+
   // Deletes a comment owned by the current user
   async deleteComment(
     commentId: number,
     currentUserId: number,
-  ): Promise<DeleteResponse> {
+  ): Promise<MessageResponse> {
     // Find the comment to validate ownership and know which post to update
     const comment = await this.prisma.comment.findUnique({
       where: { id: commentId },
@@ -148,6 +233,11 @@ export class CommentsService {
         id: true,
         authorId: true,
         postId: true,
+        post: {
+          select: {
+            authorId: true,
+          },
+        },
       },
     });
 
@@ -185,6 +275,9 @@ export class CommentsService {
       async () => {
         await this.cacheHelper.del(`posts:detail:${comment.postId}`);
         await this.cacheHelper.bumpVersion("v:posts:list");
+        await this.cacheHelper.bumpVersion(
+          `v:user:${comment.post.authorId}:posts:list`,
+        );
       },
     );
 
@@ -200,5 +293,26 @@ export class CommentsService {
       input,
       "Invalid comment input",
     );
+  }
+
+  // Parses and normalizes update-comment input for the service layer
+  private parseUpdateCommentInput(input: UpdateCommentCommand) {
+    return parseWithBadRequest(
+      updateCommentCommandSchema,
+      input,
+      "Invalid comment input",
+    );
+  }
+
+  private throwUnexpectedPersistenceFailure(
+    action: "update comment",
+    err: unknown,
+  ): never {
+    this.logger.error(
+      `Unexpected persistence failure while trying to ${action}`,
+      err instanceof Error ? err.stack : undefined,
+    );
+
+    throw new InternalServerErrorException(`Failed to ${action}`);
   }
 }

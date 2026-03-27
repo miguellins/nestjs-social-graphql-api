@@ -1,6 +1,5 @@
-import type { ApolloDriverConfig } from "@nestjs/apollo";
+import { ApolloDriver, type ApolloDriverConfig } from "@nestjs/apollo";
 import { ConfigService } from "@nestjs/config";
-import { ApolloDriver } from "@nestjs/apollo";
 import { JwtService } from "@nestjs/jwt";
 
 import type {

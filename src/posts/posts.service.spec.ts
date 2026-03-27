@@ -29,6 +29,8 @@ import { PostsService } from "./posts.service";
 describe("PostsService", () => {
   let service: PostsService;
   let moduleRef: TestingModule;
+  const maxContent = "a".repeat(2000);
+  const tooLongContent = "a".repeat(2001);
 
   const prismaMock: {
     post: {
@@ -38,6 +40,9 @@ describe("PostsService", () => {
       update: jest.Mock;
       delete: jest.Mock;
     };
+    user: {
+      findUnique: jest.Mock;
+    };
   } = {
     post: {
       findMany: jest.fn(),
@@ -46,14 +51,21 @@ describe("PostsService", () => {
       update: jest.fn(),
       delete: jest.fn(),
     },
+    user: {
+      findUnique: jest.fn(),
+    },
   };
 
   const cacheMock: {
+    get: jest.Mock;
+    set: jest.Mock;
     getVersion: jest.Mock;
     bumpVersion: jest.Mock;
     del: jest.Mock;
     getOrSet: jest.Mock;
   } = {
+    get: jest.fn(),
+    set: jest.fn(),
     getVersion: jest.fn(),
     bumpVersion: jest.fn(),
     del: jest.fn(),
@@ -66,6 +78,18 @@ describe("PostsService", () => {
   beforeEach(async () => {
     jest.clearAllMocks();
     mem.clear();
+
+    cacheMock.get.mockImplementation((key: string) =>
+      Promise.resolve(mem.get(key)),
+    );
+    cacheMock.set.mockImplementation((key: string, value: unknown) => {
+      mem.set(key, value);
+      return Promise.resolve();
+    });
+    cacheMock.del.mockImplementation((key: string) => {
+      mem.delete(key);
+      return Promise.resolve();
+    });
 
     cacheMock.getOrSet.mockImplementation(
       async (key: string, factory: () => Promise<unknown>) => {
@@ -166,24 +190,87 @@ describe("PostsService", () => {
     });
   });
 
+  describe("findPostsByUsername", () => {
+    it("normalizes username, caches timeline by author id, and returns posts", async () => {
+      cacheMock.getVersion.mockResolvedValue(4);
+      prismaMock.user.findUnique.mockResolvedValue({ id: 7 });
+      prismaMock.post.findMany.mockResolvedValue([{ id: 1 }]);
+
+      const res = await service.findPostsByUsername("  TeSter  ", {
+        take: PAGINATION.MAX_TAKE + 99,
+      });
+
+      expect(prismaMock.user.findUnique).toHaveBeenCalledWith({
+        where: { username: "tester" },
+        select: { id: true },
+      });
+      expect(cacheMock.set).toHaveBeenCalledWith(
+        "user:lookup:username:tester",
+        7,
+        5 * 60_000,
+      );
+      expect(cacheMock.getVersion).toHaveBeenCalledWith("v:user:7:posts:list");
+      expect(cacheMock.getOrSet).toHaveBeenCalledWith(
+        `user:7:posts:list:v4:take=${PAGINATION.MAX_TAKE}:order=${ChronologicalOrder.NEWEST}`,
+        expect.any(Function),
+        30_000,
+      );
+      expect(prismaMock.post.findMany).toHaveBeenCalledWith({
+        take: PAGINATION.MAX_TAKE,
+        where: { authorId: 7 },
+        orderBy: { createdAt: "desc" },
+        select: SafePostListSelect,
+      });
+      expect(res).toEqual([{ id: 1 }]);
+    });
+
+    it("uses cached username lookup id when available", async () => {
+      mem.set("user:lookup:username:tester", 7);
+      cacheMock.getVersion.mockResolvedValue(2);
+      prismaMock.post.findMany.mockResolvedValue([]);
+
+      await service.findPostsByUsername("tester");
+
+      expect(prismaMock.user.findUnique).not.toHaveBeenCalled();
+      expect(cacheMock.getVersion).toHaveBeenCalledWith("v:user:7:posts:list");
+    });
+
+    it("throws NotFoundException when author username does not exist", async () => {
+      prismaMock.user.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.findPostsByUsername("missing"),
+      ).rejects.toBeInstanceOf(NotFoundException);
+
+      expect(prismaMock.post.findMany).not.toHaveBeenCalled();
+    });
+
+    it("returns an empty list when the author exists but has no posts", async () => {
+      prismaMock.user.findUnique.mockResolvedValue({ id: 7 });
+      cacheMock.getVersion.mockResolvedValue(1);
+      prismaMock.post.findMany.mockResolvedValue([]);
+
+      await expect(service.findPostsByUsername("tester")).resolves.toEqual([]);
+    });
+  });
+
   describe("getPost", () => {
-    it("returns post and uses bounded preview caps for likes/comments in the detail select", async () => {
-      prismaMock.post.update.mockResolvedValue({ viewsCount: 42 });
-      prismaMock.post.findUnique.mockResolvedValue({ id: 10, viewsCount: 1 });
+    it("returns post detail immediately and updates viewsCount asynchronously", async () => {
+      let resolveUpdate!: (value: { viewsCount: number }) => void;
+
+      prismaMock.post.update.mockReturnValue(
+        new Promise((resolve: (value: { viewsCount: number }) => void) => {
+          resolveUpdate = resolve;
+        }),
+      );
+
+      prismaMock.post.findUnique.mockResolvedValue({
+        id: 10,
+        viewsCount: 1,
+        editedAt: null,
+      });
 
       const res = await service.getPost(10);
-
-      expect(prismaMock.post.update).toHaveBeenCalledWith({
-        where: { id: 10 },
-        data: {
-          viewsCount: {
-            increment: 1,
-          },
-        },
-        select: {
-          viewsCount: true,
-        },
-      });
 
       expect(cacheMock.getOrSet).toHaveBeenCalledWith(
         "posts:detail:10",
@@ -208,31 +295,74 @@ describe("PostsService", () => {
         },
       });
 
-      expect(res).toEqual({ id: 10, viewsCount: 42 });
+      expect(res).toEqual({ id: 10, viewsCount: 1, editedAt: null });
+
+      expect(prismaMock.post.update).toHaveBeenCalledWith({
+        where: { id: 10 },
+        data: {
+          viewsCount: {
+            increment: 1,
+          },
+        },
+        select: {
+          viewsCount: true,
+        },
+      });
+
+      resolveUpdate({ viewsCount: 42 });
+    });
+
+    it("patches the cached viewsCount after the asynchronous increment succeeds", async () => {
+      const cachedPost = { id: 10, viewsCount: 1, editedAt: null };
+
+      prismaMock.post.findUnique.mockResolvedValue(cachedPost);
+      prismaMock.post.update.mockResolvedValue({ viewsCount: 42 });
+
+      const res = await service.getPost(10);
+
+      expect(res).toEqual(cachedPost);
+
+      await new Promise(setImmediate);
+
+      expect(cacheMock.set).toHaveBeenCalledWith(
+        "posts:detail:10",
+        { id: 10, viewsCount: 42, editedAt: null },
+        60_000,
+      );
     });
 
     it("throws NotFoundException when post does not exist", async () => {
-      prismaMock.post.update.mockRejectedValue(
-        new Prisma.PrismaClientKnownRequestError("not found", {
-          code: "P2025",
-          clientVersion: "test",
-        }),
-      );
+      prismaMock.post.findUnique.mockResolvedValue(null);
 
       await expect(service.getPost(999)).rejects.toBeInstanceOf(
         NotFoundException,
       );
+
+      expect(prismaMock.post.update).not.toHaveBeenCalled();
     });
 
-    it("rethrows unexpected increment failures instead of misclassifying them as not found", async () => {
+    it("keeps the read response successful when the async viewsCount increment fails", async () => {
+      prismaMock.post.findUnique.mockResolvedValue({
+        id: 10,
+        viewsCount: 1,
+        editedAt: null,
+      });
       prismaMock.post.update.mockRejectedValue(new Error("db offline"));
 
-      await expect(service.getPost(999)).rejects.toThrow("db offline");
+      await expect(service.getPost(10)).resolves.toEqual({
+        id: 10,
+        viewsCount: 1,
+        editedAt: null,
+      });
+
+      await new Promise(setImmediate);
+
+      expect(cacheMock.set).not.toHaveBeenCalled();
     });
   });
 
   describe("createPost", () => {
-    it("throws BadRequestException when title/content are empty after trim", async () => {
+    it("throws BadRequestException when provided title/content are empty after trim", async () => {
       await expect(
         service.createPost({ title: "   ", content: "ok" }, 1),
       ).rejects.toBeInstanceOf(BadRequestException);
@@ -245,7 +375,7 @@ describe("PostsService", () => {
     });
 
     it("creates post with trimmed inputs, bumps/invalidates caches and returns post", async () => {
-      const created = { id: 1, title: "Test", content: "Content" };
+      const created = { id: 1, title: "Test", content: "Content", editedAt: null };
       prismaMock.post.create.mockResolvedValue(created);
 
       const input: CreatePostInput = {
@@ -264,10 +394,63 @@ describe("PostsService", () => {
       });
 
       expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:posts:list");
+      expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:user:7:posts:list");
       expect(cacheMock.del).toHaveBeenCalledWith("user:safe:7");
       expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:user:list");
 
       expect(res).toEqual(created);
+    });
+
+    it("creates a body-first post without title", async () => {
+      const created = { id: 1, title: null, content: "Content", editedAt: null };
+      prismaMock.post.create.mockResolvedValue(created);
+
+      await expect(
+        service.createPost({ content: "  Content  " }, 7),
+      ).resolves.toEqual(created);
+
+      expect(prismaMock.post.create).toHaveBeenCalledWith({
+        data: {
+          content: "Content",
+          author: { connect: { id: 7 } },
+        },
+        select: SafePostListSelect,
+      });
+    });
+
+    it("creates post when content length is exactly 2000 characters", async () => {
+      const created = { id: 1, title: "Test", content: maxContent, editedAt: null };
+      prismaMock.post.create.mockResolvedValue(created);
+
+      await expect(
+        service.createPost({ title: "Test", content: maxContent }, 1),
+      ).resolves.toEqual(created);
+
+      expect(prismaMock.post.create).toHaveBeenCalledWith({
+        data: {
+          title: "Test",
+          content: maxContent,
+          author: { connect: { id: 1 } },
+        },
+        select: SafePostListSelect,
+      });
+    });
+
+    it("creates posts without an edited marker", async () => {
+      const created = { id: 1, title: "Test", content: "Content", editedAt: null };
+      prismaMock.post.create.mockResolvedValue(created);
+
+      await expect(
+        service.createPost({ title: "Test", content: "Content" }, 1),
+      ).resolves.toEqual(created);
+    });
+
+    it("throws BadRequestException when content exceeds 2000 characters on create", async () => {
+      await expect(
+        service.createPost({ title: "Test", content: tooLongContent }, 1),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      expect(prismaMock.post.create).not.toHaveBeenCalled();
     });
 
     it("throws NotFoundException when Prisma errors P2003/P2025 (author not found)", async () => {
@@ -336,9 +519,17 @@ describe("PostsService", () => {
     });
 
     it("updates post, invalidates detail cache, bumps list version, and returns post", async () => {
-      prismaMock.post.findUnique.mockResolvedValue({ id: 1, authorId: 7 });
+      prismaMock.post.findUnique.mockResolvedValue({
+        id: 1,
+        authorId: 7,
+        title: "Old",
+        content: "OldC",
+      });
 
-      const updated = { id: 1, title: "New", content: "NewC" };
+      const editedAt = new Date("2026-03-24T15:00:00.000Z");
+      jest.useFakeTimers().setSystemTime(editedAt);
+
+      const updated = { id: 1, title: "New", content: "NewC", editedAt };
       prismaMock.post.update.mockResolvedValue(updated);
 
       const input: UpdatePostInput = {
@@ -349,14 +540,129 @@ describe("PostsService", () => {
 
       expect(prismaMock.post.update).toHaveBeenCalledWith({
         where: { id: 1 },
-        data: { title: "New", content: "NewC" },
+        data: { title: "New", content: "NewC", editedAt },
         select: SafePostListSelect,
       });
 
       expect(cacheMock.del).toHaveBeenCalledWith("posts:detail:1");
       expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:posts:list");
+      expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:user:7:posts:list");
 
       expect(res).toEqual(updated);
+      jest.useRealTimers();
+    });
+
+    it("updates a post without changing title when only content is provided", async () => {
+      prismaMock.post.findUnique.mockResolvedValue({
+        id: 1,
+        authorId: 7,
+        title: null,
+        content: "Body",
+      });
+
+      const editedAt = new Date("2026-03-24T16:00:00.000Z");
+      jest.useFakeTimers().setSystemTime(editedAt);
+
+      const updated = { id: 1, title: null, content: "Updated body", editedAt };
+      prismaMock.post.update.mockResolvedValue(updated);
+
+      await expect(
+        service.updatePost(1, { content: "  Updated body  " }, 7),
+      ).resolves.toEqual(updated);
+
+      expect(prismaMock.post.update).toHaveBeenCalledWith({
+        where: { id: 1 },
+        data: { content: "Updated body", editedAt },
+        select: SafePostListSelect,
+      });
+      jest.useRealTimers();
+    });
+
+    it("clears the title when update input sets it to null", async () => {
+      prismaMock.post.findUnique.mockResolvedValue({
+        id: 1,
+        authorId: 7,
+        title: "Headline",
+        content: "Body",
+      });
+
+      const editedAt = new Date("2026-03-24T17:00:00.000Z");
+      jest.useFakeTimers().setSystemTime(editedAt);
+
+      const updated = { id: 1, title: null, content: "Body", editedAt };
+      prismaMock.post.update.mockResolvedValue(updated);
+
+      await expect(service.updatePost(1, { title: null }, 7)).resolves.toEqual(
+        updated,
+      );
+
+      expect(prismaMock.post.update).toHaveBeenCalledWith({
+        where: { id: 1 },
+        data: { title: null, editedAt },
+        select: SafePostListSelect,
+      });
+      jest.useRealTimers();
+    });
+
+    it("does not set editedAt when normalized post input does not change title or content", async () => {
+      prismaMock.post.findUnique.mockResolvedValue({
+        id: 1,
+        authorId: 7,
+        title: "Headline",
+        content: "Body",
+      });
+
+      const updated = { id: 1, title: "Headline", content: "Body", editedAt: null };
+      prismaMock.post.update.mockResolvedValue(updated);
+
+      await expect(
+        service.updatePost(
+          1,
+          { title: "  Headline  ", content: "  Body  " },
+          7,
+        ),
+      ).resolves.toEqual(updated);
+
+      expect(prismaMock.post.update).toHaveBeenCalledWith({
+        where: { id: 1 },
+        data: { title: "Headline", content: "Body" },
+        select: SafePostListSelect,
+      });
+    });
+
+    it("updates post when content length is exactly 2000 characters", async () => {
+      prismaMock.post.findUnique.mockResolvedValue({
+        id: 1,
+        authorId: 7,
+        title: "Test",
+        content: "Old",
+      });
+
+      const editedAt = new Date("2026-03-24T18:00:00.000Z");
+      jest.useFakeTimers().setSystemTime(editedAt);
+
+      const updated = { id: 1, title: "Test", content: maxContent, editedAt };
+      prismaMock.post.update.mockResolvedValue(updated);
+
+      await expect(
+        service.updatePost(1, { content: maxContent }, 7),
+      ).resolves.toEqual(updated);
+
+      expect(prismaMock.post.update).toHaveBeenCalledWith({
+        where: { id: 1 },
+        data: { content: maxContent, editedAt },
+        select: SafePostListSelect,
+      });
+      jest.useRealTimers();
+    });
+
+    it("throws BadRequestException when content exceeds 2000 characters on update", async () => {
+      await expect(
+        service.updatePost(1, { content: tooLongContent }, 1),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      expect(prismaMock.post.findUnique).not.toHaveBeenCalled();
+      expect(prismaMock.post.update).not.toHaveBeenCalled();
     });
 
     it("throws NotFoundException when Prisma update throws P2025", async () => {
@@ -409,6 +715,7 @@ describe("PostsService", () => {
 
       expect(cacheMock.del).toHaveBeenCalledWith("posts:detail:1");
       expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:posts:list");
+      expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:user:7:posts:list");
 
       expect(res).toEqual({ message: "Post deleted successfully" });
     });

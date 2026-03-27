@@ -8,19 +8,16 @@ import type { Prisma } from "@prisma/client";
 
 export type SafePostListDTO = {
   id: number;
-  title: string;
+  title: string | null;
   content: string;
   createdAt: Date;
+  likesCount: number;
+  commentsCount: number;
 
   author: {
     id: number;
     name: string;
     username: string;
-  };
-
-  _count: {
-    likes: number;
-    comments: number;
   };
 };
 
@@ -39,19 +36,14 @@ export const SafePostListSelect = {
   title: true,
   content: true,
   createdAt: true,
+  likesCount: true,
+  commentsCount: true,
 
   author: {
     select: {
       id: true,
       name: true,
       username: true,
-    },
-  },
-
-  _count: {
-    select: {
-      likes: true,
-      comments: true,
     },
   },
 } satisfies Prisma.PostSelect;

@@ -33,6 +33,10 @@ describe("validateEnv", () => {
 
     expect(result.PORT).toBe(3000);
     expect(result.JWT_EXPIRES_IN).toBe("7d");
+    expect(result.PASSWORD_RESET_TOKEN_TTL_MINUTES).toBe(30);
+    expect(result.GRAPHQL_SUBSCRIPTIONS_REDIS_NAMESPACE).toBe(
+      "graphql-subscriptions",
+    );
     expect(result.NODE_ENV).toBe("development");
     expect(result.GRAPHQL_COMPLEXITY_ENFORCE).toBe(false);
     expect(result.GRAPHQL_COMPLEXITY_LOG).toBe(true);

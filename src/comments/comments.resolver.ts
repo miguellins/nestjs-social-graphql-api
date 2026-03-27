@@ -4,12 +4,13 @@ import { Throttle } from "@nestjs/throttler";
 import { FindCommentsByPostArgs } from "@/comments/args/find-comments-by-post.args";
 import { CreateCommentArgs } from "@/comments/args/create-comment.args";
 import { DeleteCommentArgs } from "@/comments/args/delete-comment.args";
+import { UpdateCommentArgs } from "@/comments/args/update-comment.args";
 import { SafeCommentDTO } from "@/comments/models/safe-comment.model";
 import { CommentsService } from "@/comments/comments.service";
 
 import { CurrentUser } from "@/common/decorators/current-user.decorator";
 import { THROTTLE_LIMITS } from "@/common/constants/throttle.constants";
-import { DeleteResponse } from "@/common/types/delete-response.type";
+import { MessageResponse } from "@/common/types/message-response.type";
 
 /**
  * GraphQL resolver for comments
@@ -42,12 +43,25 @@ export class CommentsResolver {
     });
   }
 
+  @Throttle({ default: THROTTLE_LIMITS.MUTATION })
+  @Mutation(() => SafeCommentDTO, { name: "updateComment" })
+  async updateComment(
+    @Args() args: UpdateCommentArgs,
+    @CurrentUser() user: { id: number },
+  ): Promise<SafeCommentDTO> {
+    return this.commentsService.updateComment(
+      args.commentId,
+      args.input,
+      user.id,
+    );
+  }
+
   @Throttle({ default: THROTTLE_LIMITS.DESTRUCTIVE })
-  @Mutation(() => DeleteResponse, { name: "deleteComment" })
+  @Mutation(() => MessageResponse, { name: "deleteComment" })
   async deleteComment(
     @Args() args: DeleteCommentArgs,
     @CurrentUser() user: { id: number },
-  ): Promise<DeleteResponse> {
+  ): Promise<MessageResponse> {
     return this.commentsService.deleteComment(args.commentId, user.id);
   }
 }

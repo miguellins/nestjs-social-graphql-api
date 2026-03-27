@@ -1,6 +1,12 @@
-import { InputType } from "@nestjs/graphql";
+import { Field, InputType } from "@nestjs/graphql";
 
-import { IsNotEmpty, IsString, MaxLength, MinLength } from "class-validator";
+import {
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MaxLength,
+  MinLength,
+} from "class-validator";
 
 import { Trim } from "@/common/transformer/trim.transformer";
 
@@ -13,18 +19,20 @@ import { Trim } from "@/common/transformer/trim.transformer";
 @InputType()
 export class CreatePostInput {
   /** Title shown for the post. */
+  @Field({ nullable: true })
   @Trim()
+  @IsOptional()
   @IsString()
   @IsNotEmpty()
   @MinLength(3)
   @MaxLength(50)
-  title: string;
+  title?: string | null;
 
   /** Main textual body of the post. */
   @Trim()
   @IsString()
   @IsNotEmpty()
   @MinLength(3)
-  @MaxLength(200)
+  @MaxLength(2000)
   content: string;
 }

@@ -4,18 +4,22 @@ import {
   ChronologicalOrder,
   toSortDirection,
 } from "@/common/enums/chronological-order.enum";
-import { DeleteResponse } from "@/common/types/delete-response.type";
+import { MessageResponse } from "@/common/types/message-response.type";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
 import { parseWithBadRequest } from "@/common/zod/parse-with-zod";
 import { runBestEffort } from "@/common/errors/run-best-effort";
 
-import { pubSub } from "@/graphql/subscriptions/pubsub";
+import { GraphqlPubSubService } from "@/graphql/subscriptions/graphql-pubsub.service";
 
-import { createNotificationInputSchema } from "@/notifications/schemas/create-notification.schema";
-import type { CreateNotificationInput } from "@/notifications/schemas/create-notification.schema";
+import {
+  createNotificationInputSchema,
+  type CreateNotificationInput,
+} from "@/notifications/schemas/create-notification.schema";
 import { NotificationReadStatus } from "@/notifications/enums/notification-read-status.enum";
-import type { SafeNotificationDTO } from "@/notifications/dto/notifications.dto";
-import { NotificationSelect } from "@/notifications/dto/notifications.dto";
+import {
+  NotificationSelect,
+  type SafeNotificationDTO,
+} from "@/notifications/dto/notifications.dto";
 
 import { PrismaService } from "@/prisma.service";
 
@@ -35,7 +39,10 @@ export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
 
   // Injects the services used by notification workflows
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly graphqlPubSub: GraphqlPubSubService,
+  ) {}
 
   // Creates a notification record and publishes it to subscribers
   async createAndPublishNotification(
@@ -62,7 +69,7 @@ export class NotificationsService {
       "error",
       "Failed to publish notification subscription event",
       async () => {
-        await pubSub.publish("notificationReceived", {
+        await this.graphqlPubSub.publish("notificationReceived", {
           notificationReceived: notification,
         });
       },
@@ -122,7 +129,7 @@ export class NotificationsService {
   async markAsRead(
     notificationId: number,
     userId: number,
-  ): Promise<DeleteResponse> {
+  ): Promise<MessageResponse> {
     const result = await this.prisma.notification.updateMany({
       where: {
         id: notificationId,
@@ -141,7 +148,7 @@ export class NotificationsService {
   }
 
   // Marks all unread notifications as read for the current user
-  async markAllAsRead(userId: number): Promise<DeleteResponse> {
+  async markAllAsRead(userId: number): Promise<MessageResponse> {
     await this.prisma.notification.updateMany({
       where: {
         recipientId: userId,

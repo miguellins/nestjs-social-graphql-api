@@ -11,11 +11,14 @@ import {
   toSortDirection,
 } from "@/common/enums/chronological-order.enum";
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
+import { MessageResponse } from "@/common/types/message-response.type";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
 import { runBestEffort } from "@/common/errors/run-best-effort";
 
-import type { LikeDetailDTO } from "@/likes/dto/like-detail.dto";
-import { LikeDetailSelect } from "@/likes/dto/like-detail.dto";
+import {
+  type LikeDetailDTO,
+  LikeDetailSelect,
+} from "@/likes/dto/like-detail.dto";
 
 import { NotificationsService } from "@/notifications/notifications.service";
 
@@ -177,6 +180,9 @@ export class LikesService {
         await this.cacheHelper.bumpVersion("v:likes:list");
         await this.cacheHelper.del(`posts:detail:${postId}`);
         await this.cacheHelper.bumpVersion("v:posts:list");
+        await this.cacheHelper.bumpVersion(
+          `v:user:${post.authorId}:posts:list`,
+        );
       },
     );
 
@@ -200,7 +206,10 @@ export class LikesService {
     return like;
   }
 
-  async deleteLike(id: number, currentUserId: number) {
+  async deleteLike(
+    id: number,
+    currentUserId: number,
+  ): Promise<MessageResponse> {
     // Validate existence + ownership + post target
     const like = await this.prisma.like.findUnique({
       where: { id },
@@ -209,6 +218,11 @@ export class LikesService {
         id: true,
         userId: true,
         postId: true,
+        post: {
+          select: {
+            authorId: true,
+          },
+        },
       },
     });
 
@@ -223,7 +237,7 @@ export class LikesService {
     try {
       // Delete like + decrement counter safely
       await this.prisma.$transaction(async (tx) => {
-        // Delete frist so the counter is only decremented if the like really exists
+        // Delete first so the counter is only decremented if the like really exists
         await tx.like.delete({ where: { id: like.id } });
 
         // Decrement likesCount, but never let it go below 0
@@ -261,6 +275,9 @@ export class LikesService {
         await this.cacheHelper.bumpVersion("v:likes:list");
         await this.cacheHelper.del(`posts:detail:${like.postId}`);
         await this.cacheHelper.bumpVersion("v:posts:list");
+        await this.cacheHelper.bumpVersion(
+          `v:user:${like.post.authorId}:posts:list`,
+        );
       },
     );
 

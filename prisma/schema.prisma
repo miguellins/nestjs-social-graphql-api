@@ -53,16 +53,23 @@ model User {
    * Notifications received by this user (as the target of the event)
    */
   receivedNotifications Notification[] @relation("NotificationRecipient")
+
+  /**
+   * 1:N relation
+   * Password reset tokens issued for this user
+   */
+  passwordResetTokens PasswordResetToken[]
 }
 
 model Post {
   id      Int    @id @default(autoincrement())
-  title   String
+  title   String?
   content String
 
   // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  editedAt  DateTime?
 
   // Stores the ID of the author (User)
   authorId Int
@@ -312,4 +319,24 @@ model Notification {
    * Optimizes the common query: "fetch unread notifications for a user, ordered by date"
    */
   @@index([recipientId, isRead, createdAt])
+}
+
+model PasswordResetToken {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  /**
+   * Relation to User
+   * fields: [userId] - is a foreign key
+   * references: [id] - references User.id
+   * onDelete: Cascade - delete reset tokens if user is deleted
+   */
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
 }

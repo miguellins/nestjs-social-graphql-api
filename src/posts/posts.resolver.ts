@@ -3,10 +3,11 @@ import { Throttle } from "@nestjs/throttler";
 
 import { CurrentUser } from "@/common/decorators/current-user.decorator";
 import { THROTTLE_LIMITS } from "@/common/constants/throttle.constants";
-import { DeleteResponse } from "@/common/types/delete-response.type";
+import { MessageResponse } from "@/common/types/message-response.type";
 import { PaginationArgs } from "@/common/args/pagination.args";
 import { Public } from "@/common/decorators/auth.decorator";
 
+import { FindPostsByUsernameArgs } from "@/posts/args/find-posts-by-username.args";
 import { CreatePostInput } from "@/posts/dto/create-post.input";
 import { UpdatePostInput } from "@/posts/dto/update-post.input";
 import { FindPostsArgs } from "@/posts/args/find-posts.args";
@@ -40,6 +41,15 @@ export class PostsResolver {
     return this.postsService.getPost(id);
   }
 
+  @Public()
+  @Throttle({ default: THROTTLE_LIMITS.LIST })
+  @Query(() => [Post], { name: "postsByUsername" })
+  async postsByUsername(
+    @Args() args: FindPostsByUsernameArgs,
+  ): Promise<Post[]> {
+    return this.postsService.findPostsByUsername(args.username, args);
+  }
+
   @Throttle({ default: THROTTLE_LIMITS.LIST })
   @Query(() => [Post], { name: "myFeed" })
   async myFeed(
@@ -69,11 +79,11 @@ export class PostsResolver {
   }
 
   @Throttle({ default: THROTTLE_LIMITS.DESTRUCTIVE })
-  @Mutation(() => DeleteResponse, { name: "deletePost" })
+  @Mutation(() => MessageResponse, { name: "deletePost" })
   async deletePost(
     @Args("id", { type: () => Int }) id: number,
     @CurrentUser() user: { id: number },
-  ): Promise<DeleteResponse> {
+  ): Promise<MessageResponse> {
     return this.postsService.deletePost(id, user.id);
   }
 }

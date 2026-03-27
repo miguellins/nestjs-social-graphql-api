@@ -13,6 +13,11 @@ import {
 import { Normalize } from "@/common/transformer/normalize.transformer";
 import { Trim } from "@/common/transformer/trim.transformer";
 
+import {
+  USERNAME_REGEX,
+  USERNAME_REGEX_MESSAGE,
+} from "@/users/constants/username.constants";
+
 /**
  * GraphQL input for user updates
  *
@@ -45,8 +50,8 @@ export class UpdateUserInput {
   @IsOptional()
   @MinLength(3)
   @MaxLength(15)
-  @Matches(/^[a-zA-Z0-9_]+$/, {
-    message: "username can only contain letters, numbers and underscore",
+  @Matches(USERNAME_REGEX, {
+    message: USERNAME_REGEX_MESSAGE,
   })
   @IsNotEmpty()
   username?: string;

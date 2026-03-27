@@ -13,8 +13,12 @@ import type {
   GraphQLRequestContextDidResolveOperation,
 } from "@apollo/server";
 
-import type { GraphQLSchema, SelectionNode } from "graphql";
-import { GraphQLError, Kind } from "graphql";
+import {
+  GraphQLError,
+  Kind,
+  type GraphQLSchema,
+  type SelectionNode,
+} from "graphql";
 
 /**
  * GraphQL query complexity plugin

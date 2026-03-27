@@ -9,8 +9,7 @@ import { Reflector } from "@nestjs/core";
 
 import { IS_PUBLIC_KEY } from "@/common/decorators/auth.decorator";
 
-import type { GraphQLResolveInfo } from "graphql";
-import { OperationTypeNode } from "graphql";
+import { OperationTypeNode, type GraphQLResolveInfo } from "graphql";
 
 import type { Request } from "express";
 

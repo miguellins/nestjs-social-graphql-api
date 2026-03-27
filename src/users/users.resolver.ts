@@ -3,10 +3,11 @@ import { Throttle } from "@nestjs/throttler";
 
 import { CurrentUser } from "@/common/decorators/current-user.decorator";
 import { THROTTLE_LIMITS } from "@/common/constants/throttle.constants";
-import { DeleteResponse } from "@/common/types/delete-response.type";
+import { MessageResponse } from "@/common/types/message-response.type";
 import { PaginationArgs } from "@/common/args/pagination.args";
 import { Public } from "@/common/decorators/auth.decorator";
 
+import { GetUserByUsernameArgs } from "@/users/args/get-user-by-username.args";
 import { CreateUserInput } from "@/users/dto/create-user.input";
 import { UpdateUserInput } from "@/users/dto/update-user.input";
 import { SafeUser } from "@/users/models/safe-user.model";
@@ -36,6 +37,13 @@ export class UsersResolver {
     return this.usersService.getUser(id);
   }
 
+  @Public()
+  @Throttle({ default: THROTTLE_LIMITS.READ })
+  @Query(() => SafeUser, { name: "userByUsername" })
+  async userByUsername(@Args() args: GetUserByUsernameArgs): Promise<SafeUser> {
+    return this.usersService.getUserByUsername(args.username);
+  }
+
   // Set to Public
   @Public()
   @Throttle({ default: THROTTLE_LIMITS.SIGNUP })
@@ -54,8 +62,10 @@ export class UsersResolver {
   }
 
   @Throttle({ default: THROTTLE_LIMITS.DESTRUCTIVE })
-  @Mutation(() => DeleteResponse, { name: "deleteMe" })
-  async deleteMe(@CurrentUser() user: { id: number }): Promise<DeleteResponse> {
+  @Mutation(() => MessageResponse, { name: "deleteMe" })
+  async deleteMe(
+    @CurrentUser() user: { id: number },
+  ): Promise<MessageResponse> {
     return this.usersService.deleteUser(user.id);
   }
 }

@@ -1,0 +1,42 @@
+{
+  "version": "0.2",
+  "language": "en",
+  "words": [
+    "args",
+    "bcrypt",
+    "codefirst",
+    "dto",
+    "dtos",
+    "gql",
+    "graphql",
+    "jwt",
+    "keyv",
+    "lifecycle",
+    "nestjs",
+    "nullable",
+    "passportjs",
+    "prisma",
+    "pubsub",
+    "qgl",
+    "signin",
+    "signup",
+    "throttler",
+    "upsert",
+    "zod",
+    "QLISO",
+    "autoincrement"
+  ],
+  "ignoreWords": [],
+  "ignorePaths": [
+    "coverage/**",
+    "dist/**",
+    "build/**",
+    "node_modules/**",
+    "prisma/migrations/**",
+    "src/schema.gql",
+    "**/*.log",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "yarn.lock"
+  ]
+}

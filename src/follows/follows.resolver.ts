@@ -3,7 +3,7 @@ import { Throttle } from "@nestjs/throttler";
 
 import { CurrentUser } from "@/common/decorators/current-user.decorator";
 import { THROTTLE_LIMITS } from "@/common/constants/throttle.constants";
-import { DeleteResponse } from "@/common/types/delete-response.type";
+import { MessageResponse } from "@/common/types/message-response.type";
 import { Public } from "@/common/decorators/auth.decorator";
 
 import { FindFollowsArgs } from "@/follows/args/find-follows.args";
@@ -46,11 +46,11 @@ export class FollowsResolver {
   }
 
   @Throttle({ default: THROTTLE_LIMITS.DESTRUCTIVE })
-  @Mutation(() => DeleteResponse, { name: "deleteFollow" })
+  @Mutation(() => MessageResponse, { name: "deleteFollow" })
   async deleteFollow(
     @Args("id", { type: () => Int }) id: number,
     @CurrentUser() user: { id: number },
-  ): Promise<DeleteResponse> {
+  ): Promise<MessageResponse> {
     return this.followsService.deleteFollow(id, user.id);
   }
 }

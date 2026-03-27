@@ -1,5 +1,4 @@
-import type { INestApplication } from "@nestjs/common";
-import { ValidationPipe } from "@nestjs/common";
+import { type INestApplication, ValidationPipe } from "@nestjs/common";
 
 /**
  * Bootstrap helper for request validation

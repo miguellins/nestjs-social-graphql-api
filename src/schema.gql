@@ -3,12 +3,12 @@
 # ------------------------------------------------------
 
 """
-GraphQL type for delete results
+GraphQL type for generic mutation results
 
-Returns the success state of delete operations
+Returns a human-readable success message
 """
-type DeleteResponse {
-  """Human-readable message describing the result of the mutation."""
+type MessageResponse {
+  """Human-readable message describing the result of the mutation"""
   message: String!
 }
 
@@ -44,8 +44,18 @@ type SafeUser implements PublicUserIdentity {
   """When the user account was created"""
   createdAt: DateTime!
 
+  """
+  Presentation-friendly UTC timestamp for when the user account was created.
+  """
+  createdAtFormatted: String
+
   """When the user was last updated"""
   updatedAt: DateTime!
+
+  """
+  Presentation-friendly UTC timestamp for when the user was last updated.
+  """
+  updatedAtFormatted: String
 
   """Related entity counts when explicitly requested"""
   _count: UserCounts
@@ -91,6 +101,11 @@ type NotificationDTO {
   """Timestamp when notification was marked as read."""
   readAt: DateTime
 
+  """
+  Presentation-friendly UTC timestamp for when the notification was marked as read.
+  """
+  readAtFormatted: String
+
   """Optional related entity id (follow, like, post, etc.)."""
   entityId: Int
 
@@ -106,8 +121,18 @@ type NotificationDTO {
   """Timestamp indicating when the notification was created."""
   createdAt: DateTime!
 
+  """
+  Presentation-friendly UTC timestamp for when the notification was created.
+  """
+  createdAtFormatted: String
+
   """Timestamp indicating the latest update on this notification."""
   updatedAt: DateTime!
+
+  """
+  Presentation-friendly UTC timestamp for when the notification was last updated.
+  """
+  updatedAtFormatted: String
 
   """Optional detailed message body."""
   body: String
@@ -141,6 +166,14 @@ type SafeCommentDTO {
   """Unique identifier of the comment."""
   id: ID!
 
+  """Presentation-friendly UTC timestamp for when the comment was created."""
+  createdAtFormatted: String
+
+  """
+  Presentation-friendly UTC timestamp for when the comment was last updated.
+  """
+  updatedAtFormatted: String
+
   """Identifier of the user who authored the comment."""
   authorId: Int!
 
@@ -172,6 +205,11 @@ type Follow {
   """Timestamp indicating when the follow relationship was created."""
   createdAt: DateTime!
 
+  """
+  Presentation-friendly UTC timestamp for when the follow relationship was created.
+  """
+  createdAtFormatted: String
+
   """Identifier of the user who initiated the follow action (the follower)."""
   followerId: Int!
 
@@ -199,21 +237,11 @@ type LikePreview {
   """Timestamp indicating when the like was created."""
   createdAt: DateTime!
 
+  """Presentation-friendly UTC timestamp for when the like was created."""
+  createdAtFormatted: String
+
   """Public safe preview of the user who performed the like."""
   user: SafeUserPreview!
-}
-
-"""
-GraphQL model for post counts
-
-Exposes aggregate post metrics for API responses
-"""
-type PostCounts {
-  """Total number of likes associated with this post."""
-  likes: Int!
-
-  """Total number of comments associated with this post."""
-  comments: Int!
 }
 
 """
@@ -227,20 +255,28 @@ type Post {
   """
   id: ID!
 
-  """Timestamp indicating when the post was originally created."""
-  createdAt: DateTime!
-
-  """Public safe preview of the user who authored the post."""
-  author: SafeUserPreview!
-
-  """Aggregated metadata related to the post."""
-  _count: PostCounts!
-
   """Title of the post."""
-  title: String!
+  title: String
 
   """Main textual content of the post."""
   content: String!
+
+  """Timestamp indicating when the post was originally created."""
+  createdAt: DateTime!
+
+  """
+  Presentation-friendly UTC timestamp for when the post was originally created.
+  """
+  createdAtFormatted: String
+
+  """Total number of likes associated with the post."""
+  likesCount: Int!
+
+  """Total number of comments associated with the post."""
+  commentsCount: Int!
+
+  """Public safe preview of the user who authored the post."""
+  author: SafeUserPreview!
 }
 
 """
@@ -257,6 +293,9 @@ type LikeListItem {
   """Timestamp indicating when the like was created."""
   createdAt: DateTime!
 
+  """Presentation-friendly UTC timestamp for when the like was created."""
+  createdAtFormatted: String
+
   """Public safe preview of the user who performed the like."""
   user: SafeUserPreview!
 
@@ -272,7 +311,17 @@ Defines the full user shape available in the schema
 type User {
   id: ID!
   createdAt: DateTime!
+
+  """
+  Presentation-friendly UTC timestamp for when the user account was created.
+  """
+  createdAtFormatted: String
   updatedAt: DateTime!
+
+  """
+  Presentation-friendly UTC timestamp for when the user account was last updated.
+  """
+  updatedAtFormatted: String
   posts: [Post!]
   likes: [Like!]
   followers: [Follow!]
@@ -302,6 +351,9 @@ type Like {
   """Timestamp indicating when the like was created."""
   createdAt: DateTime!
 
+  """Presentation-friendly UTC timestamp for when the like was created."""
+  createdAtFormatted: String
+
   """Identifier of the user who performed the like."""
   userId: Int
 
@@ -323,11 +375,43 @@ type PostDetail {
   """
   id: ID!
 
+  """Title of the post."""
+  title: String
+
+  """Main textual content of the post."""
+  content: String!
+
   """Timestamp indicating when the post was originally created."""
   createdAt: DateTime!
 
+  """
+  Presentation-friendly UTC timestamp for when the post was originally created.
+  """
+  createdAtFormatted: String
+
   """Timestamp indicating the last time the post was updated."""
   updatedAt: DateTime!
+
+  """
+  Presentation-friendly UTC timestamp for when the post was last updated.
+  """
+  updatedAtFormatted: String
+
+  """
+  Timestamp indicating when the post body or title was last meaningfully edited.
+  """
+  editedAt: DateTime
+
+  """
+  Presentation-friendly UTC timestamp for when the post body or title was last meaningfully edited.
+  """
+  editedAtFormatted: String
+
+  """Total number of likes associated with the post."""
+  likesCount: Int!
+
+  """Total number of comments associated with the post."""
+  commentsCount: Int!
 
   """
   Total number of times the post detail view has been accessed successfully.
@@ -337,20 +421,11 @@ type PostDetail {
   """Public safe preview of the user who authored the post."""
   author: SafeUserPreview!
 
-  """Aggregated metadata related to the post."""
-  _count: PostCounts!
-
   """Optional lightweight list of likes associated with the post."""
   likes: [LikePreview!]
 
   """Optional lightweight list of comments associated with the post."""
   comments: [SafeCommentDTO!]
-
-  """Title of the post."""
-  title: String!
-
-  """Main textual content of the post."""
-  content: String!
 }
 
 """
@@ -372,6 +447,10 @@ type Query {
     orderBy: ChronologicalOrder
   ): [SafeUser!]!
   userById(id: Int!): SafeUser!
+  userByUsername(
+    """Public username used to identify a user profile."""
+    username: String!
+  ): SafeUser!
   posts(
     """Maximum number of items to return (1-50)."""
     take: Int
@@ -385,6 +464,16 @@ type Query {
     q: String
   ): [Post!]!
   postById(id: Int!): PostDetail!
+  postsByUsername(
+    """Maximum number of items to return (1-50)."""
+    take: Int
+
+    """Controls chronological ordering for list results."""
+    orderBy: ChronologicalOrder
+
+    """Public username used to identify the post author timeline."""
+    username: String!
+  ): [Post!]!
   myFeed(
     """Maximum number of items to return (1-50)."""
     take: Int
@@ -452,26 +541,35 @@ enum NotificationReadStatus {
 
 type Mutation {
   login(input: LoginInput!): AuthPayload!
+  requestPasswordReset(input: RequestPasswordResetInput!): MessageResponse!
+  resetPassword(input: ResetPasswordInput!): MessageResponse!
   createUser(input: CreateUserInput!): SafeUser!
   updateMe(input: UpdateUserInput!): SafeUser!
-  deleteMe: DeleteResponse!
+  deleteMe: MessageResponse!
   createPost(input: CreatePostInput!): Post!
   updatePost(id: Int!, input: UpdatePostInput!): Post!
-  deletePost(id: Int!): DeleteResponse!
+  deletePost(id: Int!): MessageResponse!
   createLike(postId: Int!): LikeListItem!
-  deleteLike(id: Int!): DeleteResponse!
-  markNotificationAsRead(notificationId: Int!): DeleteResponse!
-  markAllNotificationsAsRead: DeleteResponse!
+  deleteLike(id: Int!): MessageResponse!
+  markNotificationAsRead(notificationId: Int!): MessageResponse!
+  markAllNotificationsAsRead: MessageResponse!
   createFollow(followingId: Int!): Follow!
-  deleteFollow(id: Int!): DeleteResponse!
+  deleteFollow(id: Int!): MessageResponse!
   createComment(
     """Payload used to create a new comment."""
     input: CreateCommentInput!
   ): SafeCommentDTO!
+  updateComment(
+    """Unique id of the target comment."""
+    commentId: Int!
+
+    """Payload used to update an existing comment."""
+    input: UpdateCommentInput!
+  ): SafeCommentDTO!
   deleteComment(
     """Unique id of the target comment."""
     commentId: Int!
-  ): DeleteResponse!
+  ): MessageResponse!
 }
 
 """
@@ -485,6 +583,31 @@ input LoginInput {
 
   """Plain-text password submitted during login."""
   password: String!
+}
+
+"""
+GraphQL input for password reset initiation
+
+Accepts the email address that should receive reset instructions
+"""
+input RequestPasswordResetInput {
+  """Email address that should receive password reset instructions."""
+  email: String!
+}
+
+"""
+GraphQL input for password reset completion
+
+Accepts the reset token and the new password
+"""
+input ResetPasswordInput {
+  """
+  Raw password reset token from the local file sink or future email delivery.
+  """
+  token: String!
+
+  """New plain-text password that will be hashed before persistence."""
+  newPassword: String!
 }
 
 """
@@ -530,7 +653,7 @@ Validates the data sent to create a post
 """
 input CreatePostInput {
   """Title shown for the post."""
-  title: String!
+  title: String
 
   """Main textual body of the post."""
   content: String!
@@ -559,6 +682,16 @@ input CreateCommentInput {
   postId: Int!
 
   """Text content of the comment."""
+  content: String!
+}
+
+"""
+GraphQL input for comment updates
+
+Validates the data sent to update a comment
+"""
+input UpdateCommentInput {
+  """Updated text content of the comment."""
   content: String!
 }
 

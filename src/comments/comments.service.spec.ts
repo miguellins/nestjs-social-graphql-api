@@ -1,11 +1,14 @@
 import {
   BadRequestException,
   ForbiddenException,
+  InternalServerErrorException,
   Logger,
   NotFoundException,
 } from "@nestjs/common";
 
 import { Test, TestingModule } from "@nestjs/testing";
+
+import { Prisma } from "@prisma/client";
 
 import { SafeCommentSelect } from "@/comments/dto/safe-comment.dto";
 
@@ -30,6 +33,7 @@ describe("CommentsService", () => {
       create: jest.Mock;
       findMany: jest.Mock;
       findUnique: jest.Mock;
+      update: jest.Mock;
       delete: jest.Mock;
     };
     $transaction: jest.Mock;
@@ -42,6 +46,7 @@ describe("CommentsService", () => {
       create: jest.fn(),
       findMany: jest.fn(),
       findUnique: jest.fn(),
+      update: jest.fn(),
       delete: jest.fn(),
     },
     $transaction: jest.fn(),
@@ -91,7 +96,7 @@ describe("CommentsService", () => {
     });
 
     it("creates comment in transaction, increments counter and invalidates cache", async () => {
-      prismaMock.post.findUnique.mockResolvedValue({ id: 1 });
+      prismaMock.post.findUnique.mockResolvedValue({ id: 1, authorId: 7 });
 
       const created = {
         id: 99,
@@ -147,6 +152,7 @@ describe("CommentsService", () => {
 
       expect(cacheMock.del).toHaveBeenCalledWith("posts:detail:1");
       expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:posts:list");
+      expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:user:7:posts:list");
       expect(res).toEqual(created);
     });
 
@@ -155,7 +161,7 @@ describe("CommentsService", () => {
         .spyOn(Logger.prototype, "error")
         .mockImplementation(() => undefined);
 
-      prismaMock.post.findUnique.mockResolvedValue({ id: 1 });
+      prismaMock.post.findUnique.mockResolvedValue({ id: 1, authorId: 7 });
       prismaMock.$transaction.mockResolvedValue({
         id: 99,
         content: "hello",
@@ -249,6 +255,9 @@ describe("CommentsService", () => {
         id: 1,
         authorId: 10,
         postId: 3,
+        post: {
+          authorId: 7,
+        },
       });
 
       prismaMock.$transaction.mockImplementation(
@@ -287,6 +296,7 @@ describe("CommentsService", () => {
 
       expect(cacheMock.del).toHaveBeenCalledWith("posts:detail:3");
       expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:posts:list");
+      expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:user:7:posts:list");
       expect(res).toEqual({ message: "Comment deleted successfully" });
     });
 
@@ -299,6 +309,9 @@ describe("CommentsService", () => {
         id: 1,
         authorId: 10,
         postId: 3,
+        post: {
+          authorId: 7,
+        },
       });
       prismaMock.$transaction.mockResolvedValue(undefined);
       cacheMock.del.mockRejectedValueOnce(new Error("cache down"));
@@ -309,6 +322,132 @@ describe("CommentsService", () => {
 
       expect(loggerErrorSpy).toHaveBeenCalledWith(
         "Failed to invalidate caches after deleting comment 1",
+        expect.any(String),
+      );
+
+      loggerErrorSpy.mockRestore();
+    });
+  });
+
+  describe("updateComment", () => {
+    it("throws BadRequestException when content is empty after trim", async () => {
+      await expect(
+        service.updateComment(1, { content: "   " }, 10),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      expect(prismaMock.comment.findUnique).not.toHaveBeenCalled();
+    });
+
+    it("throws NotFoundException when comment does not exist", async () => {
+      prismaMock.comment.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.updateComment(1, { content: "hello" }, 10),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it("throws ForbiddenException when current user is not owner", async () => {
+      prismaMock.comment.findUnique.mockResolvedValue({
+        id: 1,
+        authorId: 999,
+        postId: 3,
+      });
+
+      await expect(
+        service.updateComment(1, { content: "hello" }, 10),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it("updates the comment, invalidates post detail cache, and returns the safe comment", async () => {
+      prismaMock.comment.findUnique.mockResolvedValue({
+        id: 1,
+        authorId: 10,
+        postId: 3,
+      });
+      prismaMock.comment.update.mockResolvedValue({
+        id: 1,
+        content: "updated",
+        postId: 3,
+        authorId: 10,
+      });
+
+      const res = await service.updateComment(1, { content: " updated " }, 10);
+
+      expect(prismaMock.comment.update).toHaveBeenCalledWith({
+        where: { id: 1 },
+        data: { content: "updated" },
+        select: SafeCommentSelect,
+      });
+      expect(cacheMock.del).toHaveBeenCalledWith("posts:detail:3");
+      expect(cacheMock.bumpVersion).not.toHaveBeenCalled();
+      expect(res).toEqual({
+        id: 1,
+        content: "updated",
+        postId: 3,
+        authorId: 10,
+      });
+    });
+
+    it("throws NotFoundException on Prisma P2025 during update", async () => {
+      prismaMock.comment.findUnique.mockResolvedValue({
+        id: 1,
+        authorId: 10,
+        postId: 3,
+      });
+      prismaMock.comment.update.mockRejectedValue(
+        new Prisma.PrismaClientKnownRequestError("missing", {
+          code: "P2025",
+          clientVersion: "test",
+        }),
+      );
+
+      await expect(
+        service.updateComment(1, { content: "hello" }, 10),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it("throws InternalServerErrorException for unexpected update errors", async () => {
+      prismaMock.comment.findUnique.mockResolvedValue({
+        id: 1,
+        authorId: 10,
+        postId: 3,
+      });
+      prismaMock.comment.update.mockRejectedValue(new Error("boom"));
+
+      await expect(
+        service.updateComment(1, { content: "hello" }, 10),
+      ).rejects.toBeInstanceOf(InternalServerErrorException);
+    });
+
+    it("returns the updated comment even if cache invalidation fails", async () => {
+      const loggerErrorSpy = jest
+        .spyOn(Logger.prototype, "error")
+        .mockImplementation(() => undefined);
+
+      prismaMock.comment.findUnique.mockResolvedValue({
+        id: 1,
+        authorId: 10,
+        postId: 3,
+      });
+      prismaMock.comment.update.mockResolvedValue({
+        id: 1,
+        content: "updated",
+        postId: 3,
+        authorId: 10,
+      });
+      cacheMock.del.mockRejectedValueOnce(new Error("cache down"));
+
+      await expect(
+        service.updateComment(1, { content: "updated" }, 10),
+      ).resolves.toEqual({
+        id: 1,
+        content: "updated",
+        postId: 3,
+        authorId: 10,
+      });
+
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        "Failed to invalidate caches after updating comment 1",
         expect.any(String),
       );
 

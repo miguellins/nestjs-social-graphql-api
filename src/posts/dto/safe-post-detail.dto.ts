@@ -1,8 +1,12 @@
-import type { SafeCommentDTO } from "@/comments/dto/safe-comment.dto";
-import { SafeCommentSelect } from "@/comments/dto/safe-comment.dto";
+import {
+  type SafeCommentDTO,
+  SafeCommentSelect,
+} from "@/comments/dto/safe-comment.dto";
 
-import type { SafePostListDTO } from "@/posts/dto/safe-post-list.dto";
-import { SafePostListSelect } from "@/posts/dto/safe-post-list.dto";
+import {
+  type SafePostListDTO,
+  SafePostListSelect,
+} from "@/posts/dto/safe-post-list.dto";
 
 import type { Prisma } from "@prisma/client";
 
@@ -14,9 +18,8 @@ import type { Prisma } from "@prisma/client";
 
 export type SafePostDetailDTO = SafePostListDTO & {
   updatedAt: Date;
+  editedAt: Date | null;
   viewsCount: number;
-
-  _count: SafePostListDTO["_count"];
 
   likes?: {
     id: number;
@@ -38,7 +41,6 @@ export type SafePostDetailDTO = SafePostListDTO & {
  * Extends the list select and adds:
  * - updatedAt
  * - viewsCount
- * - comments count
  * - likes preview
  * - comments preview
  */
@@ -47,14 +49,8 @@ export const SafePostDetailSelect = {
   ...SafePostListSelect,
 
   updatedAt: true,
+  editedAt: true,
   viewsCount: true,
-
-  _count: {
-    select: {
-      likes: true,
-      comments: true,
-    },
-  },
 
   likes: {
     select: {

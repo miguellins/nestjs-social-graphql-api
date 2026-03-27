@@ -299,6 +299,7 @@ describe("LikesService", () => {
       expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:likes:list");
       expect(cacheMock.del).toHaveBeenCalledWith("posts:detail:20");
       expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:posts:list");
+      expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:user:2:posts:list");
 
       expect(res).toEqual(like);
     });
@@ -413,6 +414,9 @@ describe("LikesService", () => {
         id: 1,
         userId: 10,
         postId: 20,
+        post: {
+          authorId: 2,
+        },
       });
 
       prismaMock.$transaction.mockImplementation(
@@ -446,6 +450,7 @@ describe("LikesService", () => {
       expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:likes:list");
       expect(cacheMock.del).toHaveBeenCalledWith("posts:detail:20");
       expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:posts:list");
+      expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:user:2:posts:list");
 
       expect(res).toEqual({ message: "Like deleted successfully" });
     });
@@ -455,6 +460,9 @@ describe("LikesService", () => {
         id: 1,
         userId: 10,
         postId: 20,
+        post: {
+          authorId: 2,
+        },
       });
 
       const err = new Prisma.PrismaClientKnownRequestError("gone", {

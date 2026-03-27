@@ -6,6 +6,8 @@ import {
   ObjectType,
 } from "@nestjs/graphql";
 
+import { FormattedDateTimeField } from "@/graphql/fields/formatted-date-time-field.decorator";
+
 import { User } from "@/users/models/users.model";
 
 /**
@@ -24,6 +26,13 @@ export class Like {
   /** Timestamp indicating when the like was created. */
   @Field(() => GraphQLISODateTime)
   createdAt: Date;
+
+  /** Presentation-friendly UTC timestamp for UI display. */
+  @FormattedDateTimeField("createdAt", {
+    description:
+      "Presentation-friendly UTC timestamp for when the like was created.",
+  })
+  createdAtFormatted?: string;
 
   /** Identifier of the user who performed the like. */
   @Field(() => Int, {
