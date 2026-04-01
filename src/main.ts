@@ -6,29 +6,25 @@ import { setupFilters } from "@/bootstrap/setup-filters";
 
 import { AppModule } from "@/app.module";
 
-/**
- * Application bootstrap entry point
- *
- * Creates and configures the NestJS server
- */
-
+/** Bootstraps the NestJS app with validation, filters, security, and shutdown hooks. */
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // Enables global request validation + automatic input cleaning
+  /** Enables global request validation. */
   setupValidation(app);
 
-  // Enables global exception filter for GraphQL errors
+  /** Enables global exception filter. */
   setupFilters(app);
 
-  // Adds several HTTP headers that helps protect the app from common vulnerabilities
+  /** Adds common protection HTTP headers. */
   setupSecurity(app);
 
-  // Allows SIGINT/SIGTERM to trigger module destroy lifecycle
+  /** Enables graceful shutdown. */
   app.enableShutdownHooks();
 
   await app.listen(process.env.PORT ?? 3000);
 }
+
 bootstrap().catch((err) => {
   console.error("Error during bootstrap:", err);
   process.exit(1);

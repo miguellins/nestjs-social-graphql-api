@@ -17,35 +17,29 @@ import { UsersModule } from "@/users/users.module";
 import { MediaModule } from "@/media/media.module";
 import { AuthModule } from "@/auth/auth.module";
 
+import { GqlThrottlerGuard } from "@/common/guards/gql-throttler.guard";
+import { GqlJwtGuard } from "@/common/guards/gql-jwt.guard";
+
 import { createGraphqlConfig } from "@/graphql/config/graphql.config";
 
 import { cacheModuleConfig } from "@/cache/config/cache.config";
 
-import { GqlThrottlerGuard } from "@/common/guards/gql-throttler.guard";
-import { GqlJwtGuard } from "@/common/guards/gql-jwt.guard";
-
 import { validateEnv } from "@/config/env/env.schema";
-
-/**
- * Root NestJS application module
- *
- * Wires together global infrastructure and feature modules
- */
 
 @Module({
   imports: [
-    // Loads and exposes environment variables globally
+    /** Loads and exposes environment variables globally */
     ConfigModule.forRoot({
       isGlobal: true,
 
-      // Fail fast at startup if required environment variables are missing or invalid
+      /** Fail fast at startup if required environment variables are missing or invalid */
       validate: validateEnv,
     }),
 
-    // Registers the global Redis-backed cache with the shared async config
+    /** Registers the global Redis-backed cache with the shared async config */
     CacheModule.registerAsync(cacheModuleConfig),
 
-    // Initializes GraphQL globally
+    /** Initializes GraphQL globally */
     GraphQLModule.forRootAsync({
       driver: ApolloDriver,
       imports: [AuthModule],
@@ -53,18 +47,18 @@ import { validateEnv } from "@/config/env/env.schema";
       useFactory: createGraphqlConfig,
     }),
 
-    // Registers the rate limiter globally
+    /** Registers the rate limiter globally */
     ThrottlerModule.forRoot([
       {
-        // 60 seconds in milliseconds
+        /** 60 seconds in milliseconds */
         ttl: 60_000,
 
-        // 120 requests per ttl per client
+        /** 120 requests per ttl per client */
         limit: 120,
       },
     ]),
 
-    // Application Modules
+    /** Application Modules */
     AuthModule,
     UsersModule,
     PostsModule,
