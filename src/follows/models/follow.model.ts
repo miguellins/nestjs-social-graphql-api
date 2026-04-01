@@ -21,11 +21,8 @@ export class Follow {
   @Field(() => GraphQLISODateTime)
   createdAt: Date;
 
-  /** Presentation-friendly UTC timestamp for UI display. */
-  @FormattedDateTimeField("createdAt", {
-    description:
-      "Presentation-friendly UTC timestamp for when the follow relationship was created.",
-  })
+  /** Presentation-friendly UTC timestamp for when the follow relationship was created. */
+  @FormattedDateTimeField("createdAt")
   createdAtFormatted?: string;
 
   /** Identifier of the user who initiated the follow action (the follower). */

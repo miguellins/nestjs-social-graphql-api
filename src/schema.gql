@@ -505,7 +505,7 @@ type AuthPayload {
 
 type Query {
   users(
-    """Maximum number of items to return (1-50)."""
+    """Maximum number of items to return (1-${PAGINATION.MAX_TAKE})."""
     take: Int
 
     """Controls chronological ordering for list results."""
@@ -517,7 +517,7 @@ type Query {
     username: String!
   ): SafeUser!
   posts(
-    """Maximum number of items to return (1-50)."""
+    """Maximum number of items to return (1-${PAGINATION.MAX_TAKE})."""
     take: Int
 
     """Controls chronological ordering for list results."""
@@ -530,7 +530,7 @@ type Query {
   ): [Post!]!
   postById(id: Int!): PostDetail!
   postsByUsername(
-    """Maximum number of items to return (1-50)."""
+    """Maximum number of items to return (1-${PAGINATION.MAX_TAKE})."""
     take: Int
 
     """Controls chronological ordering for list results."""
@@ -540,14 +540,14 @@ type Query {
     username: String!
   ): [Post!]!
   myFeed(
-    """Maximum number of items to return (1-50)."""
+    """Maximum number of items to return (1-${PAGINATION.MAX_TAKE})."""
     take: Int
 
     """Controls chronological ordering for list results."""
     orderBy: ChronologicalOrder
   ): [Post!]!
   myMedia(
-    """Maximum number of items to return (1-50)."""
+    """Maximum number of items to return (1-${PAGINATION.MAX_TAKE})."""
     take: Int
 
     """Controls chronological ordering for list results."""
@@ -555,7 +555,7 @@ type Query {
   ): [Media!]!
   mediaSignedViewUrl(mediaId: Int!): SignedMediaViewUrl!
   likes(
-    """Maximum number of items to return (1-50)."""
+    """Maximum number of items to return (1-${PAGINATION.MAX_TAKE})."""
     take: Int
 
     """Controls chronological ordering for list results."""
@@ -571,7 +571,7 @@ type Query {
   ): [LikeListItem!]!
   likeById(id: Int!): LikeListItem!
   myNotifications(
-    """Maximum number of items to return (1-50)."""
+    """Maximum number of items to return (1-${PAGINATION.MAX_TAKE})."""
     take: Int
 
     """Controls chronological ordering for list results."""
@@ -582,7 +582,7 @@ type Query {
   ): [NotificationDTO!]!
   unreadNotificationsCount: Int!
   follows(
-    """Maximum number of items to return (1-50)."""
+    """Maximum number of items to return (1-${PAGINATION.MAX_TAKE})."""
     take: Int
 
     """Controls chronological ordering for list results."""
@@ -590,7 +590,7 @@ type Query {
   ): [Follow!]!
   followById(id: Int!): Follow!
   commentsByPost(
-    """Maximum number of items to return (1-50)."""
+    """Maximum number of items to return (1-${PAGINATION.MAX_TAKE})."""
     take: Int
 
     """Controls chronological ordering for list results."""

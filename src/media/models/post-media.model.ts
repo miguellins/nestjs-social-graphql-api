@@ -28,9 +28,7 @@ export class PostMedia {
   @Field(() => GraphQLISODateTime)
   createdAt: Date;
 
-  @FormattedDateTimeField("createdAt", {
-    description:
-      "Presentation-friendly UTC timestamp for when the media item was attached to the post.",
-  })
+  /** Presentation-friendly UTC timestamp for when the media item was attached to the post. */
+  @FormattedDateTimeField("createdAt")
   createdAtFormatted?: string;
 }

@@ -21,11 +21,8 @@ export class Like {
   @Field(() => GraphQLISODateTime)
   createdAt: Date;
 
-  /** Presentation-friendly UTC timestamp for UI display. */
-  @FormattedDateTimeField("createdAt", {
-    description:
-      "Presentation-friendly UTC timestamp for when the like was created.",
-  })
+  /** Presentation-friendly UTC timestamp for when the like was created. */
+  @FormattedDateTimeField("createdAt")
   createdAtFormatted?: string;
 
   /** Identifier of the user who performed the like. */

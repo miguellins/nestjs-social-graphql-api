@@ -2,7 +2,7 @@ import { NotificationType } from "@prisma/client";
 
 import type { Prisma } from "@prisma/client";
 
-/** Defines the safe notification shape used by services */
+/** Defines the safe notification shape used by services. */
 export type SafeNotificationDTO = {
   id: number;
   type: NotificationType;
@@ -23,7 +23,7 @@ export type SafeNotificationDTO = {
   };
 };
 
-/** Prisma select shape that matches SafeNotificationDTO exactly */
+/** Defines the Prisma select shape that matches the safe notification DTO exactly. */
 export const NotificationSelect = {
   id: true,
   type: true,

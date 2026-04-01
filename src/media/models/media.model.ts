@@ -66,20 +66,16 @@ export class Media {
   @Field(() => GraphQLISODateTime)
   createdAt: Date;
 
-  @FormattedDateTimeField("createdAt", {
-    description:
-      "Presentation-friendly UTC timestamp for when the media item was created.",
-  })
+  /** Presentation-friendly UTC timestamp for when the media item was created. */
+  @FormattedDateTimeField("createdAt")
   createdAtFormatted?: string;
 
   /** Timestamp indicating when the media item was last updated. */
   @Field(() => GraphQLISODateTime)
   updatedAt: Date;
 
-  @FormattedDateTimeField("updatedAt", {
-    description:
-      "Presentation-friendly UTC timestamp for when the media item was last updated.",
-  })
+  /** Presentation-friendly UTC timestamp for when the media item was last updated. */
+  @FormattedDateTimeField("updatedAt")
   updatedAtFormatted?: string;
 
   /** Timestamp indicating when the media item was attached to a post, if any. */
@@ -88,10 +84,9 @@ export class Media {
   })
   attachedAt?: Date | null;
 
+  /** Presentation-friendly UTC timestamp for when the media item was attached to a post. */
   @FormattedDateTimeField("attachedAt", {
     nullable: true,
-    description:
-      "Presentation-friendly UTC timestamp for when the media item was attached to a post.",
   })
   attachedAtFormatted?: string | null;
 }

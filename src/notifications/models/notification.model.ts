@@ -47,11 +47,9 @@ export class NotificationDTO {
   })
   readAt!: Date | null;
 
-  /** Presentation-friendly UTC timestamp for UI display. */
+  /** Presentation-friendly UTC timestamp for when the notification was marked as read. */
   @FormattedDateTimeField("readAt", {
     nullable: true,
-    description:
-      "Presentation-friendly UTC timestamp for when the notification was marked as read.",
   })
   readAtFormatted?: string | null;
 
@@ -77,21 +75,15 @@ export class NotificationDTO {
   @Field(() => GraphQLISODateTime)
   createdAt: Date;
 
-  /** Presentation-friendly UTC timestamp for UI display. */
-  @FormattedDateTimeField("createdAt", {
-    description:
-      "Presentation-friendly UTC timestamp for when the notification was created.",
-  })
+  /** Presentation-friendly UTC timestamp for when the notification was created. */
+  @FormattedDateTimeField("createdAt")
   createdAtFormatted?: string;
 
   /** Timestamp indicating the latest update on this notification. */
   @Field(() => GraphQLISODateTime)
   updatedAt: Date;
 
-  /** Presentation-friendly UTC timestamp for UI display. */
-  @FormattedDateTimeField("updatedAt", {
-    description:
-      "Presentation-friendly UTC timestamp for when the notification was last updated.",
-  })
+  /** Presentation-friendly UTC timestamp for when the notification was last updated. */
+  @FormattedDateTimeField("updatedAt")
   updatedAtFormatted?: string;
 }

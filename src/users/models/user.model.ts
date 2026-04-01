@@ -32,19 +32,15 @@ export class User {
   @Field(() => GraphQLISODateTime)
   createdAt: Date;
 
-  @FormattedDateTimeField("createdAt", {
-    description:
-      "Presentation-friendly UTC timestamp for when the user account was created.",
-  })
+  /** Presentation-friendly UTC timestamp for when the user account was created. */
+  @FormattedDateTimeField("createdAt")
   createdAtFormatted?: string;
 
   @Field(() => GraphQLISODateTime)
   updatedAt: Date;
 
-  @FormattedDateTimeField("updatedAt", {
-    description:
-      "Presentation-friendly UTC timestamp for when the user account was last updated.",
-  })
+  /** Presentation-friendly UTC timestamp for when the user account was last updated. */
+  @FormattedDateTimeField("updatedAt")
   updatedAtFormatted?: string;
 
   @Field(() => [Post], { nullable: true })

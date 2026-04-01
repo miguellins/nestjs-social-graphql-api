@@ -12,22 +12,16 @@ export class SafeUser extends PublicUserIdentity {
   @Field(() => GraphQLISODateTime)
   createdAt: Date;
 
-  /** Presentation-friendly UTC timestamp for UI display. */
-  @FormattedDateTimeField("createdAt", {
-    description:
-      "Presentation-friendly UTC timestamp for when the user account was created.",
-  })
+  /** Presentation-friendly UTC timestamp for when the user account was created. */
+  @FormattedDateTimeField("createdAt")
   createdAtFormatted?: string;
 
   /** When the user was last updated */
   @Field(() => GraphQLISODateTime)
   updatedAt: Date;
 
-  /** Presentation-friendly UTC timestamp for UI display. */
-  @FormattedDateTimeField("updatedAt", {
-    description:
-      "Presentation-friendly UTC timestamp for when the user was last updated.",
-  })
+  /** Presentation-friendly UTC timestamp for when the user was last updated. */
+  @FormattedDateTimeField("updatedAt")
   updatedAtFormatted?: string;
 
   /** Related entity counts when explicitly requested */

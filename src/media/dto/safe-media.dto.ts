@@ -1,6 +1,6 @@
 import { MediaKind, MediaStatus, MediaType, type Prisma } from "@prisma/client";
 
-/** Defines the safe media shape used by services */
+/** Defines the safe media shape used by services. */
 export type SafeMediaDTO = {
   id: number;
   kind: MediaKind;
@@ -18,6 +18,7 @@ export type SafeMediaDTO = {
   attachedAt: Date | null;
 };
 
+/** Defines the internal safe media record shape before public URL projection. */
 export type SafeMediaRecord = Omit<SafeMediaDTO, "publicUrl">;
 
 /** Prisma select shape for fetching safe public media fields only. */

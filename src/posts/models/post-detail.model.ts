@@ -32,20 +32,16 @@ export class PostDetail {
   @Field(() => GraphQLISODateTime)
   createdAt: Date;
 
-  @FormattedDateTimeField("createdAt", {
-    description:
-      "Presentation-friendly UTC timestamp for when the post was originally created.",
-  })
+  /** Presentation-friendly UTC timestamp for when the post was originally created. */
+  @FormattedDateTimeField("createdAt")
   createdAtFormatted?: string;
 
   /** Timestamp indicating the last time the post was updated. */
   @Field(() => GraphQLISODateTime)
   updatedAt: Date;
 
-  @FormattedDateTimeField("updatedAt", {
-    description:
-      "Presentation-friendly UTC timestamp for when the post was last updated.",
-  })
+  /** Presentation-friendly UTC timestamp for when the post was last updated. */
+  @FormattedDateTimeField("updatedAt")
   updatedAtFormatted?: string;
 
   /** Timestamp indicating when the post body or title was last meaningfully edited. */
@@ -54,10 +50,8 @@ export class PostDetail {
   })
   editedAt: Date | null;
 
-  @FormattedDateTimeField("editedAt", {
-    description:
-      "Presentation-friendly UTC timestamp for when the post body or title was last meaningfully edited.",
-  })
+  /** Presentation-friendly UTC timestamp for when the post body or title was last meaningfully edited. */
+  @FormattedDateTimeField("editedAt")
   editedAtFormatted?: string;
 
   /** Total number of likes associated with the post. */

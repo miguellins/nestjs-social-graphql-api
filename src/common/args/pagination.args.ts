@@ -7,9 +7,9 @@ import { PAGINATION } from "@/common/constants/hard-cap.constants";
 
 @ArgsType()
 export class PaginationArgs {
+  /** Maximum number of items to return (1-${PAGINATION.MAX_TAKE}). */
   @Field(() => Int, {
     nullable: true,
-    description: `Maximum number of items to return (1-${PAGINATION.MAX_TAKE}).`,
   })
   @IsOptional()
   @IsInt()

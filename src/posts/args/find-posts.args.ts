@@ -9,10 +9,9 @@ const MAX_QUERY_LENGTH = 50;
 
 @ArgsType()
 export class FindPostsArgs extends PaginationArgs {
-  // Optional free-text query used to search posts
+  /** Free-text search query for posts. Trimmed before validation. Max 50 characters. */
   @Field(() => String, {
     nullable: true,
-    description: `Free-text search query for posts. Trimmed before validation. Max ${MAX_QUERY_LENGTH} characters.`,
   })
   @IsOptional()
   @Trim()

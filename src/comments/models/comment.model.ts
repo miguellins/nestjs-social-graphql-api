@@ -16,21 +16,15 @@ export class Comment {
   /** Timestamp indicating when the comment was created. */
   createdAt: Date;
 
-  /** Presentation-friendly UTC timestamp for UI display. */
-  @FormattedDateTimeField("createdAt", {
-    description:
-      "Presentation-friendly UTC timestamp for when the comment was created.",
-  })
+  /** Presentation-friendly UTC timestamp for when the comment was created. */
+  @FormattedDateTimeField("createdAt")
   createdAtFormatted?: string;
 
   /** Timestamp indicating the latest update made to the comment. */
   updatedAt: Date;
 
-  /** Presentation-friendly UTC timestamp for UI display. */
-  @FormattedDateTimeField("updatedAt", {
-    description:
-      "Presentation-friendly UTC timestamp for when the comment was last updated.",
-  })
+  /** Presentation-friendly UTC timestamp for when the comment was last updated. */
+  @FormattedDateTimeField("updatedAt")
   updatedAtFormatted?: string;
 
   /** Identifier of the user who authored the comment. */

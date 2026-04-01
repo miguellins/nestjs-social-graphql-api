@@ -29,10 +29,8 @@ export class Post {
   @Field(() => GraphQLISODateTime)
   createdAt: Date;
 
-  @FormattedDateTimeField("createdAt", {
-    description:
-      "Presentation-friendly UTC timestamp for when the post was originally created.",
-  })
+  /** Presentation-friendly UTC timestamp for when the post was originally created. */
+  @FormattedDateTimeField("createdAt")
   createdAtFormatted?: string;
 
   /** Total number of likes associated with the post. */

@@ -12,7 +12,7 @@ import { MediaKind, MediaStatus, MediaType } from "@/media/models/media.enums";
 
 import type { Prisma } from "@prisma/client";
 
-/** Defines the safe post detail shape used by services */
+/** Defines the safe post detail shape used by services. */
 export type SafePostDetailDTO = SafePostListDTO & {
   updatedAt: Date;
   editedAt: Date | null;
@@ -82,7 +82,7 @@ export type SafePostDetailRecord = Omit<
   mediaAttachments?: SafePostMediaAttachmentRecord[];
 };
 
-/** Defines the Prisma select that matches the safe post detail DTO shape. */
+/** Defines the Prisma select shape that matches the safe post detail DTO. */
 export const SafePostDetailSelect = {
   ...SafePostListSelect,
 

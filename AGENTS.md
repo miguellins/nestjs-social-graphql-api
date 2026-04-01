@@ -50,6 +50,8 @@ This file defines the working rules for contributors and coding agents in this r
 ## Naming Rules
 
 - Name GraphQL object types using the module’s existing public naming convention, such as `SafeUser`, `Post`, `PostDetail`, or `NotificationDTO`.
+- Prefer naming the TypeScript class itself to match the intended public GraphQL object type name and use plain `@ObjectType()` when possible.
+- Treat explicit `@ObjectType("PublicName")` names as a narrow exception for preserving an existing public schema name or when the TypeScript class name must intentionally differ from the public GraphQL contract name.
 - Name GraphQL input types with the `Input` suffix.
 - Name service-layer Zod command types with the `Command` suffix.
 - Name Zod schemas with clear action names like `createUserCommandSchema`.
@@ -109,6 +111,9 @@ This file defines the working rules for contributors and coding agents in this r
 
 - Keep the API code-first. Add or modify GraphQL decorators on classes instead of hand-editing schema files.
 - Treat `src/schema.gql` as generated output.
+- Keep `introspectComments` enabled consistently in both the Nest GraphQL build plugin and the Jest AST transformer pipeline.
+- Prefer comment introspection as the default source of public GraphQL descriptions for object types, input types, args, and fields.
+- Use explicit decorator `description` values only when comment introspection cannot express the required GraphQL metadata cleanly or correctly.
 - Keep GraphQL errors sanitized. Do not add formatting that leaks stack traces or internal metadata.
 - When adding expensive queries, respect the existing query complexity infrastructure.
 - For subscriptions, ensure the published payload shape matches the resolver subscription field name.
@@ -163,6 +168,8 @@ This file defines the working rules for contributors and coding agents in this r
 
 - Keep GraphQL input classes focused on input validation and transformation.
 - Keep GraphQL object models/DTOs aligned with what the API returns, not with full Prisma models.
+- Do not use explicit `@ObjectType("...")` names as a routine pattern. Use them only for public contract stability or deliberate TypeScript/public GraphQL name separation.
+- In DTO files, add one concise JSDoc comment immediately before each exported DTO type and each exported Prisma select constant so the safe shape and the select intent are both documented consistently.
 - Never expose secrets such as password hashes.
 - Prefer explicit safe DTO/select exports like `SafeUserSelect`, `SafePostListSelect`, and `NotificationSelect`.
 - If a field is nullable in GraphQL, declare it intentionally with the appropriate decorator options.

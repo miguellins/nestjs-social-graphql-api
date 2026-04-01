@@ -7,7 +7,7 @@ import {
 
 /** Configures the generated formatted date-time GraphQL field. */
 type FormattedDateTimeFieldOptions = {
-  description: string;
+  description?: string;
   nullable?: boolean;
 };
 
@@ -131,7 +131,7 @@ function formattedDateTimeFieldMiddleware(
 /** Declares a formatted companion GraphQL field derived from another field. */
 export function FormattedDateTimeField(
   sourceField: string,
-  options: FormattedDateTimeFieldOptions,
+  options: FormattedDateTimeFieldOptions = {},
 ) {
   const { description, nullable } = options;
 
