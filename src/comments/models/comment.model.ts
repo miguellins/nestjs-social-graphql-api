@@ -4,14 +4,8 @@ import { FormattedDateTimeField } from "@/graphql/fields/formatted-date-time-fie
 
 import { SafeUserPreview } from "@/users/models/safe-user-preview.model";
 
-/**
- * GraphQL model for public comments
- *
- * Exposes the safe comment fields returned by the API
- */
-
-@ObjectType()
-export class SafeCommentDTO {
+@ObjectType("SafeCommentDTO")
+export class Comment {
   /** Unique identifier of the comment. */
   @Field(() => ID)
   id: number;

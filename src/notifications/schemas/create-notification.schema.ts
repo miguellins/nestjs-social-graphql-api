@@ -2,12 +2,7 @@ import { NotificationType } from "@prisma/client";
 
 import { z } from "zod";
 
-/**
- * Zod schema for notification creation
- *
- * Validates notification data shared across modules
- */
-
+/** Validates the normalized input used to create a notification record. */
 export const createNotificationInputSchema = z.object({
   recipientId: z.number().int().positive(),
   actorId: z.number().int().positive(),

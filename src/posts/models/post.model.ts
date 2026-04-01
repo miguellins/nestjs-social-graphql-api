@@ -10,12 +10,6 @@ import { FormattedDateTimeField } from "@/graphql/fields/formatted-date-time-fie
 
 import { SafeUserPreview } from "@/users/models/safe-user-preview.model";
 
-/**
- * GraphQL model for posts
- *
- * Exposes the public post fields returned by the API
- */
-
 /** Core public representation of a Post entity. */
 @ObjectType()
 export class Post {
@@ -35,7 +29,6 @@ export class Post {
   @Field(() => GraphQLISODateTime)
   createdAt: Date;
 
-  /** Presentation-friendly UTC timestamp for UI display. */
   @FormattedDateTimeField("createdAt", {
     description:
       "Presentation-friendly UTC timestamp for when the post was originally created.",

@@ -8,6 +8,16 @@ import {
 } from "@nestjs/common";
 
 import {
+  ChronologicalOrder,
+  toSortDirection,
+} from "@/common/enums/chronological-order.enum";
+import { CacheHelperService } from "@/common/cache/cache-helper.service";
+import { MessageResponse } from "@/common/types/message-response.type";
+import { PAGINATION } from "@/common/constants/hard-cap.constants";
+import { parseWithBadRequest } from "@/common/zod/parse-with-zod";
+import { runBestEffort } from "@/common/errors/run-best-effort";
+
+import {
   createCommentCommandSchema,
   type CreateCommentCommand,
 } from "@/comments/schemas/create-comment.schema";
@@ -20,24 +30,8 @@ import {
   type UpdateCommentCommand,
 } from "@/comments/schemas/update-comment.schema";
 
-import {
-  ChronologicalOrder,
-  toSortDirection,
-} from "@/common/enums/chronological-order.enum";
-import { CacheHelperService } from "@/common/cache/cache-helper.service";
-import { MessageResponse } from "@/common/types/message-response.type";
-import { PAGINATION } from "@/common/constants/hard-cap.constants";
-import { parseWithBadRequest } from "@/common/zod/parse-with-zod";
-import { runBestEffort } from "@/common/errors/run-best-effort";
-
-import { PrismaService } from "@/prisma.service";
+import { PrismaService } from "@/prisma/prisma.service";
 import { Prisma } from "@prisma/client";
-
-/**
- * Service for comment workflows
- *
- * Creates, lists, updates, and deletes comments
- */
 
 type FindCommentsByPostParams = {
   postId: number;
@@ -49,20 +43,17 @@ type FindCommentsByPostParams = {
 export class CommentsService {
   private readonly logger = new Logger(CommentsService.name);
 
-  // Injects the services used by comment workflows
   constructor(
     private readonly prisma: PrismaService,
     private readonly cacheHelper: CacheHelperService,
   ) {}
 
-  // Creates a comment and updates the related post counter
   async createComment(
     input: CreateCommentCommand,
     currentUserId: number,
   ): Promise<SafeCommentDTO> {
     const data = this.parseCreateCommentInput(input);
 
-    // Check if the target post exists before creating the comment
     const post = await this.prisma.post.findUnique({
       where: { id: data.postId },
       select: { id: true, authorId: true },
@@ -70,7 +61,6 @@ export class CommentsService {
 
     if (!post) throw new NotFoundException("Post not found");
 
-    // Keep the comment creation and commentsCount increment in sync
     const comment = await this.prisma.$transaction(async (tx) => {
       const createdComment = await tx.comment.create({
         data: {
@@ -95,7 +85,6 @@ export class CommentsService {
       return createdComment;
     });
 
-    // Keep cache refresh failures from masking a committed comment creation
     await runBestEffort(
       this.logger,
       "error",
@@ -112,13 +101,11 @@ export class CommentsService {
     return comment;
   }
 
-  // Lists comments for a post with bounded pagination
   async findCommentsByPost({
     postId,
     take,
     orderBy,
   }: FindCommentsByPostParams): Promise<SafeCommentDTO[]> {
-    // Check if the post exists before listing comments
     const post = await this.prisma.post.findUnique({
       where: { id: postId },
       select: { id: true },
@@ -126,13 +113,11 @@ export class CommentsService {
 
     if (!post) throw new NotFoundException("Post not found");
 
-    // Limit how many comments can be returned
     const normalizedTake = Math.min(
       take ?? PAGINATION.DEFAULT_TAKE,
       PAGINATION.MAX_TAKE,
     );
 
-    // Default to newest-first when no explicit chronological order is provided
     const orderby = orderBy ?? ChronologicalOrder.NEWEST;
 
     return this.prisma.comment.findMany({
@@ -149,7 +134,6 @@ export class CommentsService {
     });
   }
 
-  // Updates a comment owned by the current user
   async updateComment(
     commentId: number,
     input: UpdateCommentCommand,
@@ -157,17 +141,14 @@ export class CommentsService {
   ): Promise<SafeCommentDTO> {
     const data = this.parseUpdateCommentInput(input);
 
-    // Build update payload safely
     const updateData: Prisma.CommentUpdateInput = {
       content: data.content,
     };
 
-    // Store the updated comment outside the try block so follow-up cache work can reuse it
     let updatedComment: SafeCommentDTO;
     let postId: number;
 
     try {
-      // Fetch minimal fields needed for ownership + existence
       const existing = await this.prisma.comment.findUnique({
         where: { id: commentId },
 
@@ -207,7 +188,6 @@ export class CommentsService {
       this.throwUnexpectedPersistenceFailure("update comment", err);
     }
 
-    // Keep cache refresh failures from masking a committed comment update
     await runBestEffort(
       this.logger,
       "error",
@@ -220,12 +200,10 @@ export class CommentsService {
     return updatedComment;
   }
 
-  // Deletes a comment owned by the current user
   async deleteComment(
     commentId: number,
     currentUserId: number,
   ): Promise<MessageResponse> {
-    // Find the comment to validate ownership and know which post to update
     const comment = await this.prisma.comment.findUnique({
       where: { id: commentId },
 
@@ -243,14 +221,12 @@ export class CommentsService {
 
     if (!comment) throw new NotFoundException("Comment not found");
 
-    // Only the comment owner can delete it
     if (comment.authorId !== currentUserId) {
       throw new ForbiddenException(
         "You do not have permission to delete this comment",
       );
     }
 
-    // Keep the comment deletion and commentsCount decrement in sync
     await this.prisma.$transaction(async (tx) => {
       await tx.comment.delete({
         where: { id: commentId },
@@ -267,7 +243,6 @@ export class CommentsService {
       });
     });
 
-    // Keep cache refresh failures from masking a committed comment deletion
     await runBestEffort(
       this.logger,
       "error",
@@ -286,7 +261,8 @@ export class CommentsService {
     };
   }
 
-  // Parses and normalizes create-comment input for the service layer
+  // Private Helpers
+  /** Parses and normalizes create-comment input with Zod, throws BadRequest on error. */
   private parseCreateCommentInput(input: CreateCommentCommand) {
     return parseWithBadRequest(
       createCommentCommandSchema,
@@ -295,7 +271,7 @@ export class CommentsService {
     );
   }
 
-  // Parses and normalizes update-comment input for the service layer
+  /** Parses and normalizes update-comment input with Zod, throws BadRequest on error. */
   private parseUpdateCommentInput(input: UpdateCommentCommand) {
     return parseWithBadRequest(
       updateCommentCommandSchema,
@@ -304,6 +280,7 @@ export class CommentsService {
     );
   }
 
+  /** Logs and throws InternalServerErrorException for unexpected persistence errors. */
   private throwUnexpectedPersistenceFailure(
     action: "update comment",
     err: unknown,

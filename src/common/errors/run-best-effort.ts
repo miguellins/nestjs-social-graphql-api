@@ -1,15 +1,12 @@
 import type { LoggerService } from "@nestjs/common";
 
+/** Runs an async operation, logs any errors at the specified level, but does not rethrow. */
 type BestEffortLogLevel = "warn" | "error";
 
+/** Logger interface restricted to `warn` and `error` methods for best-effort operations. */
 type BestEffortLogger = Pick<LoggerService, BestEffortLogLevel>;
 
-/**
- * Runs non-critical follow-up work and logs failures without surfacing them
- *
- * Use this only for post-success side effects such as cache refresh or event delivery
- */
-
+/** Runs an async operation, logging any errors at the provided log level without throwing. */
 export async function runBestEffort(
   logger: BestEffortLogger,
   level: BestEffortLogLevel,

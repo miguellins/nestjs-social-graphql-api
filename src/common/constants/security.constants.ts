@@ -1,10 +1,4 @@
 /**
- * Shared password security constants
- *
- * Defines the hashing settings used by authentication
- */
-
-/**
  * bcrypt cost factor used when hashing user passwords
  *
  * This controls the work factor for bcrypt's internally generated salt

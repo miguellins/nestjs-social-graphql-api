@@ -7,43 +7,35 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 
-import {
-  ChronologicalOrder,
-  toSortDirection,
-} from "@/common/enums/chronological-order.enum";
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
 import { MessageResponse } from "@/common/types/message-response.type";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
 import { runBestEffort } from "@/common/errors/run-best-effort";
+import {
+  ChronologicalOrder,
+  toSortDirection,
+} from "@/common/enums/chronological-order.enum";
 
 import {
   type SafeFollowDTO,
   SafeFollowSelect,
 } from "@/follows/dto/safe-follow.dto";
 
-import { NotificationsService } from "@/notifications/notifications.service";
+import { NotificationTriggerService } from "@/notifications/notification-trigger.service";
 
-import { NotificationType, Prisma } from "@prisma/client";
-import { PrismaService } from "@/prisma.service";
-
-/**
- * Service for follow workflows
- *
- * Creates, lists, and deletes follow relationships
- */
+import { PrismaService } from "@/prisma/prisma.service";
+import { Prisma } from "@prisma/client";
 
 @Injectable()
 export class FollowsService {
   private readonly logger = new Logger(FollowsService.name);
 
-  // Injects the services used by follow workflows
   constructor(
     private readonly prisma: PrismaService,
     private readonly cacheHelper: CacheHelperService,
-    private readonly notificationsService: NotificationsService,
+    private readonly notificationTrigger: NotificationTriggerService,
   ) {}
 
-  // Lists follows with bounded pagination and cache support
   async findFollows(params?: {
     take?: number;
     orderBy?: ChronologicalOrder;
@@ -53,7 +45,6 @@ export class FollowsService {
       PAGINATION.MAX_TAKE,
     );
 
-    // Default to newest-first when no explicit chronological order is provided
     const orderby = params?.orderBy ?? ChronologicalOrder.NEWEST;
 
     const v = await this.cacheHelper.getVersion("v:follows:list");
@@ -75,7 +66,6 @@ export class FollowsService {
     );
   }
 
-  // Returns one follow record by id
   async getFollow(id: number): Promise<SafeFollowDTO> {
     const cacheKey = `follow:detail:${id}`;
 
@@ -96,14 +86,12 @@ export class FollowsService {
     );
   }
 
-  // Creates a follow relationship for the current user
   async createFollow(
     currentUserId: number,
     followingId: number,
   ): Promise<SafeFollowDTO> {
     const followerId = currentUserId;
 
-    // Business rule: cannot follow yourself
     if (followerId === followingId) {
       throw new BadRequestException("You cannot follow yourself");
     }
@@ -126,11 +114,9 @@ export class FollowsService {
 
     if (!currentUser) throw new NotFoundException("Current user not found");
 
-    // Store the created follow outside the try block so follow-up work can reuse it
     let follow: SafeFollowDTO;
 
     try {
-      // Rely on @@unique([followerId, followingId]) to prevent duplicates safely
       follow = await this.prisma.follow.create({
         data: { followerId, followingId },
 
@@ -138,12 +124,10 @@ export class FollowsService {
       });
     } catch (err: unknown) {
       if (err instanceof Prisma.PrismaClientKnownRequestError) {
-        // Preserve the target-user not-found response for relation races
         if (err.code === "P2003" || err.code === "P2025") {
           throw new NotFoundException("User to follow not found");
         }
 
-        // Keep duplicate follows as an explicit business conflict
         if (err.code === "P2002") {
           throw new ConflictException("You already follow this user");
         }
@@ -152,7 +136,6 @@ export class FollowsService {
       throw err;
     }
 
-    // Keep cache refresh failures from masking a committed follow creation
     await runBestEffort(
       this.logger,
       "error",
@@ -165,19 +148,16 @@ export class FollowsService {
       },
     );
 
-    // Keep notification delivery best-effort because the follow write already succeeded
     await runBestEffort(
       this.logger,
       "error",
       `Failed to create follow notification for user ${followingId}`,
       async () => {
-        await this.notificationsService.createAndPublishNotification({
+        await this.notificationTrigger.notifyUserFollowed({
           recipientId: followingId,
           actorId: followerId,
-          type: NotificationType.USER_FOLLOWED,
-          title: "New follower",
-          body: `${currentUser.username} started following you`,
-          entityId: follow.id,
+          actorUsername: currentUser.username,
+          followId: follow.id,
         });
       },
     );
@@ -185,14 +165,10 @@ export class FollowsService {
     return follow;
   }
 
-  // Deletes a follow relationship owned by the current user
   async deleteFollow(
     id: number,
     currentUserId: number,
   ): Promise<MessageResponse> {
-    // Supports both:
-    // - follow relation id
-    // - following user id (common "unfollow user" UX)
     const ownByFollowingId = await this.prisma.follow.findUnique({
       where: {
         followerId_followingId: {
@@ -234,7 +210,6 @@ export class FollowsService {
       });
     } catch (err: unknown) {
       if (err instanceof Prisma.PrismaClientKnownRequestError) {
-        // Preserve the local not-found response when the follow disappears mid-delete
         if (err.code === "P2025") {
           throw new NotFoundException("Follow not found");
         }
@@ -243,7 +218,6 @@ export class FollowsService {
       throw err;
     }
 
-    // Keep cache refresh failures from masking a committed follow deletion
     await runBestEffort(
       this.logger,
       "error",

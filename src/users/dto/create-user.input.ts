@@ -16,12 +16,6 @@ import {
   USERNAME_REGEX_MESSAGE,
 } from "@/users/constants/username.constants";
 
-/**
- * GraphQL input for user creation
- *
- * Validates and trims registration data
- */
-
 @InputType()
 export class CreateUserInput {
   /** Public display name chosen by the user. */

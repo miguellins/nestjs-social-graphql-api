@@ -13,16 +13,12 @@ import { OperationTypeNode, type GraphQLResolveInfo } from "graphql";
 
 import type { Request } from "express";
 
-/**
- * GraphQL JWT guard
- *
- * Enforces authentication on protected GraphQL operations
- */
-
+/** Represents the minimal authenticated user payload attached to requests. */
 type AuthenticatedUser = {
   id: number;
 };
 
+/** Describes the GraphQL context shape used by the JWT guard. */
 type GraphQLContext = {
   req?: Request & {
     user?: AuthenticatedUser;
@@ -32,6 +28,7 @@ type GraphQLContext = {
   };
 };
 
+/** Enforces JWT authentication for GraphQL operations with public-route opt-out. */
 @Injectable()
 export class GqlJwtGuard extends AuthGuard("jwt") {
   constructor(private readonly reflector: Reflector) {
@@ -51,8 +48,6 @@ export class GqlJwtGuard extends AuthGuard("jwt") {
     const operation = info.operation.operation;
     const ctx = gqlContext.getContext<GraphQLContext>();
 
-    // Subscriptions are authenticated during the WebSocket handshake
-    // and the user is usually attached to context.extra
     if (operation === OperationTypeNode.SUBSCRIPTION) {
       if (!ctx.extra?.user) {
         throw new UnauthorizedException("Unauthorized");

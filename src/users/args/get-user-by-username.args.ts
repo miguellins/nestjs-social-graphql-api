@@ -15,12 +15,6 @@ import {
   USERNAME_REGEX_MESSAGE,
 } from "@/users/constants/username.constants";
 
-/**
- * GraphQL args for public user lookup by username
- *
- * Validates and normalizes the public username identifier
- */
-
 @ArgsType()
 export class GetUserByUsernameArgs {
   /** Public username used to identify a user profile. */

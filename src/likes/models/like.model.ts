@@ -8,13 +8,7 @@ import {
 
 import { FormattedDateTimeField } from "@/graphql/fields/formatted-date-time-field.decorator";
 
-import { User } from "@/users/models/users.model";
-
-/**
- * GraphQL model for likes
- *
- * Exposes the public like fields returned by the API
- */
+import { User } from "@/users/models/user.model";
 
 /** Core representation of a Like entity. Connects a user to a post and exposes minimal relational data. */
 @ObjectType()

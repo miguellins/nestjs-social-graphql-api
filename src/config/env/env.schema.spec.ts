@@ -8,6 +8,11 @@ describe("validateEnv", () => {
     JWT_EXPIRES_IN: "7d",
     PASSWORD_PEPPER: "test-pepper",
     REDIS_URL: "redis://localhost:6379",
+    R2_ACCOUNT_ID: "account-id",
+    R2_BUCKET: "app-media-test",
+    R2_ACCESS_KEY_ID: "access-key-id",
+    R2_SECRET_ACCESS_KEY: "secret-access-key",
+    R2_PUBLIC_BASE_URL: "https://cdn.example.com",
   };
 
   it("coerces numeric and boolean environment variables", () => {
@@ -43,6 +48,9 @@ describe("validateEnv", () => {
     expect(result.GRAPHQL_COMPLEXITY_WARN_AT).toBe(100);
     expect(result.GRAPHQL_COMPLEXITY_MAX).toBe(500);
     expect(result.GRAPHQL_COMPLEXITY_MAX_QUERY_NODES).toBe(2000);
+    expect(result.R2_PRESIGNED_URL_TTL_SECONDS).toBe(1800);
+    expect(result.MEDIA_IMAGE_MAX_BYTES).toBe(10 * 1024 * 1024);
+    expect(result.MEDIA_VIDEO_MAX_BYTES).toBe(100 * 1024 * 1024);
   });
 
   it("throws when a required variable is missing", () => {

@@ -2,12 +2,7 @@ import { NotificationType } from "@prisma/client";
 
 import type { Prisma } from "@prisma/client";
 
-/**
- * Internal notification DTO and Prisma select
- *
- * Defines the safe notification shape used by services
- */
-
+/** Defines the safe notification shape used by services */
 export type SafeNotificationDTO = {
   id: number;
   type: NotificationType;
@@ -28,15 +23,7 @@ export type SafeNotificationDTO = {
   };
 };
 
-/**
- * Prisma select shape that matches SafeNotificationDTO exactly
- *
- * Why:
- * - Guarantees the DB result matches the DTO
- * - Prevents accidental field leakage
- * - Gives full type-safety via satisfies
- */
-
+/** Prisma select shape that matches SafeNotificationDTO exactly */
 export const NotificationSelect = {
   id: true,
   type: true,

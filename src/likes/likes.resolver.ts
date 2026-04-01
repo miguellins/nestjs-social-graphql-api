@@ -7,15 +7,9 @@ import { MessageResponse } from "@/common/types/message-response.type";
 import { Public } from "@/common/decorators/auth.decorator";
 
 import { LikeListItem } from "@/likes/models/like-list-item.model";
-import { Like } from "@/likes/models/likes.model";
 import { FindLikesArgs } from "@/likes/args/find-likes.args";
 import { LikesService } from "@/likes/likes.service";
-
-/**
- * GraphQL resolver for likes
- *
- * Exposes like queries and mutations
- */
+import { Like } from "@/likes/models/like.model";
 
 @Resolver(() => Like)
 export class LikeResolver {

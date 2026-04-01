@@ -1,11 +1,6 @@
 import { type INestApplication, ValidationPipe } from "@nestjs/common";
 
-/**
- * Bootstrap helper for request validation
- *
- * Registers the global validation pipe
- */
-
+/** Registers a global ValidationPipe with whitelist, forbidNonWhitelisted, and transform enabled. */
 export function setupValidation(app: INestApplication): void {
   app.useGlobalPipes(
     new ValidationPipe({

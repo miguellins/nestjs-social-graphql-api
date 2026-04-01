@@ -11,7 +11,7 @@ import { Prisma } from "@prisma/client";
 import { PasswordResetDeliveryService } from "@/auth/password-reset-delivery.service";
 import { SALT_ROUNDS } from "@/common/constants/security.constants";
 import { PasswordService } from "@/common/security/password.service";
-import { PrismaService } from "@/prisma.service";
+import { PrismaService } from "@/prisma/prisma.service";
 
 import { AuthService } from "./auth.service";
 

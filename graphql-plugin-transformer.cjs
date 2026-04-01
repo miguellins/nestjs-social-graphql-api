@@ -1,6 +1,6 @@
 // @ts-check
 
-const transformer = require("@nestjs/graphql/plugin").default;
+const { before } = require("@nestjs/graphql/plugin");
 
 /**
  * Nest GraphQL AST transformer configuration reused by ts-jest
@@ -17,16 +17,19 @@ module.exports.version = 1;
  * @returns {import("typescript").TransformerFactory<import("typescript").SourceFile>}
  */
 module.exports.factory = (cs) => {
-  return transformer(cs.program, {
-    typeFileNameSuffix: [
-      ".input.ts",
-      ".args.ts",
-      ".model.ts",
-      ".entity.ts",
-      ".dto.ts",
-      ".payload.ts",
-      ".type.ts",
-    ],
-    introspectComments: true,
-  });
+  return before(
+    {
+      typeFileNameSuffix: [
+        ".input.ts",
+        ".args.ts",
+        ".model.ts",
+        ".entity.ts",
+        ".dto.ts",
+        ".payload.ts",
+        ".type.ts",
+      ],
+      introspectComments: true,
+    },
+    cs.program,
+  );
 };

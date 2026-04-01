@@ -1,11 +1,6 @@
 import type { Prisma } from "@prisma/client";
 
-/**
- * Internal like DTO and Prisma select
- *
- * Defines the safe like shape used by services
- */
-
+/** Service-level DTO representing a like with nested user and post details. */
 export type LikeDetailDTO = {
   id: number;
   createdAt: Date;
@@ -32,16 +27,7 @@ export type LikeDetailDTO = {
   };
 };
 
-/**
- * Prisma select shape that matches LikeDetailDTO
- *
- * Why:
- * - Guarantees service output matches DTO
- * - Prevents accidental field leaks
- * - Keeps return types strongly typed
- * - Improves long-term maintainability
- */
-
+/** Prisma select shape for LikeDetailDTO exposing safe fields and nested relations. */
 export const LikeDetailSelect = {
   id: true,
   createdAt: true,

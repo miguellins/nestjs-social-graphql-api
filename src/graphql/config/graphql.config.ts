@@ -2,12 +2,12 @@ import { ApolloDriver, type ApolloDriverConfig } from "@nestjs/apollo";
 import { ConfigService } from "@nestjs/config";
 import { JwtService } from "@nestjs/jwt";
 
+import { createGraphqlSubscriptionsConfig } from "@/graphql/subscriptions/subscriptions.config";
+import { createQueryComplexityPlugin } from "@/graphql/plugins/query-complexity.plugin";
 import type {
   GqlContext,
   SubscriptionExtra,
 } from "@/graphql/config/graphql-context.types";
-import { createGraphqlSubscriptionsConfig } from "@/graphql/subscriptions/subscriptions.config";
-import { createQueryComplexityPlugin } from "@/graphql/plugins/query-complexity.plugin";
 
 import type { GraphQLFormattedError } from "graphql";
 
@@ -15,13 +15,7 @@ import type { Request, Response } from "express";
 
 import { join } from "path";
 
-/**
- * GraphQL module configuration factory
- *
- * Builds the Apollo GraphQL settings for the app
- */
-
-// Creates the GraphQL module options from shared services and config
+/** Creates Apollo GraphQL server config with query complexity limits, subscriptions, error formatting, and context setup. */
 export function createGraphqlConfig(
   jwtService: JwtService,
   configService: ConfigService,

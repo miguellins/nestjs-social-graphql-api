@@ -10,12 +10,6 @@ import {
 
 import { Trim } from "@/common/transformer/trim.transformer";
 
-/**
- * GraphQL input for post creation
- *
- * Validates the data sent to create a post
- */
-
 @InputType()
 export class CreatePostInput {
   /** Title shown for the post. */

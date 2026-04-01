@@ -8,13 +8,7 @@ import { Public } from "@/common/decorators/auth.decorator";
 
 import { FindFollowsArgs } from "@/follows/args/find-follows.args";
 import { FollowsService } from "@/follows/follows.service";
-import { Follow } from "@/follows/models/follows.model";
-
-/**
- * GraphQL resolver for follows
- *
- * Exposes follow queries and mutations
- */
+import { Follow } from "@/follows/models/follow.model";
 
 @Resolver(() => Follow)
 export class FollowsResolver {

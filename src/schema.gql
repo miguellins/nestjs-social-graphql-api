@@ -2,21 +2,12 @@
 # THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
 # ------------------------------------------------------
 
-"""
-GraphQL type for generic mutation results
-
-Returns a human-readable success message
-"""
 type MessageResponse {
   """Human-readable message describing the result of the mutation"""
   message: String!
 }
 
-"""
-GraphQL model for user counts
-
-Exposes aggregate user metrics for API responses
-"""
+"""Numeric metadata for user activity and relationships"""
 type UserCounts {
   """Total posts created by the user"""
   posts: Int!
@@ -31,11 +22,7 @@ type UserCounts {
   following: Int!
 }
 
-"""
-GraphQL model for safe users
-
-Exposes the non-sensitive user fields returned by the API
-"""
+"""Public user representation with non-sensitive fields"""
 type SafeUser implements PublicUserIdentity {
   id: ID!
   name: String!
@@ -72,22 +59,14 @@ A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date
 """
 scalar DateTime
 
-"""
-GraphQL model for notification actors
-
-Exposes the public actor fields shown in notifications
-"""
+"""Minimal safe representation of the actor who triggered a notification."""
 type NotificationActorDTO implements PublicUserIdentity {
   id: ID!
   name: String!
   username: String!
 }
 
-"""
-GraphQL model for notifications
-
-Exposes the public notification fields returned by the API
-"""
+"""Notification entity delivered to a recipient user."""
 type NotificationDTO {
   """Unique identifier of the notification record."""
   id: ID!
@@ -146,22 +125,13 @@ enum NotificationType {
   POST_LIKED
 }
 
-"""
-GraphQL model for user previews
-
-Exposes a minimal public user shape for nested fields
-"""
+"""Minimal public user representation for nested fields"""
 type SafeUserPreview implements PublicUserIdentity {
   id: ID!
   name: String!
   username: String!
 }
 
-"""
-GraphQL model for public comments
-
-Exposes the safe comment fields returned by the API
-"""
 type SafeCommentDTO {
   """Unique identifier of the comment."""
   id: ID!
@@ -193,11 +163,7 @@ type SafeCommentDTO {
   updatedAt: DateTime!
 }
 
-"""
-GraphQL model for follows
-
-Exposes the public follow fields returned by the API
-"""
+"""Core representation of a Follow relationship between two users."""
 type Follow {
   """Unique identifier of the follow relationship record."""
   id: ID!
@@ -224,9 +190,7 @@ type Follow {
 }
 
 """
-GraphQL model for post like previews
-
-Exposes lightweight like data for nested post fields
+Lightweight representation of a Like, containing minimal metadata and a safe preview of the user who performed the like.
 """
 type LikePreview {
   """
@@ -244,11 +208,7 @@ type LikePreview {
   user: SafeUserPreview!
 }
 
-"""
-GraphQL model for posts
-
-Exposes the public post fields returned by the API
-"""
+"""Core public representation of a Post entity."""
 type Post {
   """
   Unique identifier of the post. Used for referencing, routing, and relation mapping.
@@ -279,11 +239,7 @@ type Post {
   author: SafeUserPreview!
 }
 
-"""
-GraphQL model for like list items
-
-Exposes public like data for list responses
-"""
+"""Lightweight representation of a Like entity optimized for list views."""
 type LikeListItem {
   """
   Unique identifier of the like record. Used internally for referencing and pagination.
@@ -303,11 +259,6 @@ type LikeListItem {
   post: Post!
 }
 
-"""
-GraphQL model for users
-
-Defines the full user shape available in the schema
-"""
 type User {
   id: ID!
   createdAt: DateTime!
@@ -338,9 +289,7 @@ type User {
 }
 
 """
-GraphQL model for likes
-
-Exposes the public like fields returned by the API
+Core representation of a Like entity. Connects a user to a post and exposes minimal relational data.
 """
 type Like {
   """
@@ -364,10 +313,128 @@ type Like {
   postId: Int!
 }
 
-"""
-GraphQL model for post details
+type RequestPostMediaUpload {
+  """Identifier of the pending media record created for this upload."""
+  mediaId: ID!
 
-Exposes the detailed post view returned by the API
+  """Temporary presigned URL used by the client to upload directly to R2."""
+  uploadUrl: String!
+
+  """Final public delivery URL expected for the uploaded media item."""
+  url: String!
+
+  """Timestamp indicating when the presigned upload URL expires."""
+  expiresAt: DateTime!
+}
+
+type SignedMediaViewUrl {
+  """Identifier of the media item the signed URL belongs to."""
+  mediaId: ID!
+
+  """Temporary signed URL used to read the media object directly from R2."""
+  signedUrl: String!
+
+  """Timestamp indicating when the signed read URL expires."""
+  expiresAt: DateTime!
+}
+
+type Media {
+  """Unique identifier of the media item."""
+  id: ID!
+
+  """Product-level classification for the media item."""
+  kind: MediaKind!
+
+  """Technical media type used for rendering decisions."""
+  type: MediaType!
+
+  """Upload lifecycle state for the media item."""
+  status: MediaStatus!
+
+  """Public delivery URL used by clients to render the media item."""
+  url: String!
+
+  """MIME type verified for the stored object."""
+  mimeType: String!
+
+  """Size of the stored object in bytes."""
+  bytes: Int
+
+  """Image width in pixels when known."""
+  width: Int
+
+  """Image height in pixels when known."""
+  height: Int
+
+  """Video duration in milliseconds when known."""
+  durationMs: Int
+
+  """Timestamp indicating when the media item was created."""
+  createdAt: DateTime!
+
+  """
+  Presentation-friendly UTC timestamp for when the media item was created.
+  """
+  createdAtFormatted: String
+
+  """Timestamp indicating when the media item was last updated."""
+  updatedAt: DateTime!
+
+  """
+  Presentation-friendly UTC timestamp for when the media item was last updated.
+  """
+  updatedAtFormatted: String
+
+  """
+  Timestamp indicating when the media item was attached to a post, if any.
+  """
+  attachedAt: DateTime
+
+  """
+  Presentation-friendly UTC timestamp for when the media item was attached to a post.
+  """
+  attachedAtFormatted: String
+}
+
+"""Classifies the product-level purpose of a media item"""
+enum MediaKind {
+  POST_IMAGE
+  POST_VIDEO
+}
+
+"""Classifies whether a media item is an image or a video"""
+enum MediaType {
+  IMAGE
+  VIDEO
+}
+
+"""Tracks the upload and verification lifecycle of a media item"""
+enum MediaStatus {
+  PENDING_UPLOAD
+  READY
+}
+
+type PostMedia {
+  """Unique identifier of the post-media attachment relation."""
+  id: ID!
+
+  """Zero-based or sequential ordering value for attachments on a post."""
+  sortOrder: Int!
+
+  """Media payload attached to the post."""
+  media: Media!
+
+  """Timestamp indicating when the media item was attached to the post."""
+  createdAt: DateTime!
+
+  """
+  Presentation-friendly UTC timestamp for when the media item was attached to the post.
+  """
+  createdAtFormatted: String
+}
+
+"""
+Comprehensive representation of a Post entity intended for detailed views.
 """
 type PostDetail {
   """
@@ -426,13 +493,11 @@ type PostDetail {
 
   """Optional lightweight list of comments associated with the post."""
   comments: [SafeCommentDTO!]
+
+  """Optional ordered list of media attachments associated with the post."""
+  mediaAttachments: [PostMedia!]
 }
 
-"""
-GraphQL payload for authentication responses
-
-Returns the access token after a successful login
-"""
 type AuthPayload {
   """JWT access token returned after successful authentication."""
   access_token: String!
@@ -481,6 +546,14 @@ type Query {
     """Controls chronological ordering for list results."""
     orderBy: ChronologicalOrder
   ): [Post!]!
+  myMedia(
+    """Maximum number of items to return (1-50)."""
+    take: Int
+
+    """Controls chronological ordering for list results."""
+    orderBy: ChronologicalOrder
+  ): [Media!]!
+  mediaSignedViewUrl(mediaId: Int!): SignedMediaViewUrl!
   likes(
     """Maximum number of items to return (1-50)."""
     take: Int
@@ -503,6 +576,8 @@ type Query {
 
     """Controls chronological ordering for list results."""
     orderBy: ChronologicalOrder
+
+    """Optional filter for notification read status (ALL/READ/UNREAD)."""
     status: NotificationReadStatus
   ): [NotificationDTO!]!
   unreadNotificationsCount: Int!
@@ -549,34 +624,20 @@ type Mutation {
   createPost(input: CreatePostInput!): Post!
   updatePost(id: Int!, input: UpdatePostInput!): Post!
   deletePost(id: Int!): MessageResponse!
+  requestPostMediaUpload(input: RequestPostMediaUploadInput!): RequestPostMediaUpload!
+  completePostMediaUpload(input: CompletePostMediaUploadInput!): Media!
+  attachMediaToPost(input: AttachMediaToPostInput!): PostDetail!
   createLike(postId: Int!): LikeListItem!
   deleteLike(id: Int!): MessageResponse!
   markNotificationAsRead(notificationId: Int!): MessageResponse!
   markAllNotificationsAsRead: MessageResponse!
   createFollow(followingId: Int!): Follow!
   deleteFollow(id: Int!): MessageResponse!
-  createComment(
-    """Payload used to create a new comment."""
-    input: CreateCommentInput!
-  ): SafeCommentDTO!
-  updateComment(
-    """Unique id of the target comment."""
-    commentId: Int!
-
-    """Payload used to update an existing comment."""
-    input: UpdateCommentInput!
-  ): SafeCommentDTO!
-  deleteComment(
-    """Unique id of the target comment."""
-    commentId: Int!
-  ): MessageResponse!
+  createComment(input: CreateCommentInput!): SafeCommentDTO!
+  updateComment(commentId: Int!, input: UpdateCommentInput!): SafeCommentDTO!
+  deleteComment(commentId: Int!): MessageResponse!
 }
 
-"""
-GraphQL input for login requests
-
-Validates the credentials sent by the client
-"""
 input LoginInput {
   """Username used to authenticate the user."""
   username: String!
@@ -585,21 +646,11 @@ input LoginInput {
   password: String!
 }
 
-"""
-GraphQL input for password reset initiation
-
-Accepts the email address that should receive reset instructions
-"""
 input RequestPasswordResetInput {
   """Email address that should receive password reset instructions."""
   email: String!
 }
 
-"""
-GraphQL input for password reset completion
-
-Accepts the reset token and the new password
-"""
 input ResetPasswordInput {
   """
   Raw password reset token from the local file sink or future email delivery.
@@ -610,11 +661,6 @@ input ResetPasswordInput {
   newPassword: String!
 }
 
-"""
-GraphQL input for user creation
-
-Validates and trims registration data
-"""
 input CreateUserInput {
   """Public display name chosen by the user."""
   name: String!
@@ -629,11 +675,6 @@ input CreateUserInput {
   password: String!
 }
 
-"""
-GraphQL input for user updates
-
-Validates partial user data before it reaches the service layer
-"""
 input UpdateUserInput {
   """Updated public display name."""
   name: String
@@ -646,11 +687,6 @@ input UpdateUserInput {
   password: String
 }
 
-"""
-GraphQL input for post creation
-
-Validates the data sent to create a post
-"""
 input CreatePostInput {
   """Title shown for the post."""
   title: String
@@ -660,9 +696,7 @@ input CreatePostInput {
 }
 
 """
-GraphQL input for post updates
-
-Validates partial post data before it reaches the service layer
+Input type for updating an existing post; all fields are optional and match CreatePostInput.
 """
 input UpdatePostInput {
   """Title shown for the post."""
@@ -672,11 +706,21 @@ input UpdatePostInput {
   content: String
 }
 
-"""
-GraphQL input for comment creation
+input RequestPostMediaUploadInput {
+  postId: Int!
+  mimeType: String!
+  originalFileName: String
+}
 
-Validates the data sent to create a comment
-"""
+input CompletePostMediaUploadInput {
+  mediaId: Int!
+}
+
+input AttachMediaToPostInput {
+  postId: Int!
+  mediaId: Int!
+}
+
 input CreateCommentInput {
   """Unique identifier of the post that will receive the new comment."""
   postId: Int!
@@ -685,11 +729,6 @@ input CreateCommentInput {
   content: String!
 }
 
-"""
-GraphQL input for comment updates
-
-Validates the data sent to update a comment
-"""
 input UpdateCommentInput {
   """Updated text content of the comment."""
   content: String!

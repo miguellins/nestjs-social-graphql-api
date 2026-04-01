@@ -1,41 +1,36 @@
-import { Args, Mutation, Query, Resolver } from "@nestjs/graphql";
+import { Args, Int, Mutation, Query, Resolver } from "@nestjs/graphql";
 import { Throttle } from "@nestjs/throttler";
 
 import { FindCommentsByPostArgs } from "@/comments/args/find-comments-by-post.args";
-import { CreateCommentArgs } from "@/comments/args/create-comment.args";
-import { DeleteCommentArgs } from "@/comments/args/delete-comment.args";
-import { UpdateCommentArgs } from "@/comments/args/update-comment.args";
-import { SafeCommentDTO } from "@/comments/models/safe-comment.model";
+import { CreateCommentInput } from "@/comments/dto/create-comment.input";
+import { UpdateCommentInput } from "@/comments/dto/update-comment.input";
 import { CommentsService } from "@/comments/comments.service";
+import { Comment } from "@/comments/models/comment.model";
 
 import { CurrentUser } from "@/common/decorators/current-user.decorator";
 import { THROTTLE_LIMITS } from "@/common/constants/throttle.constants";
 import { MessageResponse } from "@/common/types/message-response.type";
+import { Public } from "@/common/decorators/auth.decorator";
 
-/**
- * GraphQL resolver for comments
- *
- * Exposes comment queries and mutations
- */
-
-@Resolver(() => SafeCommentDTO)
+@Resolver(() => Comment)
 export class CommentsResolver {
   constructor(private readonly commentsService: CommentsService) {}
 
   @Throttle({ default: THROTTLE_LIMITS.MUTATION })
-  @Mutation(() => SafeCommentDTO, { name: "createComment" })
+  @Mutation(() => Comment, { name: "createComment" })
   async createComment(
-    @Args() args: CreateCommentArgs,
+    @Args("input") input: CreateCommentInput,
     @CurrentUser() user: { id: number },
-  ): Promise<SafeCommentDTO> {
-    return this.commentsService.createComment(args.input, user.id);
+  ): Promise<Comment> {
+    return this.commentsService.createComment(input, user.id);
   }
 
+  @Public()
   @Throttle({ default: THROTTLE_LIMITS.LIST })
-  @Query(() => [SafeCommentDTO], { name: "commentsByPost" })
+  @Query(() => [Comment], { name: "commentsByPost" })
   async commentsByPost(
     @Args() args: FindCommentsByPostArgs,
-  ): Promise<SafeCommentDTO[]> {
+  ): Promise<Comment[]> {
     return this.commentsService.findCommentsByPost({
       postId: args.postId,
       take: args.take,
@@ -44,24 +39,21 @@ export class CommentsResolver {
   }
 
   @Throttle({ default: THROTTLE_LIMITS.MUTATION })
-  @Mutation(() => SafeCommentDTO, { name: "updateComment" })
+  @Mutation(() => Comment, { name: "updateComment" })
   async updateComment(
-    @Args() args: UpdateCommentArgs,
+    @Args("commentId", { type: () => Int }) commentId: number,
+    @Args("input") input: UpdateCommentInput,
     @CurrentUser() user: { id: number },
-  ): Promise<SafeCommentDTO> {
-    return this.commentsService.updateComment(
-      args.commentId,
-      args.input,
-      user.id,
-    );
+  ): Promise<Comment> {
+    return this.commentsService.updateComment(commentId, input, user.id);
   }
 
   @Throttle({ default: THROTTLE_LIMITS.DESTRUCTIVE })
   @Mutation(() => MessageResponse, { name: "deleteComment" })
   async deleteComment(
-    @Args() args: DeleteCommentArgs,
+    @Args("commentId", { type: () => Int }) commentId: number,
     @CurrentUser() user: { id: number },
   ): Promise<MessageResponse> {
-    return this.commentsService.deleteComment(args.commentId, user.id);
+    return this.commentsService.deleteComment(commentId, user.id);
   }
 }

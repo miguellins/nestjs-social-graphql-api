@@ -1,11 +1,6 @@
 import type { Prisma } from "@prisma/client";
 
-/**
- * Internal user DTO and Prisma select
- *
- * Defines the safe user shape used by services
- */
-
+/** Defines the safe user shape used by services */
 export type SafeUserDTO = {
   id: number;
   name: string;
@@ -21,12 +16,7 @@ export type SafeUserDTO = {
   };
 };
 
-/**
- * Prisma select that matches SafeUserDTO
- *
- * Keeps database reads aligned with the safe response shape
- */
-
+/** Keeps database reads aligned with the safe response shape */
 export const SafeUserSelect = {
   id: true,
   name: true,

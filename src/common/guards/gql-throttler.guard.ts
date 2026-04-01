@@ -6,17 +6,13 @@ import { OperationTypeNode, type GraphQLResolveInfo } from "graphql";
 
 import type { Request, Response } from "express";
 
-/**
- * GraphQL throttling guard
- *
- * Applies request throttling to GraphQL operations
- */
-
+/** Describes the GraphQL context shape required by the throttler guard. */
 type GraphQLContext = {
   req: Request;
   res: Response;
 };
 
+/** Applies HTTP throttling to GraphQL operations that expose request/response objects. */
 @Injectable()
 export class GqlThrottlerGuard extends ThrottlerGuard {
   override async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -24,8 +20,6 @@ export class GqlThrottlerGuard extends ThrottlerGuard {
     const info = gqlCtx.getInfo<GraphQLResolveInfo>();
     const operation = info.operation.operation;
 
-    // GraphQL subscriptions run over websocket and do not expose HTTP req/res
-    // Skip HTTP throttling logic for subscription handshake/events
     if (operation === OperationTypeNode.SUBSCRIPTION) return true;
 
     return super.canActivate(context);

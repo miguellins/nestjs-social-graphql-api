@@ -10,16 +10,10 @@ import { Public } from "@/common/decorators/auth.decorator";
 import { FindPostsByUsernameArgs } from "@/posts/args/find-posts-by-username.args";
 import { CreatePostInput } from "@/posts/dto/create-post.input";
 import { UpdatePostInput } from "@/posts/dto/update-post.input";
+import { PostDetail } from "@/posts/models/post-detail.model";
 import { FindPostsArgs } from "@/posts/args/find-posts.args";
 import { PostsService } from "@/posts/posts.service";
-import { PostDetail } from "@/posts/models/post-detail.model";
-import { Post } from "@/posts/models/posts.model";
-
-/**
- * GraphQL resolver for posts
- *
- * Exposes post queries and mutations
- */
+import { Post } from "@/posts/models/post.model";
 
 @Resolver(() => Post)
 export class PostsResolver {

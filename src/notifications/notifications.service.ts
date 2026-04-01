@@ -1,33 +1,26 @@
 import { Injectable, Logger } from "@nestjs/common";
 
-import {
-  ChronologicalOrder,
-  toSortDirection,
-} from "@/common/enums/chronological-order.enum";
 import { MessageResponse } from "@/common/types/message-response.type";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
 import { parseWithBadRequest } from "@/common/zod/parse-with-zod";
 import { runBestEffort } from "@/common/errors/run-best-effort";
+import {
+  ChronologicalOrder,
+  toSortDirection,
+} from "@/common/enums/chronological-order.enum";
 
-import { GraphqlPubSubService } from "@/graphql/subscriptions/graphql-pubsub.service";
-
+import { NotificationReadStatus } from "@/notifications/enums/notification-read-status.enum";
+import { NotificationDeliveryService } from "@/notifications/notification-delivery.service";
 import {
   createNotificationInputSchema,
   type CreateNotificationInput,
 } from "@/notifications/schemas/create-notification.schema";
-import { NotificationReadStatus } from "@/notifications/enums/notification-read-status.enum";
 import {
   NotificationSelect,
   type SafeNotificationDTO,
-} from "@/notifications/dto/notifications.dto";
+} from "@/notifications/dto/safe-notification.dto";
 
-import { PrismaService } from "@/prisma.service";
-
-/**
- * Service for notification workflows
- *
- * Creates, lists, and updates notifications
- */
+import { PrismaService } from "@/prisma/prisma.service";
 
 type PaginationParams = {
   take?: number;
@@ -38,10 +31,9 @@ type PaginationParams = {
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
 
-  // Injects the services used by notification workflows
   constructor(
     private readonly prisma: PrismaService,
-    private readonly graphqlPubSub: GraphqlPubSubService,
+    private readonly notificationDelivery: NotificationDeliveryService,
   ) {}
 
   // Creates a notification record and publishes it to subscribers
@@ -54,7 +46,6 @@ export class NotificationsService {
       "Invalid notification input",
     );
 
-    // Do not create notifications for your own actions
     if (data.recipientId === data.actorId) return null;
 
     const notification = await this.prisma.notification.create({
@@ -63,15 +54,14 @@ export class NotificationsService {
       select: NotificationSelect,
     });
 
-    // Keep realtime delivery best-effort because the notification write already succeeded
     await runBestEffort(
       this.logger,
       "error",
       "Failed to publish notification subscription event",
       async () => {
-        await this.graphqlPubSub.publish("notificationReceived", {
-          notificationReceived: notification,
-        });
+        await this.notificationDelivery.publishNotificationReceived(
+          notification,
+        );
       },
     );
 
@@ -89,7 +79,6 @@ export class NotificationsService {
       PAGINATION.MAX_TAKE,
     );
 
-    // Default to newest-first when no explicit chronological order is provided
     const orderby = params?.orderBy ?? ChronologicalOrder.NEWEST;
 
     const readFilter =
@@ -163,6 +152,7 @@ export class NotificationsService {
     };
   }
 
+  // Private Helper
   // Builds the update payload used when marking notifications as read
   private buildReadUpdateData() {
     return {

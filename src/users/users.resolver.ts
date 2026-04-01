@@ -13,12 +13,6 @@ import { UpdateUserInput } from "@/users/dto/update-user.input";
 import { SafeUser } from "@/users/models/safe-user.model";
 import { UsersService } from "@/users/users.service";
 
-/**
- * GraphQL resolver for users
- *
- * Exposes user queries and mutations
- */
-
 @Resolver(() => SafeUser)
 export class UsersResolver {
   constructor(private readonly usersService: UsersService) {}

@@ -5,12 +5,6 @@ import { writeFile } from "fs/promises";
 
 import { join } from "path";
 
-/**
- * Auth-scoped password reset delivery seam
- *
- * Keeps token delivery pluggable without coupling the auth flow to a mail provider
- */
-
 type PasswordResetDeliveryParams = {
   email: string;
   token: string;
@@ -27,6 +21,7 @@ export class PasswordResetDeliveryService {
 
   constructor(private readonly configService: ConfigService) {}
 
+  /** Sends password reset instructions to the user based on environment configuration. */
   async sendPasswordResetInstructions({
     email,
     token,

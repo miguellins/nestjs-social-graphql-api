@@ -18,12 +18,6 @@ registerEnumType(NotificationType, {
   name: "NotificationType",
 });
 
-/**
- * GraphQL model for notifications
- *
- * Exposes the public notification fields returned by the API
- */
-
 /** Notification entity delivered to a recipient user. */
 @ObjectType()
 export class NotificationDTO {

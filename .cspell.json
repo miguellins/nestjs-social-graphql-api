@@ -24,7 +24,9 @@
     "upsert",
     "zod",
     "QLISO",
-    "autoincrement"
+    "autoincrement",
+    "ftyp",
+    "EBML"
   ],
   "ignoreWords": [],
   "ignorePaths": [

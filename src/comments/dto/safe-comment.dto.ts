@@ -1,16 +1,6 @@
 import type { Prisma } from "@prisma/client";
 
-/**
- * Internal comment DTO and Prisma select
- *
- * Defines the safe comment shape used by services
- */
-
-/**
- * Internal DTO used by the comments service layer
- *
- * Defines the exact safe data shape returned from Prisma queries
- */
+/** A DTO representing a safe public view of a comment, excluding sensitive fields. */
 export type SafeCommentDTO = {
   id: number;
   content: string;
@@ -25,10 +15,7 @@ export type SafeCommentDTO = {
   };
 };
 
-/**
- * Safe Prisma select used to return only the comment fields that are
- * allowed to be exposed by the API
- */
+/** Prisma select shape for retrieving safe comment fields and author info. */
 export const SafeCommentSelect = {
   id: true,
   content: true,

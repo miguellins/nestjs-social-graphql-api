@@ -1,13 +1,7 @@
 import { Field, ObjectType } from "@nestjs/graphql";
 
 import { LikePreview } from "@/posts/models/like-preview.model";
-import { Post } from "@/posts/models/posts.model";
-
-/**
- * GraphQL model for like list items
- *
- * Exposes public like data for list responses
- */
+import { Post } from "@/posts/models/post.model";
 
 /** Lightweight representation of a Like entity optimized for list views. */
 @ObjectType()

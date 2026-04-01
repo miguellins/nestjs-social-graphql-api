@@ -16,7 +16,7 @@ import { CacheHelperService } from "@/common/cache/cache-helper.service";
 
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
 
-import { PrismaService } from "@/prisma.service";
+import { PrismaService } from "@/prisma/prisma.service";
 
 import { CommentsService } from "./comments.service";
 

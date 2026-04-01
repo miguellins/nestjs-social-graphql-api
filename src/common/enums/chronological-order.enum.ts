@@ -1,11 +1,6 @@
 import { registerEnumType } from "@nestjs/graphql";
 
-/**
- * Shared enum for chronological sorting
- *
- * Defines list order options and maps them to Prisma sort directions
- */
-
+/** Converts a ChronologicalOrder to a Prisma-compatible sort direction. */
 export enum ChronologicalOrder {
   NEWEST = "NEWEST",
   OLDEST = "OLDEST",
@@ -16,6 +11,7 @@ registerEnumType(ChronologicalOrder, {
   description: "Controls chronological ordering for list queries",
 });
 
+/** Converts a ChronologicalOrder to a Prisma-compatible sort direction. */
 export function toSortDirection(
   order: ChronologicalOrder | undefined,
 ): "asc" | "desc" {

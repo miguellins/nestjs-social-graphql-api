@@ -1,11 +1,14 @@
 import { SetMetadata } from "@nestjs/common";
 
 /**
- * Authentication metadata decorator
+ * Marks a GraphQL resolver or route as public (bypassing global auth guards).
  *
- * Marks resolvers as public when auth is not required
+ * Usage:
+ *   @Public()
+ *   someQueryOrMutation(...) { ... }
+ *
+ * The accompanying IS_PUBLIC_KEY metadata is checked by the JWT guard
+ * to optionally allow unauthenticated access.
  */
-
-// Creates a custom decorator that makes a route as public (no authentication required)
 export const IS_PUBLIC_KEY = "isPublic";
 export const Public = () => SetMetadata(IS_PUBLIC_KEY, true);

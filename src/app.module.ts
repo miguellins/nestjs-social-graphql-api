@@ -14,14 +14,15 @@ import { FollowsModule } from "@/follows/follows.module";
 import { LikesModule } from "@/likes/likes.module";
 import { PostsModule } from "@/posts/posts.module";
 import { UsersModule } from "@/users/users.module";
+import { MediaModule } from "@/media/media.module";
 import { AuthModule } from "@/auth/auth.module";
 
 import { createGraphqlConfig } from "@/graphql/config/graphql.config";
 
 import { cacheModuleConfig } from "@/cache/config/cache.config";
 
-import { GqlThrottlerGuard } from "@/common/guards/qgl-throttler.guard";
-import { GqlJwtGuard } from "@/common/guards/qgl-jwt.guard";
+import { GqlThrottlerGuard } from "@/common/guards/gql-throttler.guard";
+import { GqlJwtGuard } from "@/common/guards/gql-jwt.guard";
 
 import { validateEnv } from "@/config/env/env.schema";
 
@@ -64,13 +65,14 @@ import { validateEnv } from "@/config/env/env.schema";
     ]),
 
     // Application Modules
+    AuthModule,
     UsersModule,
     PostsModule,
+    MediaModule,
     LikesModule,
     FollowsModule,
-    AuthModule,
-    NotificationsModule,
     CommentsModule,
+    NotificationsModule,
     GraphqlSubscriptionsModule,
   ],
   providers: [

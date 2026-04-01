@@ -11,12 +11,6 @@ import { THROTTLE_LIMITS } from "@/common/constants/throttle.constants";
 import { MessageResponse } from "@/common/types/message-response.type";
 import { Public } from "@/common/decorators/auth.decorator";
 
-/**
- * GraphQL resolver for authentication
- *
- * Exposes authentication and password reset mutations
- */
-
 @Resolver()
 export class AuthResolver {
   constructor(private readonly authService: AuthService) {}

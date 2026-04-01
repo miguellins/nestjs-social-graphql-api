@@ -1,14 +1,7 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
-import { CACHE_MANAGER } from "@nestjs/cache-manager";
-import type { Cache } from "@nestjs/cache-manager";
+import { CACHE_MANAGER, type Cache } from "@nestjs/cache-manager";
 
 import { runBestEffort } from "@/common/errors/run-best-effort";
-
-/**
- * Cache helper service
- *
- * Wraps cache reads, writes, and invalidation helpers
- */
 
 @Injectable()
 export class CacheHelperService {

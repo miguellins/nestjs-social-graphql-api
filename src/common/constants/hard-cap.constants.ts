@@ -1,9 +1,4 @@
-/**
- * Shared pagination limit constants
- *
- * Defines default and maximum list sizes
- */
-
+/** Shared pagination limits for lists and likes-related lists. */
 export const PAGINATION = {
   MAX_TAKE: 50,
   DEFAULT_TAKE: 20,

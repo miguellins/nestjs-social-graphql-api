@@ -6,11 +6,7 @@ import { CacheHelpersModule } from "@/common/cache/cache-helpers.module";
 import { FollowsResolver } from "@/follows/follows.resolver";
 import { FollowsService } from "@/follows/follows.service";
 
-import { PrismaModule } from "@/prisma.module";
-
-/**
- * Registers the follows module providers and dependencies
- */
+import { PrismaModule } from "@/prisma/prisma.module";
 
 @Module({
   imports: [PrismaModule, CacheHelpersModule, NotificationsModule],

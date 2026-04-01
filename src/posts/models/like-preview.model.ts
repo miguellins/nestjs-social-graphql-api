@@ -4,12 +4,6 @@ import { FormattedDateTimeField } from "@/graphql/fields/formatted-date-time-fie
 
 import { SafeUserPreview } from "@/users/models/safe-user-preview.model";
 
-/**
- * GraphQL model for post like previews
- *
- * Exposes lightweight like data for nested post fields
- */
-
 /** Lightweight representation of a Like, containing minimal metadata and a safe preview of the user who performed the like. */
 @ObjectType()
 export class LikePreview {
@@ -21,7 +15,6 @@ export class LikePreview {
   @Field(() => GraphQLISODateTime)
   createdAt: Date;
 
-  /** Presentation-friendly UTC timestamp for UI display. */
   @FormattedDateTimeField("createdAt", {
     description:
       "Presentation-friendly UTC timestamp for when the like was created.",

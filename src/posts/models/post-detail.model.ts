@@ -9,14 +9,9 @@ import {
 import { FormattedDateTimeField } from "@/graphql/fields/formatted-date-time-field.decorator";
 
 import { SafeUserPreview } from "@/users/models/safe-user-preview.model";
-import { SafeCommentDTO } from "@/comments/models/safe-comment.model";
 import { LikePreview } from "@/posts/models/like-preview.model";
-
-/**
- * GraphQL model for post details
- *
- * Exposes the detailed post view returned by the API
- */
+import { PostMedia } from "@/media/models/post-media.model";
+import { Comment } from "@/comments/models/comment.model";
 
 /** Comprehensive representation of a Post entity intended for detailed views. */
 @ObjectType()
@@ -37,7 +32,6 @@ export class PostDetail {
   @Field(() => GraphQLISODateTime)
   createdAt: Date;
 
-  /** Presentation-friendly UTC timestamp for UI display. */
   @FormattedDateTimeField("createdAt", {
     description:
       "Presentation-friendly UTC timestamp for when the post was originally created.",
@@ -48,7 +42,6 @@ export class PostDetail {
   @Field(() => GraphQLISODateTime)
   updatedAt: Date;
 
-  /** Presentation-friendly UTC timestamp for UI display. */
   @FormattedDateTimeField("updatedAt", {
     description:
       "Presentation-friendly UTC timestamp for when the post was last updated.",
@@ -61,7 +54,6 @@ export class PostDetail {
   })
   editedAt: Date | null;
 
-  /** Presentation-friendly UTC timestamp for UI display. */
   @FormattedDateTimeField("editedAt", {
     description:
       "Presentation-friendly UTC timestamp for when the post body or title was last meaningfully edited.",
@@ -91,8 +83,14 @@ export class PostDetail {
   likes?: LikePreview[];
 
   /** Optional lightweight list of comments associated with the post. */
-  @Field(() => [SafeCommentDTO], {
+  @Field(() => [Comment], {
     nullable: true,
   })
-  comments?: SafeCommentDTO[];
+  comments?: Comment[];
+
+  /** Optional ordered list of media attachments associated with the post. */
+  @Field(() => [PostMedia], {
+    nullable: true,
+  })
+  mediaAttachments?: PostMedia[];
 }

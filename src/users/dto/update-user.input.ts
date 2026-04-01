@@ -18,12 +18,6 @@ import {
   USERNAME_REGEX_MESSAGE,
 } from "@/users/constants/username.constants";
 
-/**
- * GraphQL input for user updates
- *
- * Validates partial user data before it reaches the service layer
- */
-
 @InputType()
 export class UpdateUserInput {
   /** Updated public display name. */

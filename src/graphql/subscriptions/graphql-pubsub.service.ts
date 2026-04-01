@@ -9,13 +9,6 @@ import Redis from "ioredis";
 
 type PubSubPayload = Record<string, unknown>;
 
-/**
- * Redis-backed GraphQL PubSub service
- *
- * Centralizes the realtime transport used by GraphQL subscriptions so feature
- * modules do not manage broker clients directly
- */
-
 @Injectable()
 export class GraphqlPubSubService implements OnModuleDestroy {
   private readonly logger = new Logger(GraphqlPubSubService.name);

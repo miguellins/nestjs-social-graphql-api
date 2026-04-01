@@ -14,6 +14,7 @@ import { CacheHelperService } from "@/common/cache/cache-helper.service";
 
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
 
+import { MediaReadProjectionService } from "@/media/media-read-projection.service";
 import { SafePostDetailSelect } from "@/posts/dto/safe-post-detail.dto";
 
 import { SafePostListSelect } from "@/posts/dto/safe-post-list.dto";
@@ -22,7 +23,9 @@ import { CreatePostInput } from "@/posts/dto/create-post.input";
 
 import { UpdatePostInput } from "@/posts/dto/update-post.input";
 
-import { PrismaService } from "@/prisma.service";
+import { R2StorageService } from "@/media/storage/r2-storage.service";
+import { PostReadService } from "@/posts/post-read.service";
+import { PrismaService } from "@/prisma/prisma.service";
 
 import { PostsService } from "./posts.service";
 
@@ -75,9 +78,18 @@ describe("PostsService", () => {
   // ✅ NEW: in-memory read-through cache to test cache hits
   const mem = new Map<string, unknown>();
 
+  const r2StorageMock: {
+    getPublicUrl: jest.Mock;
+  } = {
+    getPublicUrl: jest.fn(),
+  };
+
   beforeEach(async () => {
     jest.clearAllMocks();
     mem.clear();
+    r2StorageMock.getPublicUrl.mockImplementation(
+      (objectKey: string) => `https://media.example.com/${objectKey}`,
+    );
 
     cacheMock.get.mockImplementation((key: string) =>
       Promise.resolve(mem.get(key)),
@@ -102,9 +114,12 @@ describe("PostsService", () => {
 
     moduleRef = await Test.createTestingModule({
       providers: [
+        MediaReadProjectionService,
+        PostReadService,
         PostsService,
         { provide: PrismaService, useValue: prismaMock },
         { provide: CacheHelperService, useValue: cacheMock },
+        { provide: R2StorageService, useValue: r2StorageMock },
       ],
     }).compile();
 
@@ -375,7 +390,12 @@ describe("PostsService", () => {
     });
 
     it("creates post with trimmed inputs, bumps/invalidates caches and returns post", async () => {
-      const created = { id: 1, title: "Test", content: "Content", editedAt: null };
+      const created = {
+        id: 1,
+        title: "Test",
+        content: "Content",
+        editedAt: null,
+      };
       prismaMock.post.create.mockResolvedValue(created);
 
       const input: CreatePostInput = {
@@ -402,7 +422,12 @@ describe("PostsService", () => {
     });
 
     it("creates a body-first post without title", async () => {
-      const created = { id: 1, title: null, content: "Content", editedAt: null };
+      const created = {
+        id: 1,
+        title: null,
+        content: "Content",
+        editedAt: null,
+      };
       prismaMock.post.create.mockResolvedValue(created);
 
       await expect(
@@ -419,7 +444,12 @@ describe("PostsService", () => {
     });
 
     it("creates post when content length is exactly 2000 characters", async () => {
-      const created = { id: 1, title: "Test", content: maxContent, editedAt: null };
+      const created = {
+        id: 1,
+        title: "Test",
+        content: maxContent,
+        editedAt: null,
+      };
       prismaMock.post.create.mockResolvedValue(created);
 
       await expect(
@@ -437,7 +467,12 @@ describe("PostsService", () => {
     });
 
     it("creates posts without an edited marker", async () => {
-      const created = { id: 1, title: "Test", content: "Content", editedAt: null };
+      const created = {
+        id: 1,
+        title: "Test",
+        content: "Content",
+        editedAt: null,
+      };
       prismaMock.post.create.mockResolvedValue(created);
 
       await expect(
@@ -480,7 +515,7 @@ describe("PostsService", () => {
 
       await expect(
         service.createPost({ title: "Test", content: "Content" }, 1),
-      ).rejects.toThrow("boom");
+      ).rejects.toThrow("Failed to create post");
     });
   });
 
@@ -612,7 +647,12 @@ describe("PostsService", () => {
         content: "Body",
       });
 
-      const updated = { id: 1, title: "Headline", content: "Body", editedAt: null };
+      const updated = {
+        id: 1,
+        title: "Headline",
+        content: "Body",
+        editedAt: null,
+      };
       prismaMock.post.update.mockResolvedValue(updated);
 
       await expect(
@@ -683,7 +723,7 @@ describe("PostsService", () => {
       prismaMock.post.findUnique.mockRejectedValue(new Error("boom"));
 
       await expect(service.updatePost(1, { title: "okay" }, 1)).rejects.toThrow(
-        "boom",
+        "Failed to update post",
       );
     });
   });
@@ -737,7 +777,9 @@ describe("PostsService", () => {
     it("lets unexpected delete errors bubble for the global filter to normalize", async () => {
       prismaMock.post.findUnique.mockRejectedValue(new Error("boom"));
 
-      await expect(service.deletePost(1, 1)).rejects.toThrow("boom");
+      await expect(service.deletePost(1, 1)).rejects.toThrow(
+        "Failed to delete post",
+      );
     });
   });
 });

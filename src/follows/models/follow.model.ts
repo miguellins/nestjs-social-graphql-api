@@ -10,12 +10,6 @@ import { FormattedDateTimeField } from "@/graphql/fields/formatted-date-time-fie
 
 import { SafeUserPreview } from "@/users/models/safe-user-preview.model";
 
-/**
- * GraphQL model for follows
- *
- * Exposes the public follow fields returned by the API
- */
-
 /** Core representation of a Follow relationship between two users. */
 @ObjectType()
 export class Follow {

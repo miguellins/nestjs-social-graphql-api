@@ -4,7 +4,7 @@ import { ExecutionContext } from "@nestjs/common";
 
 import { Reflector } from "@nestjs/core";
 
-import { GqlJwtGuard } from "./qgl-jwt.guard";
+import { GqlJwtGuard } from "./gql-jwt.guard";
 
 import type { Request } from "express";
 

@@ -1,0 +1,120 @@
+@baseUrl = http://localhost:3000
+@token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOjEsImlhdCI6MTc3NDY1MjAxMiwiZXhwIjoxNzc1MjU2ODEyfQ.NfWPpzsASQ02Vz4fTPcjvLTUzmp1QP_65IqaZb-vUOU
+@postId = 2
+@filename = cutie.png
+@mimeType = image/png
+@mediaId = update-media-upload-vars.sh-will-fill-this-automatically
+@uploadUrl = update-media-upload-vars.sh-will-fill-this-automatically
+
+# Step by step:
+# 1. Fill @token, @postId, @filename and @mimeType.
+# 2. Run Step 1.
+# 3. Paste the full Step 1 HTTP response into http/media-upload-response.txt.
+# 4. Run ./scripts/update-media-upload-vars.sh
+# 5. Run Step 2 immediately.
+# 6. Run Step 3.
+# 7. Run Step 4.
+# 8. Optionally run Step 5 to open the image in the browser.
+# 9. Run Step 6 and Step 7 to confirm the final state from read queries.
+
+
+### Step 1 - Request upload URL for the local media file
+# Creates a pending media row and returns the presigned PUT URL.
+POST {{baseUrl}}/graphql
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "query": "mutation RequestPostMediaUpload($input: RequestPostMediaUploadInput!) { requestPostMediaUpload(input: $input) { mediaId uploadUrl url expiresAt } }",
+  "variables": {
+    "input": {
+      "postId": {{postId}},
+      "mimeType": "{{mimeType}}",
+      "originalFileName": "{{filename}}"
+    }
+  }
+}
+
+
+### Step 2 - Upload the local media file directly to R2
+# Uploads the local file from @filename to the exact uploadUrl from Step 1.
+# Expected result: HTTP 200 OK
+PUT {{uploadUrl}}
+Content-Type: {{mimeType}}
+
+< ./fixtures/{{filename}}
+
+
+### Step 3 - Mark the uploaded object as complete
+# Verifies the uploaded object and marks the media row READY.
+# Expected result: READY status with bytes, width, and height populated.
+POST {{baseUrl}}/graphql
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "query": "mutation CompletePostMediaUpload($input: CompletePostMediaUploadInput!) { completePostMediaUpload(input: $input) { id status url bytes width height } }",
+  "variables": {
+    "input": {
+      "mediaId": {{mediaId}}
+    }
+  }
+}
+
+
+### Step 4 - Attach the ready media to the post
+# Attaches the READY media to the post.
+# Expected result: mediaAttachments contains the uploaded media.
+POST {{baseUrl}}/graphql
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "query": "mutation AttachMediaToPost($input: AttachMediaToPostInput!) { attachMediaToPost(input: $input) { id mediaAttachments { id sortOrder media { id status url bytes width height } } } }",
+  "variables": {
+    "input": {
+      "postId": {{postId}},
+      "mediaId": {{mediaId}}
+    }
+  }
+}
+
+
+### Step 5 - Create a temporary signed read URL for the media
+# Generates a temporary signed GET URL for browser viewing.
+# Use this when the normal public media URL is not accessible in development.
+POST {{baseUrl}}/graphql
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "query": "query MediaSignedViewUrl($mediaId: Int!) { mediaSignedViewUrl(mediaId: $mediaId) { mediaId signedUrl expiresAt } }",
+  "variables": {
+    "mediaId": {{mediaId}}
+  }
+}
+
+
+### Step 6 - Verify your media list
+# Confirms the uploaded item is READY and attached.
+POST {{baseUrl}}/graphql
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "query": "query MyMedia { myMedia { id status url bytes width height attachedAt } }"
+}
+
+
+### Step 7 - Verify the post detail
+# Confirms the image is visible from the post API through mediaAttachments.
+POST {{baseUrl}}/graphql
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "query": "query PostById($id: Int!) { postById(id: $id) { id title content mediaAttachments { id sortOrder createdAt media { id kind type status url mimeType bytes width height durationMs } } } }",
+  "variables": {
+    "id": {{postId}}
+  }
+}

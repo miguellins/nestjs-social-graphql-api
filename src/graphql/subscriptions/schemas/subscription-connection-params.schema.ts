@@ -1,11 +1,6 @@
 import { z } from "zod";
 
-/**
- * Zod schema for subscription connection params
- *
- * Validates authentication data sent during subscription setup
- */
-
+/** Zod schema that extracts and validates the Bearer token from websocket connection params. */
 export const subscriptionConnectionParamsSchema = z
   .object({
     authorization: z.unknown().optional(),

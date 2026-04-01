@@ -2,18 +2,7 @@ import type { SafeUserPreview } from "@/users/models/safe-user-preview.model";
 
 import type { Prisma } from "@prisma/client";
 
-/**
- * Internal follow DTO and Prisma select
- *
- * Defines the safe follow shape used by services
- */
-
-/**
- * Safe Follow DTO
- *
- * Defines the exact shape returned by the Follow service
- */
-
+/** Safe DTO shape for a Follow relationship with user previews. */
 export type SafeFollowDTO = {
   id: number;
   createdAt: Date;
@@ -25,15 +14,7 @@ export type SafeFollowDTO = {
   following: SafeUserPreview;
 };
 
-/**
- * Prisma select configuration aligned with SafeFollowDTO
- *
- * Why:
- * - Prevents accidental exposure of sensitive fields
- * - Keeps DTO and database selection synchronized
- * - Enforces compile-time safety using 'satisfies'
- */
-
+/** Prisma select shape for SafeFollowDTO. */
 export const SafeFollowSelect = {
   id: true,
   createdAt: true,

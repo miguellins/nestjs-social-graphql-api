@@ -1,11 +1,5 @@
 import { Field, Int, ObjectType } from "@nestjs/graphql";
 
-/**
- * GraphQL model for user counts
- *
- * Exposes aggregate user metrics for API responses
- */
-
 /** Numeric metadata for user activity and relationships */
 @ObjectType()
 export class UserCounts {

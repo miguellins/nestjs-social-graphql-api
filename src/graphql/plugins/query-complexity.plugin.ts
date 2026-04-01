@@ -20,12 +20,7 @@ import {
   type SelectionNode,
 } from "graphql";
 
-/**
- * GraphQL query complexity plugin
- *
- * Rejects operations that exceed the configured complexity limit
- */
-
+/** Options for configuring the GraphQL query complexity plugin. */
 type QueryComplexityPluginOptions = {
   enforce: boolean;
   log: boolean;
@@ -34,16 +29,16 @@ type QueryComplexityPluginOptions = {
   maxQueryNodes: number;
 };
 
+/** Constant for subscription operation type. */
 const SUBSCRIPTION_OPERATION = "subscription";
 
-// Reads complexity options from runtime configuration input
+/** Returns query complexity plugin options parsed from the runtime environment. */
 export function getQueryComplexityPluginOptions(
   env: Record<string, unknown>,
 ): QueryComplexityPluginOptions {
   const parsed = queryComplexityOptionsSchema.parse(env);
 
   return {
-    // Start rollout in log-only mode to avoid impacting existing clients
     enforce: parsed.GRAPHQL_COMPLEXITY_ENFORCE,
     log: parsed.GRAPHQL_COMPLEXITY_LOG,
     warnAt: parsed.GRAPHQL_COMPLEXITY_WARN_AT,
@@ -52,7 +47,7 @@ export function getQueryComplexityPluginOptions(
   };
 }
 
-// Skips complexity checks for subscriptions and introspection queries
+/** Returns true if this operation should skip complexity checking (subscriptions/introspection). */
 function shouldSkipComplexityCheck(
   requestContext: GraphQLRequestContextDidResolveOperation<object>,
 ): boolean {
@@ -69,7 +64,7 @@ function shouldSkipComplexityCheck(
   );
 }
 
-// Detects introspection fields inside a selection set
+/** Returns true if the selection set contains introspection fields. */
 function containsIntrospectionSelection(
   selections: readonly SelectionNode[] | undefined,
 ): boolean {
@@ -86,7 +81,7 @@ function containsIntrospectionSelection(
   });
 }
 
-// Resolves the operation name used in logs and errors
+/** Returns a formatted GraphQL operation name for logging or error messages. */
 function formatOperationName(
   requestContext: GraphQLRequestContextDidResolveOperation<object>,
 ): string {
@@ -97,7 +92,7 @@ function formatOperationName(
   );
 }
 
-// Calculates GraphQL complexity for the current operation
+/** Calculates and returns the complexity for the current GraphQL operation. */
 function calculateComplexity(
   schema: GraphQLSchema,
   requestContext: GraphQLRequestContextDidResolveOperation<object>,
@@ -125,7 +120,7 @@ function calculateComplexity(
   });
 }
 
-// Creates the Apollo plugin that enforces query-complexity rules
+/** Creates and returns an Apollo plugin that enforces query complexity rules. */
 export function createQueryComplexityPlugin(
   env: Record<string, unknown>,
 ): ApolloServerPlugin<object> {

@@ -4,12 +4,6 @@ import { IsNotEmpty, IsString, MaxLength, MinLength } from "class-validator";
 
 import { Trim } from "@/common/transformer/trim.transformer";
 
-/**
- * GraphQL input for password reset completion
- *
- * Accepts the reset token and the new password
- */
-
 @InputType()
 export class ResetPasswordInput {
   /** Raw password reset token from the local file sink or future email delivery. */

@@ -16,12 +16,6 @@ import {
   USERNAME_REGEX_MESSAGE,
 } from "@/users/constants/username.constants";
 
-/**
- * GraphQL args for public post timeline lookup by username
- *
- * Validates the author identifier plus shared pagination controls
- */
-
 @ArgsType()
 export class FindPostsByUsernameArgs extends PaginationArgs {
   /** Public username used to identify the post author timeline. */

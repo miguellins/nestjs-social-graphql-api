@@ -1,15 +1,9 @@
 import { z } from "zod";
 
-/**
- * Zod schema for environment variables
- *
- * Validates required configuration at startup
- */
-
-// Parses positive integer environment values
+/** Positive integer coercion helper for parsing env vars. */
 const positiveIntFromEnv = z.coerce.number().int().positive();
 
-// Parses boolean environment values from string input
+/** Boolean coercion helper for parsing env vars. */
 const booleanFromEnv = z.preprocess((value) => {
   if (typeof value !== "string") return value;
 
@@ -21,6 +15,7 @@ const booleanFromEnv = z.preprocess((value) => {
   return value;
 }, z.boolean());
 
+/** Zod schema for application environment variables. */
 export const envSchema = z.object({
   PORT: positiveIntFromEnv.default(3000),
   DATABASE_URL: z.string().trim().min(1, "DATABASE_URL is required"),
@@ -35,6 +30,20 @@ export const envSchema = z.object({
     .trim()
     .min(1)
     .default("graphql-subscriptions"),
+  R2_ACCOUNT_ID: z.string().trim().min(1, "R2_ACCOUNT_ID is required"),
+  R2_BUCKET: z.string().trim().min(1, "R2_BUCKET is required"),
+  R2_ACCESS_KEY_ID: z.string().trim().min(1, "R2_ACCESS_KEY_ID is required"),
+  R2_SECRET_ACCESS_KEY: z
+    .string()
+    .trim()
+    .min(1, "R2_SECRET_ACCESS_KEY is required"),
+  R2_PUBLIC_BASE_URL: z
+    .string()
+    .trim()
+    .url("R2_PUBLIC_BASE_URL must be a valid URL"),
+  R2_PRESIGNED_URL_TTL_SECONDS: positiveIntFromEnv.default(1800),
+  MEDIA_IMAGE_MAX_BYTES: positiveIntFromEnv.default(10 * 1024 * 1024),
+  MEDIA_VIDEO_MAX_BYTES: positiveIntFromEnv.default(100 * 1024 * 1024),
   NODE_ENV: z
     .enum(["development", "test", "production"])
     .default("development"),
@@ -45,9 +54,10 @@ export const envSchema = z.object({
   GRAPHQL_COMPLEXITY_MAX_QUERY_NODES: positiveIntFromEnv.default(2_000),
 });
 
+/** Type representing the validated application environment variables. */
 type AppEnv = z.infer<typeof envSchema>;
 
-// Validates the environment object during application bootstrap
+/** Validates and parses the given config object into strongly-typed environment variables. */
 export function validateEnv(config: Record<string, unknown>): AppEnv {
   return envSchema.parse(config);
 }

@@ -6,17 +6,19 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 
-import {
-  ChronologicalOrder,
-  toSortDirection,
-} from "@/common/enums/chronological-order.enum";
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
 import { MessageResponse } from "@/common/types/message-response.type";
 import { PasswordService } from "@/common/security/password.service";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
 import { parseWithBadRequest } from "@/common/zod/parse-with-zod";
 import { runBestEffort } from "@/common/errors/run-best-effort";
+import {
+  ChronologicalOrder,
+  toSortDirection,
+} from "@/common/enums/chronological-order.enum";
 
+import { SafeUserSelect, type SafeUserDTO } from "@/users/dto/safe-user.dto";
+import { UserCacheService } from "@/users/user-cache.service";
 import {
   createUserCommandSchema,
   updateUserCommandSchema,
@@ -27,9 +29,8 @@ import {
   getUserByUsernameCommandSchema,
   type GetUserByUsernameCommand,
 } from "@/users/schemas/user-read.schema";
-import { SafeUserSelect, type SafeUserDTO } from "@/users/dto/safe-user.dto";
 
-import { PrismaService } from "@/prisma.service";
+import { PrismaService } from "@/prisma/prisma.service";
 import { Prisma } from "@prisma/client";
 
 /**
@@ -53,17 +54,16 @@ export class UsersService {
     private readonly prisma: PrismaService,
     private readonly cacheHelper: CacheHelperService,
     private readonly passwordService: PasswordService,
+    private readonly userCache: UserCacheService,
   ) {}
 
   // Lists users with bounded pagination and cache support
   async findUsers(params?: PaginationParams): Promise<SafeUserDTO[]> {
-    // Ensures the value never exceeds MAX_TAKE (number of records per request)
     const limit = Math.min(
       params?.take ?? PAGINATION.DEFAULT_TAKE,
       PAGINATION.MAX_TAKE,
     );
 
-    // Default to newest-first when no explicit chronological order is provided
     const orderby = params?.orderBy ?? ChronologicalOrder.NEWEST;
 
     // Fetch the current cache version for the user list (used for cache invalidation)
@@ -72,8 +72,7 @@ export class UsersService {
     // Build a versioned cache key scoped to the current pagination params
     const cacheKey = `user:list:v=${v}:take=${limit}:order=${orderby}`;
 
-    // Read-through cache:
-    // - return cached if present, otherwise query DB
+    // Return cached if present, otherwise query DB
     return this.cacheHelper.getOrSet(
       cacheKey,
       async () => {
@@ -93,14 +92,13 @@ export class UsersService {
 
   // Returns one safe user profile by id
   async getUser(id: number): Promise<SafeUserDTO> {
-    const cacheKey = this.getUserCacheKey(id);
+    const cacheKey = this.userCache.getUserCacheKey(id);
 
     return this.cacheHelper.getOrSet(
       cacheKey,
       async () => {
         const user = await this.prisma.user.findUnique({
           where: { id },
-
           select: SafeUserSelect,
         });
 
@@ -108,7 +106,7 @@ export class UsersService {
 
         return user;
       },
-      5 * 60_000, // Cache user profile longer than list (profiles change less often)
+      5 * 60_000,
     );
   }
 
@@ -116,11 +114,9 @@ export class UsersService {
   async getUserByUsername(username: string): Promise<SafeUserDTO> {
     const normalized = this.parseGetUserByUsernameInput({ username });
 
-    const lookupCacheKey = this.getUserUsernameLookupCacheKey(
+    const cachedId = await this.userCache.getCachedUserIdByUsername(
       normalized.username,
     );
-
-    const cachedId = await this.cacheHelper.get<number>(lookupCacheKey);
 
     if (cachedId !== undefined) {
       return this.getUser(cachedId);
@@ -142,7 +138,7 @@ export class UsersService {
       "error",
       `Failed to refresh caches after looking up user ${user.id} by username`,
       async () => {
-        await this.cacheSafeUser(user);
+        await this.userCache.cacheUser(user);
       },
     );
 
@@ -170,7 +166,6 @@ export class UsersService {
       });
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError) {
-        // Keep unique-field conflicts explicit instead of deferring to a generic duplicate message.
         if (err.code === "P2002") {
           this.throwUserUniqueConflict(err, "Username or email already exists");
         }
@@ -185,7 +180,7 @@ export class UsersService {
       "error",
       `Failed to refresh caches after creating user ${user.id}`,
       async () => {
-        await this.cacheSafeUser(user);
+        await this.userCache.cacheUser(user);
         await this.cacheHelper.bumpVersion("v:user:list");
       },
     );
@@ -199,6 +194,7 @@ export class UsersService {
     currentUserId: number,
   ): Promise<SafeUserDTO> {
     const normalizedInput = this.parseUpdateUserInput(input);
+
     const existingUser =
       normalizedInput.username !== undefined
         ? await this.prisma.user.findUnique({
@@ -244,10 +240,8 @@ export class UsersService {
       });
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError) {
-        // Preserve the local not-found response for update races.
         if (err.code === "P2025") throw new NotFoundException("User not found");
 
-        // Keep unique-field conflicts explicit instead of deferring to a generic duplicate message.
         if (err.code === "P2002") {
           this.throwUserUniqueConflict(err, "Email or username already exists");
         }
@@ -267,11 +261,11 @@ export class UsersService {
           existingUser.username !== updated.username
         ) {
           await this.cacheHelper.del(
-            this.getUserUsernameLookupCacheKey(existingUser.username),
+            this.userCache.getUserUsernameLookupCacheKey(existingUser.username),
           );
         }
 
-        await this.cacheSafeUser(updated);
+        await this.userCache.cacheUser(updated);
         await this.cacheHelper.bumpVersion("v:user:list");
       },
     );
@@ -290,7 +284,6 @@ export class UsersService {
       });
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError) {
-        // Preserve the local not-found response for delete races.
         if (err.code === "P2025") throw new NotFoundException("User not found");
       }
 
@@ -303,10 +296,7 @@ export class UsersService {
       "error",
       `Failed to refresh caches after deleting user ${currentUserId}`,
       async () => {
-        await this.cacheHelper.del(this.getUserCacheKey(currentUserId));
-        await this.cacheHelper.del(
-          this.getUserUsernameLookupCacheKey(deletedUser.username),
-        );
+        await this.userCache.clearUser(deletedUser.username, currentUserId);
         await this.cacheHelper.bumpVersion("v:user:list");
       },
     );
@@ -316,7 +306,8 @@ export class UsersService {
     };
   }
 
-  // Parses and normalizes create-user input for the service layer
+  // Private Helpers
+  // Parses and normalizes create-user input
   private parseCreateUserInput(input: CreateUserCommand) {
     return parseWithBadRequest(
       createUserCommandSchema,
@@ -325,7 +316,7 @@ export class UsersService {
     );
   }
 
-  // Parses and normalizes update-user input for the service layer
+  // Parses and normalizes update-user input
   private parseUpdateUserInput(input: UpdateUserCommand) {
     return parseWithBadRequest(
       updateUserCommandSchema,
@@ -334,7 +325,7 @@ export class UsersService {
     );
   }
 
-  // Parses and normalizes public username lookup input for the service layer
+  // Parses and normalizes public username lookup input
   private parseGetUserByUsernameInput(input: GetUserByUsernameCommand) {
     return parseWithBadRequest(
       getUserByUsernameCommandSchema,
@@ -343,23 +334,7 @@ export class UsersService {
     );
   }
 
-  private getUserCacheKey(id: number): string {
-    return `user:safe:${id}`;
-  }
-
-  private getUserUsernameLookupCacheKey(username: string): string {
-    return `user:lookup:username:${username}`;
-  }
-
-  private async cacheSafeUser(user: SafeUserDTO): Promise<void> {
-    await this.cacheHelper.set(this.getUserCacheKey(user.id), user, 5 * 60_000);
-    await this.cacheHelper.set(
-      this.getUserUsernameLookupCacheKey(user.username),
-      user.id,
-      5 * 60_000,
-    );
-  }
-
+  // Maps unique user constraint violations to specific conflict errors
   private throwUserUniqueConflict(
     err: Prisma.PrismaClientKnownRequestError,
     fallbackMessage: string,
@@ -380,6 +355,7 @@ export class UsersService {
     throw new ConflictException(fallbackMessage);
   }
 
+  // Logs unexpected persistence failures and throws a sanitized error
   private throwUnexpectedPersistenceFailure(
     action: "create user" | "update user" | "delete user",
     err: unknown,

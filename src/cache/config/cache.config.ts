@@ -6,12 +6,7 @@ import SuperJSON from "superjson";
 import KeyvRedis from "@keyv/redis";
 import Keyv from "keyv";
 
-/**
- * Cache module configuration
- *
- * Builds the Redis-backed cache store for the app
- */
-
+/** Async NestJS cache module config using Keyv+Redis with SuperJSON serialization. */
 export const cacheModuleConfig: CacheModuleAsyncOptions = {
   isGlobal: true,
   inject: [ConfigService],

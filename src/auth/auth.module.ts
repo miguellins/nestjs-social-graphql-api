@@ -3,18 +3,14 @@ import { ConfigService } from "@nestjs/config";
 import { Module } from "@nestjs/common";
 import { JwtModule } from "@nestjs/jwt";
 
-import { PasswordModule } from "@/common/security/password.module";
-
 import { PasswordResetDeliveryService } from "@/auth/password-reset-delivery.service";
 import { AuthResolver } from "@/auth/auth.resolver";
 import { AuthService } from "@/auth/auth.service";
 import { JwtStrategy } from "@/auth/jwt.strategy";
 
-import type { StringValue } from "ms";
+import { PasswordModule } from "@/common/security/password.module";
 
-/**
- * Wires authentication providers and JWT configuration for the auth module
- */
+import type { StringValue } from "ms";
 
 @Module({
   imports: [
@@ -22,7 +18,6 @@ import type { StringValue } from "ms";
     PasswordModule,
     JwtModule.registerAsync({
       inject: [ConfigService],
-      // Builds JWT module options from validated configuration
       useFactory: (config: ConfigService) => {
         const secret = config.get<string>("JWT_SECRET");
         const expiresIn = config.get<string>("JWT_EXPIRES_IN");

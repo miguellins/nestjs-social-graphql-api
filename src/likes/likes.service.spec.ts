@@ -17,9 +17,9 @@ import { PAGINATION } from "@/common/constants/hard-cap.constants";
 
 import { LikeDetailSelect } from "@/likes/dto/like-detail.dto";
 
-import { NotificationsService } from "@/notifications/notifications.service";
+import { NotificationTriggerService } from "@/notifications/notification-trigger.service";
 
-import { PrismaService } from "@/prisma.service";
+import { PrismaService } from "@/prisma/prisma.service";
 
 import { LikesService } from "./likes.service";
 
@@ -73,10 +73,10 @@ describe("LikesService", () => {
 
   const mem = new Map<string, unknown>();
 
-  const notificationsMock: {
-    createAndPublishNotification: jest.Mock;
+  const notificationTriggerMock: {
+    notifyPostLiked: jest.Mock;
   } = {
-    createAndPublishNotification: jest.fn(),
+    notifyPostLiked: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -106,7 +106,10 @@ describe("LikesService", () => {
         LikesService,
         { provide: PrismaService, useValue: prismaMock },
         { provide: CacheHelperService, useValue: cacheMock },
-        { provide: NotificationsService, useValue: notificationsMock },
+        {
+          provide: NotificationTriggerService,
+          useValue: notificationTriggerMock,
+        },
       ],
     }).compile();
 
@@ -311,7 +314,7 @@ describe("LikesService", () => {
 
       const like = { id: 1, userId: 10, postId: 20 };
       prismaMock.$transaction.mockResolvedValue([like, { id: 20 }]);
-      notificationsMock.createAndPublishNotification.mockRejectedValue(
+      notificationTriggerMock.notifyPostLiked.mockRejectedValue(
         new Error("notify failed"),
       );
 

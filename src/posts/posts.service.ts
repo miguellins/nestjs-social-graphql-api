@@ -7,9 +7,6 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 
-import { PrismaService } from "@/prisma.service";
-import { Prisma } from "@prisma/client";
-
 import {
   ChronologicalOrder,
   toSortDirection,
@@ -20,11 +17,8 @@ import { PAGINATION } from "@/common/constants/hard-cap.constants";
 import { parseWithBadRequest } from "@/common/zod/parse-with-zod";
 import { runBestEffort } from "@/common/errors/run-best-effort";
 
-import {
-  getUserByUsernameCommandSchema,
-  type GetUserByUsernameCommand,
-} from "@/users/schemas/user-read.schema";
-
+import { type SafePostDetailDTO } from "@/posts/dto/safe-post-detail.dto";
+import { PostReadService } from "@/posts/post-read.service";
 import {
   createPostCommandSchema,
   updatePostCommandSchema,
@@ -32,19 +26,17 @@ import {
   type UpdatePostCommand,
 } from "@/posts/schemas/post-write.schema";
 import {
-  type SafePostDetailDTO,
-  SafePostDetailSelect,
-} from "@/posts/dto/safe-post-detail.dto";
-import {
   type SafePostListDTO,
   SafePostListSelect,
 } from "@/posts/dto/safe-post-list.dto";
 
-/**
- * Service for post workflows
- *
- * Creates, lists, updates, and deletes posts
- */
+import {
+  getUserByUsernameCommandSchema,
+  type GetUserByUsernameCommand,
+} from "@/users/schemas/user-read.schema";
+
+import { PrismaService } from "@/prisma/prisma.service";
+import { Prisma } from "@prisma/client";
 
 type PaginationParams = {
   take?: number;
@@ -61,13 +53,12 @@ const POST_DETAIL_CACHE_TTL_MS = 60_000;
 export class PostsService {
   private readonly logger = new Logger(PostsService.name);
 
-  // Injects the services used by post workflows
   constructor(
     private readonly prisma: PrismaService,
     private readonly cacheHelper: CacheHelperService,
+    private readonly postReadService: PostReadService,
   ) {}
 
-  // Returns the feed for the current user and followed authors
   async myFeed(
     currentUserId: number,
     params?: PaginationParams,
@@ -77,7 +68,6 @@ export class PostsService {
       PAGINATION.MAX_TAKE,
     );
 
-    // Default to newest-first when no explicit chronological order is provided
     const orderby = params?.orderBy ?? ChronologicalOrder.NEWEST;
 
     return this.prisma.post.findMany({
@@ -99,29 +89,23 @@ export class PostsService {
         ],
       },
 
-      // Show newest posts first
       orderBy: {
         createdAt: toSortDirection(orderby),
       },
 
       take,
-
       select: SafePostListSelect,
     });
   }
 
-  // Lists posts with optional search and bounded pagination
   async findPosts(params?: FindPostsParams): Promise<SafePostListDTO[]> {
-    // Ensures the value never exceeds MAX_TAKE (number of records per request)
     const take = Math.min(
       params?.take ?? PAGINATION.DEFAULT_TAKE,
       PAGINATION.MAX_TAKE,
     );
 
-    // Optional search
     const search = params?.q?.trim().toLowerCase() || undefined;
 
-    // Default to newest-first when no explicit chronological order is provided
     const orderby = params?.orderBy ?? ChronologicalOrder.NEWEST;
 
     const v = await this.cacheHelper.getVersion("v:posts:list");
@@ -142,11 +126,9 @@ export class PostsService {
         return this.prisma.post.findMany({
           take,
           where,
-
           orderBy: {
             createdAt: toSortDirection(orderby),
           },
-
           select: SafePostListSelect,
         });
       },
@@ -154,7 +136,6 @@ export class PostsService {
     );
   }
 
-  // Lists posts for one public author timeline using username as the stable lookup key
   async findPostsByUsername(
     username: string,
     params?: PaginationParams,
@@ -195,65 +176,21 @@ export class PostsService {
     );
   }
 
-  // Returns a post detail view and increments its view counter
   async getPost(id: number): Promise<SafePostDetailDTO> {
     const cacheKey = `posts:detail:${id}`;
 
-    // Determines the final limit safely
-    // Ensures the value never exceeds the likes hard cap
-    const likesTake = Math.min(
-      PAGINATION.DEFAULT_TAKE_LIKES,
-      PAGINATION.MAX_TAKE_LIKES,
-    );
-
-    // Clamp number of comments returned to the allowed pagination bounds
-    const commentsTake = Math.min(PAGINATION.DEFAULT_TAKE, PAGINATION.MAX_TAKE);
-
     const post = await this.cacheHelper.getOrSet(
       cacheKey,
-      async () => {
-        const postDetail = await this.prisma.post.findUnique({
-          where: { id },
-
-          select: {
-            ...SafePostDetailSelect,
-
-            likes: {
-              take: likesTake,
-
-              orderBy: {
-                createdAt: "desc",
-              },
-
-              select: SafePostDetailSelect.likes.select,
-            },
-
-            comments: {
-              take: commentsTake,
-
-              orderBy: {
-                createdAt: "desc",
-              },
-
-              select: SafePostDetailSelect.comments.select,
-            },
-          },
-        });
-
-        if (!postDetail) throw new NotFoundException("Post not found");
-
-        return postDetail;
-      },
+      async () => this.postReadService.getPostDetail(id),
       POST_DETAIL_CACHE_TTL_MS,
     );
 
-    // Keep hot reads cache-friendly and move view tracking into a non-blocking follow-up
     void runBestEffort(
       this.logger,
       "warn",
       `Failed to update viewsCount asynchronously for post ${id}`,
       async () => {
-        await this.incrementPostViewsCount(
+        await this.postReadService.incrementPostViewsCount(
           id,
           cacheKey,
           POST_DETAIL_CACHE_TTL_MS,
@@ -264,14 +201,12 @@ export class PostsService {
     return post;
   }
 
-  // Creates a new post for the current user
   async createPost(
     input: CreatePostCommand,
     currentUserId: number,
   ): Promise<SafePostListDTO> {
     const data = this.parseCreatePostInput(input);
 
-    // Store the created post outside the try block so follow-up cache work can reuse it
     let post: SafePostListDTO;
 
     try {
@@ -291,7 +226,6 @@ export class PostsService {
       });
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError) {
-        // Translate missing author references into the local domain error for this workflow.
         if (err.code === "P2003" || err.code === "P2025") {
           throw new NotFoundException("Author not found");
         }
@@ -300,7 +234,6 @@ export class PostsService {
       this.throwUnexpectedPersistenceFailure("create post", err);
     }
 
-    // Keep cache refresh failures from masking a committed post creation
     await runBestEffort(
       this.logger,
       "error",
@@ -318,7 +251,6 @@ export class PostsService {
     return post;
   }
 
-  // Updates a post owned by the current user
   async updatePost(
     id: number,
     input: UpdatePostCommand,
@@ -326,7 +258,6 @@ export class PostsService {
   ): Promise<SafePostListDTO> {
     const normalizedInput = this.parseUpdatePostInput(input);
 
-    // Build update payload safely
     const data: Prisma.PostUpdateInput = {};
 
     if (normalizedInput.title !== undefined) {
@@ -337,11 +268,9 @@ export class PostsService {
       data.content = normalizedInput.content;
     }
 
-    // Store the updated post outside the try block so follow-up cache work can reuse it
     let post: SafePostListDTO;
 
     try {
-      // Fetch minimal fields needed for ownership + existence
       const existing = await this.prisma.post.findUnique({
         where: { id },
 
@@ -375,14 +304,12 @@ export class PostsService {
       if (err instanceof HttpException) throw err;
 
       if (err instanceof Prisma.PrismaClientKnownRequestError) {
-        // Preserve the not-found domain response for update races
         if (err.code === "P2025") throw new NotFoundException("Post not found");
       }
 
       this.throwUnexpectedPersistenceFailure("update post", err);
     }
 
-    // Keep cache refresh failures from masking a committed post update
     await runBestEffort(
       this.logger,
       "error",
@@ -399,13 +326,11 @@ export class PostsService {
     return post;
   }
 
-  // Deletes a post owned by the current user
   async deletePost(
     id: number,
     currentUserId: number,
   ): Promise<MessageResponse> {
     try {
-      // Check existence and ownership
       const existing = await this.prisma.post.findUnique({
         where: { id },
         select: { id: true, authorId: true },
@@ -429,14 +354,12 @@ export class PostsService {
         err instanceof Prisma.PrismaClientKnownRequestError &&
         err.code === "P2025"
       ) {
-        // Preserve the not-found domain response for delete races
         throw new NotFoundException("Post not found");
       }
 
       this.throwUnexpectedPersistenceFailure("delete post", err);
     }
 
-    // Keep cache refresh failures from masking a committed post deletion
     await runBestEffort(
       this.logger,
       "error",
@@ -455,7 +378,8 @@ export class PostsService {
     };
   }
 
-  // Parses and normalizes create-post input for the service layer
+  // Private Helpers
+  // Parses and normalizes create-post input
   private parseCreatePostInput(input: CreatePostCommand) {
     return parseWithBadRequest(
       createPostCommandSchema,
@@ -464,7 +388,7 @@ export class PostsService {
     );
   }
 
-  // Parses and normalizes update-post input for the service layer
+  // Parses and normalizes update-post input
   private parseUpdatePostInput(input: UpdatePostCommand) {
     return parseWithBadRequest(
       updatePostCommandSchema,
@@ -473,7 +397,7 @@ export class PostsService {
     );
   }
 
-  // Parses and normalizes public username lookup input for post timeline reads
+  // Parses and normalizes public username lookup input
   private parseGetUserByUsernameInput(input: GetUserByUsernameCommand) {
     return parseWithBadRequest(
       getUserByUsernameCommandSchema,
@@ -482,6 +406,7 @@ export class PostsService {
     );
   }
 
+  // Retrieves the user ID for the given username, using cache for performance
   private async getUserIdByUsername(username: string): Promise<number> {
     const lookupCacheKey = this.getUserUsernameLookupCacheKey(username);
     const cachedId = await this.cacheHelper.get<number>(lookupCacheKey);
@@ -504,14 +429,17 @@ export class PostsService {
     return user.id;
   }
 
+  // Returns the cache key string for user lookup by username
   private getUserUsernameLookupCacheKey(username: string): string {
     return `user:lookup:username:${username}`;
   }
 
+  // Returns the cache version key string for a user's post list
   private getUserPostsListVersionKey(userId: number): string {
     return `v:user:${userId}:posts:list`;
   }
 
+  // Determines if the provided input would result in a content change for a given post
   private didPostContentChange(
     existing: {
       title: string | null;
@@ -525,6 +453,7 @@ export class PostsService {
     );
   }
 
+  // Logs and throws an internal server error for unexpected persistence failures
   private throwUnexpectedPersistenceFailure(
     action: "create post" | "update post" | "delete post",
     err: unknown,
@@ -535,52 +464,5 @@ export class PostsService {
     );
 
     throw new InternalServerErrorException(`Failed to ${action}`);
-  }
-
-  private async incrementPostViewsCount(
-    id: number,
-    cacheKey: string,
-    detailCacheTtlMs: number,
-  ): Promise<void> {
-    let updatedPost: { viewsCount: number };
-
-    try {
-      updatedPost = await this.prisma.post.update({
-        where: { id },
-
-        data: {
-          viewsCount: {
-            increment: 1,
-          },
-        },
-
-        select: {
-          viewsCount: true,
-        },
-      });
-    } catch (err) {
-      // The detail response already succeeded, so a concurrent delete should not surface as a read failure.
-      if (
-        err instanceof Prisma.PrismaClientKnownRequestError &&
-        err.code === "P2025"
-      ) {
-        return;
-      }
-
-      throw err;
-    }
-
-    const cachedPost = await this.cacheHelper.get<SafePostDetailDTO>(cacheKey);
-
-    if (!cachedPost) return;
-
-    await this.cacheHelper.set(
-      cacheKey,
-      {
-        ...cachedPost,
-        viewsCount: updatedPost.viewsCount,
-      },
-      detailCacheTtlMs,
-    );
   }
 }

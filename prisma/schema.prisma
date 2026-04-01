@@ -59,6 +59,12 @@ model User {
    * Password reset tokens issued for this user
    */
   passwordResetTokens PasswordResetToken[]
+
+  /**
+   * 1:N relation
+   * Media uploaded and owned by this user
+   */
+  media Media[]
 }
 
 model Post {
@@ -111,6 +117,12 @@ model Post {
    * A post can have many comments
    */
   comments Comment[]
+
+  /**
+   * One-to-many relation
+   * A post can have many media attachments via the join table
+   */
+  mediaAttachments PostMedia[]
 
   /**
    * Database index on authorId
@@ -339,4 +351,97 @@ model PasswordResetToken {
 
   @@index([userId])
   @@index([expiresAt])
+}
+
+enum MediaKind {
+  POST_IMAGE
+  POST_VIDEO
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+}
+
+enum MediaStatus {
+  PENDING_UPLOAD
+  READY
+}
+
+enum MediaVisibility {
+  PUBLIC
+}
+
+enum StorageProvider {
+  R2
+}
+
+model Media {
+  id               Int             @id @default(autoincrement())
+  ownerId          Int
+  kind             MediaKind
+  type             MediaType
+  status           MediaStatus
+  visibility       MediaVisibility
+  storageProvider  StorageProvider
+  bucket           String
+  objectKey        String          @unique
+  originalFileName String?
+  mimeType         String
+  bytes            Int?
+  etag             String?
+  width            Int?
+  height           Int?
+  durationMs       Int?
+  expiresAt        DateTime?
+  attachedAt       DateTime?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  /**
+   * Relation to User
+   * fields: [ownerId] - stores the uploader/owner foreign key
+   * references: [id]  - references User.id
+   * onDelete: Cascade - delete media if the owning user is deleted
+   */
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  /**
+   * One-to-many relation
+   * A media item can be attached to posts through the join table
+   */
+  postAttachments PostMedia[]
+
+  @@index([ownerId, createdAt(sort: Desc)])
+  @@index([status, expiresAt])
+  @@index([type, status])
+}
+
+model PostMedia {
+  id        Int      @id @default(autoincrement())
+  postId    Int
+  mediaId   Int
+  sortOrder Int
+  createdAt DateTime @default(now())
+
+  /**
+   * Relation to Post
+   * fields: [postId] - stores the parent post foreign key
+   * references: [id] - references Post.id
+   * onDelete: Cascade - delete only relation rows when the post is deleted
+   */
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  /**
+   * Relation to Media
+   * fields: [mediaId] - stores the attached media foreign key
+   * references: [id]  - references Media.id
+   * onDelete: Cascade - remove relation rows if media is deleted later
+   */
+  media Media @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, mediaId])
+  @@unique([postId, sortOrder])
+  @@index([postId])
+  @@index([mediaId])
 }

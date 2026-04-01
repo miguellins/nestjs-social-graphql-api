@@ -2,13 +2,7 @@ import { BadRequestException } from "@nestjs/common";
 
 import { ZodError, type ZodType } from "zod";
 
-/**
- * Zod parsing helper
- *
- * Converts schema validation failures into bad request errors
- */
-
-// Parses input with Zod and throws a Nest bad-request error on validation failure
+/** Parses input with a Zod schema and throws BadRequestException on validation errors. */
 export function parseWithBadRequest<TInput, TOutput>(
   schema: ZodType<TOutput, TInput>,
   input: TInput,

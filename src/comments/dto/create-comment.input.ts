@@ -10,12 +10,6 @@ import {
 
 import { Trim } from "@/common/transformer/trim.transformer";
 
-/**
- * GraphQL input for comment creation
- *
- * Validates the data sent to create a comment
- */
-
 @InputType()
 export class CreateCommentInput {
   /** Text content of the comment. */

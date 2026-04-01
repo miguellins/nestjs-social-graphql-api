@@ -6,11 +6,7 @@ import { CacheHelpersModule } from "@/common/cache/cache-helpers.module";
 import { LikeResolver } from "@/likes/likes.resolver";
 import { LikesService } from "@/likes/likes.service";
 
-import { PrismaModule } from "@/prisma.module";
-
-/**
- * Registers the likes module providers and dependencies
- */
+import { PrismaModule } from "@/prisma/prisma.module";
 
 @Module({
   imports: [PrismaModule, CacheHelpersModule, NotificationsModule],

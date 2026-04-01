@@ -2,16 +2,10 @@ import type { INestApplication } from "@nestjs/common";
 
 import helmet from "helmet";
 
-/**
- * Bootstrap helper for security middleware
- *
- * Applies Helmet and related HTTP protections
- */
-
+/** Sets up helmet-based HTTP security middleware for the NestJS app. */
 export function setupSecurity(app: INestApplication): void {
   app.use(
     helmet({
-      // Configure Helmet CSP (content security policy) behavior
       contentSecurityPolicy:
         process.env.NODE_ENV === "production" ? undefined : false,
     }),

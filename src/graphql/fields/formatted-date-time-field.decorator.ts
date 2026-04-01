@@ -5,21 +5,16 @@ import {
   type MiddlewareContext,
 } from "@nestjs/graphql";
 
-/**
- * GraphQL field helper for formatted date-time output
- *
- * Exposes a presentation-only string field derived from an existing raw
- * date-time property on the same source object.
- */
-
+/** Configures the generated formatted date-time GraphQL field. */
 type FormattedDateTimeFieldOptions = {
   description: string;
   nullable?: boolean;
 };
 
-// Supports the raw values currently observed on GraphQL source objects.
+/** Represents the accepted raw values that can be parsed as dates. */
 type DateLikeValue = Date | number | string | null | undefined;
 
+/** Stores the extracted UTC date-time parts used for display formatting. */
 type FormattedDateTimeParts = {
   day: string;
   dayPeriod: string;
@@ -30,6 +25,7 @@ type FormattedDateTimeParts = {
   year: string;
 };
 
+/** Tracks the non-literal formatter part names required for display output. */
 const FORMATTED_DATE_TIME_PART_TYPES = new Set<keyof FormattedDateTimeParts>([
   "day",
   "dayPeriod",
@@ -40,6 +36,7 @@ const FORMATTED_DATE_TIME_PART_TYPES = new Set<keyof FormattedDateTimeParts>([
   "year",
 ]);
 
+/** Formats UTC dates into stable display parts using the en-US locale. */
 const formattedDateTimeFormatter = new Intl.DateTimeFormat("en-US", {
   year: "numeric",
   month: "2-digit",
@@ -51,10 +48,11 @@ const formattedDateTimeFormatter = new Intl.DateTimeFormat("en-US", {
   timeZone: "UTC",
 });
 
+/** Matches SQL-style UTC timestamps that need ISO normalization. */
 const UTC_DATE_TIME_WITH_SPACE_SEPARATOR =
   /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d{1,3})?$/;
 
-// Preserves ISO inputs and upgrades SQL-style UTC timestamps to ISO form.
+/** Preserves ISO inputs and upgrades SQL-style UTC timestamps to ISO form. */
 function normalizeDateTimeString(value: string): string {
   const normalizedValue = value.trim();
 
@@ -65,7 +63,7 @@ function normalizeDateTimeString(value: string): string {
   return normalizedValue;
 }
 
-// Parses supported date-like values into valid native Date instances.
+/** Parses supported date-like values into valid native `Date` instances. */
 function parseDateLikeValue(value: DateLikeValue): Date | null {
   if (value == null) {
     return null;
@@ -86,7 +84,7 @@ function parseDateLikeValue(value: DateLikeValue): Date | null {
   return null;
 }
 
-// Uses formatToParts so the final string does not depend on locale punctuation.
+/** Extracts normalized date-time parts without relying on locale punctuation. */
 function extractFormattedDateTimeParts(value: Date): FormattedDateTimeParts {
   const parts: Partial<FormattedDateTimeParts> = {};
 
@@ -107,7 +105,7 @@ function extractFormattedDateTimeParts(value: Date): FormattedDateTimeParts {
   return parts as FormattedDateTimeParts;
 }
 
-// Formats a date-like value as MM/DD/YYYY hh:mm:ss AM/PM in UTC.
+/** Formats a date-like value as `MM/DD/YYYY hh:mm:ss AM/PM` in UTC. */
 export function formatDateTimeForDisplay(value: DateLikeValue): string | null {
   const parsedValue = parseDateLikeValue(value);
 
@@ -120,7 +118,7 @@ export function formatDateTimeForDisplay(value: DateLikeValue): string | null {
   return `${parts.month}/${parts.day}/${parts.year} ${parts.hour}:${parts.minute}:${parts.second} ${parts.dayPeriod}`;
 }
 
-// Reads the raw sibling field and derives the formatted GraphQL value from it.
+/** Builds field middleware that formats the value from a sibling source field. */
 function formattedDateTimeFieldMiddleware(
   sourceField: string,
 ): FieldMiddleware {
@@ -130,7 +128,7 @@ function formattedDateTimeFieldMiddleware(
     );
 }
 
-// Declares a formatted companion field without requiring services to populate it.
+/** Declares a formatted companion GraphQL field derived from another field. */
 export function FormattedDateTimeField(
   sourceField: string,
   options: FormattedDateTimeFieldOptions,

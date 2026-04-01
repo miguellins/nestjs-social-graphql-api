@@ -1,8 +1,4 @@
-/**
- * Shared throttle configuration
- *
- * Defines rate limits for application operations
- */
+/** Shared throttle configuration. Defines rate limits for application operations */
 
 export const THROTTLE_LIMITS = {
   /**

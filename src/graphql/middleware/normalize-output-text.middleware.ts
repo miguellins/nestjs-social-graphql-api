@@ -4,13 +4,7 @@ import type {
   NextFn,
 } from "@nestjs/graphql";
 
-/**
- * GraphQL field middleware for text output
- *
- * Trims string values before they are returned
- */
-
-// Middleware that trims and normalizes whitespace in GraphQL string field outputs
+/** Field middleware that trims and normalizes whitespace in GraphQL string outputs. */
 export const normalizeOutputTextMiddleware: FieldMiddleware = async (
   _ctx: MiddlewareContext,
   next: NextFn,

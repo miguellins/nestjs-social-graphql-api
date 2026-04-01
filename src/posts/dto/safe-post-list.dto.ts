@@ -1,11 +1,6 @@
 import type { Prisma } from "@prisma/client";
 
-/**
- * Internal post list DTO and Prisma select
- *
- * Defines the safe post list shape used by services
- */
-
+/** Defines the safe post list shape used by services. */
 export type SafePostListDTO = {
   id: number;
   title: string | null;
@@ -21,16 +16,7 @@ export type SafePostListDTO = {
   };
 };
 
-/**
- * Prisma select that matches SafePostListDTO exactly
- *
- * Guarantees:
- * - No accidental extra fields
- * - No sensitive data leakage
- * - Compile-time safety if DTO changes
- * - Consistent performance for list queries
- */
-
+/** Defines the Prisma select that matches the safe post list DTO shape. */
 export const SafePostListSelect = {
   id: true,
   title: true,

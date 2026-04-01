@@ -18,9 +18,9 @@ import { PAGINATION } from "@/common/constants/hard-cap.constants";
 
 import { SafeFollowSelect } from "@/follows/dto/safe-follow.dto";
 
-import { NotificationsService } from "@/notifications/notifications.service";
+import { NotificationTriggerService } from "@/notifications/notification-trigger.service";
 
-import { PrismaService } from "@/prisma.service";
+import { PrismaService } from "@/prisma/prisma.service";
 
 import { FollowsService } from "./follows.service";
 
@@ -62,10 +62,10 @@ describe("FollowsService", () => {
     getOrSet: jest.fn(),
   };
 
-  const notificationsMock: {
-    createAndPublishNotification: jest.Mock;
+  const notificationTriggerMock: {
+    notifyUserFollowed: jest.Mock;
   } = {
-    createAndPublishNotification: jest.fn(),
+    notifyUserFollowed: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -81,7 +81,10 @@ describe("FollowsService", () => {
         FollowsService,
         { provide: PrismaService, useValue: prismaMock },
         { provide: CacheHelperService, useValue: cacheMock },
-        { provide: NotificationsService, useValue: notificationsMock },
+        {
+          provide: NotificationTriggerService,
+          useValue: notificationTriggerMock,
+        },
       ],
     }).compile();
 
@@ -211,15 +214,11 @@ describe("FollowsService", () => {
       expect(cacheMock.del).toHaveBeenCalledWith("user:safe:2");
       expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:user:list");
 
-      expect(
-        notificationsMock.createAndPublishNotification,
-      ).toHaveBeenCalledWith({
+      expect(notificationTriggerMock.notifyUserFollowed).toHaveBeenCalledWith({
         recipientId: 2,
         actorId: 1,
-        type: "USER_FOLLOWED",
-        title: "New follower",
-        body: "alice started following you",
-        entityId: 50,
+        actorUsername: "alice",
+        followId: 50,
       });
 
       expect(res).toEqual(created);
@@ -248,7 +247,7 @@ describe("FollowsService", () => {
 
       const created = { id: 50, followerId: 1, followingId: 2 };
       prismaMock.follow.create.mockResolvedValue(created);
-      notificationsMock.createAndPublishNotification.mockRejectedValue(
+      notificationTriggerMock.notifyUserFollowed.mockRejectedValue(
         new Error("notify failed"),
       );
 

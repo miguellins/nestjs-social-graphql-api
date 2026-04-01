@@ -18,13 +18,14 @@ import { PasswordService } from "@/common/security/password.service";
 
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
 
-import { PrismaService } from "@/prisma.service";
+import { PrismaService } from "@/prisma/prisma.service";
 
 import { CreateUserInput } from "@/users/dto/create-user.input";
 
 import { UpdateUserInput } from "@/users/dto/update-user.input";
 
 import { SafeUserSelect } from "@/users/dto/safe-user.dto";
+import { UserCacheService } from "@/users/user-cache.service";
 
 import { UsersService } from "./users.service";
 
@@ -82,6 +83,7 @@ describe("UsersService", () => {
 
     moduleRef = await Test.createTestingModule({
       providers: [
+        UserCacheService,
         UsersService,
         { provide: PrismaService, useValue: prismaMock },
         { provide: CacheHelperService, useValue: cacheMock },

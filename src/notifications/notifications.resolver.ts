@@ -19,12 +19,6 @@ import { NotificationDTO } from "@/notifications/models/notification.model";
 import { GraphqlPubSubService } from "@/graphql/subscriptions/graphql-pubsub.service";
 import type { GqlContext } from "@/graphql/config/graphql-context.types";
 
-/**
- * GraphQL resolver for notifications
- *
- * Exposes notification queries and subscriptions
- */
-
 @Resolver(() => NotificationDTO)
 export class NotificationsResolver {
   constructor(
@@ -76,29 +70,7 @@ export class NotificationsResolver {
       payload: { notificationReceived: NotificationDTO },
       _variables: unknown,
       context: GqlContext,
-    ) => {
-      const reqUserId = (
-        context.req as
-          | (typeof context.req & {
-              user?: { id?: number };
-              extra?: { user?: { id?: number } };
-            })
-          | undefined
-      )?.user?.id;
-
-      const wsUserIdFromReq = (
-        context.req as
-          | (typeof context.req & {
-              extra?: { user?: { id?: number } };
-            })
-          | undefined
-      )?.extra?.user?.id;
-
-      const subscriberId =
-        context.extra?.user?.id ?? wsUserIdFromReq ?? reqUserId;
-
-      return payload.notificationReceived.recipientId === subscriberId;
-    },
+    ) => payload.notificationReceived.recipientId === context.extra?.user?.id,
   })
   @Throttle({ default: THROTTLE_LIMITS.LIST })
   notificationReceived() {

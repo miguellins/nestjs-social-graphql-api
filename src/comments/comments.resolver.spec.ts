@@ -30,13 +30,7 @@ describe("CommentsResolver", () => {
 
     const resolver = new CommentsResolver(commentsService as never);
 
-    await resolver.updateComment(
-      {
-        commentId: 10,
-        input: { content: "updated" },
-      },
-      { id: 7 },
-    );
+    await resolver.updateComment(10, { content: "updated" }, { id: 7 });
 
     expect(commentsService.updateComment).toHaveBeenCalledWith(
       10,

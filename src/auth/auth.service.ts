@@ -26,15 +26,9 @@ import { PasswordService } from "@/common/security/password.service";
 import { parseWithBadRequest } from "@/common/zod/parse-with-zod";
 import { runBestEffort } from "@/common/errors/run-best-effort";
 
-import { PrismaService } from "@/prisma.service";
+import { PrismaService } from "@/prisma/prisma.service";
 
 import { createHash, randomBytes } from "crypto";
-
-/**
- * Service for authentication workflows
- *
- * Validates credentials and issues access tokens
- */
 
 @Injectable()
 export class AuthService {
@@ -45,7 +39,6 @@ export class AuthService {
   private static readonly PASSWORD_RESET_SUCCESS_MESSAGE =
     "Password reset successful";
 
-  // Injects dependencies used by the auth workflow
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
@@ -59,7 +52,6 @@ export class AuthService {
     this.passwordResetTokenTtlMs = ttlMinutes * 60_000;
   }
 
-  // Validates credentials and returns an access token for a valid user
   async login(input: LoginCommand) {
     const credentials = this.parseLoginInput(input);
 
@@ -80,7 +72,6 @@ export class AuthService {
         throw new UnauthorizedException("Invalid credentials");
       }
 
-      // Keep legacy-hash upgrades from failing an otherwise successful login
       if (verification.upgradedHash) {
         await runBestEffort(
           this.logger,
@@ -108,7 +99,6 @@ export class AuthService {
         throw err;
       }
 
-      // Preserve already-sanitized HTTP errors instead of wrapping them again
       if (err instanceof HttpException) {
         throw err;
       }
@@ -122,7 +112,6 @@ export class AuthService {
     }
   }
 
-  // Generates and persists a single-use reset token for an existing account
   async requestPasswordReset(
     input: RequestPasswordResetCommand,
   ): Promise<MessageResponse> {
@@ -155,7 +144,6 @@ export class AuthService {
       }),
     ]);
 
-    // Keep delivery best-effort because account existence is intentionally hidden
     await runBestEffort(
       this.logger,
       "warn",
@@ -174,7 +162,6 @@ export class AuthService {
     };
   }
 
-  // Validates a reset token and updates the stored password atomically
   async resetPassword(input: ResetPasswordCommand): Promise<MessageResponse> {
     const data = this.parseResetPasswordInput(input);
     const hashedPassword = await this.passwordService.hashPassword(
@@ -245,7 +232,8 @@ export class AuthService {
     };
   }
 
-  // Parses and normalizes login input before authentication logic runs
+  // Private Helpers
+  /** Parses and normalizes login input before authentication logic runs. */
   private parseLoginInput(input: LoginCommand) {
     return parseWithBadRequest(
       loginCommandSchema,
@@ -254,7 +242,7 @@ export class AuthService {
     );
   }
 
-  // Parses and normalizes reset initiation input before persistence logic runs
+  /** Parses and normalizes reset initiation input before persistence logic runs. */
   private parseRequestPasswordResetInput(input: RequestPasswordResetCommand) {
     return parseWithBadRequest(
       requestPasswordResetCommandSchema,
@@ -263,7 +251,7 @@ export class AuthService {
     );
   }
 
-  // Parses and normalizes reset confirmation input before token validation runs
+  /** Parses and normalizes reset confirmation input before token validation runs. */
   private parseResetPasswordInput(input: ResetPasswordCommand) {
     return parseWithBadRequest(
       resetPasswordCommandSchema,
@@ -272,7 +260,7 @@ export class AuthService {
     );
   }
 
-  // Builds a high-entropy token and returns both raw and stored-safe representations
+  /** Builds a high-entropy token and returns both raw and stored-safe representations. */
   private createPasswordResetToken() {
     const raw = randomBytes(32).toString("base64url");
 
@@ -282,7 +270,7 @@ export class AuthService {
     };
   }
 
-  // Derives the stable database lookup hash for a raw password reset token
+  /** Derives the stable database lookup hash for a raw password reset token. */
   private hashPasswordResetToken(token: string): string {
     return createHash("sha256").update(token, "utf8").digest("hex");
   }

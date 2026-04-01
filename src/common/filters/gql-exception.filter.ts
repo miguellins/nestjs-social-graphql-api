@@ -8,24 +8,19 @@ import { GqlArgumentsHost, GqlExceptionFilter } from "@nestjs/graphql";
 
 import { Prisma } from "@prisma/client";
 
-/**
- * GraphQL exception filter
- *
- * Normalizes Prisma and Nest errors for API responses
- */
-
+/** Represents the normalized GraphQL-safe error payload shape. */
 type GqlErrorResponseShape = {
   message?: string | string[];
   code?: string;
   fields?: string[];
 };
 
-// Type guard to avoid 'as any'
+/** Narrows unknown values to plain object records. */
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-// Narrow HttpException.getResponse() safely
+/** Safely normalizes `HttpException.getResponse()` into the shared error shape. */
 function normalizeHttpExceptionResponse(res: unknown): GqlErrorResponseShape {
   if (typeof res === "string") return { message: res };
 
@@ -36,7 +31,6 @@ function normalizeHttpExceptionResponse(res: unknown): GqlErrorResponseShape {
   const fields = res["fields"];
 
   return {
-    // Strong narrowing instead of any
     message:
       typeof message === "string" || Array.isArray(message)
         ? message
@@ -54,14 +48,13 @@ function normalizeHttpExceptionResponse(res: unknown): GqlErrorResponseShape {
  * Normalizes Prisma and Nest exceptions into a consistent
  * client-facing error shape for GraphQL responses
  */
-
 @Catch()
 export class GlobalGqlExceptionFilter implements GqlExceptionFilter {
   catch(exception: unknown, host: ArgumentsHost) {
-    // ensures GraphQL context is correctly extracted (not required, but standard)
+    /** Ensures the GraphQL host context is initialized for this exception path. */
     GqlArgumentsHost.create(host);
 
-    // Prisma known errors
+    /** Maps known Prisma request errors to sanitized GraphQL-safe HTTP exceptions. */
     if (exception instanceof Prisma.PrismaClientKnownRequestError) {
       if (exception.code === "P2002") {
         const fields = (exception.meta?.target as string[] | undefined) ?? [];
@@ -76,7 +69,6 @@ export class GlobalGqlExceptionFilter implements GqlExceptionFilter {
       }
 
       if (exception.code === "P2003") {
-        // foreign key fails (like authorId invalid)
         return new HttpException(
           { message: "Invalid reference", code: "FOREIGN_KEY" },
           HttpStatus.BAD_REQUEST,
@@ -96,16 +88,13 @@ export class GlobalGqlExceptionFilter implements GqlExceptionFilter {
       );
     }
 
-    // Normal Nest HTTP exceptions (BadRequest, Forbidden, NotFound, etc)
     if (exception instanceof HttpException) {
       const status = exception.getStatus();
 
-      // Remove `as any` and safely normalize the response
       const normalized = normalizeHttpExceptionResponse(
         exception.getResponse(),
       );
 
-      // Message extraction now type-safe
       const message =
         typeof normalized.message === "string"
           ? normalized.message
@@ -113,7 +102,6 @@ export class GlobalGqlExceptionFilter implements GqlExceptionFilter {
             ? normalized.message[0]
             : "Request error";
 
-      // Code selection uses typed normalized.code
       const code =
         normalized.code ??
         (status === 400
@@ -126,13 +114,11 @@ export class GlobalGqlExceptionFilter implements GqlExceptionFilter {
                 ? "NOT_FOUND"
                 : "ERROR");
 
-      // Fields are already validated as string[]
       const fields = normalized.fields;
 
       return new HttpException({ message, code, fields }, status);
     }
 
-    // Unknown errors
     return new HttpException(
       { message: "Internal server error", code: "INTERNAL_SERVER_ERROR" },
       HttpStatus.INTERNAL_SERVER_ERROR,

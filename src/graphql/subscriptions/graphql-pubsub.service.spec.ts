@@ -78,9 +78,11 @@ describe("GraphqlPubSubService", () => {
       PubSubRedisOptions,
     ][];
     const options = calls[0]?.[0];
+    const triggerTransform = options?.triggerTransform;
 
     expect(options).toBeDefined();
-    expect(options?.triggerTransform("notificationReceived")).toBe(
+    expect(triggerTransform).toBeDefined();
+    expect(triggerTransform!("notificationReceived")).toBe(
       "graphql-subscriptions:notificationReceived",
     );
   });

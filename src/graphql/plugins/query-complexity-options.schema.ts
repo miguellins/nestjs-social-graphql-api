@@ -1,12 +1,6 @@
 import { z } from "zod";
 
-/**
- * Zod schema for query complexity options
- *
- * Validates plugin configuration from the environment
- */
-
-// Parses boolean complexity options from string input
+/** Parses boolean complexity options from string input. */
 const booleanFromEnv = z.preprocess((value) => {
   if (typeof value !== "string") return value;
 
@@ -18,9 +12,10 @@ const booleanFromEnv = z.preprocess((value) => {
   return value;
 }, z.boolean());
 
-// Parses positive integer complexity options from string input
+/** Parses positive integer complexity options from string input. */
 const positiveIntFromEnv = z.coerce.number().int().positive();
 
+/** Zod schema for validating query complexity environment options. */
 export const queryComplexityOptionsSchema = z.object({
   GRAPHQL_COMPLEXITY_ENFORCE: booleanFromEnv.default(false),
   GRAPHQL_COMPLEXITY_LOG: booleanFromEnv.default(true),

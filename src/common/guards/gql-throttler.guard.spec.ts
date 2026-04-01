@@ -2,7 +2,7 @@ import { GqlExecutionContext } from "@nestjs/graphql";
 
 import { ExecutionContext } from "@nestjs/common";
 
-import { GqlThrottlerGuard } from "./qgl-throttler.guard";
+import { GqlThrottlerGuard } from "./gql-throttler.guard";
 
 import type { Request, Response } from "express";
 

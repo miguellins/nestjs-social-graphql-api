@@ -4,13 +4,7 @@ import { Logger } from "@nestjs/common";
 import { subscriptionConnectionParamsSchema } from "@/graphql/subscriptions/schemas/subscription-connection-params.schema";
 import type { SubscriptionExtra } from "@/graphql/config/graphql-context.types";
 
-/**
- * GraphQL subscriptions configuration
- *
- * Authenticates and builds the subscription context
- */
-
-// Builds the GraphQL websocket transport configuration
+/** Builds the GraphQL websocket transport configuration. */
 export function createGraphqlSubscriptionsConfig(jwtService: JwtService) {
   const logger = new Logger("GraphQLModule");
 
