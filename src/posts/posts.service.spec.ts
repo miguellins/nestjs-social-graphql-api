@@ -13,8 +13,10 @@ import { ChronologicalOrder } from "@/common/enums/chronological-order.enum";
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
 
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
+import { encodeChronoCursor } from "@/common/pagination/chrono-cursor";
 
 import { MediaReadProjectionService } from "@/media/media-read-projection.service";
+import { CreatedPostSelect } from "@/posts/dto/created-post.dto";
 import { SafePostDetailSelect } from "@/posts/dto/safe-post-detail.dto";
 
 import { SafePostListSelect } from "@/posts/dto/safe-post-list.dto";
@@ -34,6 +36,19 @@ describe("PostsService", () => {
   let moduleRef: TestingModule;
   const maxContent = "a".repeat(2000);
   const tooLongContent = "a".repeat(2001);
+  const makeListPost = (id: number) => ({
+    id,
+    title: `Title ${id}`,
+    content: `Content ${id}`,
+    createdAt: new Date(`2026-04-0${id}T00:00:00.000Z`),
+    likesCount: id,
+    commentsCount: id + 1,
+    author: {
+      id,
+      name: `User ${id}`,
+      username: `user${id}`,
+    },
+  });
 
   const prismaMock: {
     post: {
@@ -131,69 +146,87 @@ describe("PostsService", () => {
   });
 
   describe("findPosts", () => {
-    it("caps take, normalizes search, uses cache key with version + take + search, and queries prisma correctly", async () => {
+    it("caps first, normalizes search, uses cursor-aware cache keys, and queries prisma correctly", async () => {
       cacheMock.getVersion.mockResolvedValue(5);
-      prismaMock.post.findMany.mockResolvedValue([{ id: 1 }]);
+      const rows = [makeListPost(3), makeListPost(2), makeListPost(1)];
+      prismaMock.post.findMany.mockResolvedValue(rows);
+      const after = encodeChronoCursor({
+        createdAt: new Date("2026-04-10T00:00:00.000Z"),
+        id: 999,
+      });
 
       const params = {
-        take: PAGINATION.MAX_TAKE + 999,
+        first: PAGINATION.MAX_TAKE + 999,
+        after,
         q: "  HeLLo  ",
       };
       const res = await service.findPosts(params);
 
-      const expectedTake = PAGINATION.MAX_TAKE;
+      const expectedFirst = PAGINATION.MAX_TAKE;
       const expectedSearch = "hello";
+      const decodedAfter = new Date("2026-04-10T00:00:00.000Z");
 
       expect(cacheMock.getVersion).toHaveBeenCalledWith("v:posts:list");
       expect(cacheMock.getOrSet).toHaveBeenCalledWith(
-        `posts:list:v5:${expectedTake}:${expectedSearch}:order=${ChronologicalOrder.NEWEST}`,
+        `posts:list:v5:first=${expectedFirst}:after=${after}:q=${expectedSearch}:order=${ChronologicalOrder.NEWEST}`,
         expect.any(Function),
         30_000,
       );
 
       expect(prismaMock.post.findMany).toHaveBeenCalledWith({
-        take: expectedTake,
+        take: expectedFirst + 1,
         where: {
-          OR: [
-            { title: { contains: expectedSearch } },
-            { content: { contains: expectedSearch } },
+          AND: [
+            {
+              OR: [
+                { title: { contains: expectedSearch } },
+                { content: { contains: expectedSearch } },
+              ],
+            },
+            {
+              OR: [
+                { createdAt: { lt: decodedAfter } },
+                { createdAt: decodedAfter, id: { lt: 999 } },
+              ],
+            },
           ],
         },
-        orderBy: { createdAt: "desc" },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         select: SafePostListSelect,
       });
 
-      expect(res).toEqual([{ id: 1 }]);
+      expect(res.items).toEqual(rows);
+      expect(res.pageInfo.hasNextPage).toBe(false);
+      expect(res.pageInfo.endCursor).toBeDefined();
     });
 
-    it("uses defaults and omits where when no search", async () => {
+    it("uses defaults and returns a cursor page when no search is provided", async () => {
       cacheMock.getVersion.mockResolvedValue(1);
       prismaMock.post.findMany.mockResolvedValue([]);
 
       await service.findPosts(undefined);
 
       expect(cacheMock.getOrSet).toHaveBeenCalledWith(
-        `posts:list:v1:${PAGINATION.DEFAULT_TAKE}:all:order=${ChronologicalOrder.NEWEST}`,
+        `posts:list:v1:first=${PAGINATION.DEFAULT_TAKE}:after=none:q=all:order=${ChronologicalOrder.NEWEST}`,
         expect.any(Function),
         30_000,
       );
 
       expect(prismaMock.post.findMany).toHaveBeenCalledWith({
-        take: PAGINATION.DEFAULT_TAKE,
+        take: PAGINATION.DEFAULT_TAKE + 1,
         where: undefined,
-        orderBy: { createdAt: "desc" },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         select: SafePostListSelect,
       });
     });
 
-    // ✅ NEW: cache hit behavior (factory not called)
-    it("returns cached value on cache hit (does not call prisma)", async () => {
+    it("returns cached page value on cache hit without calling prisma", async () => {
       cacheMock.getVersion.mockResolvedValue(1);
+      const rows = [makeListPost(1)];
 
-      prismaMock.post.findMany.mockResolvedValue([{ id: 123 }]);
+      prismaMock.post.findMany.mockResolvedValue(rows);
 
-      // prime cache
-      const params = { take: 1, q: "hi" };
+      const params = { first: 1, q: "hi" };
       await service.findPosts(params);
 
       prismaMock.post.findMany.mockClear();
@@ -201,18 +234,63 @@ describe("PostsService", () => {
       const res = await service.findPosts(params);
 
       expect(prismaMock.post.findMany).not.toHaveBeenCalled();
-      expect(res).toEqual([{ id: 123 }]);
+      expect(res.items).toEqual(rows);
+    });
+
+    it("throws BadRequestException for an invalid cursor", async () => {
+      await expect(
+        service.findPosts({ first: 5, after: "%%%invalid%%%" }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      expect(cacheMock.getVersion).not.toHaveBeenCalled();
+      expect(prismaMock.post.findMany).not.toHaveBeenCalled();
+    });
+
+    it("uses ascending tie-breaker filtering for OLDEST cursor pagination", async () => {
+      cacheMock.getVersion.mockResolvedValue(6);
+      prismaMock.post.findMany.mockResolvedValue([]);
+      const after = encodeChronoCursor({
+        createdAt: new Date("2026-04-10T00:00:00.000Z"),
+        id: 999,
+      });
+
+      await service.findPosts({
+        first: 5,
+        after,
+        orderBy: ChronologicalOrder.OLDEST,
+      });
+
+      expect(prismaMock.post.findMany).toHaveBeenCalledWith({
+        take: 6,
+        where: {
+          OR: [
+            { createdAt: { gt: new Date("2026-04-10T00:00:00.000Z") } },
+            {
+              createdAt: new Date("2026-04-10T00:00:00.000Z"),
+              id: { gt: 999 },
+            },
+          ],
+        },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        select: SafePostListSelect,
+      });
     });
   });
 
   describe("findPostsByUsername", () => {
-    it("normalizes username, caches timeline by author id, and returns posts", async () => {
+    it("normalizes username, caches timeline by author id, and returns a page of posts", async () => {
       cacheMock.getVersion.mockResolvedValue(4);
       prismaMock.user.findUnique.mockResolvedValue({ id: 7 });
-      prismaMock.post.findMany.mockResolvedValue([{ id: 1 }]);
+      const rows = [makeListPost(3), makeListPost(2), makeListPost(1)];
+      prismaMock.post.findMany.mockResolvedValue(rows);
+      const after = encodeChronoCursor({
+        createdAt: new Date("2026-04-10T00:00:00.000Z"),
+        id: 999,
+      });
 
       const res = await service.findPostsByUsername("  TeSter  ", {
-        take: PAGINATION.MAX_TAKE + 99,
+        first: PAGINATION.MAX_TAKE + 99,
+        after,
       });
 
       expect(prismaMock.user.findUnique).toHaveBeenCalledWith({
@@ -226,17 +304,31 @@ describe("PostsService", () => {
       );
       expect(cacheMock.getVersion).toHaveBeenCalledWith("v:user:7:posts:list");
       expect(cacheMock.getOrSet).toHaveBeenCalledWith(
-        `user:7:posts:list:v4:take=${PAGINATION.MAX_TAKE}:order=${ChronologicalOrder.NEWEST}`,
+        `user:7:posts:list:v4:first=${PAGINATION.MAX_TAKE}:after=${after}:order=${ChronologicalOrder.NEWEST}`,
         expect.any(Function),
         30_000,
       );
       expect(prismaMock.post.findMany).toHaveBeenCalledWith({
-        take: PAGINATION.MAX_TAKE,
-        where: { authorId: 7 },
-        orderBy: { createdAt: "desc" },
+        take: PAGINATION.MAX_TAKE + 1,
+        where: {
+          AND: [
+            { authorId: 7 },
+            {
+              OR: [
+                { createdAt: { lt: new Date("2026-04-10T00:00:00.000Z") } },
+                {
+                  createdAt: new Date("2026-04-10T00:00:00.000Z"),
+                  id: { lt: 999 },
+                },
+              ],
+            },
+          ],
+        },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         select: SafePostListSelect,
       });
-      expect(res).toEqual([{ id: 1 }]);
+      expect(res.items).toEqual(rows);
+      expect(res.pageInfo.hasNextPage).toBe(false);
     });
 
     it("uses cached username lookup id when available", async () => {
@@ -265,7 +357,159 @@ describe("PostsService", () => {
       cacheMock.getVersion.mockResolvedValue(1);
       prismaMock.post.findMany.mockResolvedValue([]);
 
-      await expect(service.findPostsByUsername("tester")).resolves.toEqual([]);
+      await expect(service.findPostsByUsername("tester")).resolves.toEqual({
+        items: [],
+        pageInfo: {
+          endCursor: null,
+          hasNextPage: false,
+        },
+      });
+    });
+
+    it("throws BadRequestException when username timeline cursor is invalid", async () => {
+      await expect(
+        service.findPostsByUsername("tester", {
+          first: 5,
+          after: "%%%invalid%%%",
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      expect(prismaMock.post.findMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("myFeed", () => {
+    it("returns a cursor page for the current user's feed with deterministic ordering", async () => {
+      const rows = [makeListPost(3), makeListPost(2), makeListPost(1)];
+      prismaMock.post.findMany.mockResolvedValue(rows);
+
+      const result = await service.myFeed(7, { first: 5 });
+
+      expect(prismaMock.post.findMany).toHaveBeenCalledWith({
+        where: {
+          AND: [
+            {
+              OR: [
+                { authorId: 7 },
+                {
+                  author: {
+                    followers: {
+                      some: {
+                        followerId: 7,
+                      },
+                    },
+                  },
+                },
+              ],
+            },
+          ],
+        },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take: 6,
+        select: SafePostListSelect,
+      });
+
+      expect(result.items).toEqual(rows);
+      expect(result.pageInfo.hasNextPage).toBe(false);
+      expect(result.pageInfo.endCursor).toBeDefined();
+    });
+
+    it("applies the feed cursor filter", async () => {
+      prismaMock.post.findMany.mockResolvedValue([]);
+      const after = encodeChronoCursor({
+        createdAt: new Date("2026-04-10T00:00:00.000Z"),
+        id: 999,
+      });
+
+      await service.myFeed(7, { first: 5, after });
+
+      expect(prismaMock.post.findMany).toHaveBeenCalledWith({
+        where: {
+          AND: [
+            {
+              OR: [
+                { authorId: 7 },
+                {
+                  author: {
+                    followers: {
+                      some: {
+                        followerId: 7,
+                      },
+                    },
+                  },
+                },
+              ],
+            },
+            {
+              OR: [
+                { createdAt: { lt: new Date("2026-04-10T00:00:00.000Z") } },
+                {
+                  createdAt: new Date("2026-04-10T00:00:00.000Z"),
+                  id: { lt: 999 },
+                },
+              ],
+            },
+          ],
+        },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take: 6,
+        select: SafePostListSelect,
+      });
+    });
+
+    it("throws BadRequestException for an invalid feed cursor", async () => {
+      await expect(
+        service.myFeed(7, { first: 5, after: "%%%invalid%%%" }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      expect(prismaMock.post.findMany).not.toHaveBeenCalled();
+    });
+
+    it("uses ascending tie-breaker filtering for OLDEST feed pagination", async () => {
+      prismaMock.post.findMany.mockResolvedValue([]);
+      const after = encodeChronoCursor({
+        createdAt: new Date("2026-04-10T00:00:00.000Z"),
+        id: 999,
+      });
+
+      await service.myFeed(7, {
+        first: 5,
+        after,
+        orderBy: ChronologicalOrder.OLDEST,
+      });
+
+      expect(prismaMock.post.findMany).toHaveBeenCalledWith({
+        where: {
+          AND: [
+            {
+              OR: [
+                { authorId: 7 },
+                {
+                  author: {
+                    followers: {
+                      some: {
+                        followerId: 7,
+                      },
+                    },
+                  },
+                },
+              ],
+            },
+            {
+              OR: [
+                { createdAt: { gt: new Date("2026-04-10T00:00:00.000Z") } },
+                {
+                  createdAt: new Date("2026-04-10T00:00:00.000Z"),
+                  id: { gt: 999 },
+                },
+              ],
+            },
+          ],
+        },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        take: 6,
+        select: SafePostListSelect,
+      });
     });
   });
 
@@ -394,7 +638,12 @@ describe("PostsService", () => {
         id: 1,
         title: "Test",
         content: "Content",
-        editedAt: null,
+        createdAt: new Date("2026-04-06T00:00:00.000Z"),
+        author: {
+          id: 7,
+          name: "User 7",
+          username: "user7",
+        },
       };
       prismaMock.post.create.mockResolvedValue(created);
 
@@ -410,7 +659,7 @@ describe("PostsService", () => {
           content: "Content",
           author: { connect: { id: 7 } },
         },
-        select: SafePostListSelect,
+        select: CreatedPostSelect,
       });
 
       expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:posts:list");
@@ -426,7 +675,12 @@ describe("PostsService", () => {
         id: 1,
         title: null,
         content: "Content",
-        editedAt: null,
+        createdAt: new Date("2026-04-06T00:00:00.000Z"),
+        author: {
+          id: 7,
+          name: "User 7",
+          username: "user7",
+        },
       };
       prismaMock.post.create.mockResolvedValue(created);
 
@@ -439,7 +693,7 @@ describe("PostsService", () => {
           content: "Content",
           author: { connect: { id: 7 } },
         },
-        select: SafePostListSelect,
+        select: CreatedPostSelect,
       });
     });
 
@@ -448,7 +702,12 @@ describe("PostsService", () => {
         id: 1,
         title: "Test",
         content: maxContent,
-        editedAt: null,
+        createdAt: new Date("2026-04-06T00:00:00.000Z"),
+        author: {
+          id: 1,
+          name: "User 1",
+          username: "user1",
+        },
       };
       prismaMock.post.create.mockResolvedValue(created);
 
@@ -462,7 +721,7 @@ describe("PostsService", () => {
           content: maxContent,
           author: { connect: { id: 1 } },
         },
-        select: SafePostListSelect,
+        select: CreatedPostSelect,
       });
     });
 
@@ -471,7 +730,12 @@ describe("PostsService", () => {
         id: 1,
         title: "Test",
         content: "Content",
-        editedAt: null,
+        createdAt: new Date("2026-04-06T00:00:00.000Z"),
+        author: {
+          id: 1,
+          name: "User 1",
+          username: "user1",
+        },
       };
       prismaMock.post.create.mockResolvedValue(created);
 

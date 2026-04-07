@@ -4,6 +4,7 @@ import { FormattedDateTimeField } from "@/graphql/fields/formatted-date-time-fie
 
 import { SafeUserPreview } from "@/users/models/safe-user-preview.model";
 
+/** Public-safe comment representation used in comment queries and nested post detail views. */
 @ObjectType("SafeCommentDTO")
 export class Comment {
   /** Unique identifier of the comment. */
@@ -11,6 +12,7 @@ export class Comment {
   id: number;
 
   /** Comment content visible to clients. */
+  @Field()
   content: string;
 
   /** Timestamp indicating when the comment was created. */

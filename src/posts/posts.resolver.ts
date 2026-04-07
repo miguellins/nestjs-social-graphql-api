@@ -1,17 +1,19 @@
 import { Args, Int, Mutation, Query, Resolver } from "@nestjs/graphql";
 import { Throttle } from "@nestjs/throttler";
 
+import { CursorPaginationArgs } from "@/common/args/cursor-pagination.args";
 import { CurrentUser } from "@/common/decorators/current-user.decorator";
 import { THROTTLE_LIMITS } from "@/common/constants/throttle.constants";
 import { MessageResponse } from "@/common/types/message-response.type";
-import { PaginationArgs } from "@/common/args/pagination.args";
 import { Public } from "@/common/decorators/auth.decorator";
 
 import { FindPostsByUsernameArgs } from "@/posts/args/find-posts-by-username.args";
+import { CreatedPost } from "@/posts/models/created-post.model";
 import { CreatePostInput } from "@/posts/dto/create-post.input";
 import { UpdatePostInput } from "@/posts/dto/update-post.input";
 import { PostDetail } from "@/posts/models/post-detail.model";
 import { FindPostsArgs } from "@/posts/args/find-posts.args";
+import { PostPage } from "@/posts/models/post-page.model";
 import { PostsService } from "@/posts/posts.service";
 import { Post } from "@/posts/models/post.model";
 
@@ -21,8 +23,8 @@ export class PostsResolver {
 
   @Public()
   @Throttle({ default: THROTTLE_LIMITS.LIST })
-  @Query(() => [Post], { name: "posts" })
-  async posts(@Args() args: FindPostsArgs): Promise<Post[]> {
+  @Query(() => PostPage, { name: "posts" })
+  async posts(@Args() args: FindPostsArgs): Promise<PostPage> {
     return this.postsService.findPosts(args);
   }
 
@@ -37,28 +39,28 @@ export class PostsResolver {
 
   @Public()
   @Throttle({ default: THROTTLE_LIMITS.LIST })
-  @Query(() => [Post], { name: "postsByUsername" })
+  @Query(() => PostPage, { name: "postsByUsername" })
   async postsByUsername(
     @Args() args: FindPostsByUsernameArgs,
-  ): Promise<Post[]> {
+  ): Promise<PostPage> {
     return this.postsService.findPostsByUsername(args.username, args);
   }
 
   @Throttle({ default: THROTTLE_LIMITS.LIST })
-  @Query(() => [Post], { name: "myFeed" })
+  @Query(() => PostPage, { name: "myFeed" })
   async myFeed(
     @CurrentUser() user: { id: number },
-    @Args() args: PaginationArgs,
-  ): Promise<Post[]> {
+    @Args() args: CursorPaginationArgs,
+  ): Promise<PostPage> {
     return this.postsService.myFeed(user.id, args);
   }
 
   @Throttle({ default: THROTTLE_LIMITS.MUTATION })
-  @Mutation(() => Post, { name: "createPost" })
+  @Mutation(() => CreatedPost, { name: "createPost" })
   async createPost(
     @Args("input") input: CreatePostInput,
     @CurrentUser() user: { id: number },
-  ): Promise<Post> {
+  ): Promise<CreatedPost> {
     return this.postsService.createPost(input, user.id);
   }
 

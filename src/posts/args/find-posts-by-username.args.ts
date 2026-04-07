@@ -8,8 +8,8 @@ import {
   MinLength,
 } from "class-validator";
 
+import { CursorPaginationArgs } from "@/common/args/cursor-pagination.args";
 import { Normalize } from "@/common/transformer/normalize.transformer";
-import { PaginationArgs } from "@/common/args/pagination.args";
 
 import {
   USERNAME_REGEX,
@@ -17,7 +17,7 @@ import {
 } from "@/users/constants/username.constants";
 
 @ArgsType()
-export class FindPostsByUsernameArgs extends PaginationArgs {
+export class FindPostsByUsernameArgs extends CursorPaginationArgs {
   /** Public username used to identify the post author timeline. */
   @Field(() => String)
   @Normalize()

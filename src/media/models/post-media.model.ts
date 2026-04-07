@@ -10,6 +10,7 @@ import { FormattedDateTimeField } from "@/graphql/fields/formatted-date-time-fie
 
 import { Media } from "@/media/models/media.model";
 
+/** Post attachment object that links a media item to a post with ordering metadata. */
 @ObjectType()
 export class PostMedia {
   /** Unique identifier of the post-media attachment relation. */

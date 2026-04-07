@@ -15,6 +15,7 @@ import { ChronologicalOrder } from "@/common/enums/chronological-order.enum";
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
 
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
+import { encodeChronoCursor } from "@/common/pagination/chrono-cursor";
 
 import { SafeFollowSelect } from "@/follows/dto/safe-follow.dto";
 
@@ -27,6 +28,22 @@ import { FollowsService } from "./follows.service";
 describe("FollowsService", () => {
   let service: FollowsService;
   let moduleRef: TestingModule;
+  const makeFollow = (id: number) => ({
+    id,
+    createdAt: new Date(`2026-04-0${id}T00:00:00.000Z`),
+    followerId: id,
+    followingId: id + 10,
+    follower: {
+      id,
+      name: `Follower ${id}`,
+      username: `follower${id}`,
+    },
+    following: {
+      id: id + 10,
+      name: `Following ${id}`,
+      username: `following${id}`,
+    },
+  });
 
   const prismaMock: {
     follow: {
@@ -96,44 +113,97 @@ describe("FollowsService", () => {
   });
 
   describe("findFollows", () => {
-    it("uses cache key with version + take (capped) and queries prisma with SafeFollowSelect", async () => {
+    it("uses a cursor-aware cache key and queries prisma with SafeFollowSelect", async () => {
       cacheMock.getVersion.mockResolvedValue(3);
 
-      prismaMock.follow.findMany.mockResolvedValue([
-        { id: 10, followerId: 1, followingId: 2 },
-      ]);
+      const rows = [makeFollow(3), makeFollow(2), makeFollow(1)];
+      prismaMock.follow.findMany.mockResolvedValue(rows);
+      const after = encodeChronoCursor({
+        createdAt: new Date("2026-04-10T00:00:00.000Z"),
+        id: 999,
+      });
 
       const res = await service.findFollows({
-        take: PAGINATION.MAX_TAKE + 999,
+        first: PAGINATION.MAX_TAKE + 999,
+        after,
       });
 
       const expectedTake = PAGINATION.MAX_TAKE;
       expect(cacheMock.getVersion).toHaveBeenCalledWith("v:follows:list");
 
       expect(cacheMock.getOrSet).toHaveBeenCalledWith(
-        `follows:list:v3:${expectedTake}:order=${ChronologicalOrder.NEWEST}`,
+        `follows:list:v3:first=${expectedTake}:after=${after}:order=${ChronologicalOrder.NEWEST}`,
         expect.any(Function),
         30_000,
       );
 
       expect(prismaMock.follow.findMany).toHaveBeenCalledWith({
-        take: expectedTake,
-        orderBy: { createdAt: "desc" },
+        take: expectedTake + 1,
+        where: {
+          OR: [
+            { createdAt: { lt: new Date("2026-04-10T00:00:00.000Z") } },
+            {
+              createdAt: new Date("2026-04-10T00:00:00.000Z"),
+              id: { lt: 999 },
+            },
+          ],
+        },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         select: SafeFollowSelect,
       });
 
-      expect(res).toEqual([{ id: 10, followerId: 1, followingId: 2 }]);
+      expect(res.items).toEqual(rows);
+      expect(res.pageInfo.hasNextPage).toBe(false);
     });
 
-    it("defaults take to PAGINATION.DEFAULT_TAKE", async () => {
+    it("defaults first to PAGINATION.DEFAULT_TAKE", async () => {
       cacheMock.getVersion.mockResolvedValue(1);
       prismaMock.follow.findMany.mockResolvedValue([]);
 
       await service.findFollows();
 
       expect(prismaMock.follow.findMany).toHaveBeenCalledWith({
-        take: PAGINATION.DEFAULT_TAKE,
-        orderBy: { createdAt: "desc" },
+        take: PAGINATION.DEFAULT_TAKE + 1,
+        where: undefined,
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        select: SafeFollowSelect,
+      });
+    });
+
+    it("throws BadRequestException for an invalid cursor", async () => {
+      await expect(
+        service.findFollows({ first: 5, after: "%%%invalid%%%" }),
+      ).rejects.toThrow("Invalid cursor");
+
+      expect(prismaMock.follow.findMany).not.toHaveBeenCalled();
+    });
+
+    it("uses ascending tie-breaker filtering for OLDEST follow pagination", async () => {
+      cacheMock.getVersion.mockResolvedValue(4);
+      prismaMock.follow.findMany.mockResolvedValue([]);
+      const after = encodeChronoCursor({
+        createdAt: new Date("2026-04-10T00:00:00.000Z"),
+        id: 999,
+      });
+
+      await service.findFollows({
+        first: 5,
+        after,
+        orderBy: ChronologicalOrder.OLDEST,
+      });
+
+      expect(prismaMock.follow.findMany).toHaveBeenCalledWith({
+        take: 6,
+        where: {
+          OR: [
+            { createdAt: { gt: new Date("2026-04-10T00:00:00.000Z") } },
+            {
+              createdAt: new Date("2026-04-10T00:00:00.000Z"),
+              id: { gt: 999 },
+            },
+          ],
+        },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         select: SafeFollowSelect,
       });
     });

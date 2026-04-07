@@ -65,16 +65,23 @@ model User {
    * Media uploaded and owned by this user
    */
   media Media[]
+
+  /**
+   * Compound index on createdAt + id descending
+   * Improves cursor-pagination queries for the public users list
+   * ordered by newest first with deterministic id tie-breaking.
+   */
+  @@index([createdAt(sort: Desc), id(sort: Desc)])
 }
 
 model Post {
-  id      Int    @id @default(autoincrement())
+  id      Int     @id @default(autoincrement())
   title   String?
   content String
 
   // Timestamps
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
   editedAt  DateTime?
 
   // Stores the ID of the author (User)
@@ -143,6 +150,17 @@ model Post {
    * - ordered by newest first
    */
   @@index([authorId, createdAt(sort: Desc)])
+  /**
+   * Compound index on createdAt + id descending
+   * Improves cursor-pagination queries for public post timelines
+   * ordered by newest first with deterministic id tie-breaking.
+   */
+  @@index([createdAt(sort: Desc), id(sort: Desc)])
+  /**
+   * Compound index on authorId + createdAt + id descending
+   * Improves author-scoped timelines with cursor-pagination tie-breaking.
+   */
+  @@index([authorId, createdAt(sort: Desc), id(sort: Desc)])
 }
 
 model Comment {
@@ -199,6 +217,11 @@ model Comment {
    * - ordered by newest first
    */
   @@index([postId, createdAt(sort: Desc)])
+  /**
+   * Compound index on postId + createdAt + id descending
+   * Improves cursor-pagination for post comments with deterministic id tie-breaking.
+   */
+  @@index([postId, createdAt(sort: Desc), id(sort: Desc)])
 }
 
 model Follow {
@@ -230,6 +253,8 @@ model Follow {
   @@index([followerId])
   // "who follows this user?"
   @@index([followingId])
+  // Improves public follow-list cursor pagination ordered by newest first
+  @@index([createdAt(sort: Desc), id(sort: Desc)])
 }
 
 model Like {
@@ -269,6 +294,12 @@ model Like {
   @@index([postId])
   // "what posts did this user likes?"
   @@index([userId])
+  // Improves public like-list cursor pagination ordered by newest first
+  @@index([createdAt(sort: Desc), id(sort: Desc)])
+  // Improves post-scoped like cursor pagination with deterministic tie-breaking
+  @@index([postId, createdAt(sort: Desc), id(sort: Desc)])
+  // Improves user-scoped like cursor pagination with deterministic tie-breaking
+  @@index([userId, createdAt(sort: Desc), id(sort: Desc)])
 }
 
 enum NotificationType {
@@ -331,15 +362,17 @@ model Notification {
    * Optimizes the common query: "fetch unread notifications for a user, ordered by date"
    */
   @@index([recipientId, isRead, createdAt])
+  @@index([recipientId, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([recipientId, isRead, createdAt(sort: Desc), id(sort: Desc)])
 }
 
 model PasswordResetToken {
-  id        Int      @id @default(autoincrement())
+  id        Int       @id @default(autoincrement())
   userId    Int
-  tokenHash String   @unique
+  tokenHash String    @unique
   expiresAt DateTime
   usedAt    DateTime?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   /**
    * Relation to User
@@ -413,6 +446,7 @@ model Media {
   postAttachments PostMedia[]
 
   @@index([ownerId, createdAt(sort: Desc)])
+  @@index([ownerId, createdAt(sort: Desc), id(sort: Desc)])
   @@index([status, expiresAt])
   @@index([type, status])
 }

@@ -9,13 +9,19 @@ import {
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
 import { MessageResponse } from "@/common/types/message-response.type";
 import { PasswordService } from "@/common/security/password.service";
-import { PAGINATION } from "@/common/constants/hard-cap.constants";
+import { decodeChronoCursor } from "@/common/pagination/chrono-cursor";
 import { parseWithBadRequest } from "@/common/zod/parse-with-zod";
 import { runBestEffort } from "@/common/errors/run-best-effort";
 import {
   ChronologicalOrder,
   toSortDirection,
 } from "@/common/enums/chronological-order.enum";
+import {
+  buildChronologicalCursorFilter,
+  buildCursorPage,
+  normalizeCursorTake,
+  type CursorPageResult,
+} from "@/common/pagination/cursor-pagination";
 
 import { SafeUserSelect, type SafeUserDTO } from "@/users/dto/safe-user.dto";
 import { UserCacheService } from "@/users/user-cache.service";
@@ -29,27 +35,24 @@ import {
   getUserByUsernameCommandSchema,
   type GetUserByUsernameCommand,
 } from "@/users/schemas/user-read.schema";
+import {
+  CreatedUserSelect,
+  type CreatedUserDTO,
+} from "@/users/dto/created-user.dto";
 
 import { PrismaService } from "@/prisma/prisma.service";
 import { Prisma } from "@prisma/client";
 
-/**
- * Service for user workflows
- *
- * Creates, reads, updates, and deletes user accounts
- */
-
 type PaginationParams = {
-  take?: number;
+  after?: string;
+  first?: number;
   orderBy?: ChronologicalOrder;
 };
 
 @Injectable()
 export class UsersService {
-  // Logger for UsersService domain errors and best-effort operations
   private readonly logger = new Logger(UsersService.name);
 
-  // Injects the services used by user workflows
   constructor(
     private readonly prisma: PrismaService,
     private readonly cacheHelper: CacheHelperService,
@@ -58,33 +61,35 @@ export class UsersService {
   ) {}
 
   // Lists users with bounded pagination and cache support
-  async findUsers(params?: PaginationParams): Promise<SafeUserDTO[]> {
-    const limit = Math.min(
-      params?.take ?? PAGINATION.DEFAULT_TAKE,
-      PAGINATION.MAX_TAKE,
-    );
-
+  async findUsers(
+    params?: PaginationParams,
+  ): Promise<CursorPageResult<SafeUserDTO>> {
+    const limit = normalizeCursorTake(params?.first);
     const orderby = params?.orderBy ?? ChronologicalOrder.NEWEST;
+    const cursor = params?.after ? decodeChronoCursor(params.after) : undefined;
+    const cursorFilter = buildChronologicalCursorFilter(cursor, orderby);
 
     // Fetch the current cache version for the user list (used for cache invalidation)
     const v = await this.cacheHelper.getVersion("v:user:list");
 
     // Build a versioned cache key scoped to the current pagination params
-    const cacheKey = `user:list:v=${v}:take=${limit}:order=${orderby}`;
+    const cacheKey = `user:list:v=${v}:first=${limit}:after=${params?.after ?? "none"}:order=${orderby}`;
 
     // Return cached if present, otherwise query DB
     return this.cacheHelper.getOrSet(
       cacheKey,
       async () => {
-        return this.prisma.user.findMany({
-          take: limit,
-
-          orderBy: {
-            createdAt: toSortDirection(orderby),
-          },
-
+        const rows = await this.prisma.user.findMany({
+          take: limit + 1,
+          where: cursorFilter,
+          orderBy: [
+            { createdAt: toSortDirection(orderby) },
+            { id: toSortDirection(orderby) },
+          ],
           select: SafeUserSelect,
         });
+
+        return buildCursorPage(rows, limit);
       },
       60_000,
     );
@@ -146,12 +151,12 @@ export class UsersService {
   }
 
   // Creates a new user with a hashed password
-  async createUser(input: CreateUserCommand): Promise<SafeUserDTO> {
+  async createUser(input: CreateUserCommand): Promise<CreatedUserDTO> {
     const data = this.parseCreateUserInput(input);
     const passwordHash = await this.passwordService.hashPassword(data.password);
 
     // Store the created user outside the try block so cache refresh can reuse it
-    let user: SafeUserDTO;
+    let user: CreatedUserDTO;
 
     try {
       user = await this.prisma.user.create({
@@ -162,7 +167,7 @@ export class UsersService {
           password: passwordHash,
         },
 
-        select: SafeUserSelect,
+        select: CreatedUserSelect,
       });
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError) {

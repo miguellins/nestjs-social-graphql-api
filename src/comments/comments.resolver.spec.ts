@@ -3,22 +3,27 @@ import { ChronologicalOrder } from "@/common/enums/chronological-order.enum";
 import { CommentsResolver } from "./comments.resolver";
 
 describe("CommentsResolver", () => {
-  it("forwards orderBy to the service for commentsByPost", async () => {
+  it("forwards cursor pagination args to the service for commentsByPost", async () => {
     const commentsService = {
-      findCommentsByPost: jest.fn().mockResolvedValue([]),
+      findCommentsByPost: jest.fn().mockResolvedValue({
+        items: [],
+        pageInfo: { endCursor: null, hasNextPage: false },
+      }),
     };
 
     const resolver = new CommentsResolver(commentsService as never);
 
     await resolver.commentsByPost({
       postId: 10,
-      take: 5,
+      first: 5,
+      after: "cursor",
       orderBy: ChronologicalOrder.OLDEST,
     });
 
     expect(commentsService.findCommentsByPost).toHaveBeenCalledWith({
       postId: 10,
-      take: 5,
+      first: 5,
+      after: "cursor",
       orderBy: ChronologicalOrder.OLDEST,
     });
   });

@@ -10,6 +10,7 @@ CREATE TABLE `User` (
 
     UNIQUE INDEX `User_email_key`(`email`),
     UNIQUE INDEX `User_username_key`(`username`),
+    INDEX `User_createdAt_id_idx`(`createdAt` DESC, `id` DESC),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -29,6 +30,8 @@ CREATE TABLE `Post` (
     INDEX `Post_authorId_idx`(`authorId`),
     INDEX `Post_createdAt_idx`(`createdAt` DESC),
     INDEX `Post_authorId_createdAt_idx`(`authorId`, `createdAt` DESC),
+    INDEX `Post_createdAt_id_idx`(`createdAt` DESC, `id` DESC),
+    INDEX `Post_authorId_createdAt_id_idx`(`authorId`, `createdAt` DESC, `id` DESC),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -45,6 +48,7 @@ CREATE TABLE `Comment` (
     INDEX `Comment_postId_idx`(`postId`),
     INDEX `Comment_createdAt_idx`(`createdAt` DESC),
     INDEX `Comment_postId_createdAt_idx`(`postId`, `createdAt` DESC),
+    INDEX `Comment_postId_createdAt_id_idx`(`postId`, `createdAt` DESC, `id` DESC),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -57,6 +61,7 @@ CREATE TABLE `Follow` (
 
     INDEX `Follow_followerId_idx`(`followerId`),
     INDEX `Follow_followingId_idx`(`followingId`),
+    INDEX `Follow_createdAt_id_idx`(`createdAt` DESC, `id` DESC),
     UNIQUE INDEX `Follow_followerId_followingId_key`(`followerId`, `followingId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -70,6 +75,9 @@ CREATE TABLE `Like` (
 
     INDEX `Like_postId_idx`(`postId`),
     INDEX `Like_userId_idx`(`userId`),
+    INDEX `Like_createdAt_id_idx`(`createdAt` DESC, `id` DESC),
+    INDEX `Like_postId_createdAt_id_idx`(`postId`, `createdAt` DESC, `id` DESC),
+    INDEX `Like_userId_createdAt_id_idx`(`userId`, `createdAt` DESC, `id` DESC),
     UNIQUE INDEX `Like_userId_postId_key`(`userId`, `postId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -89,6 +97,8 @@ CREATE TABLE `Notification` (
     `updatedAt` DATETIME(3) NOT NULL,
 
     INDEX `Notification_recipientId_isRead_createdAt_idx`(`recipientId`, `isRead`, `createdAt`),
+    INDEX `Notification_recipientId_createdAt_id_idx`(`recipientId`, `createdAt` DESC, `id` DESC),
+    INDEX `Notification_recipientId_isRead_createdAt_id_idx`(`recipientId`, `isRead`, `createdAt` DESC, `id` DESC),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -132,6 +142,7 @@ CREATE TABLE `Media` (
 
     UNIQUE INDEX `Media_objectKey_key`(`objectKey`),
     INDEX `Media_ownerId_createdAt_idx`(`ownerId`, `createdAt` DESC),
+    INDEX `Media_ownerId_createdAt_id_idx`(`ownerId`, `createdAt` DESC, `id` DESC),
     INDEX `Media_status_expiresAt_idx`(`status`, `expiresAt`),
     INDEX `Media_type_status_idx`(`type`, `status`),
     PRIMARY KEY (`id`)

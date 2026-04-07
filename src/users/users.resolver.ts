@@ -1,16 +1,18 @@
 import { Args, Int, Mutation, Query, Resolver } from "@nestjs/graphql";
 import { Throttle } from "@nestjs/throttler";
 
+import { CursorPaginationArgs } from "@/common/args/cursor-pagination.args";
 import { CurrentUser } from "@/common/decorators/current-user.decorator";
 import { THROTTLE_LIMITS } from "@/common/constants/throttle.constants";
 import { MessageResponse } from "@/common/types/message-response.type";
-import { PaginationArgs } from "@/common/args/pagination.args";
 import { Public } from "@/common/decorators/auth.decorator";
 
 import { GetUserByUsernameArgs } from "@/users/args/get-user-by-username.args";
+import { CreatedUser } from "@/users/models/created-user.model";
 import { CreateUserInput } from "@/users/dto/create-user.input";
 import { UpdateUserInput } from "@/users/dto/update-user.input";
 import { SafeUser } from "@/users/models/safe-user.model";
+import { UserPage } from "@/users/models/user-page.model";
 import { UsersService } from "@/users/users.service";
 
 @Resolver(() => SafeUser)
@@ -19,8 +21,8 @@ export class UsersResolver {
 
   @Public()
   @Throttle({ default: THROTTLE_LIMITS.LIST })
-  @Query(() => [SafeUser], { name: "users" })
-  async users(@Args() args: PaginationArgs) {
+  @Query(() => UserPage, { name: "users" })
+  async users(@Args() args: CursorPaginationArgs) {
     return this.usersService.findUsers(args);
   }
 
@@ -41,8 +43,10 @@ export class UsersResolver {
   // Set to Public
   @Public()
   @Throttle({ default: THROTTLE_LIMITS.SIGNUP })
-  @Mutation(() => SafeUser, { name: "createUser" })
-  async createUser(@Args("input") input: CreateUserInput): Promise<SafeUser> {
+  @Mutation(() => CreatedUser, { name: "createUser" })
+  async createUser(
+    @Args("input") input: CreateUserInput,
+  ): Promise<CreatedUser> {
     return this.usersService.createUser(input);
   }
 

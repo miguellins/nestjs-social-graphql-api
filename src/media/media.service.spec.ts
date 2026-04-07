@@ -20,6 +20,7 @@ import {
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
 import { ChronologicalOrder } from "@/common/enums/chronological-order.enum";
+import { encodeChronoCursor } from "@/common/pagination/chrono-cursor";
 import { MediaReadProjectionService } from "@/media/media-read-projection.service";
 import { MediaService } from "@/media/media.service";
 import { MediaValidationService } from "@/media/media-validation.service";
@@ -30,6 +31,12 @@ import { PrismaService } from "@/prisma/prisma.service";
 describe("MediaService", () => {
   let service: MediaService;
   let moduleRef: TestingModule;
+  type MyMediaFindManyCall = {
+    where: Record<string, unknown>;
+    take: number;
+    orderBy: Record<string, unknown> | Array<Record<string, unknown>>;
+    select?: Record<string, unknown>;
+  };
 
   type MediaCreateArgs = {
     data: Record<string, unknown>;
@@ -709,7 +716,7 @@ describe("MediaService", () => {
   });
 
   describe("attachMediaToPost", () => {
-    it("attaches ready media, invalidates cache, and returns the post detail", async () => {
+    it("attaches ready media, invalidates cache, and returns the attach-media post payload", async () => {
       prismaMock.post.findUnique
         .mockResolvedValueOnce({ id: 11, authorId: 7 })
         .mockResolvedValueOnce({
@@ -727,8 +734,6 @@ describe("MediaService", () => {
             name: "Miguel",
             username: "miguel",
           },
-          likes: [],
-          comments: [],
           mediaAttachments: [],
         });
       prismaMock.media.findUnique.mockResolvedValue({
@@ -763,6 +768,8 @@ describe("MediaService", () => {
           mediaAttachments: [],
         }),
       );
+      expect(result).not.toHaveProperty("likes");
+      expect(result).not.toHaveProperty("comments");
     });
 
     it("throws BadRequestException when media is not READY", async () => {
@@ -813,8 +820,6 @@ describe("MediaService", () => {
             name: "Miguel",
             username: "miguel",
           },
-          likes: [],
-          comments: [],
           mediaAttachments: [],
         });
 
@@ -889,28 +894,111 @@ describe("MediaService", () => {
   });
 
   describe("myMedia", () => {
-    it("caps pagination and orders newest first by default", async () => {
+    it("caps pagination and returns a cursor page ordered newest first by default", async () => {
       prismaMock.media.findMany.mockResolvedValue([]);
 
       await service.myMedia(7, {
-        take: PAGINATION.MAX_TAKE + 10,
+        first: PAGINATION.MAX_TAKE + 10,
         orderBy: ChronologicalOrder.NEWEST,
       });
 
-      const findManyCall = prismaMock.media.findMany.mock.calls[0]?.[0] as {
-        where: Record<string, unknown>;
-        take: number;
-        orderBy: Record<string, unknown>;
-        select: Record<string, unknown>;
-      };
+      const findManyCall = prismaMock.media.findMany.mock
+        .calls[0]?.[0] as unknown as MyMediaFindManyCall;
 
       expect(findManyCall.where).toEqual({ ownerId: 7 });
-      expect(findManyCall.take).toBe(PAGINATION.MAX_TAKE);
-      expect(findManyCall.orderBy).toEqual({ createdAt: "desc" });
+      expect(findManyCall.take).toBe(PAGINATION.MAX_TAKE + 1);
+      expect(findManyCall.orderBy).toEqual([
+        { createdAt: "desc" },
+        { id: "desc" },
+      ]);
       expect(findManyCall.select).toMatchObject({
         id: true,
         bytes: true,
       });
+    });
+
+    it("applies the media cursor filter and returns a page result", async () => {
+      prismaMock.media.findMany.mockResolvedValue([]);
+      const after = encodeChronoCursor({
+        createdAt: new Date("2026-04-10T00:00:00.000Z"),
+        id: 999,
+      });
+
+      const result = await service.myMedia(7, {
+        first: 5,
+        after,
+      });
+
+      const findManyCall = prismaMock.media.findMany.mock
+        .calls[0]?.[0] as unknown as MyMediaFindManyCall;
+
+      expect(findManyCall.where).toEqual({
+        AND: [
+          { ownerId: 7 },
+          {
+            OR: [
+              { createdAt: { lt: new Date("2026-04-10T00:00:00.000Z") } },
+              {
+                createdAt: new Date("2026-04-10T00:00:00.000Z"),
+                id: { lt: 999 },
+              },
+            ],
+          },
+        ],
+      });
+      expect(findManyCall.take).toBe(6);
+      expect(result).toEqual({
+        items: [],
+        pageInfo: {
+          endCursor: null,
+          hasNextPage: false,
+        },
+      });
+    });
+
+    it("throws for an invalid media cursor", async () => {
+      await expect(
+        service.myMedia(7, { first: 5, after: "%%%invalid%%%" }),
+      ).rejects.toThrow("Invalid cursor");
+
+      expect(prismaMock.media.findMany).not.toHaveBeenCalled();
+    });
+
+    it("uses ascending tie-breaker filtering for OLDEST media pagination", async () => {
+      prismaMock.media.findMany.mockResolvedValue([]);
+      const after = encodeChronoCursor({
+        createdAt: new Date("2026-04-10T00:00:00.000Z"),
+        id: 999,
+      });
+
+      await service.myMedia(7, {
+        first: 5,
+        after,
+        orderBy: ChronologicalOrder.OLDEST,
+      });
+
+      const findManyCall = prismaMock.media.findMany.mock
+        .calls[0]?.[0] as unknown as MyMediaFindManyCall;
+
+      expect(findManyCall.where).toEqual({
+        AND: [
+          { ownerId: 7 },
+          {
+            OR: [
+              { createdAt: { gt: new Date("2026-04-10T00:00:00.000Z") } },
+              {
+                createdAt: new Date("2026-04-10T00:00:00.000Z"),
+                id: { gt: 999 },
+              },
+            ],
+          },
+        ],
+      });
+      expect(findManyCall.orderBy).toEqual([
+        { createdAt: "asc" },
+        { id: "asc" },
+      ]);
+      expect(findManyCall.take).toBe(6);
     });
   });
 

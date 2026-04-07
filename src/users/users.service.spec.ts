@@ -17,10 +17,12 @@ import { CacheHelperService } from "@/common/cache/cache-helper.service";
 import { PasswordService } from "@/common/security/password.service";
 
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
+import { encodeChronoCursor } from "@/common/pagination/chrono-cursor";
 
 import { PrismaService } from "@/prisma/prisma.service";
 
 import { CreateUserInput } from "@/users/dto/create-user.input";
+import { CreatedUserSelect } from "@/users/dto/created-user.dto";
 
 import { UpdateUserInput } from "@/users/dto/update-user.input";
 
@@ -32,6 +34,19 @@ import { UsersService } from "./users.service";
 describe("UsersService", () => {
   let service: UsersService;
   let moduleRef: TestingModule;
+  const makeUser = (id: number) => ({
+    id,
+    name: `User ${id}`,
+    username: `user${id}`,
+    createdAt: new Date(`2026-04-0${id}T00:00:00.000Z`),
+    updatedAt: new Date(`2026-04-0${id}T01:00:00.000Z`),
+    _count: {
+      likes: id,
+      posts: id + 1,
+      followers: id + 2,
+      following: id + 3,
+    },
+  });
 
   const prismaMock: {
     user: {
@@ -99,39 +114,58 @@ describe("UsersService", () => {
   });
 
   describe("findUsers", () => {
-    it("caps take, builds versioned cache key, and queries prisma with SafeUserSelect", async () => {
+    it("caps first, builds a cursor-aware cache key, and queries prisma with SafeUserSelect", async () => {
       cacheMock.getVersion.mockResolvedValue(4);
-      prismaMock.user.findMany.mockResolvedValue([{ id: 1 }]);
+      const rows = [makeUser(3), makeUser(2), makeUser(1)];
+      prismaMock.user.findMany.mockResolvedValue(rows);
+      const after = encodeChronoCursor({
+        createdAt: new Date("2026-04-10T00:00:00.000Z"),
+        id: 999,
+      });
 
-      const res = await service.findUsers({ take: PAGINATION.MAX_TAKE + 999 });
+      const res = await service.findUsers({
+        first: PAGINATION.MAX_TAKE + 999,
+        after,
+      });
 
       const expectedTake = PAGINATION.MAX_TAKE;
 
       expect(cacheMock.getVersion).toHaveBeenCalledWith("v:user:list");
       expect(cacheMock.getOrSet).toHaveBeenCalledWith(
-        `user:list:v=4:take=${expectedTake}:order=${ChronologicalOrder.NEWEST}`,
+        `user:list:v=4:first=${expectedTake}:after=${after}:order=${ChronologicalOrder.NEWEST}`,
         expect.any(Function),
         60_000,
       );
 
       expect(prismaMock.user.findMany).toHaveBeenCalledWith({
-        take: expectedTake,
-        orderBy: { createdAt: "desc" },
+        take: expectedTake + 1,
+        where: {
+          OR: [
+            { createdAt: { lt: new Date("2026-04-10T00:00:00.000Z") } },
+            {
+              createdAt: new Date("2026-04-10T00:00:00.000Z"),
+              id: { lt: 999 },
+            },
+          ],
+        },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         select: SafeUserSelect,
       });
 
-      expect(res).toEqual([{ id: 1 }]);
+      expect(res.items).toEqual(rows);
+      expect(res.pageInfo.hasNextPage).toBe(false);
     });
 
-    it("defaults take to PAGINATION.DEFAULT_TAKE", async () => {
+    it("defaults first to PAGINATION.DEFAULT_TAKE", async () => {
       cacheMock.getVersion.mockResolvedValue(1);
       prismaMock.user.findMany.mockResolvedValue([]);
 
       await service.findUsers();
 
       expect(prismaMock.user.findMany).toHaveBeenCalledWith({
-        take: PAGINATION.DEFAULT_TAKE,
-        orderBy: { createdAt: "desc" },
+        take: PAGINATION.DEFAULT_TAKE + 1,
+        where: undefined,
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         select: SafeUserSelect,
       });
     });
@@ -143,14 +177,53 @@ describe("UsersService", () => {
       await service.findUsers({ orderBy: ChronologicalOrder.OLDEST });
 
       expect(cacheMock.getOrSet).toHaveBeenCalledWith(
-        `user:list:v=2:take=${PAGINATION.DEFAULT_TAKE}:order=${ChronologicalOrder.OLDEST}`,
+        `user:list:v=2:first=${PAGINATION.DEFAULT_TAKE}:after=none:order=${ChronologicalOrder.OLDEST}`,
         expect.any(Function),
         60_000,
       );
 
       expect(prismaMock.user.findMany).toHaveBeenCalledWith({
-        take: PAGINATION.DEFAULT_TAKE,
-        orderBy: { createdAt: "asc" },
+        take: PAGINATION.DEFAULT_TAKE + 1,
+        where: undefined,
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        select: SafeUserSelect,
+      });
+    });
+
+    it("throws BadRequestException for an invalid cursor", async () => {
+      await expect(
+        service.findUsers({ first: 5, after: "%%%invalid%%%" }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      expect(prismaMock.user.findMany).not.toHaveBeenCalled();
+    });
+
+    it("uses ascending tie-breaker filtering for OLDEST cursor pagination", async () => {
+      cacheMock.getVersion.mockResolvedValue(3);
+      prismaMock.user.findMany.mockResolvedValue([]);
+      const after = encodeChronoCursor({
+        createdAt: new Date("2026-04-10T00:00:00.000Z"),
+        id: 999,
+      });
+
+      await service.findUsers({
+        first: 5,
+        after,
+        orderBy: ChronologicalOrder.OLDEST,
+      });
+
+      expect(prismaMock.user.findMany).toHaveBeenCalledWith({
+        take: 6,
+        where: {
+          OR: [
+            { createdAt: { gt: new Date("2026-04-10T00:00:00.000Z") } },
+            {
+              createdAt: new Date("2026-04-10T00:00:00.000Z"),
+              id: { gt: 999 },
+            },
+          ],
+        },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         select: SafeUserSelect,
       });
     });
@@ -296,8 +369,9 @@ describe("UsersService", () => {
       const created = {
         id: 10,
         name: "John",
-        email: "a@a.com",
         username: "john",
+        createdAt: new Date("2026-04-06T00:00:00.000Z"),
+        updatedAt: new Date("2026-04-06T00:00:00.000Z"),
       };
       prismaMock.user.create.mockResolvedValue(created);
 
@@ -318,7 +392,7 @@ describe("UsersService", () => {
           username: "john",
           password: "hashedPw",
         },
-        select: SafeUserSelect,
+        select: CreatedUserSelect,
       });
 
       expect(cacheMock.set).toHaveBeenCalledWith(
@@ -421,8 +495,9 @@ describe("UsersService", () => {
       prismaMock.user.create.mockResolvedValue({
         id: 10,
         name: "John",
-        email: "a@a.com",
         username: "john",
+        createdAt: new Date("2026-04-06T00:00:00.000Z"),
+        updatedAt: new Date("2026-04-06T00:00:00.000Z"),
       });
       cacheMock.set.mockRejectedValueOnce(new Error("cache down"));
 
@@ -436,8 +511,9 @@ describe("UsersService", () => {
       ).resolves.toEqual({
         id: 10,
         name: "John",
-        email: "a@a.com",
         username: "john",
+        createdAt: new Date("2026-04-06T00:00:00.000Z"),
+        updatedAt: new Date("2026-04-06T00:00:00.000Z"),
       });
 
       expect(loggerErrorSpy).toHaveBeenCalledWith(

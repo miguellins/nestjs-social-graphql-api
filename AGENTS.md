@@ -6,7 +6,7 @@ This file defines the working rules for contributors and coding agents in this r
 
 - Preserve the current project style and architecture.
 - Keep GraphQL behavior predictable and safe.
-- Prevent regressions in validation, auth, caching, and Prisma workflows.
+- Prevent regressions in validation, auth, caching, subscriptions, and Prisma workflows.
 - Prefer consistency with the existing codebase over introducing new patterns.
 
 ## Project Stack
@@ -17,20 +17,22 @@ This file defines the working rules for contributors and coding agents in this r
 - Cache: `@nestjs/cache-manager` + Keyv + Redis
 - Validation: `class-validator` at the GraphQL DTO boundary, and `zod` for service-layer command parsing in modules that follow that pattern
 - Auth: JWT with Passport, GraphQL-aware guards, public resolver opt-out via `@Public()`
-- Language: TypeScript with strict-ish compiler settings and type-aware ESLint
+- Realtime: `graphql-ws` with Redis-backed pubsub
+- Language: TypeScript with type-aware ESLint
 
 ## Non-Negotiable Rules
 
-- Keep resolvers thin. Resolver methods should delegate business logic to services.
-- Keep services responsible for domain behavior, validation parsing, authorization checks, cache invalidation, and Prisma interaction.
+- Keep resolvers thin. Resolver methods should declare GraphQL shape, attach auth metadata, attach throttling, and delegate to services.
+- Keep services responsible for domain behavior, validation parsing, authorization checks, cache invalidation, side-effect handling, and Prisma interaction.
 - Do not expose sensitive Prisma fields directly through GraphQL models. Use safe DTO/select patterns already present in the repo.
 - Do not bypass validation. GraphQL inputs must use DTO classes with decorators, and service-layer commands must be parsed with the module’s Zod schema when that pattern already exists.
-- Do not remove pagination caps. Always clamp `take` using `PAGINATION` constants.
+- Do not remove pagination caps. Always clamp `take` using `PAGINATION` constants or the feature-specific cap.
 - Never return unlimited rows from list-style queries.
 - Do not introduce wildcard cache deletion. Use detail-key deletion plus version-key bumps for list invalidation.
 - Do not leak internal error details to GraphQL clients. Throw explicit Nest exceptions or sanitized fallback errors.
-- Do not put business logic in modules, decorators, or bootstrap helpers.
-- Do not query Prisma with `include`/`select` shapes that expose fields not represented by the public GraphQL contract.
+- Do not put business logic in modules, decorators, guards, or bootstrap helpers.
+- Do not query Prisma with `include` or `select` shapes that expose fields not represented by the public GraphQL contract.
+- If service or domain behavior changes, update tests in the same change.
 
 ## File Organization Rules
 
@@ -60,12 +62,12 @@ This file defines the working rules for contributors and coding agents in this r
 
 ## Resolver Rules
 
-- Resolvers should mostly do four things: declare GraphQL shape, attach auth metadata, attach throttling, and pass arguments to services.
 - Public queries and mutations must be marked with `@Public()`.
 - Apply `@Throttle()` to every applicable query and mutation using the shared categories in `THROTTLE_LIMITS`.
 - Use `@CurrentUser()` to access the authenticated user instead of reading GraphQL context manually, except when implementing subscription-specific filtering.
 - Prefer `@Args()` argument objects for grouped query params such as pagination and filters.
 - Keep resolver return types explicit when useful for readability and consistency.
+- Every resolver operation must explicitly choose auth exposure, throttle category, GraphQL return type, and argument DTO/args class.
 
 ## Service Rules
 
@@ -73,17 +75,17 @@ This file defines the working rules for contributors and coding agents in this r
 - Validate and normalize service inputs through the module Zod schema when the module already follows that pattern.
 - Build Prisma write payloads explicitly. Do not spread unchecked user input into Prisma `data`.
 - For update flows, only assign fields that are defined.
-- Perform ownership checks in the service layer before protected updates/deletes.
+- Perform ownership checks in the service layer before protected updates or deletes.
 - Translate known Prisma errors into precise Nest exceptions.
 - Use `InternalServerErrorException` as a sanitized fallback for unexpected persistence failures.
 - Re-throw intentional domain exceptions instead of wrapping them again.
 - Do not wrap entire service methods in broad `try/catch` blocks unless needed for Prisma error mapping, external side-effect handling, or sanitized fallback errors.
 - Treat the database write path as the source of truth and keep core correctness strict.
 - Use transactions for operations that must succeed or fail together.
-- Treat cache invalidation, subscription publish, notification delivery, analytics, and similar follow-up work as best-effort side effects only when the system remains correct if they fail after the main write commits.
-- Do not make the mutation fail after a committed database write only because a non-critical post-commit side effect failed.
+- For each mutation, classify steps as either core correctness or best-effort follow-up work.
+- Do not make a mutation fail after a committed database write only because a non-critical post-commit side effect failed.
 - If a non-critical post-commit side effect fails, prefer success plus logging over a false-negative mutation failure.
-- Do not apply this rule to validation, authorization, password/security logic, required counter consistency, token invalidation, or any step that is part of the core business guarantee.
+- Do not treat validation, authorization, password/security logic, token invalidation, or required counter consistency as best-effort work.
 
 ## Validation Rules
 
@@ -93,13 +95,13 @@ This file defines the working rules for contributors and coding agents in this r
 - When parsing with Zod in services, use `parseWithBadRequest(...)` unless there is a deliberate reason to throw the raw Zod error.
 - Keep normalization rules consistent with existing behavior.
 - Trim user-entered text where appropriate.
-- Lowercase canonical identifiers like usernames/emails when the feature already does so.
+- Lowercase canonical identifiers like usernames or emails when the feature already does so.
 - Enforce password length constraints compatible with bcrypt.
 
 ## Auth and Security Rules
 
 - The app is protected by default via the global GraphQL JWT guard. New public queries or mutations must opt out with `@Public()`.
-- Do not implement ad hoc auth checks inside resolvers when the shared decorators/guards already cover the use case.
+- Do not implement ad hoc auth checks inside resolvers when the shared decorators or guards already cover the use case.
 - Subscription authentication belongs in the GraphQL subscription configuration and subscription context handling, not in resolver business logic.
 - Keep HTTP-level security setup centralized in bootstrap helpers like `setup-security.ts`.
 - Preserve fail-fast environment validation through `src/config/env/env.schema.ts` when adding new env vars.
@@ -117,27 +119,23 @@ This file defines the working rules for contributors and coding agents in this r
 - Keep GraphQL errors sanitized. Do not add formatting that leaks stack traces or internal metadata.
 - When adding expensive queries, respect the existing query complexity infrastructure.
 - For subscriptions, ensure the published payload shape matches the resolver subscription field name.
-- Keep GraphQL errors sanitized.
-- When the project intentionally exposes safe machine-readable error fields such as `code` or other structured metadata, preserve them instead of reducing everything to message-only responses.
-- If the current runtime still formats errors as message-only, treat structured error preservation as the preferred direction for future improvements rather than assuming it is already fully implemented everywhere.
+- Preserve safe machine-readable error metadata when the project intentionally exposes it.
 
 ## Prisma Rules
 
 - Reuse the shared `PrismaService`.
 - Prefer explicit `select` objects for read queries.
-- Keep “safe select” constants close to DTO/model definitions, following the existing module pattern.
+- Keep safe select constants close to DTO or model definitions, following the existing module pattern.
 - Use transactions when multiple writes must stay in sync, especially when updating denormalized counters such as `likesCount` or `commentsCount`.
 - Check existence and ownership explicitly when that leads to clearer domain errors.
 - Translate known Prisma codes like `P2002`, `P2003`, and `P2025` into user-facing Nest exceptions.
-- If a new feature adds a denormalized counter, keep increment/decrement operations transactionally consistent.
-- Reuse a single shared `PrismaService` / `PrismaClient` lifecycle for the application process.
+- If a new feature adds a denormalized counter, keep increment and decrement operations transactionally consistent.
 - Do not create ad hoc Prisma clients inside feature services, helpers, or request-scoped flows.
 - Avoid patterns that accidentally create multiple connection pools unless there is a deliberate infrastructure reason.
 - Never edit any file in `prisma/migrations/`.
-- Never create new migration files.
-- Never delete or rename migration files.
+- Never create, delete, rename, or rewrite migration files.
 - Prisma-related code changes must be limited to `prisma/schema.prisma` unless the user explicitly requests migration work.
-- If a change would normally require a migration, modify only `prisma/schema.prisma` and clearly state that migration generation/review is still required.
+- If a change would normally require a migration, modify only `prisma/schema.prisma` and clearly state that migration generation and review are still required.
 
 ## Cache Rules
 
@@ -147,10 +145,8 @@ This file defines the working rules for contributors and coding agents in this r
 - Use version bumps for list invalidation.
 - Keep cache keys deterministic and parameter-aware.
 - When a write affects related entities, invalidate related caches too.
-- Invalidate only the caches actually affected by the write. Do not use broad cache invalidation when a precise detail-key delete plus version bump is enough.
-- Existing example: creating a post bumps post lists and invalidates user-related cached views.
-- Existing example: creating/deleting comments invalidates post detail.
-- Existing example: updating/deleting a post invalidates its detail and bumps list versions.
+- Invalidate only the caches actually affected by the write.
+- Any mutation that affects cached reads must update the relevant detail keys and list version keys in the same change.
 - Do not cache values whose freshness must reflect a just-written counter unless the service explicitly overwrites or recomputes that field, as done with `viewsCount`.
 
 ## Pagination and Query Rules
@@ -162,12 +158,11 @@ This file defines the working rules for contributors and coding agents in this r
 - Keep list queries bounded with shared pagination caps and explicit ordering.
 - When introducing or redesigning list APIs that are expected to support real multi-page frontend usage, prefer a real pagination contract such as cursor-based pagination with clear next-page semantics.
 - Avoid extending `take`-only list contracts for new scalable user-facing flows when a practical multi-page contract is required.
-- Treat cursor-style pagination as the preferred direction for future expansion, even if older parts of the codebase still use capped `take` plus ordering.
 
 ## DTO and Model Rules
 
 - Keep GraphQL input classes focused on input validation and transformation.
-- Keep GraphQL object models/DTOs aligned with what the API returns, not with full Prisma models.
+- Keep GraphQL object models and DTOs aligned with what the API returns, not with full Prisma models.
 - Do not use explicit `@ObjectType("...")` names as a routine pattern. Use them only for public contract stability or deliberate TypeScript/public GraphQL name separation.
 - In DTO files, add one concise JSDoc comment immediately before each exported DTO type and each exported Prisma select constant so the safe shape and the select intent are both documented consistently.
 - Never expose secrets such as password hashes.
@@ -185,7 +180,7 @@ This file defines the working rules for contributors and coding agents in this r
 - Do not use `runBestEffort` for core database writes, required transactions, validation, auth checks, ownership checks, password logic, or any step that must fail the request if it fails.
 - Before using `runBestEffort`, ask whether the system is still correct if that step fails after the database write has already succeeded.
 - Treat realtime subscriptions as a delivery acceleration layer, not the source of truth.
-- Persist notification/event state in the database before publishing realtime updates when the feature requires durability.
+- Persist notification or event state in the database before publishing realtime updates when the feature requires durability.
 - Do not rely on in-memory pubsub as the long-term architecture for features that must work across multiple app instances.
 - Prefer shared realtime transport such as Redis-backed pubsub or another broker-backed approach when the feature is intended for multi-instance deployment.
 
@@ -199,7 +194,7 @@ This file defines the working rules for contributors and coding agents in this r
 
 - Add or update `*.spec.ts` files whenever service behavior, guards, transformers, schema parsing, or bootstrap logic changes.
 - Service tests should mock `PrismaService` and other collaborators directly, matching the existing style.
-- Test success paths and failure paths.
+- Test at least one success path and one failure, validation, or authorization path for changed behavior.
 - Verify cache behavior when changing cached flows.
 - Verify Prisma error mapping when changing write logic.
 - Verify pagination clamping and default ordering in list services.
@@ -207,148 +202,36 @@ This file defines the working rules for contributors and coding agents in this r
 
 ## Style Rules
 
-- Match the current import style: external imports first, internal `@/` imports next, type-only imports where appropriate.
+- Match the current import style: external imports first, internal `@/` imports next, and type-only imports where appropriate.
 - Keep imports grouped, minimal, stable, and free of unused entries.
-- Avoid mixing many import styles unnecessarily.
-- Prefer the repository's established `@/` alias for internal imports.
-- If a file imports values and types from the same module in separate import statements, merge them into a single import statement when possible.
-- Prefer inline `type` imports in the same statement instead of duplicating imports from the same path.
-- Check modified files for duplicate imports from the same module and clean them up to the most readable merged form.
+- Prefer the repository’s established `@/` alias for internal imports.
+- If a file imports values and types from the same module in separate import statements, merge them when possible.
 - Keep comments useful and specific.
 - Prefer explicit local variables for normalized values and cache keys.
 - Keep functions and methods readable over overly compact.
-- Stay compatible with the current TypeScript and ESLint configuration. Do not introduce patterns that fight type-aware linting without a reason.
-- If the same narrow logic is repeated across multiple files, extract it into a small shared helper only when the repetition is real and the abstraction clearly improves readability, consistency, and modularity.
+- Stay compatible with the current TypeScript and ESLint configuration.
+- If the same narrow logic is repeated across multiple files, extract it into a small shared helper only when the abstraction clearly improves readability and consistency.
 - Do not create shared helpers for one-off logic or vague abstractions.
-- Prefer small, well-named helpers in the appropriate shared/common area over copy-pasted repeated error-handling or side-effect patterns.
 
 ## Output and Reference Formatting Rules
 
 - When referencing project files in reviews, prompts, summaries, recommendations, reports, or change explanations, use plain filenames or short repo-relative paths only.
 - Never return markdown links for project files.
-- Never use this format:
-  - `[posts.service.ts](/home/mlins/Desktop/nestjs_graphql/src/posts/posts.service.ts)`
-  - `[name of the file](path)`
 - Never return absolute local filesystem paths in outputs.
 - If the filename is already clear enough, return only the plain filename.
 - If extra context is needed, return a short repo-relative path in plain text, not as a markdown link.
-- Good examples:
-  - `posts.service.ts`
-  - `users.service.ts`
-  - `graphql.config.ts`
-  - `src/posts/posts.service.ts`
-- Bad examples:
-  - `[posts.service.ts](/home/mlins/Desktop/nestjs_graphql/src/posts/posts.service.ts)`
-  - `[users.service.ts](src/users/users.service.ts)`
-  - `[name of the file](path)`
 - Do not add redundant path formatting when the file name is already being returned clearly.
-- Whenever files are changed, always include a clean final explanation section called `Change Summary`.
-
-The `Change Summary` must always contain these sections:
-
-1. **What changed**
-   - List the files, functions, classes, modules, configs, or structures that were changed.
-   - Be specific about what was added, removed, renamed, moved, or updated.
-
-2. **Why it changed**
-   - Explain the reason for the change.
-   - State whether it was done for bug fixing, readability, consistency, validation, architecture, maintainability, security, or performance.
-
-3. **How it works now**
-   - Briefly explain the new behavior after the change.
-   - Mention any important flow updates, API behavior changes, validation changes, typing changes, or runtime differences.
-
-4. **Anything important to review**
-   - Mention breaking changes, migration needs, required env/config updates, manual checks, follow-up work, or anything that should be verified.
-
-Rules for this summary:
-- Keep it clean, direct, and easy to scan.
-- Do not be vague.
-- Do not say only `updated file X` without explaining what changed.
-- Do not dump raw diffs unless explicitly requested.
-- Prefer grouped summaries by file or by feature.
-- Even for small edits, still include the full summary format in a shorter version.
-- If no files were changed, explicitly say: **No files were changed**.
-- In the summary, reference files using the formatting rules above:
-  - plain filename when enough
-  - otherwise short repo-relative path
-  - never markdown file links
-  - never absolute local paths
-
-Preferred format:
-### Change Summary
-
-**What changed**
-- ...
-
-**Why it changed**
-- ...
-
-**How it works now**
-- ...
-
-**Query impact**
-```graphql
-query SomeOperation {
-  ...
-}
-```
-```JSON
-{
-  "someVariable": "value"
-}
-```
-
-**Anything important to review**
-- ...
-
-
-Preferred format:
-### Change Summary
-
-**What changed**
-- ...
-
-**Why it changed**
-- ...
-
-**How it works now**
-- ...
-
-**Query impact**
-```graphql
-query SomeOperation {
-  ...
-}
-```
-```JSON
-{
-  "someVariable": "value"
-}
-```
-
-**Anything important to review**
-- ...
-
 
 ## Change Management Rules
 
 - Preserve existing public GraphQL names unless a breaking change is explicitly intended.
-- If you add a feature module, wire it through `AppModule` and follow the global guard/throttle architecture already used.
-- If you add new list or detail reads, decide and document whether they need caching.
+- If you add a feature module, wire it through `AppModule` and follow the global guard and throttle architecture already used.
+- If you add new list or detail reads, decide whether they need caching.
 - If you add writes that affect cached reads, add invalidation in the same change.
 - If you add new auth-sensitive mutations, enforce ownership or authorization checks in the service.
 - If you add Prisma schema changes, keep indexes and uniqueness constraints aligned with the query patterns the feature will use.
-
-
-## Change Management Rules
-
-- Preserve existing public GraphQL names unless a breaking change is explicitly intended.
-- If you add a feature module, wire it through `AppModule` and follow the global guard/throttle architecture already used.
-- If you add new list or detail reads, decide and document whether they need caching.
-- If you add writes that affect cached reads, add invalidation in the same change.
-- If you add new auth-sensitive mutations, enforce ownership or authorization checks in the service.
-- If you add Prisma schema changes, keep indexes and uniqueness constraints aligned with the query patterns the feature will use.
+- If a change includes both refactoring and behavior changes, keep the behavioral diff easy to identify and explain that clearly in the summary.
+- New GraphQL operations must be reviewed for auth exposure, throttle category, pagination bounds, cache needs, DTO/select safety, and test coverage before completion.
 
 ## What To Avoid
 
@@ -365,7 +248,7 @@ query SomeOperation {
 ## Definition Of Done For Changes
 
 - Code follows the module structure and naming conventions in this repo.
-- GraphQL DTO/input/model changes are reflected through code-first decorators.
+- GraphQL DTO, input, and model changes are reflected through code-first decorators.
 - Service logic validates input, handles domain errors, and maps known Prisma failures.
 - Auth, throttling, cache invalidation, and pagination rules are respected.
 - Tests cover the changed behavior.
@@ -379,3 +262,85 @@ query SomeOperation {
 - GraphQL schema changes are code-first and not manually edited in generated files.
 - Auth, throttling, pagination, and cache invalidation rules are preserved.
 - No sensitive fields are exposed.
+
+## Required Final Explanation Format
+
+Whenever files are changed, always include a clean final explanation section called `Change Summary`.
+
+## Project Scoring Format
+
+Always include a structured project scorecard in the final output, even when the user did not explicitly ask for a project assessment or rating.
+
+Required scoring rules:
+- Always provide an overall project score from `0` to `100`.
+- Always show the score change compared with the most recent previously stated overall project score when one exists.
+- Express the change as a signed percentage in a compact format such as `+3%`, `-2%`, or `0%`.
+- If there is no prior score available in the current conversation or provided context, explicitly say that there is no previous baseline for percentage change.
+- Always display the category breakdown as separate labeled parts.
+- Keep the category labels stable unless the user explicitly asks for a different framework.
+- If helpful, you may add more detailed sub-scores, but the default top-level categories must still appear.
+- When code changes were made, update the scorecard to reflect the new project state after the change.
+- When no code or repo files were changed, you may keep the previous overall score and category scores if there is no new evidence that would justify changing them.
+
+Default required category breakdown:
+- Architecture
+- Codebase discipline/consistency
+- Security/auth boundaries
+- Validation/data safety
+- Caching/realtime design
+- Testing maturity
+- Scalability of public query contracts
+- DX/maintainability
+
+Recommended output shape:
+- `Overall project score: 84/100`
+- `Score change vs previous: +3%`
+- `Architecture: 91`
+- `Codebase discipline/consistency: 89`
+- `Security/auth boundaries: 88`
+- `Validation/data safety: 90`
+- `Caching/realtime design: 85`
+- `Testing maturity: 80`
+- `Scalability of public query contracts: 72`
+- `DX/maintainability: 83`
+
+If more detail is useful and the evidence supports it, optionally add a second level of detail such as:
+
+- API and GraphQL contract design
+- Prisma/data access safety
+- Cache invalidation discipline
+- Subscription/realtime durability
+- Test coverage quality
+- Change-management and maintainability
+
+When giving a score update after code changes, briefly explain the main reasons for any increase or decrease.
+
+### Change Summary
+
+**What changed**
+- List the files, functions, classes, modules, configs, or structures that were changed.
+- Be specific about what was added, removed, renamed, moved, or updated.
+
+**Why it changed**
+- Explain the reason for the change.
+- State whether it was done for bug fixing, readability, consistency, validation, architecture, maintainability, security, or performance.
+
+**How it works now**
+- Briefly explain the new behavior after the change.
+- Mention any important flow updates, API behavior changes, validation changes, typing changes, or runtime differences.
+
+**Query impact**
+- Include this section only when a change adds, removes, renames, or behaviorally changes a GraphQL operation or its inputs or outputs.
+
+**Anything important to review**
+- Mention breaking changes, migration needs, required env or config updates, manual checks, follow-up work, or anything that should be verified.
+
+Rules for this summary:
+
+- Keep it clean, direct, and easy to scan.
+- Do not be vague.
+- Do not say only `updated file X` without explaining what changed.
+- Do not dump raw diffs unless explicitly requested.
+- Prefer grouped summaries by file or by feature.
+- Even for small edits, still include the full summary format in a shorter version.
+- If no files were changed, explicitly say: `No files were changed`.

@@ -10,6 +10,7 @@ import { FormattedDateTimeField } from "@/graphql/fields/formatted-date-time-fie
 
 import { MediaKind, MediaStatus, MediaType } from "@/media/models/media.enums";
 
+/** Public media object exposed to owners and post detail consumers with safe delivery metadata. */
 @ObjectType()
 export class Media {
   /** Unique identifier of the media item. */
@@ -28,15 +29,15 @@ export class Media {
   @Field(() => MediaStatus)
   status: MediaStatus;
 
+  /** MIME type verified for the stored object. */
+  @Field()
+  mimeType: string;
+
   /** Public delivery URL used by clients to render the media item. */
   @Field({
     name: "url",
   })
   publicUrl: string;
-
-  /** MIME type verified for the stored object. */
-  @Field()
-  mimeType: string;
 
   /** Size of the stored object in bytes. */
   @Field(() => Int, {

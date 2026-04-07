@@ -2,9 +2,25 @@
 # THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
 # ------------------------------------------------------
 
+"""
+Generic mutation response carrying a single human-readable status message.
+"""
 type MessageResponse {
   """Human-readable message describing the result of the mutation"""
   message: String!
+}
+
+"""
+Shared cursor-pagination metadata returned alongside paged list results.
+"""
+type PageInfo {
+  """
+  Cursor for the last item in the current page, if any items were returned. Reuse it only with the same filter and ordering inputs.
+  """
+  endCursor: String
+
+  """Indicates whether another page can be fetched after the current page."""
+  hasNextPage: Boolean!
 }
 
 """Numeric metadata for user activity and relationships"""
@@ -125,6 +141,15 @@ enum NotificationType {
   POST_LIKED
 }
 
+"""Cursor-paginated page of notifications plus navigation metadata."""
+type NotificationPage {
+  """Items returned for the current page."""
+  items: [NotificationDTO!]!
+
+  """Cursor navigation metadata for the current page."""
+  pageInfo: PageInfo!
+}
+
 """Minimal public user representation for nested fields"""
 type SafeUserPreview implements PublicUserIdentity {
   id: ID!
@@ -132,9 +157,15 @@ type SafeUserPreview implements PublicUserIdentity {
   username: String!
 }
 
-type SafeCommentDTO {
+"""
+Public-safe comment representation used in comment queries and nested post detail views.
+"""
+type Comment {
   """Unique identifier of the comment."""
   id: ID!
+
+  """Comment content visible to clients."""
+  content: String!
 
   """Presentation-friendly UTC timestamp for when the comment was created."""
   createdAtFormatted: String
@@ -153,14 +184,20 @@ type SafeCommentDTO {
   """Public-safe preview of the comment author."""
   author: SafeUserPreview!
 
-  """Comment content visible to clients."""
-  content: String!
-
   """Timestamp indicating when the comment was created."""
   createdAt: DateTime!
 
   """Timestamp indicating the latest update made to the comment."""
   updatedAt: DateTime!
+}
+
+"""Cursor-paginated page of comments plus navigation metadata."""
+type CommentPage {
+  """Items returned for the current page."""
+  items: [Comment!]!
+
+  """Cursor navigation metadata for the current page."""
+  pageInfo: PageInfo!
 }
 
 """Core representation of a Follow relationship between two users."""
@@ -189,6 +226,41 @@ type Follow {
   following: SafeUserPreview
 }
 
+"""Cursor-paginated page of follows plus navigation metadata."""
+type FollowPage {
+  """Items returned for the current page."""
+  items: [Follow!]!
+
+  """Cursor navigation metadata for the current page."""
+  pageInfo: PageInfo!
+}
+
+"""Public-safe post preview tailored for like payloads."""
+type LikedPostPreview {
+  """Unique identifier of the liked post."""
+  id: ID!
+
+  """Title of the liked post."""
+  title: String
+
+  """Main textual content of the liked post."""
+  content: String!
+
+  """Timestamp indicating when the post was originally created."""
+  createdAt: DateTime!
+
+  """
+  Presentation-friendly UTC timestamp for when the post was originally created.
+  """
+  createdAtFormatted: String
+
+  """Total number of likes associated with the post."""
+  likesCount: Int!
+
+  """Public safe preview of the user who authored the post."""
+  author: SafeUserPreview!
+}
+
 """
 Lightweight representation of a Like, containing minimal metadata and a safe preview of the user who performed the like.
 """
@@ -206,6 +278,35 @@ type LikePreview {
 
   """Public safe preview of the user who performed the like."""
   user: SafeUserPreview!
+}
+
+"""Lightweight representation of a Like entity optimized for list views."""
+type LikeListItem {
+  """
+  Unique identifier of the like record. Used internally for referencing and pagination.
+  """
+  id: ID!
+
+  """Timestamp indicating when the like was created."""
+  createdAt: DateTime!
+
+  """Presentation-friendly UTC timestamp for when the like was created."""
+  createdAtFormatted: String
+
+  """Public safe preview of the user who performed the like."""
+  user: SafeUserPreview!
+
+  """Public representation of the post that was liked."""
+  post: LikedPostPreview!
+}
+
+"""Cursor-paginated page of likes plus navigation metadata."""
+type LikePage {
+  """Items returned for the current page."""
+  items: [LikeListItem!]!
+
+  """Cursor navigation metadata for the current page."""
+  pageInfo: PageInfo!
 }
 
 """Core public representation of a Post entity."""
@@ -239,43 +340,39 @@ type Post {
   author: SafeUserPreview!
 }
 
-"""Lightweight representation of a Like entity optimized for list views."""
-type LikeListItem {
-  """
-  Unique identifier of the like record. Used internally for referencing and pagination.
-  """
-  id: ID!
-
-  """Timestamp indicating when the like was created."""
-  createdAt: DateTime!
-
-  """Presentation-friendly UTC timestamp for when the like was created."""
-  createdAtFormatted: String
-
-  """Public safe preview of the user who performed the like."""
-  user: SafeUserPreview!
-
-  """Public representation of the post that was liked."""
-  post: Post!
-}
-
+"""
+Full user object model used for internal GraphQL relations where broader user fields are needed.
+"""
 type User {
+  """Unique identifier of the user account."""
   id: ID!
+
+  """Timestamp indicating when the user account was created."""
   createdAt: DateTime!
 
   """
   Presentation-friendly UTC timestamp for when the user account was created.
   """
   createdAtFormatted: String
+
+  """Timestamp indicating when the user account was last updated."""
   updatedAt: DateTime!
 
   """
   Presentation-friendly UTC timestamp for when the user account was last updated.
   """
   updatedAtFormatted: String
+
+  """Optional list of posts created by the user."""
   posts: [Post!]
+
+  """Optional list of likes created by the user."""
   likes: [Like!]
+
+  """Optional list of users following this user."""
   followers: [Follow!]
+
+  """Optional list of users this account follows."""
   following: [Follow!]
 
   """Public display name."""
@@ -313,21 +410,27 @@ type Like {
   postId: Int!
 }
 
+"""
+Upload instruction payload returned before a client uploads media directly to storage.
+"""
 type RequestPostMediaUpload {
   """Identifier of the pending media record created for this upload."""
   mediaId: ID!
-
-  """Temporary presigned URL used by the client to upload directly to R2."""
-  uploadUrl: String!
 
   """Final public delivery URL expected for the uploaded media item."""
   url: String!
 
   """Timestamp indicating when the presigned upload URL expires."""
   expiresAt: DateTime!
+
+  """Temporary presigned URL used by the client to upload directly to R2."""
+  uploadUrl: String!
 }
 
-type SignedMediaViewUrl {
+"""
+Owner-scoped signed media URL payload used to read a media object temporarily.
+"""
+type MediaViewUrl {
   """Identifier of the media item the signed URL belongs to."""
   mediaId: ID!
 
@@ -338,6 +441,9 @@ type SignedMediaViewUrl {
   expiresAt: DateTime!
 }
 
+"""
+Public media object exposed to owners and post detail consumers with safe delivery metadata.
+"""
 type Media {
   """Unique identifier of the media item."""
   id: ID!
@@ -351,11 +457,11 @@ type Media {
   """Upload lifecycle state for the media item."""
   status: MediaStatus!
 
-  """Public delivery URL used by clients to render the media item."""
-  url: String!
-
   """MIME type verified for the stored object."""
   mimeType: String!
+
+  """Public delivery URL used by clients to render the media item."""
+  url: String!
 
   """Size of the stored object in bytes."""
   bytes: Int
@@ -414,6 +520,18 @@ enum MediaStatus {
   READY
 }
 
+"""Cursor-paginated page of media plus navigation metadata."""
+type MediaPage {
+  """Items returned for the current page."""
+  items: [Media!]!
+
+  """Cursor navigation metadata for the current page."""
+  pageInfo: PageInfo!
+}
+
+"""
+Post attachment object that links a media item to a post with ordering metadata.
+"""
 type PostMedia {
   """Unique identifier of the post-media attachment relation."""
   id: ID!
@@ -431,6 +549,88 @@ type PostMedia {
   Presentation-friendly UTC timestamp for when the media item was attached to the post.
   """
   createdAtFormatted: String
+}
+
+"""Post payload returned after a media attachment mutation succeeds."""
+type AttachMediaPostResult {
+  """
+  Unique identifier of the post. Used for referencing, routing, and relation mapping.
+  """
+  id: ID!
+
+  """Title of the post."""
+  title: String
+
+  """Timestamp indicating when the post was originally created."""
+  createdAt: DateTime!
+
+  """
+  Presentation-friendly UTC timestamp for when the post was originally created.
+  """
+  createdAtFormatted: String
+
+  """Timestamp indicating the last time the post was updated."""
+  updatedAt: DateTime!
+
+  """
+  Presentation-friendly UTC timestamp for when the post was last updated.
+  """
+  updatedAtFormatted: String
+
+  """
+  Timestamp indicating when the post body or title was last meaningfully edited.
+  """
+  editedAt: DateTime
+
+  """
+  Presentation-friendly UTC timestamp for when the post body or title was last meaningfully edited.
+  """
+  editedAtFormatted: String
+
+  """Public safe preview of the user who authored the post."""
+  author: SafeUserPreview!
+
+  """Total number of likes associated with the post."""
+  likesCount: Int!
+
+  """Total number of comments associated with the post."""
+  commentsCount: Int!
+
+  """
+  Total number of times the post detail view has been accessed successfully.
+  """
+  viewsCount: Int!
+
+  """Optional ordered list of media attachments associated with the post."""
+  mediaAttachments: [PostMedia!]
+
+  """Main textual content of the post."""
+  content: String!
+}
+
+"""
+Public post payload returned immediately after successful post creation.
+"""
+type CreatedPost {
+  """Unique identifier of the post."""
+  id: ID!
+
+  """Title of the post."""
+  title: String
+
+  """Timestamp indicating when the post was originally created."""
+  createdAt: DateTime!
+
+  """
+  Presentation-friendly UTC timestamp for when the post was originally created.
+  """
+  createdAtFormatted: String
+
+  """Public safe preview of the user who authored the post."""
+  author: SafeUserPreview!
+
+  """Main textual content of the post."""
+  content: String!
 }
 
 """
@@ -492,12 +692,58 @@ type PostDetail {
   likes: [LikePreview!]
 
   """Optional lightweight list of comments associated with the post."""
-  comments: [SafeCommentDTO!]
+  comments: [Comment!]
 
   """Optional ordered list of media attachments associated with the post."""
   mediaAttachments: [PostMedia!]
 }
 
+"""Cursor-paginated page of posts plus navigation metadata."""
+type PostPage {
+  """Items returned for the current page."""
+  items: [Post!]!
+
+  """Cursor navigation metadata for the current page."""
+  pageInfo: PageInfo!
+}
+
+"""
+Public user payload returned immediately after successful account creation.
+"""
+type CreatedUser implements PublicUserIdentity {
+  id: ID!
+  name: String!
+  username: String!
+
+  """Timestamp indicating when the user account was created."""
+  createdAt: DateTime!
+
+  """
+  Presentation-friendly UTC timestamp for when the user account was created.
+  """
+  createdAtFormatted: String
+
+  """Timestamp indicating when the user account was last updated."""
+  updatedAt: DateTime!
+
+  """
+  Presentation-friendly UTC timestamp for when the user account was last updated.
+  """
+  updatedAtFormatted: String
+}
+
+"""Cursor-paginated page of users plus navigation metadata."""
+type UserPage {
+  """Items returned for the current page."""
+  items: [SafeUser!]!
+
+  """Cursor navigation metadata for the current page."""
+  pageInfo: PageInfo!
+}
+
+"""
+Authentication payload returned after successful login and token issuance.
+"""
 type AuthPayload {
   """JWT access token returned after successful authentication."""
   access_token: String!
@@ -506,11 +752,16 @@ type AuthPayload {
 type Query {
   users(
     """Maximum number of items to return (1-${PAGINATION.MAX_TAKE})."""
-    take: Int
+    first: Int
 
-    """Controls chronological ordering for list results."""
+    """
+    Cursor for the last item from the previous page. Reuse it only with the same filter and ordering inputs.
+    """
+    after: String
+
+    """Controls chronological ordering for paged list results."""
     orderBy: ChronologicalOrder
-  ): [SafeUser!]!
+  ): UserPage!
   userById(id: Int!): SafeUser!
   userByUsername(
     """Public username used to identify a user profile."""
@@ -518,47 +769,72 @@ type Query {
   ): SafeUser!
   posts(
     """Maximum number of items to return (1-${PAGINATION.MAX_TAKE})."""
-    take: Int
+    first: Int
 
-    """Controls chronological ordering for list results."""
+    """
+    Cursor for the last item from the previous page. Reuse it only with the same filter and ordering inputs.
+    """
+    after: String
+
+    """Controls chronological ordering for paged list results."""
     orderBy: ChronologicalOrder
 
     """
     Free-text search query for posts. Trimmed before validation. Max 50 characters.
     """
     q: String
-  ): [Post!]!
+  ): PostPage!
   postById(id: Int!): PostDetail!
   postsByUsername(
     """Maximum number of items to return (1-${PAGINATION.MAX_TAKE})."""
-    take: Int
+    first: Int
 
-    """Controls chronological ordering for list results."""
+    """
+    Cursor for the last item from the previous page. Reuse it only with the same filter and ordering inputs.
+    """
+    after: String
+
+    """Controls chronological ordering for paged list results."""
     orderBy: ChronologicalOrder
 
     """Public username used to identify the post author timeline."""
     username: String!
-  ): [Post!]!
+  ): PostPage!
   myFeed(
     """Maximum number of items to return (1-${PAGINATION.MAX_TAKE})."""
-    take: Int
+    first: Int
 
-    """Controls chronological ordering for list results."""
+    """
+    Cursor for the last item from the previous page. Reuse it only with the same filter and ordering inputs.
+    """
+    after: String
+
+    """Controls chronological ordering for paged list results."""
     orderBy: ChronologicalOrder
-  ): [Post!]!
+  ): PostPage!
   myMedia(
     """Maximum number of items to return (1-${PAGINATION.MAX_TAKE})."""
-    take: Int
+    first: Int
 
-    """Controls chronological ordering for list results."""
+    """
+    Cursor for the last item from the previous page. Reuse it only with the same filter and ordering inputs.
+    """
+    after: String
+
+    """Controls chronological ordering for paged list results."""
     orderBy: ChronologicalOrder
-  ): [Media!]!
-  mediaSignedViewUrl(mediaId: Int!): SignedMediaViewUrl!
+  ): MediaPage!
+  mediaSignedViewUrl(mediaId: Int!): MediaViewUrl!
   likes(
     """Maximum number of items to return (1-${PAGINATION.MAX_TAKE})."""
-    take: Int
+    first: Int
 
-    """Controls chronological ordering for list results."""
+    """
+    Cursor for the last item from the previous page. Reuse it only with the same filter and ordering inputs.
+    """
+    after: String
+
+    """Controls chronological ordering for paged list results."""
     orderBy: ChronologicalOrder
 
     """Return only likes that belong to this post id."""
@@ -568,37 +844,52 @@ type Query {
     Return only likes created by this user id. Use 0 to disable this filter.
     """
     userId: Int
-  ): [LikeListItem!]!
+  ): LikePage!
   likeById(id: Int!): LikeListItem!
   myNotifications(
     """Maximum number of items to return (1-${PAGINATION.MAX_TAKE})."""
-    take: Int
+    first: Int
 
-    """Controls chronological ordering for list results."""
+    """
+    Cursor for the last item from the previous page. Reuse it only with the same filter and ordering inputs.
+    """
+    after: String
+
+    """Controls chronological ordering for paged list results."""
     orderBy: ChronologicalOrder
 
     """Optional filter for notification read status (ALL/READ/UNREAD)."""
     status: NotificationReadStatus
-  ): [NotificationDTO!]!
+  ): NotificationPage!
   unreadNotificationsCount: Int!
   follows(
     """Maximum number of items to return (1-${PAGINATION.MAX_TAKE})."""
-    take: Int
+    first: Int
 
-    """Controls chronological ordering for list results."""
+    """
+    Cursor for the last item from the previous page. Reuse it only with the same filter and ordering inputs.
+    """
+    after: String
+
+    """Controls chronological ordering for paged list results."""
     orderBy: ChronologicalOrder
-  ): [Follow!]!
+  ): FollowPage!
   followById(id: Int!): Follow!
   commentsByPost(
     """Maximum number of items to return (1-${PAGINATION.MAX_TAKE})."""
-    take: Int
+    first: Int
 
-    """Controls chronological ordering for list results."""
+    """
+    Cursor for the last item from the previous page. Reuse it only with the same filter and ordering inputs.
+    """
+    after: String
+
+    """Controls chronological ordering for paged list results."""
     orderBy: ChronologicalOrder
 
     """Unique id of the post whose comments should be returned."""
     postId: Int!
-  ): [SafeCommentDTO!]!
+  ): CommentPage!
 }
 
 """Controls chronological ordering for list queries"""
@@ -618,23 +909,23 @@ type Mutation {
   login(input: LoginInput!): AuthPayload!
   requestPasswordReset(input: RequestPasswordResetInput!): MessageResponse!
   resetPassword(input: ResetPasswordInput!): MessageResponse!
-  createUser(input: CreateUserInput!): SafeUser!
+  createUser(input: CreateUserInput!): CreatedUser!
   updateMe(input: UpdateUserInput!): SafeUser!
   deleteMe: MessageResponse!
-  createPost(input: CreatePostInput!): Post!
+  createPost(input: CreatePostInput!): CreatedPost!
   updatePost(id: Int!, input: UpdatePostInput!): Post!
   deletePost(id: Int!): MessageResponse!
   requestPostMediaUpload(input: RequestPostMediaUploadInput!): RequestPostMediaUpload!
   completePostMediaUpload(input: CompletePostMediaUploadInput!): Media!
-  attachMediaToPost(input: AttachMediaToPostInput!): PostDetail!
+  attachMediaToPost(input: AttachMediaToPostInput!): AttachMediaPostResult!
   createLike(postId: Int!): LikeListItem!
   deleteLike(id: Int!): MessageResponse!
   markNotificationAsRead(notificationId: Int!): MessageResponse!
   markAllNotificationsAsRead: MessageResponse!
   createFollow(followingId: Int!): Follow!
   deleteFollow(id: Int!): MessageResponse!
-  createComment(input: CreateCommentInput!): SafeCommentDTO!
-  updateComment(commentId: Int!, input: UpdateCommentInput!): SafeCommentDTO!
+  createComment(input: CreateCommentInput!): Comment!
+  updateComment(commentId: Int!, input: UpdateCommentInput!): Comment!
   deleteComment(commentId: Int!): MessageResponse!
 }
 

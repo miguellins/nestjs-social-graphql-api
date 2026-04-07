@@ -1,19 +1,20 @@
 import { Args, Int, Mutation, Query, Resolver } from "@nestjs/graphql";
 import { Throttle } from "@nestjs/throttler";
 
-import { CurrentUser } from "@/common/decorators/current-user.decorator";
-import { THROTTLE_LIMITS } from "@/common/constants/throttle.constants";
-
 import { CompletePostMediaUploadInput } from "@/media/dto/complete-post-media-upload.input";
 import { RequestPostMediaUploadInput } from "@/media/dto/request-post-media-upload.input";
 import { RequestPostMediaUpload } from "@/media/models/request-post-media-upload.model";
 import { AttachMediaToPostInput } from "@/media/dto/attach-media-to-post.input";
 import { MediaViewUrl } from "@/media/models/media-view-url.model";
+import { MediaPage } from "@/media/models/media-page.model";
 import { MyMediaArgs } from "@/media/args/my-media.args";
 import { MediaService } from "@/media/media.service";
 import { Media } from "@/media/models/media.model";
 
-import { PostDetail } from "@/posts/models/post-detail.model";
+import { CurrentUser } from "@/common/decorators/current-user.decorator";
+import { THROTTLE_LIMITS } from "@/common/constants/throttle.constants";
+
+import { AttachMediaPostResult } from "@/posts/models/attach-media-post-result.model";
 
 @Resolver(() => Media)
 export class MediaResolver {
@@ -38,20 +39,20 @@ export class MediaResolver {
   }
 
   @Throttle({ default: THROTTLE_LIMITS.MUTATION })
-  @Mutation(() => PostDetail, { name: "attachMediaToPost" })
+  @Mutation(() => AttachMediaPostResult, { name: "attachMediaToPost" })
   async attachMediaToPost(
     @Args("input") input: AttachMediaToPostInput,
     @CurrentUser() user: { id: number },
-  ): Promise<PostDetail> {
+  ): Promise<AttachMediaPostResult> {
     return this.mediaService.attachMediaToPost(input, user.id);
   }
 
   @Throttle({ default: THROTTLE_LIMITS.LIST })
-  @Query(() => [Media], { name: "myMedia" })
+  @Query(() => MediaPage, { name: "myMedia" })
   async myMedia(
     @CurrentUser() user: { id: number },
     @Args() args: MyMediaArgs,
-  ): Promise<Media[]> {
+  ): Promise<MediaPage> {
     return this.mediaService.myMedia(user.id, args);
   }
 

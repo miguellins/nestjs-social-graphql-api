@@ -17,7 +17,6 @@ export type LikeDetailDTO = {
     content: string;
     createdAt: Date;
     likesCount: number;
-    commentsCount: number;
 
     author: {
       id: number;
@@ -47,7 +46,6 @@ export const LikeDetailSelect = {
       content: true,
       createdAt: true,
       likesCount: true,
-      commentsCount: true,
 
       author: {
         select: {

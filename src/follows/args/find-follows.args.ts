@@ -1,6 +1,6 @@
 import { ArgsType } from "@nestjs/graphql";
 
-import { PaginationArgs } from "@/common/args/pagination.args";
+import { CursorPaginationArgs } from "@/common/args/cursor-pagination.args";
 
 @ArgsType()
-export class FindFollowsArgs extends PaginationArgs {}
+export class FindFollowsArgs extends CursorPaginationArgs {}

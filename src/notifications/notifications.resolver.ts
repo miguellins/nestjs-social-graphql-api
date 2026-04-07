@@ -13,6 +13,7 @@ import { THROTTLE_LIMITS } from "@/common/constants/throttle.constants";
 import { MessageResponse } from "@/common/types/message-response.type";
 
 import { FindNotificationsArgs } from "@/notifications/args/find-notifications.args";
+import { NotificationPage } from "@/notifications/models/notification-page.model";
 import { NotificationsService } from "@/notifications/notifications.service";
 import { NotificationDTO } from "@/notifications/models/notification.model";
 
@@ -27,11 +28,11 @@ export class NotificationsResolver {
   ) {}
 
   @Throttle({ default: THROTTLE_LIMITS.LIST })
-  @Query(() => [NotificationDTO], { name: "myNotifications" })
+  @Query(() => NotificationPage, { name: "myNotifications" })
   async findMyNotifications(
     @CurrentUser() user: { id: number },
     @Args() args: FindNotificationsArgs,
-  ): Promise<NotificationDTO[]> {
+  ): Promise<NotificationPage> {
     return this.notificationsService.findMyNotifications(
       user.id,
       args,

@@ -8,6 +8,7 @@ import { Public } from "@/common/decorators/auth.decorator";
 
 import { LikeListItem } from "@/likes/models/like-list-item.model";
 import { FindLikesArgs } from "@/likes/args/find-likes.args";
+import { LikePage } from "@/likes/models/like-page.model";
 import { LikesService } from "@/likes/likes.service";
 import { Like } from "@/likes/models/like.model";
 
@@ -17,8 +18,8 @@ export class LikeResolver {
 
   @Public()
   @Throttle({ default: THROTTLE_LIMITS.LIST })
-  @Query(() => [LikeListItem], { name: "likes" })
-  async likes(@Args() args: FindLikesArgs): Promise<LikeListItem[]> {
+  @Query(() => LikePage, { name: "likes" })
+  async likes(@Args() args: FindLikesArgs): Promise<LikePage> {
     return this.likesService.findLikes(args);
   }
 

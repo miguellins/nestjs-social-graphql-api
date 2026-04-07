@@ -27,18 +27,24 @@ import {
 } from "@/media/schemas/media-write.schema";
 
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
-import { PAGINATION } from "@/common/constants/hard-cap.constants";
+import { decodeChronoCursor } from "@/common/pagination/chrono-cursor";
 import { parseWithBadRequest } from "@/common/zod/parse-with-zod";
 import { runBestEffort } from "@/common/errors/run-best-effort";
+import {
+  buildChronologicalCursorFilter,
+  buildCursorPage,
+  normalizeCursorTake,
+  type CursorPageResult,
+} from "@/common/pagination/cursor-pagination";
 import {
   ChronologicalOrder,
   toSortDirection,
 } from "@/common/enums/chronological-order.enum";
 
 import {
-  type SafePostDetailDTO,
-  SafePostDetailSelect,
-} from "@/posts/dto/safe-post-detail.dto";
+  type SafeAttachMediaPostDTO,
+  SafeAttachMediaPostSelect,
+} from "@/posts/dto/safe-attach-media-post.dto";
 
 import { PrismaService } from "@/prisma/prisma.service";
 import {
@@ -51,7 +57,8 @@ import {
 } from "@prisma/client";
 
 type PaginationParams = {
-  take?: number;
+  after?: string;
+  first?: number;
   orderBy?: ChronologicalOrder;
 };
 
@@ -245,7 +252,7 @@ export class MediaService {
   async attachMediaToPost(
     input: AttachMediaToPostCommand,
     currentUserId: number,
-  ): Promise<SafePostDetailDTO> {
+  ): Promise<SafeAttachMediaPostDTO> {
     const data = this.parseAttachMediaToPostInput(input);
 
     await this.assertPostOwnership(data.postId, currentUserId);
@@ -315,33 +322,39 @@ export class MediaService {
       },
     );
 
-    return this.getPostDetail(data.postId);
+    return this.getAttachMediaPostResult(data.postId);
   }
 
   // Lists the current user's uploaded media using bounded chronological pagination
   async myMedia(
     currentUserId: number,
     params?: PaginationParams,
-  ): Promise<SafeMediaDTO[]> {
-    const take = Math.min(
-      params?.take ?? PAGINATION.DEFAULT_TAKE,
-      PAGINATION.MAX_TAKE,
-    );
-
+  ): Promise<CursorPageResult<SafeMediaDTO>> {
+    const take = normalizeCursorTake(params?.first);
     const orderby = params?.orderBy ?? ChronologicalOrder.NEWEST;
+    const cursor = params?.after ? decodeChronoCursor(params.after) : undefined;
+    const cursorFilter = buildChronologicalCursorFilter(cursor, orderby);
 
     const media = await this.prisma.media.findMany({
-      where: {
-        ownerId: currentUserId,
-      },
-      take,
-      orderBy: {
-        createdAt: toSortDirection(orderby),
-      },
+      where: cursorFilter
+        ? {
+            AND: [{ ownerId: currentUserId }, cursorFilter],
+          }
+        : {
+            ownerId: currentUserId,
+          },
+      take: take + 1,
+      orderBy: [
+        { createdAt: toSortDirection(orderby) },
+        { id: toSortDirection(orderby) },
+      ],
       select: SafeMediaSelect,
     });
 
-    return media.map((item) => this.mediaReadProjection.derivePublicUrl(item));
+    return buildCursorPage(
+      media.map((item) => this.mediaReadProjection.derivePublicUrl(item)),
+      take,
+    );
   }
 
   // Returns an owner-only temporary signed URL for reading one READY media object
@@ -372,41 +385,20 @@ export class MediaService {
   }
 
   // Private Helpers
-  // Returns a bounded detailed post view with comments, likes, and media attachments
-  private async getPostDetail(id: number): Promise<SafePostDetailDTO> {
-    const likesTake = Math.min(
-      PAGINATION.DEFAULT_TAKE_LIKES,
-      PAGINATION.MAX_TAKE_LIKES,
-    );
-
-    const commentsTake = Math.min(PAGINATION.DEFAULT_TAKE, PAGINATION.MAX_TAKE);
-
+  // Returns the updated post view needed after attaching media
+  private async getAttachMediaPostResult(
+    id: number,
+  ): Promise<SafeAttachMediaPostDTO> {
     const post = await this.prisma.post.findUnique({
       where: { id },
-      select: {
-        ...SafePostDetailSelect,
-        likes: {
-          take: likesTake,
-          orderBy: {
-            createdAt: "desc",
-          },
-          select: SafePostDetailSelect.likes.select,
-        },
-        comments: {
-          take: commentsTake,
-          orderBy: {
-            createdAt: "desc",
-          },
-          select: SafePostDetailSelect.comments.select,
-        },
-      },
+      select: SafeAttachMediaPostSelect,
     });
 
     if (!post) {
       throw new NotFoundException("Post not found");
     }
 
-    return this.mediaReadProjection.derivePostDetailMediaUrls(post);
+    return this.mediaReadProjection.deriveAttachMediaPostUrls(post);
   }
 
   // Ensures the current user owns the target post

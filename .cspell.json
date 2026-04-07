@@ -26,7 +26,8 @@
     "QLISO",
     "autoincrement",
     "ftyp",
-    "EBML"
+    "EBML",
+    "Chrono"
   ],
   "ignoreWords": [],
   "ignorePaths": [

@@ -8,8 +8,14 @@ import {
 
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
 import { MessageResponse } from "@/common/types/message-response.type";
-import { PAGINATION } from "@/common/constants/hard-cap.constants";
+import { decodeChronoCursor } from "@/common/pagination/chrono-cursor";
 import { runBestEffort } from "@/common/errors/run-best-effort";
+import {
+  buildChronologicalCursorFilter,
+  buildCursorPage,
+  normalizeCursorTake,
+  type CursorPageResult,
+} from "@/common/pagination/cursor-pagination";
 import {
   ChronologicalOrder,
   toSortDirection,
@@ -26,7 +32,8 @@ import { PrismaService } from "@/prisma/prisma.service";
 import { Prisma } from "@prisma/client";
 
 type FindLikesParams = {
-  take?: number;
+  after?: string;
+  first?: number;
   orderBy?: ChronologicalOrder;
   postId?: number;
   userId?: number;
@@ -42,39 +49,56 @@ export class LikesService {
     private readonly notificationTrigger: NotificationTriggerService,
   ) {}
 
-  async findLikes(params?: FindLikesParams): Promise<LikeDetailDTO[]> {
-    const take = Math.min(
-      params?.take ?? PAGINATION.DEFAULT_TAKE,
-      PAGINATION.MAX_TAKE,
-    );
+  async findLikes(
+    params?: FindLikesParams,
+  ): Promise<CursorPageResult<LikeDetailDTO>> {
+    const take = normalizeCursorTake(params?.first);
 
     const postId = params?.postId;
     const userId = params?.userId === 0 ? undefined : params?.userId;
-
     const orderby = params?.orderBy ?? ChronologicalOrder.NEWEST;
+    const cursor = params?.after ? decodeChronoCursor(params.after) : undefined;
+    const cursorFilter = buildChronologicalCursorFilter(cursor, orderby);
 
     const v = await this.cacheHelper.getVersion("v:likes:list");
 
-    const cacheKey = `likes:list:v${v}:${take}:p${postId ?? "all"}:u${userId ?? "all"}:order=${orderby}`;
+    const cacheKey = `likes:list:v${v}:first=${take}:after=${params?.after ?? "none"}:p${postId ?? "all"}:u${userId ?? "all"}:order=${orderby}`;
 
     return this.cacheHelper.getOrSet(
       cacheKey,
       async () => {
-        const where: Prisma.LikeWhereInput = {
-          ...(postId !== undefined && { postId }),
-          ...(userId !== undefined && { userId }),
-        };
+        const filters: Prisma.LikeWhereInput[] = [];
 
-        return this.prisma.like.findMany({
-          take,
+        if (postId !== undefined) {
+          filters.push({ postId });
+        }
+
+        if (userId !== undefined) {
+          filters.push({ userId });
+        }
+
+        if (cursorFilter) {
+          filters.push(cursorFilter);
+        }
+
+        const where: Prisma.LikeWhereInput =
+          filters.length === 0
+            ? {}
+            : filters.length === 1
+              ? (filters[0] ?? {})
+              : { AND: filters };
+
+        const rows = await this.prisma.like.findMany({
+          take: take + 1,
           where,
-
-          orderBy: {
-            createdAt: toSortDirection(orderby),
-          },
-
+          orderBy: [
+            { createdAt: toSortDirection(orderby) },
+            { id: toSortDirection(orderby) },
+          ],
           select: LikeDetailSelect,
         });
+
+        return buildCursorPage(rows, take);
       },
       30_000,
     );

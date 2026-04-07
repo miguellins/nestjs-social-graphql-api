@@ -1,315 +1,418 @@
 # NestJS Social GraphQL API
+A production-oriented social platform backend built with NestJS, GraphQL, Prisma, MySQL, Redis, and Cloudflare R2.
 
-A production-oriented **social platform backend** built with **NestJS + GraphQL + Prisma + MySQL + Redis**.
-
-This API handles user accounts, authentication, posts, likes, and follows, with strong validation, rate limiting, caching, and consistent error handling.
+This project currently covers users, auth, posts, comments, likes, follows, notifications, realtime subscriptions, and media upload flows. The codebase is organized as a code-first GraphQL monolith with safe DTO/select patterns, global GraphQL guards, throttling, Redis-backed caching, and Redis-backed subscription delivery.
 
 ## What This Project Does
-
-This backend provides the core features of a social application:
-
+This backend currently provides:
 - User registration and profile management
-- JWT-based authentication (`login`)
+- JWT-based authentication
+- Password reset initiation and completion
 - Post creation, listing, detail view, update, and delete
+- Comment creation, listing, update, and delete
 - Like/unlike post behavior with atomic counter updates
 - Follow/unfollow user behavior
-- Public-safe data exposure (no password leakage)
-- Throttling/rate limits per operation type
-- Global input validation and error normalization for GraphQL clients
+- Notification persistence and realtime notification delivery
+- Direct-to-R2 media upload orchestration for posts
+- Public-safe data exposure with explicit DTO/select patterns
+- Global throttling and auth-by-default resolver protection
+- Centralized validation and GraphQL-safe error handling
 
 ## Stack and Tools
-
-- **Runtime**: Node.js, TypeScript
-- **Framework**: NestJS 11
-- **API**: GraphQL (code-first) with Apollo driver
-- **ORM/DB**: Prisma + MySQL
-- **Cache**: Redis via `cache-manager` + `keyv` + `@keyv/redis`
-- **Auth**: Passport JWT (`@nestjs/passport`, `@nestjs/jwt`, `passport-jwt`)
-- **Security**: `helmet`, global validation pipe, auth guards
-- **Validation/Transform**: `class-validator`, `class-transformer`
-- **Password Hashing**: `bcrypt`
-- **Build/Dev**: Nest CLI, `ts-node`, `nodemon`, `tsc-alias`
-- **Code Quality**: ESLint + Prettier
+- Runtime: Node.js, TypeScript
+- Framework: NestJS 11
+- API: GraphQL code-first with Apollo
+- ORM/DB: Prisma + MySQL
+- Cache: `@nestjs/cache-manager` + Keyv + Redis
+- Auth: Passport JWT (`@nestjs/passport`, `@nestjs/jwt`)
+- Realtime: `graphql-ws` + Redis-backed pubsub (`graphql-redis-subscriptions`)
+- Media Storage: Cloudflare R2 via S3-compatible APIs
+- Validation: `class-validator`, `class-transformer`, `zod`
+- Security: `helmet`, GraphQL JWT guard, throttling guard, password peppering
+- Password Hashing: `bcrypt`
+- Media Validation: `sharp`
+- Build/Dev: Nest CLI, `ts-node`, `nodemon`, `tsc-alias`
+- Code Quality: ESLint + Prettier
 
 ## Architecture Overview
 
-### 1. Application bootstrap (`src/main.ts`)
+### Application bootstrap
+`src/main.ts`:
+- creates the Nest app
+- enables the global validation pipe
+- registers the GraphQL exception filter
+- applies security headers
+- enables graceful shutdown hooks
 
-- Creates Nest app and starts server on `PORT` (default `3000`)
-- Enables global `ValidationPipe` with:
-  - `whitelist: true`
-  - `forbidNonWhitelisted: true`
-  - `transform: true`
-- Enables a global GraphQL exception filter
-- Enables `helmet` headers
-- Enables graceful shutdown hooks
-
-### 2. Root module (`src/app.module.ts`)
-
-- Global `ConfigModule`
-- Global Redis cache configuration (Keyv + SuperJSON serialization)
-- GraphQL code-first schema generation to `src/schema.gql`
-- Global throttling with default limits
-- Registers all feature modules:
+### Root module
+`src/app.module.ts`:
+- loads environment configuration globally
+- registers the Redis-backed cache
+- configures GraphQL code-first schema generation into `src/schema.gql`
+- registers global throttling
+- wires feature modules:
   - `AuthModule`
   - `UsersModule`
   - `PostsModule`
+  - `MediaModule`
   - `LikesModule`
   - `FollowsModule`
-- Registers global guards:
+  - `CommentsModule`
+  - `NotificationsModule`
+  - `GraphqlSubscriptionsModule`
+- registers global guards:
   - `GqlThrottlerGuard`
   - `GqlJwtGuard`
 
-### 3. Data layer
+### Shared infrastructure
+The shared/common layer already provides several repository-wide standards:
+- GraphQL auth-by-default with `@Public()` opt-out
+- service-level Zod parsing via `parseWithBadRequest(...)`
+- read-through caching and version-key invalidation via `CacheHelperService`
+- best-effort side-effect handling via `runBestEffort(...)`
+- fail-fast environment validation in `src/config/env/env.schema.ts`
+- Redis-backed subscription publishing in `src/graphql/subscriptions/`
 
-- `PrismaService` extends `PrismaClient`
-- `PrismaModule` is global and shared across modules
-- MySQL datasource configured through `DATABASE_URL`
-
-## Database Schema (Prisma)
-
+## Data Model Overview
 Defined in `prisma/schema.prisma`.
 
+### Core entities
 - `User`
-  - unique `email`, unique `username`
-  - has many `posts`, `likes`, `followers`, `following`
+  - unique `email`
+  - unique `username`
+  - has many posts, comments, likes, follows, notifications, password reset tokens, and media uploads
+
 - `Post`
-  - belongs to an `author` (`User`)
-  - has denormalized `likesCount`
-  - indexed by `authorId`
+  - belongs to an author
+  - has optional `title`
+  - has denormalized `likesCount`, `commentsCount`, and `viewsCount`
+  - has many comments, likes, and media attachments
+
+- `Comment`
+  - belongs to a post
+  - belongs to an author
+
 - `Like`
-  - belongs to `user` and `post`
+  - belongs to a user and a post
   - unique pair `@@unique([userId, postId])`
+
 - `Follow`
-  - self-relation (`followerId` -> `followingId`)
+  - self-relation between users
   - unique pair `@@unique([followerId, followingId])`
 
-## Feature Modules and Behavior
+- `Notification`
+  - belongs to an actor and a recipient
+  - stores type, title, body, related entity id, and read state
 
+- `Media`
+  - belongs to an owner user
+  - tracks upload state, storage location, MIME type, bytes, dimensions, and attachment state
+
+- `PostMedia`
+  - ordered join table between posts and media items
+
+- `PasswordResetToken`
+  - stores hashed one-time-use reset tokens with expiry
+
+## Feature Modules
 ### Auth
+- `login(input)`
+- `requestPasswordReset(input)`
+- `resetPassword(input)`
 
-- `login(input)` validates credentials
-- Username normalization (`trim + lowercase`)
-- Password verification using `bcrypt.compare`
-- JWT payload uses `sub: user.id`
-- JWT strategy extracts token from Bearer header
+Current strengths:
+- generic reset-initiation response to avoid account enumeration
+- hashed reset tokens with expiry and single-use semantics
+- password reset performed transactionally
+- password hash upgrade path during login
 
 ### Users
-
-- `users(take)` public list query with pagination cap
-- `userById(id)` public detail query
-- `createUser(input)` public signup mutation
-  - validates and normalizes inputs
-  - hashes password with bcrypt (salt rounds = 12)
-  - handles unique constraint conflicts (`email`/`username`)
-- `updateMe(input)` authenticated profile update
-- `deleteMe` authenticated account delete
-- Uses Redis cache for:
-  - list queries (versioned key strategy)
-  - user detail cache
-
-### Posts
-
-- `posts(take, q)` public query with optional text search (`title`/`content`)
-- `postById(id)` public detail query, includes recent likes preview
-- `createPost(input)` authenticated
-- `updatePost(id, input)` authenticated and ownership-protected
-- `deletePost(id)` authenticated and ownership-protected
-- Uses cache for list/detail and version bumps on writes
-
-### Likes
-
-- `likes(take, postId, userId)` public list query with filters
-- `likeById(id)` public detail query
-- `createLike(postId)` authenticated
-  - transaction: create like + increment post `likesCount`
-  - duplicate-like protection via unique constraint
-- `deleteLike(id)` authenticated + ownership check
-  - transaction: delete like + decrement `likesCount`
-
-### Follows
-
-- `follows(take)` public list query
-- `followById(id)` public detail query
-- `createFollow(followingId)` authenticated
-  - blocks self-follow
-  - blocks duplicate follows
-- `deleteFollow(id)` authenticated + ownership check
-
-## GraphQL Operations
-
-Main operations exposed in `src/schema.gql`:
-
-### Queries
-
 - `users(take)`
 - `userById(id)`
-- `posts(take, q)`
-- `postById(id)`
-- `likes(take, postId, userId)`
-- `likeById(id)`
-- `follows(take)`
-- `followById(id)`
-
-### Mutations
-
-- `login(input)`
+- `userByUsername(username)`
 - `createUser(input)`
 - `updateMe(input)`
 - `deleteMe`
+
+Current strengths:
+- safe user DTO/select shape
+- feature-private `UserCacheService`
+- cache refresh and invalidation after writes
+- service-level validation and password hashing
+
+### Posts
+- `posts(take, q)`
+- `postsByUsername(username, take)`
+- `postById(id)`
+- `myFeed(take)`
 - `createPost(input)`
 - `updatePost(id, input)`
 - `deletePost(id)`
+
+Current strengths:
+- separate safe list/detail DTOs
+- `PostReadService` for detail reads and view-count refresh handling
+- explicit cache versioning and detail invalidation
+- ownership checks in the service layer
+
+### Comments
+- `commentsByPost(postId, take)`
+- `createComment(input)`
+- `updateComment(commentId, input)`
+- `deleteComment(commentId)`
+
+Current strengths:
+- comment count updates are kept transactionally consistent
+- ownership checks live in the service
+- post detail cache invalidation is handled after writes
+
+### Likes
+- `likes(take, postId, userId)`
+- `likeById(id)`
 - `createLike(postId)`
 - `deleteLike(id)`
+
+Current strengths:
+- like creation/deletion is transactionally tied to `Post.likesCount`
+- duplicate likes are mapped cleanly from Prisma uniqueness errors
+- notification creation is triggered as a best-effort side effect
+
+### Follows
+- `follows(take)`
+- `followById(id)`
 - `createFollow(followingId)`
 - `deleteFollow(id)`
 
-## Security and Reliability Techniques Used
+Current strengths:
+- self-follow prevention
+- duplicate follow protection
+- flexible unfollow behavior by relation id or target user id
+- follow notification triggering
 
-- JWT auth guard with `@Public()` bypass support
-- Role-free ownership checks for sensitive mutations
-- Input DTO validation at API boundary
-- Input normalization/trim transformers
-- Centralized exception mapping (Prisma + HTTP -> predictable GraphQL errors)
-- Rate limiting by action type:
-  - list, read, signup, mutation, destructive
-- Fail-fast env checks (`JWT_SECRET`, `REDIS_URL`)
-- Cache invalidation by **versioned keys** (avoids wildcard deletes)
-- Use of Prisma transactions for consistency (`Like` + `Post.likesCount` updates)
+### Notifications
+- `myNotifications(take, status)`
+- `unreadNotificationsCount`
+- `markNotificationAsRead(notificationId)`
+- `markAllNotificationsAsRead`
+- `notificationReceived` subscription
+
+Current strengths:
+- durable notification persistence before realtime delivery
+- self-notification suppression
+- separate trigger, persistence, and delivery helpers
+- authenticated subscription filtering by subscriber id
+
+### Media
+- `requestPostMediaUpload(input)`
+- `completePostMediaUpload(input)`
+- `attachMediaToPost(input)`
+- `myMedia(take)`
+- `mediaSignedViewUrl(mediaId)`
+
+Current strengths:
+- explicit upload lifecycle
+- post ownership checks
+- MIME type, size, and metadata validation
+- feature-private validation and read projection helpers
+- direct client upload to R2 instead of proxying file bodies through Nest
+
+### GraphQL Subscriptions
+`src/graphql/subscriptions/` provides:
+- Redis-backed pubsub
+- authenticated `graphql-ws` handshake
+- namespaced triggers
+- centralized connection handling
+
+This is already stronger than in-memory pubsub and is designed for multi-instance deployment.
+
+## GraphQL Operations
+### Queries
+- `users`
+- `userById`
+- `userByUsername`
+- `posts`
+- `postsByUsername`
+- `postById`
+- `myFeed`
+- `commentsByPost`
+- `likes`
+- `likeById`
+- `follows`
+- `followById`
+- `myNotifications`
+- `unreadNotificationsCount`
+- `myMedia`
+- `mediaSignedViewUrl`
+
+### Mutations
+- `login`
+- `requestPasswordReset`
+- `resetPassword`
+- `createUser`
+- `updateMe`
+- `deleteMe`
+- `createPost`
+- `updatePost`
+- `deletePost`
+- `createComment`
+- `updateComment`
+- `deleteComment`
+- `createLike`
+- `deleteLike`
+- `createFollow`
+- `deleteFollow`
+- `markNotificationAsRead`
+- `markAllNotificationsAsRead`
+- `requestPostMediaUpload`
+- `completePostMediaUpload`
+- `attachMediaToPost`
+
+### Subscriptions
+- `notificationReceived`
+
+## Security and Reliability Techniques Used
+- GraphQL JWT guard with `@Public()` opt-out
+- GraphQL throttling guard with shared rate-limit categories
+- DTO validation at the GraphQL boundary
+- service-level Zod parsing where modules follow that pattern
+- safe DTO/select exports for public reads
+- Prisma transactions for consistency-critical updates
+- best-effort side effects after committed writes
+- version-key cache invalidation instead of wildcard deletes
+- fail-fast environment validation
+- Redis-backed subscription transport
 
 ## Environment Variables
-
-Required values (from `.env`):
-
+Main required values:
 ```env
 PORT=3000
 DATABASE_URL=mysql://root:root@localhost:3307/mydb
 JWT_SECRET=your_long_secret
 JWT_EXPIRES_IN=7d
+PASSWORD_RESET_TOKEN_TTL_MINUTES=30
+PASSWORD_PEPPER=your_password_pepper
 REDIS_URL=redis://localhost:6379
+GRAPHQL_SUBSCRIPTIONS_REDIS_URL=redis://localhost:6379
+GRAPHQL_SUBSCRIPTIONS_REDIS_NAMESPACE=graphql-subscriptions
+R2_ACCOUNT_ID=your_r2_account_id
+R2_BUCKET=your_bucket
+R2_ACCESS_KEY_ID=your_access_key
+R2_SECRET_ACCESS_KEY=your_secret_key
+R2_PUBLIC_BASE_URL=https://cdn.example.com
+R2_PRESIGNED_URL_TTL_SECONDS=1800
+MEDIA_IMAGE_MAX_BYTES=10485760
+MEDIA_VIDEO_MAX_BYTES=104857600
 ```
 
+The authoritative validation source is `src/config/env/env.schema.ts`.
+
 ## Local Setup
-
 1. Install dependencies:
-
 ```bash
 npm install
 ```
 
 2. Ensure MySQL and Redis are running.
 
-3. Run migrations:
-
+3. Run Prisma migrations:
 ```bash
 npx prisma migrate dev
 ```
 
 4. Start in development:
-
 ```bash
 npm run start:dev
 ```
 
-5. Open GraphQL Playground (enabled):
+5. Open GraphQL Playground:
 
 - `http://localhost:3000/graphql`
 
 ## Docker Setup
+This project includes containers for:
+- `app`
+- `mysql`
+- `redis`
 
-This project is fully containerized with:
-
-- `app` (NestJS + Prisma)
-- `mysql` (MySQL 8.4)
-- `redis` (Redis 7)
-
-### 1. Optional: set JWT envs for compose
-
-```bash
-cp .env.docker.example .env.docker
-```
-
-Then export values from that file (or define directly in your shell):
-
-```bash
-export JWT_SECRET="your_long_random_secret"
-export JWT_EXPIRES_IN="7d"
-```
-
-### 2. Build and run
-
+### Build and run
 ```bash
 docker compose up --build -d
 ```
 
-### 3. Check logs
-
+### Logs
 ```bash
 docker compose logs -f app
 ```
 
-The container entrypoint automatically runs:
-
-```bash
-npx prisma migrate deploy
-```
-
-before starting the API.
-
-### 4. Endpoints
-
-- GraphQL: `http://localhost:3000/graphql`
-- MySQL host port: `3307`
-- Redis host port: `6379`
-
-### 5. Stop
-
+### Stop
 ```bash
 docker compose down
 ```
 
 To also remove DB/cache volumes:
-
 ```bash
 docker compose down -v
 ```
 
 ## Available Scripts
-
 - `npm run build` -> builds Nest app and resolves path aliases
-- `npm run start` -> runs compiled app (`dist/main`)
-- `npm run start:dev` -> nodemon + ts-node dev mode
-- `npm run start:debug` -> Nest debug/watch mode
-- `npm run lint` -> lint + auto-fix
+- `npm run start` -> runs compiled app
+- `npm run start:dev` -> dev mode
+- `npm run start:debug` -> debug/watch mode
+- `npm run lint` -> lint
 - `npm run format` -> Prettier format
+- `npm test` -> unit tests
 
-## Project Structure (High-Level)
-
+## Project Structure
 ```text
 src/
-  auth/        # login resolver/service + JWT strategy
-  users/       # user CRUD (safe outputs)
-  posts/       # post CRUD + search + detail views
-  likes/       # likes listing + create/delete with counters
-  follows/     # follow graph create/delete/list
-  common/      # guards, decorators, constants, filters, args, transformers
-  app.module.ts
-  main.ts
+  auth/            # login + password reset
+  comments/        # comment CRUD + post comment reads
+  common/          # guards, decorators, constants, filters, args, helpers
+  config/          # env schema and config helpers
+  follows/         # follow graph
+  graphql/         # GraphQL config, middleware, fields, subscriptions
+  likes/           # like workflows + counters
+  media/           # media upload orchestration and storage integration
+  notifications/   # notification persistence + delivery
+  posts/           # post CRUD, feed, detail reads, media attachment integration
+  prisma/          # Prisma service/module
+  users/           # user CRUD + cache helpers
 prisma/
   schema.prisma
-  migrations/
 ```
 
 ## Design Choices Summary
+- Code-first GraphQL to keep the schema aligned with TypeScript declarations
+- Safe DTO/select pairing to prevent accidental field leakage
+- Service-owned domain logic with thin resolvers
+- Denormalized counters for read performance
+- Global auth-by-default GraphQL protection
+- Read-through caching plus version-key invalidation
+- Feature-private helpers where complexity justifies them
+- Best-effort side effects after the write path commits
+- Redis-backed subscriptions instead of in-memory pubsub
 
-- **Code-first GraphQL** to keep schema aligned with TypeScript models
-- **Safe DTO/select patterns** to prevent exposing sensitive DB fields
-- **Hard pagination caps** to avoid heavy queries
-- **Denormalized `likesCount`** for cheap list/read performance
-- **Global guard strategy** for secure-by-default API behavior
-- **Redis caching** for hot read paths, with explicit invalidation on writes
+## Current Limitations / Next Priorities
+This codebase is already coherent and production-minded, but it is still intentionally smaller than a real social platform. The main current gaps are:
+
+- No real cursor-based pagination contract yet
+  - most list endpoints still use `take` plus chronological ordering only
+- Feed design is still simple
+  - `myFeed` is a bounded relational query, not a scalable feed system
+- Structured GraphQL errors are still flattened at the GraphQL config layer
+- Product realism is still limited
+  - no privacy controls
+  - no blocks / mutes / reports
+  - no bookmarks
+  - no mentions / hashtags
+  - no richer profile domain
+  - no session/device management
+- Operational maturity is still limited
+  - no health checks, metrics, tracing, request correlation, queues, outbox, or workers yet
+
+The strongest next technical platform improvement is a shared cursor-based pagination model across posts, comments, notifications, likes, follows, media, and users.
 
 ---
 
-Author: **Miguel Lins**
+Author: Miguel Lins

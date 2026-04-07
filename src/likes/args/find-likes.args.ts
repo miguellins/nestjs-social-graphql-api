@@ -2,10 +2,10 @@ import { ArgsType, Field, Int } from "@nestjs/graphql";
 
 import { IsInt, IsOptional, Min } from "class-validator";
 
-import { PaginationArgs } from "@/common/args/pagination.args";
+import { CursorPaginationArgs } from "@/common/args/cursor-pagination.args";
 
 @ArgsType()
-export class FindLikesArgs extends PaginationArgs {
+export class FindLikesArgs extends CursorPaginationArgs {
   /** Return only likes that belong to this post id. */
   @Field(() => Int, {
     nullable: true,

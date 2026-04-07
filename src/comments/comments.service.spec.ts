@@ -11,10 +11,12 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { Prisma } from "@prisma/client";
 
 import { SafeCommentSelect } from "@/comments/dto/safe-comment.dto";
+import { ChronologicalOrder } from "@/common/enums/chronological-order.enum";
 
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
 
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
+import { encodeChronoCursor } from "@/common/pagination/chrono-cursor";
 
 import { PrismaService } from "@/prisma/prisma.service";
 
@@ -23,6 +25,19 @@ import { CommentsService } from "./comments.service";
 describe("CommentsService", () => {
   let service: CommentsService;
   let moduleRef: TestingModule;
+  const makeComment = (id: number) => ({
+    id,
+    content: `Comment ${id}`,
+    createdAt: new Date(`2026-04-0${id}T00:00:00.000Z`),
+    updatedAt: new Date(`2026-04-0${id}T01:00:00.000Z`),
+    authorId: id,
+    postId: 1,
+    author: {
+      id,
+      name: `User ${id}`,
+      username: `user${id}`,
+    },
+  });
 
   const prismaMock: {
     post: {
@@ -197,33 +212,123 @@ describe("CommentsService", () => {
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
-    it("uses pagination defaults when take is not provided", async () => {
+    it("uses cursor pagination defaults when first is not provided", async () => {
       prismaMock.post.findUnique.mockResolvedValue({ id: 1 });
       prismaMock.comment.findMany.mockResolvedValue([]);
 
       await service.findCommentsByPost({ postId: 1 });
 
       expect(prismaMock.comment.findMany).toHaveBeenCalledWith({
-        take: PAGINATION.DEFAULT_TAKE,
+        take: PAGINATION.DEFAULT_TAKE + 1,
         where: { postId: 1 },
-        orderBy: { createdAt: "desc" },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         select: SafeCommentSelect,
       });
     });
 
-    it("caps take to max pagination value", async () => {
+    it("caps first to max pagination value", async () => {
       prismaMock.post.findUnique.mockResolvedValue({ id: 1 });
       prismaMock.comment.findMany.mockResolvedValue([]);
 
       await service.findCommentsByPost({
         postId: 1,
-        take: PAGINATION.MAX_TAKE + 100,
+        first: PAGINATION.MAX_TAKE + 100,
       });
 
       expect(prismaMock.comment.findMany).toHaveBeenCalledWith({
-        take: PAGINATION.MAX_TAKE,
+        take: PAGINATION.MAX_TAKE + 1,
         where: { postId: 1 },
-        orderBy: { createdAt: "desc" },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        select: SafeCommentSelect,
+      });
+    });
+
+    it("returns a page and applies the cursor filter", async () => {
+      prismaMock.post.findUnique.mockResolvedValue({ id: 1 });
+      const rows = [makeComment(3), makeComment(2), makeComment(1)];
+      prismaMock.comment.findMany.mockResolvedValue(rows);
+      const after = encodeChronoCursor({
+        createdAt: new Date("2026-04-10T00:00:00.000Z"),
+        id: 999,
+      });
+
+      const result = await service.findCommentsByPost({
+        postId: 1,
+        first: 5,
+        after,
+      });
+
+      expect(prismaMock.comment.findMany).toHaveBeenCalledWith({
+        take: 6,
+        where: {
+          AND: [
+            { postId: 1 },
+            {
+              OR: [
+                { createdAt: { lt: new Date("2026-04-10T00:00:00.000Z") } },
+                {
+                  createdAt: new Date("2026-04-10T00:00:00.000Z"),
+                  id: { lt: 999 },
+                },
+              ],
+            },
+          ],
+        },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        select: SafeCommentSelect,
+      });
+
+      expect(result.items).toEqual(rows);
+      expect(result.pageInfo.hasNextPage).toBe(false);
+      expect(result.pageInfo.endCursor).toBeDefined();
+    });
+
+    it("throws BadRequestException for an invalid cursor", async () => {
+      prismaMock.post.findUnique.mockResolvedValue({ id: 1 });
+
+      await expect(
+        service.findCommentsByPost({
+          postId: 1,
+          first: 5,
+          after: "%%%invalid%%%",
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      expect(prismaMock.comment.findMany).not.toHaveBeenCalled();
+    });
+
+    it("uses ascending tie-breaker filtering for OLDEST comment pagination", async () => {
+      prismaMock.post.findUnique.mockResolvedValue({ id: 1 });
+      prismaMock.comment.findMany.mockResolvedValue([]);
+      const after = encodeChronoCursor({
+        createdAt: new Date("2026-04-10T00:00:00.000Z"),
+        id: 999,
+      });
+
+      await service.findCommentsByPost({
+        postId: 1,
+        first: 5,
+        after,
+        orderBy: ChronologicalOrder.OLDEST,
+      });
+
+      expect(prismaMock.comment.findMany).toHaveBeenCalledWith({
+        take: 6,
+        where: {
+          AND: [
+            { postId: 1 },
+            {
+              OR: [
+                { createdAt: { gt: new Date("2026-04-10T00:00:00.000Z") } },
+                {
+                  createdAt: new Date("2026-04-10T00:00:00.000Z"),
+                  id: { gt: 999 },
+                },
+              ],
+            },
+          ],
+        },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         select: SafeCommentSelect,
       });
     });

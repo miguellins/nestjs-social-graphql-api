@@ -4,6 +4,7 @@ import { Throttle } from "@nestjs/throttler";
 import { FindCommentsByPostArgs } from "@/comments/args/find-comments-by-post.args";
 import { CreateCommentInput } from "@/comments/dto/create-comment.input";
 import { UpdateCommentInput } from "@/comments/dto/update-comment.input";
+import { CommentPage } from "@/comments/models/comment-page.model";
 import { CommentsService } from "@/comments/comments.service";
 import { Comment } from "@/comments/models/comment.model";
 
@@ -27,13 +28,14 @@ export class CommentsResolver {
 
   @Public()
   @Throttle({ default: THROTTLE_LIMITS.LIST })
-  @Query(() => [Comment], { name: "commentsByPost" })
+  @Query(() => CommentPage, { name: "commentsByPost" })
   async commentsByPost(
     @Args() args: FindCommentsByPostArgs,
-  ): Promise<Comment[]> {
+  ): Promise<CommentPage> {
     return this.commentsService.findCommentsByPost({
       postId: args.postId,
-      take: args.take,
+      first: args.first,
+      after: args.after,
       orderBy: args.orderBy,
     });
   }

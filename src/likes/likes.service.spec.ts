@@ -14,6 +14,7 @@ import { ChronologicalOrder } from "@/common/enums/chronological-order.enum";
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
 
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
+import { encodeChronoCursor } from "@/common/pagination/chrono-cursor";
 
 import { LikeDetailSelect } from "@/likes/dto/like-detail.dto";
 
@@ -26,6 +27,29 @@ import { LikesService } from "./likes.service";
 describe("LikesService", () => {
   let service: LikesService;
   let moduleRef: TestingModule;
+  const makeLike = (id: number) => ({
+    id,
+    createdAt: new Date(`2026-04-0${id}T00:00:00.000Z`),
+    userId: id,
+    postId: id + 10,
+    user: {
+      id,
+      name: `User ${id}`,
+      username: `user${id}`,
+    },
+    post: {
+      id: id + 10,
+      title: `Post ${id}`,
+      content: `Content ${id}`,
+      createdAt: new Date(`2026-04-0${id}T00:00:00.000Z`),
+      likesCount: id,
+      author: {
+        id,
+        name: `User ${id}`,
+        username: `user${id}`,
+      },
+    },
+  });
 
   const prismaMock: {
     like: {
@@ -121,14 +145,18 @@ describe("LikesService", () => {
   });
 
   describe("findLikes", () => {
-    it("builds cache key with version/take/filters and queries prisma with correct where/select", async () => {
+    it("builds a cursor-aware cache key and queries prisma with correct where/select", async () => {
       cacheMock.getVersion.mockResolvedValue(9);
-      prismaMock.like.findMany.mockResolvedValue([
-        { id: 1, userId: 10, postId: 20 },
-      ]);
+      const rows = [makeLike(3), makeLike(2), makeLike(1)];
+      prismaMock.like.findMany.mockResolvedValue(rows);
+      const after = encodeChronoCursor({
+        createdAt: new Date("2026-04-10T00:00:00.000Z"),
+        id: 999,
+      });
 
       const params = {
-        take: PAGINATION.MAX_TAKE + 999,
+        first: PAGINATION.MAX_TAKE + 999,
+        after,
         postId: 20,
         userId: 10,
       };
@@ -138,19 +166,34 @@ describe("LikesService", () => {
 
       expect(cacheMock.getVersion).toHaveBeenCalledWith("v:likes:list");
       expect(cacheMock.getOrSet).toHaveBeenCalledWith(
-        `likes:list:v9:${expectedTake}:p20:u10:order=${ChronologicalOrder.NEWEST}`,
+        `likes:list:v9:first=${expectedTake}:after=${after}:p20:u10:order=${ChronologicalOrder.NEWEST}`,
         expect.any(Function),
         30_000,
       );
 
       expect(prismaMock.like.findMany).toHaveBeenCalledWith({
-        take: expectedTake,
-        where: { postId: 20, userId: 10 },
-        orderBy: { createdAt: "desc" },
+        take: expectedTake + 1,
+        where: {
+          AND: [
+            { postId: 20 },
+            { userId: 10 },
+            {
+              OR: [
+                { createdAt: { lt: new Date("2026-04-10T00:00:00.000Z") } },
+                {
+                  createdAt: new Date("2026-04-10T00:00:00.000Z"),
+                  id: { lt: 999 },
+                },
+              ],
+            },
+          ],
+        },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         select: LikeDetailSelect,
       });
 
-      expect(res).toEqual([{ id: 1, userId: 10, postId: 20 }]);
+      expect(res.items).toEqual(rows);
+      expect(res.pageInfo.hasNextPage).toBe(false);
     });
 
     it("omits where filters when postId/userId are not provided and uses defaults", async () => {
@@ -160,15 +203,15 @@ describe("LikesService", () => {
       await service.findLikes(undefined);
 
       expect(cacheMock.getOrSet).toHaveBeenCalledWith(
-        `likes:list:v1:${PAGINATION.DEFAULT_TAKE}:pall:uall:order=${ChronologicalOrder.NEWEST}`,
+        `likes:list:v1:first=${PAGINATION.DEFAULT_TAKE}:after=none:pall:uall:order=${ChronologicalOrder.NEWEST}`,
         expect.any(Function),
         30_000,
       );
 
       expect(prismaMock.like.findMany).toHaveBeenCalledWith({
-        take: PAGINATION.DEFAULT_TAKE,
+        take: PAGINATION.DEFAULT_TAKE + 1,
         where: {},
-        orderBy: { createdAt: "desc" },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         select: LikeDetailSelect,
       });
     });
@@ -181,9 +224,9 @@ describe("LikesService", () => {
       await service.findLikes(params);
 
       expect(prismaMock.like.findMany).toHaveBeenCalledWith({
-        take: PAGINATION.DEFAULT_TAKE,
+        take: PAGINATION.DEFAULT_TAKE + 1,
         where: { postId: 55 },
-        orderBy: { createdAt: "desc" },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         select: LikeDetailSelect,
       });
     });
@@ -196,9 +239,9 @@ describe("LikesService", () => {
       await service.findLikes(params);
 
       expect(prismaMock.like.findMany).toHaveBeenCalledWith({
-        take: PAGINATION.DEFAULT_TAKE,
+        take: PAGINATION.DEFAULT_TAKE + 1,
         where: { userId: 77 },
-        orderBy: { createdAt: "desc" },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         select: LikeDetailSelect,
       });
     });
@@ -210,15 +253,15 @@ describe("LikesService", () => {
       await service.findLikes({ userId: 0 });
 
       expect(cacheMock.getOrSet).toHaveBeenCalledWith(
-        `likes:list:v3:${PAGINATION.DEFAULT_TAKE}:pall:uall:order=${ChronologicalOrder.NEWEST}`,
+        `likes:list:v3:first=${PAGINATION.DEFAULT_TAKE}:after=none:pall:uall:order=${ChronologicalOrder.NEWEST}`,
         expect.any(Function),
         30_000,
       );
 
       expect(prismaMock.like.findMany).toHaveBeenCalledWith({
-        take: PAGINATION.DEFAULT_TAKE,
+        take: PAGINATION.DEFAULT_TAKE + 1,
         where: {},
-        orderBy: { createdAt: "desc" },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         select: LikeDetailSelect,
       });
     });
@@ -227,11 +270,10 @@ describe("LikesService", () => {
     it("returns cached value on cache hit (does not call prisma)", async () => {
       cacheMock.getVersion.mockResolvedValue(1);
 
-      prismaMock.like.findMany.mockResolvedValue([
-        { id: 99, userId: 1, postId: 2 },
-      ]);
+      const rows = [makeLike(1)];
+      prismaMock.like.findMany.mockResolvedValue(rows);
 
-      const params = { take: 1, postId: 2, userId: 1 };
+      const params = { first: 1, postId: 2, userId: 1 };
       await service.findLikes(params);
 
       prismaMock.like.findMany.mockClear();
@@ -239,7 +281,45 @@ describe("LikesService", () => {
       const res = await service.findLikes(params);
 
       expect(prismaMock.like.findMany).not.toHaveBeenCalled();
-      expect(res).toEqual([{ id: 99, userId: 1, postId: 2 }]);
+      expect(res.items).toEqual(rows);
+    });
+
+    it("throws BadRequestException for an invalid cursor", async () => {
+      await expect(
+        service.findLikes({ first: 5, after: "%%%invalid%%%" }),
+      ).rejects.toThrow("Invalid cursor");
+
+      expect(prismaMock.like.findMany).not.toHaveBeenCalled();
+    });
+
+    it("uses ascending tie-breaker filtering for OLDEST like pagination", async () => {
+      cacheMock.getVersion.mockResolvedValue(4);
+      prismaMock.like.findMany.mockResolvedValue([]);
+      const after = encodeChronoCursor({
+        createdAt: new Date("2026-04-10T00:00:00.000Z"),
+        id: 999,
+      });
+
+      await service.findLikes({
+        first: 5,
+        after,
+        orderBy: ChronologicalOrder.OLDEST,
+      });
+
+      expect(prismaMock.like.findMany).toHaveBeenCalledWith({
+        take: 6,
+        where: {
+          OR: [
+            { createdAt: { gt: new Date("2026-04-10T00:00:00.000Z") } },
+            {
+              createdAt: new Date("2026-04-10T00:00:00.000Z"),
+              id: { gt: 999 },
+            },
+          ],
+        },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        select: LikeDetailSelect,
+      });
     });
   });
 
@@ -284,7 +364,7 @@ describe("LikesService", () => {
 
   describe("createLike", () => {
     it("creates like in transaction, bumps/invalidates caches and returns like", async () => {
-      const like = { id: 1, userId: 10, postId: 20 };
+      const like = makeLike(1);
       prismaMock.$transaction.mockResolvedValue([like, { id: 20 }]);
 
       const res = await service.createLike(10, 20);
@@ -312,7 +392,7 @@ describe("LikesService", () => {
         .spyOn(Logger.prototype, "error")
         .mockImplementation(() => undefined);
 
-      const like = { id: 1, userId: 10, postId: 20 };
+      const like = makeLike(1);
       prismaMock.$transaction.mockResolvedValue([like, { id: 20 }]);
       notificationTriggerMock.notifyPostLiked.mockRejectedValue(
         new Error("notify failed"),
@@ -334,7 +414,7 @@ describe("LikesService", () => {
         .spyOn(Logger.prototype, "error")
         .mockImplementation(() => undefined);
 
-      const like = { id: 1, userId: 10, postId: 20 };
+      const like = makeLike(1);
       prismaMock.$transaction.mockResolvedValue([like, { id: 20 }]);
       cacheMock.bumpVersion.mockRejectedValueOnce(new Error("cache down"));
 
@@ -347,6 +427,27 @@ describe("LikesService", () => {
       );
 
       loggerErrorSpy.mockRestore();
+    });
+
+    it("returns a post payload without commentsCount in the nested post preview", async () => {
+      const like = makeLike(1);
+      prismaMock.$transaction.mockResolvedValue([like, { id: 20 }]);
+
+      const res = await service.createLike(10, 20);
+
+      expect(res.post).toEqual({
+        id: 11,
+        title: "Post 1",
+        content: "Content 1",
+        createdAt: new Date("2026-04-01T00:00:00.000Z"),
+        likesCount: 1,
+        author: {
+          id: 1,
+          name: "User 1",
+          username: "user1",
+        },
+      });
+      expect(res.post).not.toHaveProperty("commentsCount");
     });
 
     it("throws ConflictException on P2002 (already liked)", async () => {

@@ -4,7 +4,9 @@ import { Logger } from "@nestjs/common";
 
 import { NotificationType } from "@prisma/client";
 
+import { ChronologicalOrder } from "@/common/enums/chronological-order.enum";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
+import { encodeChronoCursor } from "@/common/pagination/chrono-cursor";
 import { NotificationDeliveryService } from "@/notifications/notification-delivery.service";
 
 import { NotificationReadStatus } from "@/notifications/enums/notification-read-status.enum";
@@ -184,7 +186,7 @@ describe("NotificationsService", () => {
   });
 
   describe("findMyNotifications", () => {
-    it("should use default take when params are not provided", async () => {
+    it("should use default first when params are not provided", async () => {
       prismaMock.notification.findMany.mockResolvedValue([mockNotification]);
 
       const result = await service.findMyNotifications(1);
@@ -193,50 +195,46 @@ describe("NotificationsService", () => {
         where: {
           recipientId: 1,
         },
-        orderBy: {
-          createdAt: "desc",
-        },
-        take: PAGINATION.DEFAULT_TAKE,
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take: PAGINATION.DEFAULT_TAKE + 1,
         select: NotificationSelect,
       });
 
-      expect(result).toEqual([mockNotification]);
+      expect(result.items).toEqual([mockNotification]);
+      expect(result.pageInfo.hasNextPage).toBe(false);
+      expect(result.pageInfo.endCursor).toEqual(expect.any(String));
     });
 
-    it("should use provided take when within max limit", async () => {
+    it("should use provided first when within max limit", async () => {
       prismaMock.notification.findMany.mockResolvedValue([mockNotification]);
 
-      const result = await service.findMyNotifications(1, { take: 5 });
+      const result = await service.findMyNotifications(1, { first: 5 });
 
       expect(prismaMock.notification.findMany).toHaveBeenCalledWith({
         where: {
           recipientId: 1,
         },
-        orderBy: {
-          createdAt: "desc",
-        },
-        take: 5,
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take: 6,
         select: NotificationSelect,
       });
 
-      expect(result).toEqual([mockNotification]);
+      expect(result.items).toEqual([mockNotification]);
     });
 
-    it("should cap take at PAGINATION.MAX_TAKE", async () => {
+    it("should cap first at PAGINATION.MAX_TAKE", async () => {
       prismaMock.notification.findMany.mockResolvedValue([mockNotification]);
 
       await service.findMyNotifications(1, {
-        take: PAGINATION.MAX_TAKE + 100,
+        first: PAGINATION.MAX_TAKE + 100,
       });
 
       expect(prismaMock.notification.findMany).toHaveBeenCalledWith({
         where: {
           recipientId: 1,
         },
-        orderBy: {
-          createdAt: "desc",
-        },
-        take: PAGINATION.MAX_TAKE,
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take: PAGINATION.MAX_TAKE + 1,
         select: NotificationSelect,
       });
     });
@@ -246,7 +244,7 @@ describe("NotificationsService", () => {
 
       await service.findMyNotifications(
         1,
-        { take: 5 },
+        { first: 5 },
         NotificationReadStatus.READ,
       );
 
@@ -255,10 +253,8 @@ describe("NotificationsService", () => {
           recipientId: 1,
           isRead: true,
         },
-        orderBy: {
-          createdAt: "desc",
-        },
-        take: 5,
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take: 6,
         select: NotificationSelect,
       });
     });
@@ -268,7 +264,7 @@ describe("NotificationsService", () => {
 
       await service.findMyNotifications(
         1,
-        { take: 5 },
+        { first: 5 },
         NotificationReadStatus.UNREAD,
       );
 
@@ -277,10 +273,91 @@ describe("NotificationsService", () => {
           recipientId: 1,
           isRead: false,
         },
-        orderBy: {
-          createdAt: "desc",
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take: 6,
+        select: NotificationSelect,
+      });
+    });
+
+    it("should apply cursor filtering and return a page", async () => {
+      prismaMock.notification.findMany.mockResolvedValue([mockNotification]);
+      const after = encodeChronoCursor({
+        createdAt: new Date("2026-04-01T12:00:00.000Z"),
+        id: 99,
+      });
+
+      const result = await service.findMyNotifications(
+        1,
+        { first: 5, after },
+        NotificationReadStatus.ALL,
+      );
+
+      expect(prismaMock.notification.findMany).toHaveBeenCalledWith({
+        where: {
+          AND: [
+            {
+              recipientId: 1,
+            },
+            {
+              OR: [
+                { createdAt: { lt: new Date("2026-04-01T12:00:00.000Z") } },
+                {
+                  createdAt: new Date("2026-04-01T12:00:00.000Z"),
+                  id: { lt: 99 },
+                },
+              ],
+            },
+          ],
         },
-        take: 5,
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take: 6,
+        select: NotificationSelect,
+      });
+
+      expect(result.items).toEqual([mockNotification]);
+      expect(result.pageInfo.hasNextPage).toBe(false);
+    });
+
+    it("throws for an invalid cursor", async () => {
+      await expect(
+        service.findMyNotifications(1, { first: 5, after: "%%%invalid%%%" }),
+      ).rejects.toThrow("Invalid cursor");
+
+      expect(prismaMock.notification.findMany).not.toHaveBeenCalled();
+    });
+
+    it("uses ascending tie-breaker filtering for OLDEST notification pagination", async () => {
+      prismaMock.notification.findMany.mockResolvedValue([mockNotification]);
+      const after = encodeChronoCursor({
+        createdAt: new Date("2026-04-01T12:00:00.000Z"),
+        id: 99,
+      });
+
+      await service.findMyNotifications(
+        1,
+        { first: 5, after, orderBy: ChronologicalOrder.OLDEST },
+        NotificationReadStatus.ALL,
+      );
+
+      expect(prismaMock.notification.findMany).toHaveBeenCalledWith({
+        where: {
+          AND: [
+            {
+              recipientId: 1,
+            },
+            {
+              OR: [
+                { createdAt: { gt: new Date("2026-04-01T12:00:00.000Z") } },
+                {
+                  createdAt: new Date("2026-04-01T12:00:00.000Z"),
+                  id: { gt: 99 },
+                },
+              ],
+            },
+          ],
+        },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        take: 6,
         select: NotificationSelect,
       });
     });

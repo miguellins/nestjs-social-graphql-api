@@ -12,8 +12,10 @@ import { Follow } from "@/follows/models/follow.model";
 import { Like } from "@/likes/models/like.model";
 import { Post } from "@/posts/models/post.model";
 
+/** Full user object model used for internal GraphQL relations where broader user fields are needed. */
 @ObjectType()
 export class User {
+  /** Unique identifier of the user account. */
   @Field(() => ID)
   id: number;
 
@@ -29,6 +31,7 @@ export class User {
   @HideField()
   password: string;
 
+  /** Timestamp indicating when the user account was created. */
   @Field(() => GraphQLISODateTime)
   createdAt: Date;
 
@@ -36,6 +39,7 @@ export class User {
   @FormattedDateTimeField("createdAt")
   createdAtFormatted?: string;
 
+  /** Timestamp indicating when the user account was last updated. */
   @Field(() => GraphQLISODateTime)
   updatedAt: Date;
 
@@ -43,15 +47,19 @@ export class User {
   @FormattedDateTimeField("updatedAt")
   updatedAtFormatted?: string;
 
+  /** Optional list of posts created by the user. */
   @Field(() => [Post], { nullable: true })
   posts?: Post[];
 
+  /** Optional list of likes created by the user. */
   @Field(() => [Like], { nullable: true })
   likes?: Like[];
 
+  /** Optional list of users following this user. */
   @Field(() => [Follow], { nullable: true })
   followers?: Follow[];
 
+  /** Optional list of users this account follows. */
   @Field(() => [Follow], { nullable: true })
   following?: Follow[];
 }

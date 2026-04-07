@@ -7,6 +7,7 @@ import { MessageResponse } from "@/common/types/message-response.type";
 import { Public } from "@/common/decorators/auth.decorator";
 
 import { FindFollowsArgs } from "@/follows/args/find-follows.args";
+import { FollowPage } from "@/follows/models/follow-page.model";
 import { FollowsService } from "@/follows/follows.service";
 import { Follow } from "@/follows/models/follow.model";
 
@@ -16,8 +17,8 @@ export class FollowsResolver {
 
   @Public()
   @Throttle({ default: THROTTLE_LIMITS.LIST })
-  @Query(() => [Follow], { name: "follows" })
-  async follows(@Args() args: FindFollowsArgs): Promise<Follow[]> {
+  @Query(() => FollowPage, { name: "follows" })
+  async follows(@Args() args: FindFollowsArgs): Promise<FollowPage> {
     return this.followsService.findFollows(args);
   }
 

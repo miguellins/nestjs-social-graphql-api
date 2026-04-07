@@ -7,15 +7,21 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 
+import { CacheHelperService } from "@/common/cache/cache-helper.service";
+import { MessageResponse } from "@/common/types/message-response.type";
+import { decodeChronoCursor } from "@/common/pagination/chrono-cursor";
+import { parseWithBadRequest } from "@/common/zod/parse-with-zod";
+import { runBestEffort } from "@/common/errors/run-best-effort";
+import {
+  buildChronologicalCursorFilter,
+  buildCursorPage,
+  normalizeCursorTake,
+  type CursorPageResult,
+} from "@/common/pagination/cursor-pagination";
 import {
   ChronologicalOrder,
   toSortDirection,
 } from "@/common/enums/chronological-order.enum";
-import { CacheHelperService } from "@/common/cache/cache-helper.service";
-import { MessageResponse } from "@/common/types/message-response.type";
-import { PAGINATION } from "@/common/constants/hard-cap.constants";
-import { parseWithBadRequest } from "@/common/zod/parse-with-zod";
-import { runBestEffort } from "@/common/errors/run-best-effort";
 
 import { type SafePostDetailDTO } from "@/posts/dto/safe-post-detail.dto";
 import { PostReadService } from "@/posts/post-read.service";
@@ -25,6 +31,10 @@ import {
   type CreatePostCommand,
   type UpdatePostCommand,
 } from "@/posts/schemas/post-write.schema";
+import {
+  type CreatedPostDTO,
+  CreatedPostSelect,
+} from "@/posts/dto/created-post.dto";
 import {
   type SafePostListDTO,
   SafePostListSelect,
@@ -39,6 +49,8 @@ import { PrismaService } from "@/prisma/prisma.service";
 import { Prisma } from "@prisma/client";
 
 type PaginationParams = {
+  after?: string;
+  first?: number;
   take?: number;
   orderBy?: ChronologicalOrder;
 };
@@ -62,75 +74,95 @@ export class PostsService {
   async myFeed(
     currentUserId: number,
     params?: PaginationParams,
-  ): Promise<SafePostListDTO[]> {
-    const take = Math.min(
-      params?.take ?? PAGINATION.DEFAULT_TAKE,
-      PAGINATION.MAX_TAKE,
-    );
-
+  ): Promise<CursorPageResult<SafePostListDTO>> {
+    const take = normalizeCursorTake(params?.first);
     const orderby = params?.orderBy ?? ChronologicalOrder.NEWEST;
+    const cursor = params?.after ? decodeChronoCursor(params.after) : undefined;
+    const cursorFilter = buildChronologicalCursorFilter(cursor, orderby);
 
-    return this.prisma.post.findMany({
+    const rows = await this.prisma.post.findMany({
       where: {
-        OR: [
-          // Include posts created by the current user
-          { authorId: currentUserId },
-
-          // Include posts from users the current user follows
+        AND: [
           {
-            author: {
-              followers: {
-                some: {
-                  followerId: currentUserId,
+            OR: [
+              // Include posts created by the current user
+              { authorId: currentUserId },
+
+              // Include posts from users the current user follows
+              {
+                author: {
+                  followers: {
+                    some: {
+                      followerId: currentUserId,
+                    },
+                  },
                 },
               },
-            },
+            ],
           },
+          ...(cursorFilter ? [cursorFilter] : []),
         ],
       },
-
-      orderBy: {
-        createdAt: toSortDirection(orderby),
-      },
-
-      take,
+      orderBy: [
+        { createdAt: toSortDirection(orderby) },
+        { id: toSortDirection(orderby) },
+      ],
+      take: take + 1,
       select: SafePostListSelect,
     });
+
+    return buildCursorPage(rows, take);
   }
 
-  async findPosts(params?: FindPostsParams): Promise<SafePostListDTO[]> {
-    const take = Math.min(
-      params?.take ?? PAGINATION.DEFAULT_TAKE,
-      PAGINATION.MAX_TAKE,
-    );
+  async findPosts(
+    params?: FindPostsParams,
+  ): Promise<CursorPageResult<SafePostListDTO>> {
+    const take = normalizeCursorTake(params?.first);
 
     const search = params?.q?.trim().toLowerCase() || undefined;
-
     const orderby = params?.orderBy ?? ChronologicalOrder.NEWEST;
+    const cursor = params?.after ? decodeChronoCursor(params.after) : undefined;
+    const cursorFilter = buildChronologicalCursorFilter(cursor, orderby);
 
     const v = await this.cacheHelper.getVersion("v:posts:list");
-    const cacheKey = `posts:list:v${v}:${take}:${search ?? "all"}:order=${orderby}`;
+    const cacheKey = `posts:list:v${v}:first=${take}:after=${params?.after ?? "none"}:q=${search ?? "all"}:order=${orderby}`;
 
     return this.cacheHelper.getOrSet(
       cacheKey,
       async () => {
-        const where: Prisma.PostWhereInput | undefined = search
-          ? {
-              OR: [
-                { title: { contains: search } },
-                { content: { contains: search } },
-              ],
-            }
-          : undefined;
+        const filters: Prisma.PostWhereInput[] = [];
 
-        return this.prisma.post.findMany({
-          take,
+        if (search) {
+          filters.push({
+            OR: [
+              { title: { contains: search } },
+              { content: { contains: search } },
+            ],
+          });
+        }
+
+        if (cursorFilter) {
+          filters.push(cursorFilter);
+        }
+
+        const where =
+          filters.length === 0
+            ? undefined
+            : filters.length === 1
+              ? filters[0]
+              : { AND: filters };
+
+        const rows = await this.prisma.post.findMany({
+          take: take + 1,
           where,
-          orderBy: {
-            createdAt: toSortDirection(orderby),
-          },
+          orderBy: [
+            { createdAt: toSortDirection(orderby) },
+            { id: toSortDirection(orderby) },
+          ],
           select: SafePostListSelect,
         });
+
+        return buildCursorPage(rows, take);
       },
       30_000,
     );
@@ -139,38 +171,47 @@ export class PostsService {
   async findPostsByUsername(
     username: string,
     params?: PaginationParams,
-  ): Promise<SafePostListDTO[]> {
+  ): Promise<CursorPageResult<SafePostListDTO>> {
     const normalized = this.parseGetUserByUsernameInput({ username });
 
-    const take = Math.min(
-      params?.take ?? PAGINATION.DEFAULT_TAKE,
-      PAGINATION.MAX_TAKE,
+    const take = normalizeCursorTake(
+      "first" in (params ?? {}) ? params?.first : undefined,
     );
 
     const orderby = params?.orderBy ?? ChronologicalOrder.NEWEST;
+    const after =
+      "after" in (params ?? {}) && typeof params?.after === "string"
+        ? params.after
+        : undefined;
+    const cursor = after ? decodeChronoCursor(after) : undefined;
+    const cursorFilter = buildChronologicalCursorFilter(cursor, orderby);
 
     const authorId = await this.getUserIdByUsername(normalized.username);
 
     const versionKey = this.getUserPostsListVersionKey(authorId);
     const v = await this.cacheHelper.getVersion(versionKey);
-    const cacheKey = `user:${authorId}:posts:list:v${v}:take=${take}:order=${orderby}`;
+    const cacheKey = `user:${authorId}:posts:list:v${v}:first=${take}:after=${after ?? "none"}:order=${orderby}`;
 
     return this.cacheHelper.getOrSet(
       cacheKey,
       async () => {
-        return this.prisma.post.findMany({
-          take,
-
-          where: {
-            authorId,
-          },
-
-          orderBy: {
-            createdAt: toSortDirection(orderby),
-          },
-
+        const rows = await this.prisma.post.findMany({
+          take: take + 1,
+          where: cursorFilter
+            ? {
+                AND: [{ authorId }, cursorFilter],
+              }
+            : {
+                authorId,
+              },
+          orderBy: [
+            { createdAt: toSortDirection(orderby) },
+            { id: toSortDirection(orderby) },
+          ],
           select: SafePostListSelect,
         });
+
+        return buildCursorPage(rows, take);
       },
       30_000,
     );
@@ -204,10 +245,10 @@ export class PostsService {
   async createPost(
     input: CreatePostCommand,
     currentUserId: number,
-  ): Promise<SafePostListDTO> {
+  ): Promise<CreatedPostDTO> {
     const data = this.parseCreatePostInput(input);
 
-    let post: SafePostListDTO;
+    let post: CreatedPostDTO;
 
     try {
       const createData: Prisma.PostCreateInput = {
@@ -222,7 +263,7 @@ export class PostsService {
       post = await this.prisma.post.create({
         data: createData,
 
-        select: SafePostListSelect,
+        select: CreatedPostSelect,
       });
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError) {

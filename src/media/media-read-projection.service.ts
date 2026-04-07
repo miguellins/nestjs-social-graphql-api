@@ -4,6 +4,10 @@ import type { SafeMediaDTO, SafeMediaRecord } from "@/media/dto/safe-media.dto";
 import { R2StorageService } from "@/media/storage/r2-storage.service";
 
 import type {
+  SafeAttachMediaPostDTO,
+  SafeAttachMediaPostRecord,
+} from "@/posts/dto/safe-attach-media-post.dto";
+import type {
   SafePostDetailDTO,
   SafePostDetailRecord,
 } from "@/posts/dto/safe-post-detail.dto";
@@ -24,6 +28,23 @@ export class MediaReadProjectionService {
   derivePostDetailMediaUrls(post: SafePostDetailRecord): SafePostDetailDTO {
     if (!post.mediaAttachments?.length) {
       return post as SafePostDetailDTO;
+    }
+
+    return {
+      ...post,
+      mediaAttachments: post.mediaAttachments.map((attachment) => ({
+        ...attachment,
+        media: this.derivePublicUrl(attachment.media),
+      })),
+    };
+  }
+
+  // Derives browser-facing URLs for nested post attachment media on attach responses
+  deriveAttachMediaPostUrls(
+    post: SafeAttachMediaPostRecord,
+  ): SafeAttachMediaPostDTO {
+    if (!post.mediaAttachments?.length) {
+      return post as SafeAttachMediaPostDTO;
     }
 
     return {

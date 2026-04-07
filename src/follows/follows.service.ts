@@ -9,12 +9,18 @@ import {
 
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
 import { MessageResponse } from "@/common/types/message-response.type";
-import { PAGINATION } from "@/common/constants/hard-cap.constants";
+import { decodeChronoCursor } from "@/common/pagination/chrono-cursor";
 import { runBestEffort } from "@/common/errors/run-best-effort";
 import {
   ChronologicalOrder,
   toSortDirection,
 } from "@/common/enums/chronological-order.enum";
+import {
+  buildChronologicalCursorFilter,
+  buildCursorPage,
+  normalizeCursorTake,
+  type CursorPageResult,
+} from "@/common/pagination/cursor-pagination";
 
 import {
   type SafeFollowDTO,
@@ -37,30 +43,34 @@ export class FollowsService {
   ) {}
 
   async findFollows(params?: {
-    take?: number;
+    after?: string;
+    first?: number;
     orderBy?: ChronologicalOrder;
-  }): Promise<SafeFollowDTO[]> {
-    const take = Math.min(
-      params?.take ?? PAGINATION.DEFAULT_TAKE,
-      PAGINATION.MAX_TAKE,
-    );
+  }): Promise<CursorPageResult<SafeFollowDTO>> {
+    const take = normalizeCursorTake(params?.first);
 
     const orderby = params?.orderBy ?? ChronologicalOrder.NEWEST;
+    const cursor = params?.after ? decodeChronoCursor(params.after) : undefined;
+    const cursorFilter = buildChronologicalCursorFilter(cursor, orderby);
 
     const v = await this.cacheHelper.getVersion("v:follows:list");
 
-    const cacheKey = `follows:list:v${v}:${take}:order=${orderby}`;
+    const cacheKey = `follows:list:v${v}:first=${take}:after=${params?.after ?? "none"}:order=${orderby}`;
 
     return this.cacheHelper.getOrSet(
       cacheKey,
       async () => {
-        return this.prisma.follow.findMany({
-          take,
-
-          orderBy: { createdAt: toSortDirection(orderby) },
-
+        const rows = await this.prisma.follow.findMany({
+          take: take + 1,
+          where: cursorFilter,
+          orderBy: [
+            { createdAt: toSortDirection(orderby) },
+            { id: toSortDirection(orderby) },
+          ],
           select: SafeFollowSelect,
         });
+
+        return buildCursorPage(rows, take);
       },
       30_000,
     );

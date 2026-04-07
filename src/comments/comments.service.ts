@@ -13,9 +13,15 @@ import {
 } from "@/common/enums/chronological-order.enum";
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
 import { MessageResponse } from "@/common/types/message-response.type";
-import { PAGINATION } from "@/common/constants/hard-cap.constants";
+import { decodeChronoCursor } from "@/common/pagination/chrono-cursor";
 import { parseWithBadRequest } from "@/common/zod/parse-with-zod";
 import { runBestEffort } from "@/common/errors/run-best-effort";
+import {
+  buildChronologicalCursorFilter,
+  buildCursorPage,
+  normalizeCursorTake,
+  type CursorPageResult,
+} from "@/common/pagination/cursor-pagination";
 
 import {
   createCommentCommandSchema,
@@ -34,8 +40,9 @@ import { PrismaService } from "@/prisma/prisma.service";
 import { Prisma } from "@prisma/client";
 
 type FindCommentsByPostParams = {
+  after?: string;
+  first?: number;
   postId: number;
-  take?: number;
   orderBy?: ChronologicalOrder;
 };
 
@@ -102,10 +109,11 @@ export class CommentsService {
   }
 
   async findCommentsByPost({
+    after,
+    first,
     postId,
-    take,
     orderBy,
-  }: FindCommentsByPostParams): Promise<SafeCommentDTO[]> {
+  }: FindCommentsByPostParams): Promise<CursorPageResult<SafeCommentDTO>> {
     const post = await this.prisma.post.findUnique({
       where: { id: postId },
       select: { id: true },
@@ -113,25 +121,28 @@ export class CommentsService {
 
     if (!post) throw new NotFoundException("Post not found");
 
-    const normalizedTake = Math.min(
-      take ?? PAGINATION.DEFAULT_TAKE,
-      PAGINATION.MAX_TAKE,
-    );
-
+    const normalizedTake = normalizeCursorTake(first);
     const orderby = orderBy ?? ChronologicalOrder.NEWEST;
+    const cursor = after ? decodeChronoCursor(after) : undefined;
+    const cursorFilter = buildChronologicalCursorFilter(cursor, orderby);
 
-    return this.prisma.comment.findMany({
-      take: normalizedTake,
-      where: {
-        postId,
-      },
-
-      orderBy: {
-        createdAt: toSortDirection(orderby),
-      },
-
+    const rows = await this.prisma.comment.findMany({
+      take: normalizedTake + 1,
+      where: cursorFilter
+        ? {
+            AND: [{ postId }, cursorFilter],
+          }
+        : {
+            postId,
+          },
+      orderBy: [
+        { createdAt: toSortDirection(orderby) },
+        { id: toSortDirection(orderby) },
+      ],
       select: SafeCommentSelect,
     });
+
+    return buildCursorPage(rows, normalizedTake);
   }
 
   async updateComment(
