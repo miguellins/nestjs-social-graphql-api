@@ -43,7 +43,7 @@ export class NotificationsService {
     private readonly notificationDelivery: NotificationDeliveryService,
   ) {}
 
-  // Creates a notification record and publishes it to subscribers
+  // Persists the notification first, then treats realtime delivery as best-effort follow-up work
   async createAndPublishNotification(
     input: CreateNotificationInput,
   ): Promise<SafeNotificationDTO | null> {

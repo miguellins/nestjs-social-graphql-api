@@ -8,6 +8,7 @@ This backend currently provides:
 - User registration and profile management
 - JWT-based authentication
 - Password reset initiation and completion
+- Cursor-based pagination for list-style queries
 - Post creation, listing, detail view, update, and delete
 - Comment creation, listing, update, and delete
 - Like/unlike post behavior with atomic counter updates
@@ -69,6 +70,7 @@ The shared/common layer already provides several repository-wide standards:
 - GraphQL auth-by-default with `@Public()` opt-out
 - service-level Zod parsing via `parseWithBadRequest(...)`
 - read-through caching and version-key invalidation via `CacheHelperService`
+- shared cursor pagination helpers with opaque `createdAt + id` cursors
 - best-effort side-effect handling via `runBestEffort(...)`
 - fail-fast environment validation in `src/config/env/env.schema.ts`
 - Redis-backed subscription publishing in `src/graphql/subscriptions/`
@@ -127,7 +129,7 @@ Current strengths:
 - password hash upgrade path during login
 
 ### Users
-- `users(take)`
+- `users(first, after, orderBy)`
 - `userById(id)`
 - `userByUsername(username)`
 - `createUser(input)`
@@ -139,24 +141,26 @@ Current strengths:
 - feature-private `UserCacheService`
 - cache refresh and invalidation after writes
 - service-level validation and password hashing
+- cursor-based user list pagination
 
 ### Posts
-- `posts(take, q)`
-- `postsByUsername(username, take)`
+- `posts(first, after, orderBy, q)`
+- `postsByUsername(username, first, after, orderBy)`
 - `postById(id)`
-- `myFeed(take)`
+- `myFeed(first, after, orderBy)`
 - `createPost(input)`
 - `updatePost(id, input)`
 - `deletePost(id)`
 
 Current strengths:
 - separate safe list/detail DTOs
-- `PostReadService` for detail reads and view-count refresh handling
+- `PostReadService` for detail reads, feed reads, and view-count refresh handling
 - explicit cache versioning and detail invalidation
 - ownership checks in the service layer
+- cursor-based pagination for post lists and feed reads
 
 ### Comments
-- `commentsByPost(postId, take)`
+- `commentsByPost(postId, first, after, orderBy)`
 - `createComment(input)`
 - `updateComment(commentId, input)`
 - `deleteComment(commentId)`
@@ -165,9 +169,10 @@ Current strengths:
 - comment count updates are kept transactionally consistent
 - ownership checks live in the service
 - post detail cache invalidation is handled after writes
+- cursor-based pagination for post comment reads
 
 ### Likes
-- `likes(take, postId, userId)`
+- `likes(first, after, orderBy, postId, userId)`
 - `likeById(id)`
 - `createLike(postId)`
 - `deleteLike(id)`
@@ -176,9 +181,10 @@ Current strengths:
 - like creation/deletion is transactionally tied to `Post.likesCount`
 - duplicate likes are mapped cleanly from Prisma uniqueness errors
 - notification creation is triggered as a best-effort side effect
+- narrowed nested post payloads and cursor-based like list pagination
 
 ### Follows
-- `follows(take)`
+- `follows(first, after, orderBy)`
 - `followById(id)`
 - `createFollow(followingId)`
 - `deleteFollow(id)`
@@ -188,9 +194,10 @@ Current strengths:
 - duplicate follow protection
 - flexible unfollow behavior by relation id or target user id
 - follow notification triggering
+- cursor-based follow list pagination
 
 ### Notifications
-- `myNotifications(take, status)`
+- `myNotifications(first, after, orderBy, status)`
 - `unreadNotificationsCount`
 - `markNotificationAsRead(notificationId)`
 - `markAllNotificationsAsRead`
@@ -201,20 +208,22 @@ Current strengths:
 - self-notification suppression
 - separate trigger, persistence, and delivery helpers
 - authenticated subscription filtering by subscriber id
+- cursor-based notification pagination
 
 ### Media
 - `requestPostMediaUpload(input)`
 - `completePostMediaUpload(input)`
 - `attachMediaToPost(input)`
-- `myMedia(take)`
+- `myMedia(first, after, orderBy)`
 - `mediaSignedViewUrl(mediaId)`
 
 Current strengths:
 - explicit upload lifecycle
 - post ownership checks
 - MIME type, size, and metadata validation
-- feature-private validation and read projection helpers
+- feature-private query, policy, validation, and read projection helpers
 - direct client upload to R2 instead of proxying file bodies through Nest
+- cursor-based media list pagination
 
 ### GraphQL Subscriptions
 `src/graphql/subscriptions/` provides:
@@ -276,6 +285,7 @@ This is already stronger than in-memory pubsub and is designed for multi-instanc
 - DTO validation at the GraphQL boundary
 - service-level Zod parsing where modules follow that pattern
 - safe DTO/select exports for public reads
+- cursor-based pagination with opaque cursors and bounded page size
 - Prisma transactions for consistency-critical updates
 - best-effort side effects after committed writes
 - version-key cache invalidation instead of wildcard deletes
@@ -388,6 +398,7 @@ prisma/
 - Service-owned domain logic with thin resolvers
 - Denormalized counters for read performance
 - Global auth-by-default GraphQL protection
+- Shared cursor pagination with `items + pageInfo`
 - Read-through caching plus version-key invalidation
 - Feature-private helpers where complexity justifies them
 - Best-effort side effects after the write path commits
@@ -396,11 +407,9 @@ prisma/
 ## Current Limitations / Next Priorities
 This codebase is already coherent and production-minded, but it is still intentionally smaller than a real social platform. The main current gaps are:
 
-- No real cursor-based pagination contract yet
-  - most list endpoints still use `take` plus chronological ordering only
 - Feed design is still simple
   - `myFeed` is a bounded relational query, not a scalable feed system
-- Structured GraphQL errors are still flattened at the GraphQL config layer
+- Structured GraphQL errors may still be flattened at the GraphQL config layer
 - Product realism is still limited
   - no privacy controls
   - no blocks / mutes / reports
@@ -411,7 +420,26 @@ This codebase is already coherent and production-minded, but it is still intenti
 - Operational maturity is still limited
   - no health checks, metrics, tracing, request correlation, queues, outbox, or workers yet
 
-The strongest next technical platform improvement is a shared cursor-based pagination model across posts, comments, notifications, likes, follows, media, and users.
+Current strengths worth preserving:
+
+- Shared cursor-based pagination is now in place across the main list-style modules
+  - opaque `createdAt + id` cursors
+  - deterministic chronological ordering
+  - `items + pageInfo` response shape
+- The current feed stays simple but is now placed more cleanly
+  - `PostReadService` owns the authenticated feed read path
+- Internal module boundaries are better than before
+  - `PostReadService`
+  - `MediaQueryService`
+  - `MediaPolicyService`
+  - `NotificationTriggerService`
+  - `NotificationDeliveryService`
+
+The strongest next technical platform improvements are:
+- preserving structured GraphQL error metadata
+- defining a more realistic feed strategy
+- adding session/refresh-token lifecycle
+- adding moderation and privacy foundations
 
 ---
 

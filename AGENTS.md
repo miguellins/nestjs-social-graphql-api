@@ -48,6 +48,8 @@ This file defines the working rules for contributors and coding agents in this r
 - `<feature>.module.ts` contains Nest module wiring.
 - Keep shared infrastructure under `src/common/`, `src/bootstrap/`, `src/graphql/`, `src/cache/`, and `src/config/`.
 - Use the `@/` path alias for internal imports.
+- For larger modules, `*read.service.ts`, `*cache.service.ts`, `*projection.service.ts`, and `*trigger.service.ts` are preferred names for feature-private collaborators when they improve cohesion.
+- Keep these collaborators inside the same feature module unless the logic is truly infrastructure-level and reused across multiple features.
 
 ## Naming Rules
 
@@ -86,6 +88,10 @@ This file defines the working rules for contributors and coding agents in this r
 - Do not make a mutation fail after a committed database write only because a non-critical post-commit side effect failed.
 - If a non-critical post-commit side effect fails, prefer success plus logging over a false-negative mutation failure.
 - Do not treat validation, authorization, password/security logic, token invalidation, or required counter consistency as best-effort work.
+- When a feature service grows to coordinate distinct read concerns, write concerns, cache projection, or external side effects, extract feature-private collaborators inside the same module instead of enlarging the main service indefinitely.
+- Prefer feature-private `*ReadService`, `*CacheService`, `*ProjectionService`, or `*TriggerService` helpers before introducing generic cross-project abstractions.
+- Do not introduce repository abstractions by default. Use direct `PrismaService` access in feature services or feature-private collaborators unless persistence logic is duplicated enough to justify extraction.
+- If introducing a repository-like helper, keep it feature-local first. Do not add a generic repository layer across the application without explicit need.
 
 ## Validation Rules
 
@@ -183,6 +189,7 @@ This file defines the working rules for contributors and coding agents in this r
 - Persist notification or event state in the database before publishing realtime updates when the feature requires durability.
 - Do not rely on in-memory pubsub as the long-term architecture for features that must work across multiple app instances.
 - Prefer shared realtime transport such as Redis-backed pubsub or another broker-backed approach when the feature is intended for multi-instance deployment.
+- When a mutation triggers asynchronous follow-up work, separate correctness-critical writes from post-commit delivery concerns using a feature-private trigger or delivery helper when that improves module cohesion.
 
 ## Environment Rules
 
@@ -212,6 +219,7 @@ This file defines the working rules for contributors and coding agents in this r
 - Stay compatible with the current TypeScript and ESLint configuration.
 - If the same narrow logic is repeated across multiple files, extract it into a small shared helper only when the abstraction clearly improves readability and consistency.
 - Do not create shared helpers for one-off logic or vague abstractions.
+- Avoid growing a single feature service into a catch-all coordinator for reads, writes, cache projection, validation parsing, and external side effects when those responsibilities can be split cleanly inside the feature.
 
 ## Output and Reference Formatting Rules
 

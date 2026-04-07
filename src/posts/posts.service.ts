@@ -7,6 +7,10 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 
+import {
+  ChronologicalOrder,
+  toSortDirection,
+} from "@/common/enums/chronological-order.enum";
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
 import { MessageResponse } from "@/common/types/message-response.type";
 import { decodeChronoCursor } from "@/common/pagination/chrono-cursor";
@@ -18,10 +22,6 @@ import {
   normalizeCursorTake,
   type CursorPageResult,
 } from "@/common/pagination/cursor-pagination";
-import {
-  ChronologicalOrder,
-  toSortDirection,
-} from "@/common/enums/chronological-order.enum";
 
 import { type SafePostDetailDTO } from "@/posts/dto/safe-post-detail.dto";
 import { PostReadService } from "@/posts/post-read.service";
@@ -75,43 +75,7 @@ export class PostsService {
     currentUserId: number,
     params?: PaginationParams,
   ): Promise<CursorPageResult<SafePostListDTO>> {
-    const take = normalizeCursorTake(params?.first);
-    const orderby = params?.orderBy ?? ChronologicalOrder.NEWEST;
-    const cursor = params?.after ? decodeChronoCursor(params.after) : undefined;
-    const cursorFilter = buildChronologicalCursorFilter(cursor, orderby);
-
-    const rows = await this.prisma.post.findMany({
-      where: {
-        AND: [
-          {
-            OR: [
-              // Include posts created by the current user
-              { authorId: currentUserId },
-
-              // Include posts from users the current user follows
-              {
-                author: {
-                  followers: {
-                    some: {
-                      followerId: currentUserId,
-                    },
-                  },
-                },
-              },
-            ],
-          },
-          ...(cursorFilter ? [cursorFilter] : []),
-        ],
-      },
-      orderBy: [
-        { createdAt: toSortDirection(orderby) },
-        { id: toSortDirection(orderby) },
-      ],
-      take: take + 1,
-      select: SafePostListSelect,
-    });
-
-    return buildCursorPage(rows, take);
+    return this.postReadService.getMyFeed(currentUserId, params);
   }
 
   async findPosts(
@@ -154,11 +118,14 @@ export class PostsService {
 
         const rows = await this.prisma.post.findMany({
           take: take + 1,
+
           where,
+
           orderBy: [
             { createdAt: toSortDirection(orderby) },
             { id: toSortDirection(orderby) },
           ],
+
           select: SafePostListSelect,
         });
 
@@ -204,10 +171,12 @@ export class PostsService {
             : {
                 authorId,
               },
+
           orderBy: [
             { createdAt: toSortDirection(orderby) },
             { id: toSortDirection(orderby) },
           ],
+
           select: SafePostListSelect,
         });
 

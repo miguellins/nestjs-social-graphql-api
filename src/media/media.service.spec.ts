@@ -21,6 +21,8 @@ import { CacheHelperService } from "@/common/cache/cache-helper.service";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
 import { ChronologicalOrder } from "@/common/enums/chronological-order.enum";
 import { encodeChronoCursor } from "@/common/pagination/chrono-cursor";
+import { MediaPolicyService } from "@/media/media-policy.service";
+import { MediaQueryService } from "@/media/media-query.service";
 import { MediaReadProjectionService } from "@/media/media-read-projection.service";
 import { MediaService } from "@/media/media.service";
 import { MediaValidationService } from "@/media/media-validation.service";
@@ -177,6 +179,8 @@ describe("MediaService", () => {
 
     moduleRef = await Test.createTestingModule({
       providers: [
+        MediaPolicyService,
+        MediaQueryService,
         MediaReadProjectionService,
         MediaService,
         MediaValidationService,

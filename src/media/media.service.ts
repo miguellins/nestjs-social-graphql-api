@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  ForbiddenException,
   HttpException,
   Injectable,
   InternalServerErrorException,
@@ -15,6 +14,11 @@ import { type SafeMediaDTO, SafeMediaSelect } from "@/media/dto/safe-media.dto";
 import { MediaValidationService } from "@/media/media-validation.service";
 import { type MediaViewUrl } from "@/media/models/media-view-url.model";
 import { R2StorageService } from "@/media/storage/r2-storage.service";
+import { MediaPolicyService } from "@/media/media-policy.service";
+import {
+  MediaQueryService,
+  type MediaPaginationParams,
+} from "@/media/media-query.service";
 import {
   type AttachMediaToPostCommand,
   MAX_IMAGE_BYTES,
@@ -26,44 +30,21 @@ import {
   requestPostMediaUploadCommandSchema,
 } from "@/media/schemas/media-write.schema";
 
+import { type CursorPageResult } from "@/common/pagination/cursor-pagination";
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
-import { decodeChronoCursor } from "@/common/pagination/chrono-cursor";
 import { parseWithBadRequest } from "@/common/zod/parse-with-zod";
 import { runBestEffort } from "@/common/errors/run-best-effort";
-import {
-  buildChronologicalCursorFilter,
-  buildCursorPage,
-  normalizeCursorTake,
-  type CursorPageResult,
-} from "@/common/pagination/cursor-pagination";
-import {
-  ChronologicalOrder,
-  toSortDirection,
-} from "@/common/enums/chronological-order.enum";
 
-import {
-  type SafeAttachMediaPostDTO,
-  SafeAttachMediaPostSelect,
-} from "@/posts/dto/safe-attach-media-post.dto";
+import { type SafeAttachMediaPostDTO } from "@/posts/dto/safe-attach-media-post.dto";
 
 import { PrismaService } from "@/prisma/prisma.service";
 import {
-  type Media,
   MediaVisibility,
   MediaStatus,
   MediaType,
   Prisma,
   StorageProvider,
 } from "@prisma/client";
-
-type PaginationParams = {
-  after?: string;
-  first?: number;
-  orderBy?: ChronologicalOrder;
-};
-
-const MAX_ATTACHMENTS_PER_POST = 4;
-const MAX_VIDEOS_PER_POST = 1;
 
 @Injectable()
 export class MediaService {
@@ -74,7 +55,9 @@ export class MediaService {
     private readonly cacheHelper: CacheHelperService,
     private readonly r2Storage: R2StorageService,
     private readonly configService: ConfigService,
+    private readonly mediaPolicy: MediaPolicyService,
     private readonly mediaReadProjection: MediaReadProjectionService,
+    private readonly mediaQuery: MediaQueryService,
     private readonly mediaValidation: MediaValidationService,
   ) {}
 
@@ -85,10 +68,15 @@ export class MediaService {
   ): Promise<RequestPostMediaUpload> {
     const data = this.parseRequestPostMediaUploadInput(input);
 
-    await this.assertPostOwnership(data.postId, currentUserId);
-    await this.assertPostMediaConstraints(data.postId, data.type, undefined, {
-      includePendingReservations: true,
-    });
+    await this.mediaPolicy.assertPostOwnership(data.postId, currentUserId);
+    await this.mediaPolicy.assertPostMediaConstraints(
+      data.postId,
+      data.type,
+      undefined,
+      {
+        includePendingReservations: true,
+      },
+    );
 
     const objectKey = this.mediaValidation.buildObjectKey(
       data.postId,
@@ -169,7 +157,10 @@ export class MediaService {
     currentUserId: number,
   ): Promise<SafeMediaDTO> {
     const data = this.parseCompletePostMediaUploadInput(input);
-    const media = await this.getOwnedMediaById(data.mediaId, currentUserId);
+    const media = await this.mediaPolicy.getOwnedMediaById(
+      data.mediaId,
+      currentUserId,
+    );
 
     if (media.status === MediaStatus.READY) {
       throw new BadRequestException("Media upload is already complete");
@@ -255,9 +246,12 @@ export class MediaService {
   ): Promise<SafeAttachMediaPostDTO> {
     const data = this.parseAttachMediaToPostInput(input);
 
-    await this.assertPostOwnership(data.postId, currentUserId);
+    await this.mediaPolicy.assertPostOwnership(data.postId, currentUserId);
 
-    const media = await this.getOwnedMediaById(data.mediaId, currentUserId);
+    const media = await this.mediaPolicy.getOwnedMediaById(
+      data.mediaId,
+      currentUserId,
+    );
 
     if (media.status !== MediaStatus.READY) {
       throw new BadRequestException(
@@ -275,9 +269,14 @@ export class MediaService {
       );
     }
 
-    await this.assertPostMediaConstraints(data.postId, media.type, media.id, {
-      includePendingReservations: false,
-    });
+    await this.mediaPolicy.assertPostMediaConstraints(
+      data.postId,
+      media.type,
+      media.id,
+      {
+        includePendingReservations: false,
+      },
+    );
 
     const nextSortOrder = await this.getNextSortOrder(data.postId);
 
@@ -322,39 +321,15 @@ export class MediaService {
       },
     );
 
-    return this.getAttachMediaPostResult(data.postId);
+    return this.mediaQuery.getAttachMediaPostResult(data.postId);
   }
 
   // Lists the current user's uploaded media using bounded chronological pagination
   async myMedia(
     currentUserId: number,
-    params?: PaginationParams,
+    params?: MediaPaginationParams,
   ): Promise<CursorPageResult<SafeMediaDTO>> {
-    const take = normalizeCursorTake(params?.first);
-    const orderby = params?.orderBy ?? ChronologicalOrder.NEWEST;
-    const cursor = params?.after ? decodeChronoCursor(params.after) : undefined;
-    const cursorFilter = buildChronologicalCursorFilter(cursor, orderby);
-
-    const media = await this.prisma.media.findMany({
-      where: cursorFilter
-        ? {
-            AND: [{ ownerId: currentUserId }, cursorFilter],
-          }
-        : {
-            ownerId: currentUserId,
-          },
-      take: take + 1,
-      orderBy: [
-        { createdAt: toSortDirection(orderby) },
-        { id: toSortDirection(orderby) },
-      ],
-      select: SafeMediaSelect,
-    });
-
-    return buildCursorPage(
-      media.map((item) => this.mediaReadProjection.derivePublicUrl(item)),
-      take,
-    );
+    return this.mediaQuery.myMedia(currentUserId, params);
   }
 
   // Returns an owner-only temporary signed URL for reading one READY media object
@@ -362,7 +337,10 @@ export class MediaService {
     mediaId: number,
     currentUserId: number,
   ): Promise<MediaViewUrl> {
-    const media = await this.getOwnedMediaById(mediaId, currentUserId);
+    const media = await this.mediaPolicy.getOwnedMediaById(
+      mediaId,
+      currentUserId,
+    );
 
     if (media.status !== MediaStatus.READY) {
       throw new BadRequestException(
@@ -385,154 +363,6 @@ export class MediaService {
   }
 
   // Private Helpers
-  // Returns the updated post view needed after attaching media
-  private async getAttachMediaPostResult(
-    id: number,
-  ): Promise<SafeAttachMediaPostDTO> {
-    const post = await this.prisma.post.findUnique({
-      where: { id },
-      select: SafeAttachMediaPostSelect,
-    });
-
-    if (!post) {
-      throw new NotFoundException("Post not found");
-    }
-
-    return this.mediaReadProjection.deriveAttachMediaPostUrls(post);
-  }
-
-  // Ensures the current user owns the target post
-  private async assertPostOwnership(
-    postId: number,
-    currentUserId: number,
-  ): Promise<void> {
-    const post = await this.prisma.post.findUnique({
-      where: { id: postId },
-      select: {
-        id: true,
-        authorId: true,
-      },
-    });
-
-    if (!post) {
-      throw new NotFoundException("Post not found");
-    }
-
-    if (post.authorId !== currentUserId) {
-      throw new ForbiddenException(
-        "You do not have permission to manage media for this post",
-      );
-    }
-  }
-
-  // Loads one media row and ensures the current user owns it
-  private async getOwnedMediaById(
-    mediaId: number,
-    currentUserId: number,
-  ): Promise<Media> {
-    const media = await this.prisma.media.findUnique({
-      where: { id: mediaId },
-    });
-
-    if (!media) {
-      throw new NotFoundException("Media not found");
-    }
-
-    if (media.ownerId !== currentUserId) {
-      throw new ForbiddenException(
-        "You do not have permission to manage this media item",
-      );
-    }
-
-    return media;
-  }
-
-  // Enforces the v1 attachment rules for one post
-  private async assertPostMediaConstraints(
-    postId: number,
-    incomingType: MediaType,
-    ignoreMediaId?: number,
-    options?: {
-      includePendingReservations: boolean;
-    },
-  ): Promise<void> {
-    const now = new Date();
-    const includePendingReservations =
-      options?.includePendingReservations ?? true;
-    const existingMedia = await this.prisma.media.findMany({
-      where: {
-        ...(ignoreMediaId !== undefined
-          ? {
-              id: {
-                not: ignoreMediaId,
-              },
-            }
-          : {}),
-        OR: [
-          {
-            postAttachments: {
-              some: {
-                postId,
-              },
-            },
-            status: MediaStatus.READY,
-          },
-          ...(includePendingReservations
-            ? [
-                {
-                  objectKey: {
-                    startsWith:
-                      this.mediaValidation.getPostObjectKeyPrefix(postId),
-                  },
-                  status: MediaStatus.PENDING_UPLOAD,
-                  expiresAt: {
-                    gt: now,
-                  },
-                },
-              ]
-            : []),
-        ],
-      },
-      select: {
-        id: true,
-        type: true,
-      },
-    });
-
-    if (existingMedia.length >= MAX_ATTACHMENTS_PER_POST) {
-      throw new BadRequestException(
-        `A post can have at most ${MAX_ATTACHMENTS_PER_POST} media attachments`,
-      );
-    }
-
-    const existingVideoCount = existingMedia.filter(
-      (media) => media.type === MediaType.VIDEO,
-    ).length;
-
-    const hasImages = existingMedia.some(
-      (media) => media.type === MediaType.IMAGE,
-    );
-    const hasVideos = existingVideoCount > 0;
-
-    if (
-      incomingType === MediaType.VIDEO &&
-      existingVideoCount >= MAX_VIDEOS_PER_POST
-    ) {
-      throw new BadRequestException(
-        `A post can have at most ${MAX_VIDEOS_PER_POST} video attachment`,
-      );
-    }
-
-    if (
-      (incomingType === MediaType.IMAGE && hasVideos) ||
-      (incomingType === MediaType.VIDEO && hasImages)
-    ) {
-      throw new BadRequestException(
-        "Posts cannot mix image and video attachments in v1",
-      );
-    }
-  }
-
   // Returns the next attachment ordering value for one post
   private async getNextSortOrder(postId: number): Promise<number> {
     const latestAttachment = await this.prisma.postMedia.findFirst({

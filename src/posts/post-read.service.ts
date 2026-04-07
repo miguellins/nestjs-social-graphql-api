@@ -1,12 +1,27 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
+import { decodeChronoCursor } from "@/common/pagination/chrono-cursor";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
+import {
+  ChronologicalOrder,
+  toSortDirection,
+} from "@/common/enums/chronological-order.enum";
+import {
+  buildChronologicalCursorFilter,
+  buildCursorPage,
+  normalizeCursorTake,
+  type CursorPageResult,
+} from "@/common/pagination/cursor-pagination";
 
 import {
   type SafePostDetailDTO,
   SafePostDetailSelect,
 } from "@/posts/dto/safe-post-detail.dto";
+import {
+  type SafePostListDTO,
+  SafePostListSelect,
+} from "@/posts/dto/safe-post-list.dto";
 
 import { MediaReadProjectionService } from "@/media/media-read-projection.service";
 
@@ -18,6 +33,12 @@ import { Prisma } from "@prisma/client";
  *
  * Owns detailed post reads and cached view-count refresh behavior
  */
+
+type PaginationParams = {
+  after?: string;
+  first?: number;
+  orderBy?: ChronologicalOrder;
+};
 
 @Injectable()
 export class PostReadService {
@@ -64,6 +85,49 @@ export class PostReadService {
     }
 
     return this.mediaReadProjection.derivePostDetailMediaUrls(post);
+  }
+
+  // Returns the authenticated user's feed with bounded chronological pagination
+  async getMyFeed(
+    currentUserId: number,
+    params?: PaginationParams,
+  ): Promise<CursorPageResult<SafePostListDTO>> {
+    const take = normalizeCursorTake(params?.first);
+    const orderBy = params?.orderBy ?? ChronologicalOrder.NEWEST;
+    const cursor = params?.after ? decodeChronoCursor(params.after) : undefined;
+    const cursorFilter = buildChronologicalCursorFilter(cursor, orderBy);
+
+    const rows = await this.prisma.post.findMany({
+      where: {
+        AND: [
+          {
+            OR: [
+              { authorId: currentUserId },
+              {
+                author: {
+                  followers: {
+                    some: {
+                      followerId: currentUserId,
+                    },
+                  },
+                },
+              },
+            ],
+          },
+          ...(cursorFilter ? [cursorFilter] : []),
+        ],
+      },
+      orderBy: [
+        { createdAt: toSortDirection(orderBy) },
+        { id: toSortDirection(orderBy) },
+      ],
+
+      take: take + 1,
+
+      select: SafePostListSelect,
+    });
+
+    return buildCursorPage(rows, take);
   }
 
   // Increments the view counter and refreshes the cached detail when present
