@@ -277,20 +277,39 @@ Whenever files are changed, always include a clean final explanation section cal
 
 ## Project Scoring Format
 
-Always include a structured project scorecard in the final output, even when the user did not explicitly ask for a project assessment or rating.
+Always include a structured project scorecard in the final output, even when I did not explicitly ask for a project assessment.
+
+Scoring goals:
+- Score the project as it exists after the reviewed implementation or change set.
+- Reflect whether the new change increased, decreased, or did not materially change project quality.
+- Score both the whole project and the quality impact of the newly implemented change.
+- Be evidence-based: do not invent improvements if the implementation is incomplete, misplaced, under-tested, or introduces regressions.
 
 Required scoring rules:
 - Always provide an overall project score from `0` to `100`.
+- Always provide a feature/change impact score from `0` to `100`.
 - Always show the score change compared with the most recent previously stated overall project score when one exists.
-- Express the change as a signed percentage in a compact format such as `+3%`, `-2%`, or `0%`.
-- If there is no prior score available in the current conversation or provided context, explicitly say that there is no previous baseline for percentage change.
+- Express the overall score change as a signed percentage in a compact format such as `+3%`, `-2%`, or `0%`.
+- Also show a signed percentage for the new change’s net impact on the project, such as:
+  - `Change impact on project quality: +4%`
+  - `Change impact on project quality: -2%`
+- If there is no prior score available in the current conversation or provided context, explicitly say:
+  - `No previous baseline available for overall percentage change.`
+- If no trustworthy prior change baseline exists, explicitly say:
+  - `No previous feature baseline available; change impact percentage is based on current implementation quality and net architectural effect.`
 - Always display the category breakdown as separate labeled parts.
-- Keep the category labels stable unless the user explicitly asks for a different framework.
-- If helpful, you may add more detailed sub-scores, but the default top-level categories must still appear.
+- Keep the top-level category labels stable unless I explicitly ask for a different framework.
+- Add second-level sub-scores wherever the implementation evidence supports it.
 - When code changes were made, update the scorecard to reflect the new project state after the change.
-- When no code or repo files were changed, you may keep the previous overall score and category scores if there is no new evidence that would justify changing them.
+- When no code or repo files were changed, you may keep previous scores only if there is no new evidence that justifies a change.
+- Do not inflate the score just because a new feature or change exists. A poorly integrated change can reduce the score.
+- Do not treat “more features” as automatically “better project quality”.
+- If the implementation is only partially complete, score both:
+  - implementation quality
+  - integration quality
+- If the implementation introduces regressions, inconsistency, weak tests, unsafe data exposure, poor cache invalidation, wrong-layer logic, or degraded maintainability, lower the relevant categories accordingly.
 
-Default required category breakdown:
+Default required top-level category breakdown:
 - Architecture
 - Codebase discipline/consistency
 - Security/auth boundaries
@@ -300,28 +319,149 @@ Default required category breakdown:
 - Scalability of public query contracts
 - DX/maintainability
 
-Recommended output shape:
-- `Overall project score: 84/100`
-- `Score change vs previous: +3%`
-- `Architecture: 91`
-- `Codebase discipline/consistency: 89`
-- `Security/auth boundaries: 88`
-- `Validation/data safety: 90`
-- `Caching/realtime design: 85`
-- `Testing maturity: 80`
-- `Scalability of public query contracts: 72`
-- `DX/maintainability: 83`
-
-If more detail is useful and the evidence supports it, optionally add a second level of detail such as:
-
-- API and GraphQL contract design
+Expanded required category breakdown:
+- GraphQL API contract design
+- Resolver/service boundary discipline
+- Prisma/data modeling quality
 - Prisma/data access safety
+- Error handling and public error contract
+- Feature modularity and ownership
+- Authorization and enforcement correctness
+- Safe DTO/select discipline
+- Cursor pagination consistency
 - Cache invalidation discipline
-- Subscription/realtime durability
-- Test coverage quality
-- Change-management and maintainability
+- Realtime/subscription design
+- Domain side-effect correctness
+- Read-model/filtering correctness
+- Transactional correctness
+- Idempotency and mutation contract quality
+- Test coverage breadth
+- Test coverage depth/quality
+- Regression risk
+- Production readiness
+- Change-management discipline
+- Long-term maintainability
 
-When giving a score update after code changes, briefly explain the main reasons for any increase or decrease.
+Module-level scoring:
+Always add a module-by-module score section when enough evidence exists.
+
+At minimum, score the modules or areas most impacted by the reviewed change, such as:
+- the newly added or modified feature module
+- related domain modules
+- shared DTO/args/pagination utilities if touched
+- auth/guards if touched
+- caching helpers if touched
+- GraphQL exception/error layer if touched
+- Prisma schema layer if touched
+- tests
+
+For each module or affected area:
+- return only the module or area name and score
+- optionally add a very short note if the score changed materially because of the new change
+
+Feature/change-specific scoring:
+Always include a dedicated implementation score section with at least:
+- Product/requirement contract alignment
+- Schema design quality
+- GraphQL surface design
+- Service-layer correctness
+- Enforcement/integration correctness
+- Read-model/filtering correctness
+- Cache coherence
+- Error contract alignment
+- Test completeness
+- Demo readiness
+
+Interpretation rules:
+- A change should increase the overall score only if it improves the project without meaningfully harming consistency, correctness, or maintainability.
+- A change may cause a mixed result:
+  - for example, product capability may increase while architecture or testing scores decrease.
+- If the implementation is strong but under-tested, reflect that tension in separate categories instead of flattening the judgment.
+- If the implementation is correct but too broad in scope and overreaches into unrelated reads, abstractions, or modules, reduce maintainability and architecture scores.
+- If the implementation is tightly scoped, well-placed, safe, and well-tested, reward it in architecture, maintainability, security, and production readiness.
+
+Required summary after the scorecard:
+After the scorecard, include a brief explanation of:
+- the main reasons the overall project score increased, decreased, or stayed flat
+- the main reasons the reviewed change had a positive or negative net effect
+- which categories improved the most
+- which categories were hurt the most
+- what the highest-leverage fixes are to improve the score further
+
+Recommended output shape:
+
+Overall project score: 84/100
+Score change vs previous overall score: +3%
+Implementation/change score: 86/100
+Change impact on project quality: +4%
+
+Top-level categories
+- Architecture: 91
+- Codebase discipline/consistency: 89
+- Security/auth boundaries: 88
+- Validation/data safety: 90
+- Caching/realtime design: 85
+- Testing maturity: 80
+- Scalability of public query contracts: 72
+- DX/maintainability: 83
+
+Expanded categories
+- GraphQL API contract design: 90
+- Resolver/service boundary discipline: 93
+- Prisma/data modeling quality: 87
+- Prisma/data access safety: 89
+- Error handling and public error contract: 88
+- Feature modularity and ownership: 91
+- Authorization and enforcement correctness: 86
+- Safe DTO/select discipline: 90
+- Cursor pagination consistency: 84
+- Cache invalidation discipline: 81
+- Realtime/subscription design: 78
+- Domain side-effect correctness: 76
+- Read-model/filtering correctness: 80
+- Transactional correctness: 88
+- Idempotency and mutation contract quality: 92
+- Test coverage breadth: 74
+- Test coverage depth/quality: 77
+- Regression risk: 70
+- Production readiness: 82
+- Change-management discipline: 88
+- Long-term maintainability: 84
+
+Module-by-module scores
+- feature module: 89
+- related domain module A: 84
+- related domain module B: 76
+- prisma schema: 87
+- error layer: 88
+- tests: 75
+
+Implementation/change breakdown
+- Product/requirement contract alignment: 90
+- Schema design quality: 87
+- GraphQL surface design: 89
+- Service-layer correctness: 91
+- Enforcement/integration correctness: 85
+- Read-model/filtering correctness: 80
+- Cache coherence: 79
+- Error contract alignment: 88
+- Test completeness: 73
+- Demo readiness: 86
+
+Score change explanation
+- Main reasons for increase:
+  - ...
+- Main reasons for decrease:
+  - ...
+- Highest-leverage fixes:
+  - ...
+
+Important:
+- Be honest and critical.
+- Do not give every category a high score by default.
+- Use the scores to reflect real implementation quality, not intent.
+- If the implementation is incomplete, the score must show that.
+- If the implementation is strong in design but weak in tests, separate those judgments clearly.
 
 ### Change Summary
 

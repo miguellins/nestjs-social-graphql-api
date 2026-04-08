@@ -45,6 +45,18 @@ model User {
 
   /**
    * 1:N relation
+   * Block relationships created by this user
+   */
+  blocksInitiated UserBlock[] @relation("UserBlockBlocker")
+
+  /**
+   * 1:N relation
+   * Block relationships targeting this user
+   */
+  blocksReceived UserBlock[] @relation("UserBlockBlocked")
+
+  /**
+   * 1:N relation
    * Notifications sent by this user (as the actor who triggered the event)
    */
   sentNotifications Notification[] @relation("NotificationActor")
@@ -268,6 +280,37 @@ model Follow {
   @@index([followingId])
   // Improves public follow-list cursor pagination ordered by newest first
   @@index([createdAt(sort: Desc), id(sort: Desc)])
+}
+
+model UserBlock {
+  id Int @id @default(autoincrement())
+
+  // Timestamp
+  createdAt DateTime @default(now())
+
+  // Id of the user creating the block
+  blockerId Int
+
+  /**
+   * Relation to User (the blocker)
+   * "UserBlockBlocker" is the relation name
+   * needed because User is referenced twice
+   */
+  blocker User @relation("UserBlockBlocker", fields: [blockerId], references: [id], onDelete: Cascade)
+
+  // Id of the blocked user
+  blockedId Int
+
+  /**
+   * Relation to User (the blocked user)
+   * "UserBlockBlocked" is the relation name
+   * needed because User is referenced twice
+   */
+  blocked User @relation("UserBlockBlocked", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedId])
+  @@index([blockerId, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([blockedId])
 }
 
 model Like {

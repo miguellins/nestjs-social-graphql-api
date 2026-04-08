@@ -113,15 +113,15 @@ export class GlobalGqlExceptionFilter implements GqlExceptionFilter {
           ? GRAPHQL_ERROR_CODES.BAD_REQUEST
           : status === 409
             ? GRAPHQL_ERROR_CODES.DUPLICATE
-          : status === 401
-            ? GRAPHQL_ERROR_CODES.UNAUTHENTICATED
-            : status === 403
-              ? GRAPHQL_ERROR_CODES.FORBIDDEN
-              : status === 404
-                ? GRAPHQL_ERROR_CODES.NOT_FOUND
-                : status >= 500
-                  ? GRAPHQL_ERROR_CODES.INTERNAL_SERVER_ERROR
-                  : GRAPHQL_ERROR_CODES.ERROR);
+            : status === 401
+              ? GRAPHQL_ERROR_CODES.UNAUTHENTICATED
+              : status === 403
+                ? GRAPHQL_ERROR_CODES.FORBIDDEN
+                : status === 404
+                  ? GRAPHQL_ERROR_CODES.NOT_FOUND
+                  : status >= 500
+                    ? GRAPHQL_ERROR_CODES.INTERNAL_SERVER_ERROR
+                    : GRAPHQL_ERROR_CODES.ERROR);
 
       const fields = normalized.fields;
 

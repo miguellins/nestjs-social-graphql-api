@@ -38,7 +38,9 @@ function isPublicGraphqlErrorCode(code: unknown): code is string {
 }
 
 /** Extracts the sanitized original error payload from the underlying GraphQL runtime error when available. */
-function getOriginalErrorExtensions(error: unknown): Record<string, unknown> | undefined {
+function getOriginalErrorExtensions(
+  error: unknown,
+): Record<string, unknown> | undefined {
   if (error instanceof HttpException) {
     const response = error.getResponse();
     return isObject(response) ? response : undefined;
@@ -61,7 +63,10 @@ function getOriginalErrorExtensions(error: unknown): Record<string, unknown> | u
   const extensions = error["extensions"];
   if (isObject(extensions)) {
     const nestedOriginalError = extensions["originalError"];
-    if (isObject(nestedOriginalError) || nestedOriginalError instanceof HttpException) {
+    if (
+      isObject(nestedOriginalError) ||
+      nestedOriginalError instanceof HttpException
+    ) {
       return getOriginalErrorExtensions(nestedOriginalError);
     }
   }

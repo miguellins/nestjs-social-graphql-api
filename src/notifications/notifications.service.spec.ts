@@ -29,6 +29,9 @@ describe("NotificationsService", () => {
   };
 
   const prismaMock = {
+    userBlock: {
+      findFirst: jest.fn(),
+    },
     notification: {
       create: jest.fn(),
       findMany: jest.fn(),
@@ -115,6 +118,7 @@ describe("NotificationsService", () => {
         entityId: 10,
       };
 
+      prismaMock.userBlock.findFirst.mockResolvedValue(null);
       prismaMock.notification.create.mockResolvedValue(mockNotification);
 
       notificationDeliveryMock.publishNotificationReceived.mockResolvedValue(
@@ -152,6 +156,7 @@ describe("NotificationsService", () => {
         entityId: 10,
       };
 
+      prismaMock.userBlock.findFirst.mockResolvedValue(null);
       prismaMock.notification.create.mockResolvedValue(mockNotification);
 
       notificationDeliveryMock.publishNotificationReceived.mockRejectedValue(
@@ -182,6 +187,25 @@ describe("NotificationsService", () => {
       ).rejects.toThrow();
 
       expect(prismaMock.notification.create).not.toHaveBeenCalled();
+    });
+
+    it("should not persist or publish notifications for blocked pairs", async () => {
+      prismaMock.userBlock.findFirst.mockResolvedValue({ id: 99 });
+
+      const result = await service.createAndPublishNotification({
+        recipientId: 1,
+        actorId: 2,
+        type: NotificationType.USER_FOLLOWED,
+        title: "New follower",
+        body: "john started following you",
+        entityId: 10,
+      });
+
+      expect(result).toBeNull();
+      expect(prismaMock.notification.create).not.toHaveBeenCalled();
+      expect(
+        notificationDeliveryMock.publishNotificationReceived,
+      ).not.toHaveBeenCalled();
     });
   });
 

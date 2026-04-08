@@ -61,6 +61,9 @@ describe("PostsService", () => {
     user: {
       findUnique: jest.Mock;
     };
+    userBlock: {
+      findMany: jest.Mock;
+    };
   } = {
     post: {
       findMany: jest.fn(),
@@ -71,6 +74,9 @@ describe("PostsService", () => {
     },
     user: {
       findUnique: jest.fn(),
+    },
+    userBlock: {
+      findMany: jest.fn(),
     },
   };
 
@@ -381,6 +387,7 @@ describe("PostsService", () => {
   describe("myFeed", () => {
     it("returns a cursor page for the current user's feed with deterministic ordering", async () => {
       const rows = [makeListPost(3), makeListPost(2), makeListPost(1)];
+      prismaMock.userBlock.findMany.mockResolvedValue([]);
       prismaMock.post.findMany.mockResolvedValue(rows);
 
       const result = await service.myFeed(7, { first: 5 });
@@ -415,6 +422,7 @@ describe("PostsService", () => {
     });
 
     it("applies the feed cursor filter", async () => {
+      prismaMock.userBlock.findMany.mockResolvedValue([]);
       prismaMock.post.findMany.mockResolvedValue([]);
       const after = encodeChronoCursor({
         createdAt: new Date("2026-04-10T00:00:00.000Z"),
@@ -462,10 +470,12 @@ describe("PostsService", () => {
         service.myFeed(7, { first: 5, after: "%%%invalid%%%" }),
       ).rejects.toBeInstanceOf(BadRequestException);
 
+      expect(prismaMock.userBlock.findMany).not.toHaveBeenCalled();
       expect(prismaMock.post.findMany).not.toHaveBeenCalled();
     });
 
     it("uses ascending tie-breaker filtering for OLDEST feed pagination", async () => {
+      prismaMock.userBlock.findMany.mockResolvedValue([]);
       prismaMock.post.findMany.mockResolvedValue([]);
       const after = encodeChronoCursor({
         createdAt: new Date("2026-04-10T00:00:00.000Z"),
@@ -507,6 +517,43 @@ describe("PostsService", () => {
           ],
         },
         orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        take: 6,
+        select: SafePostListSelect,
+      });
+    });
+
+    it("filters blocked users out of the feed", async () => {
+      prismaMock.userBlock.findMany.mockResolvedValue([
+        { blockerId: 7, blockedId: 9 },
+        { blockerId: 12, blockedId: 7 },
+      ]);
+      prismaMock.post.findMany.mockResolvedValue([]);
+
+      await service.myFeed(7, { first: 5 });
+
+      expect(prismaMock.post.findMany).toHaveBeenCalledWith({
+        where: {
+          AND: [
+            {
+              OR: [
+                { authorId: 7 },
+                {
+                  author: {
+                    followers: {
+                      some: {
+                        followerId: 7,
+                      },
+                    },
+                  },
+                },
+              ],
+            },
+            {
+              authorId: { notIn: [9, 12] },
+            },
+          ],
+        },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         take: 6,
         select: SafePostListSelect,
       });

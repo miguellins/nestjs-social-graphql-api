@@ -17,7 +17,7 @@ via the GitLens Inspect
 - Check NEW_codex_recomendations, each module block of good/senior practices and check which modules are using the same practices and whiche ones are not, make more consistent so all modules use the same good/senior practices when it fits and are worth it
 
 
-Create a prompt for codex to check if Elasticsearch is useful and should be added to my project. Ask codex to return the utility, how to use, how can elasticsearch can improve my project and where they should be addded, and what files should be added/edited to add. Ask codex to make a score in parts in how much this feature should increase my overall score in my project: Check if i should use Elasticsearch in my project
+
 
 
 
@@ -62,6 +62,7 @@ SEND THIS TO GPT:
 
 
 
+# TELL CODEX TO CONTINUE IN THE PHASE 2
 
 
 

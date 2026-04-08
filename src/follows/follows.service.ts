@@ -124,6 +124,26 @@ export class FollowsService {
 
     if (!currentUser) throw new NotFoundException("Current user not found");
 
+    const blockRelationship = await this.prisma.userBlock.findFirst({
+      where: {
+        OR: [
+          {
+            blockerId: followerId,
+            blockedId: followingId,
+          },
+          {
+            blockerId: followingId,
+            blockedId: followerId,
+          },
+        ],
+      },
+      select: { id: true },
+    });
+
+    if (blockRelationship) {
+      throw new ForbiddenException("You cannot follow this user");
+    }
+
     let follow: SafeFollowDTO;
 
     try {

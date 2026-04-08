@@ -55,6 +55,9 @@ describe("FollowsService", () => {
     user: {
       findUnique: jest.Mock;
     };
+    userBlock: {
+      findFirst: jest.Mock;
+    };
   } = {
     follow: {
       findMany: jest.fn(),
@@ -64,6 +67,9 @@ describe("FollowsService", () => {
     },
     user: {
       findUnique: jest.fn(),
+    },
+    userBlock: {
+      findFirst: jest.fn(),
     },
   };
 
@@ -268,6 +274,7 @@ describe("FollowsService", () => {
       prismaMock.user.findUnique
         .mockResolvedValueOnce({ id: 2 })
         .mockResolvedValueOnce({ id: 1, username: "alice" });
+      prismaMock.userBlock.findFirst.mockResolvedValue(null);
 
       const created = { id: 50, followerId: 1, followingId: 2 };
       prismaMock.follow.create.mockResolvedValue(created);
@@ -314,6 +321,7 @@ describe("FollowsService", () => {
       prismaMock.user.findUnique
         .mockResolvedValueOnce({ id: 2 })
         .mockResolvedValueOnce({ id: 1, username: "alice" });
+      prismaMock.userBlock.findFirst.mockResolvedValue(null);
 
       const created = { id: 50, followerId: 1, followingId: 2 };
       prismaMock.follow.create.mockResolvedValue(created);
@@ -340,6 +348,7 @@ describe("FollowsService", () => {
       prismaMock.user.findUnique
         .mockResolvedValueOnce({ id: 2 })
         .mockResolvedValueOnce({ id: 1, username: "alice" });
+      prismaMock.userBlock.findFirst.mockResolvedValue(null);
 
       const created = { id: 50, followerId: 1, followingId: 2 };
       prismaMock.follow.create.mockResolvedValue(created);
@@ -356,7 +365,10 @@ describe("FollowsService", () => {
     });
 
     it("throws ConflictException on unique constraint (P2002)", async () => {
-      prismaMock.user.findUnique.mockResolvedValue({ id: 2 });
+      prismaMock.user.findUnique
+        .mockResolvedValueOnce({ id: 2 })
+        .mockResolvedValueOnce({ id: 1, username: "alice" });
+      prismaMock.userBlock.findFirst.mockResolvedValue(null);
 
       const err = new Prisma.PrismaClientKnownRequestError("duplicate", {
         code: "P2002",
@@ -370,7 +382,10 @@ describe("FollowsService", () => {
     });
 
     it("throws NotFoundException on FK/record errors (P2003 or P2025)", async () => {
-      prismaMock.user.findUnique.mockResolvedValue({ id: 2 });
+      prismaMock.user.findUnique
+        .mockResolvedValueOnce({ id: 2 })
+        .mockResolvedValueOnce({ id: 1, username: "alice" });
+      prismaMock.userBlock.findFirst.mockResolvedValue(null);
 
       const err1 = new Prisma.PrismaClientKnownRequestError("fk", {
         code: "P2003",
@@ -386,6 +401,9 @@ describe("FollowsService", () => {
         code: "P2025",
         clientVersion: "test",
       });
+      prismaMock.user.findUnique
+        .mockResolvedValueOnce({ id: 2 })
+        .mockResolvedValueOnce({ id: 1, username: "alice" });
       prismaMock.follow.create.mockRejectedValue(err2);
 
       await expect(service.createFollow(1, 2)).rejects.toBeInstanceOf(
@@ -394,10 +412,39 @@ describe("FollowsService", () => {
     });
 
     it("lets unexpected write errors bubble for the global filter to normalize", async () => {
-      prismaMock.user.findUnique.mockResolvedValue({ id: 2 });
+      prismaMock.user.findUnique
+        .mockResolvedValueOnce({ id: 2 })
+        .mockResolvedValueOnce({ id: 1, username: "alice" });
+      prismaMock.userBlock.findFirst.mockResolvedValue(null);
       prismaMock.follow.create.mockRejectedValue(new Error("boom"));
 
       await expect(service.createFollow(1, 2)).rejects.toThrow("boom");
+    });
+
+    it("prevents following a user you have blocked", async () => {
+      prismaMock.user.findUnique
+        .mockResolvedValueOnce({ id: 2 })
+        .mockResolvedValueOnce({ id: 1, username: "alice" });
+      prismaMock.userBlock.findFirst.mockResolvedValue({ id: 100 });
+
+      await expect(service.createFollow(1, 2)).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+
+      expect(prismaMock.follow.create).not.toHaveBeenCalled();
+    });
+
+    it("prevents following a user who has blocked you", async () => {
+      prismaMock.user.findUnique
+        .mockResolvedValueOnce({ id: 2 })
+        .mockResolvedValueOnce({ id: 1, username: "alice" });
+      prismaMock.userBlock.findFirst.mockResolvedValue({ id: 101 });
+
+      await expect(service.createFollow(1, 2)).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+
+      expect(prismaMock.follow.create).not.toHaveBeenCalled();
     });
   });
 

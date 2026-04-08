@@ -55,6 +55,24 @@ export class NotificationsService {
 
     if (data.recipientId === data.actorId) return null;
 
+    const blockRelationship = await this.prisma.userBlock.findFirst({
+      where: {
+        OR: [
+          {
+            blockerId: data.recipientId,
+            blockedId: data.actorId,
+          },
+          {
+            blockerId: data.actorId,
+            blockedId: data.recipientId,
+          },
+        ],
+      },
+      select: { id: true },
+    });
+
+    if (blockRelationship) return null;
+
     const notification = await this.prisma.notification.create({
       data,
 

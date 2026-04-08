@@ -238,6 +238,15 @@ type FollowPage {
   pageInfo: PageInfo!
 }
 
+"""Cursor-paginated page of users plus navigation metadata."""
+type UserPage {
+  """Items returned for the current page."""
+  items: [SafeUser!]!
+
+  """Cursor navigation metadata for the current page."""
+  pageInfo: PageInfo!
+}
+
 """Public-safe post preview tailored for like payloads."""
 type LikedPostPreview {
   """Unique identifier of the liked post."""
@@ -735,15 +744,6 @@ type CreatedUser implements PublicUserIdentity {
   updatedAtFormatted: String
 }
 
-"""Cursor-paginated page of users plus navigation metadata."""
-type UserPage {
-  """Items returned for the current page."""
-  items: [SafeUser!]!
-
-  """Cursor navigation metadata for the current page."""
-  pageInfo: PageInfo!
-}
-
 """
 Authentication payload returned after successful login and token issuance.
 """
@@ -868,6 +868,13 @@ type Query {
     status: NotificationReadStatus
   ): NotificationPage!
   unreadNotificationsCount: Int!
+  myBlockedUsers(
+    """Maximum number of blocked users to return (1-${PAGINATION.MAX_TAKE})."""
+    first: Int
+
+    """Cursor for the last item from the previous page."""
+    after: String
+  ): UserPage!
   follows(
     """Maximum number of items to return (1-${PAGINATION.MAX_TAKE})."""
     first: Int
@@ -932,6 +939,8 @@ type Mutation {
   deleteLike(id: Int!): MessageResponse!
   markNotificationAsRead(notificationId: Int!): MessageResponse!
   markAllNotificationsAsRead: MessageResponse!
+  blockUser(input: BlockUserInput!): MessageResponse!
+  unblockUser(input: UnblockUserInput!): MessageResponse!
   createFollow(followingId: Int!): Follow!
   deleteFollow(id: Int!): MessageResponse!
   createComment(input: CreateCommentInput!): Comment!
@@ -1037,6 +1046,16 @@ input CompletePostMediaUploadInput {
 input AttachMediaToPostInput {
   postId: Int!
   mediaId: Int!
+}
+
+input BlockUserInput {
+  """Identifier of the user to block."""
+  targetUserId: Int!
+}
+
+input UnblockUserInput {
+  """Identifier of the user to unblock."""
+  targetUserId: Int!
 }
 
 input CreateCommentInput {

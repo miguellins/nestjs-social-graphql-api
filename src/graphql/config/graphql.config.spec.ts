@@ -1,4 +1,4 @@
-import { ApolloDriver } from "@nestjs/apollo";
+import { ApolloDriver, type ApolloDriverConfig } from "@nestjs/apollo";
 import { NotFoundException } from "@nestjs/common";
 
 import { GRAPHQL_ERROR_CODES } from "@/common/constants/graphql-error-code.constants";
@@ -8,6 +8,42 @@ import { createGraphqlSubscriptionsConfig } from "@/graphql/subscriptions/subscr
 import type { GqlContext } from "@/graphql/config/graphql-context.types";
 
 import type { GraphQLFormattedError } from "graphql";
+
+type TestedFormatError = (
+  error: GraphQLFormattedError,
+  errorWithContext: unknown,
+) => {
+  message: string;
+  extensions: {
+    code: string;
+    fields?: string[];
+  };
+};
+
+type TestedContextFactory = (args: {
+  req?: { headers: { authorization: string } };
+  res?: { locals: Record<string, unknown> };
+  extra?: { user: { id: number } };
+}) => GqlContext;
+
+type TestedGraphqlConfig = ApolloDriverConfig & {
+  formatError: TestedFormatError;
+  context: TestedContextFactory;
+};
+
+type TestedSubscriptionsConfig = {
+  "graphql-ws": {
+    onConnect: unknown;
+  };
+};
+
+function callTestContext(
+  value: unknown,
+  args: Parameters<TestedContextFactory>[0],
+): GqlContext {
+  const context = value as TestedContextFactory;
+  return context(args);
+}
 
 jest.mock("@/graphql/plugins/query-complexity.plugin", () => ({
   createQueryComplexityPlugin: jest.fn(() => "complexity-plugin"),
@@ -47,31 +83,20 @@ describe("createGraphqlConfig", () => {
       }),
     };
 
-    const config = createGraphqlConfig(
+    const rawConfig = createGraphqlConfig(
       jwtService as never,
       configService as never,
     );
+    const config = rawConfig as unknown as TestedGraphqlConfig;
     const createQueryComplexityPluginMock = jest.mocked(
       createQueryComplexityPlugin,
     );
     const createGraphqlSubscriptionsConfigMock = jest.mocked(
       createGraphqlSubscriptionsConfig,
     );
-    const formatError = config.formatError as (
-      error: GraphQLFormattedError,
-      errorWithContext: unknown,
-    ) => {
-      message: string;
-      extensions: {
-        code: string;
-        fields?: string[];
-      };
-    };
-    const context = config.context as (args: {
-      req?: { headers: { authorization: string } };
-      res?: { locals: Record<string, unknown> };
-      extra?: { user: { id: number } };
-    }) => GqlContext;
+    const formatError = rawConfig.formatError as TestedFormatError;
+    const subscriptions =
+      rawConfig.subscriptions as unknown as TestedSubscriptionsConfig;
 
     expect(createQueryComplexityPluginMock).toHaveBeenCalledWith({
       GRAPHQL_COMPLEXITY_ENFORCE: true,
@@ -86,11 +111,7 @@ describe("createGraphqlConfig", () => {
     expect(config.driver).toBe(ApolloDriver);
     expect(config.autoSchemaFile).toMatch(/src\/schema\.gql$/);
     expect(config.plugins).toEqual(["complexity-plugin"]);
-    expect(config.subscriptions).toEqual({
-      "graphql-ws": {
-        onConnect: expect.any(Function),
-      },
-    });
+    expect(typeof subscriptions["graphql-ws"].onConnect).toBe("function");
     expect(config.debug).toBe(false);
     expect(
       formatError(
@@ -259,11 +280,14 @@ describe("createGraphqlConfig", () => {
       },
     });
     expect(
-      context({
-        req: { headers: { authorization: "Bearer token" } },
-        res: { locals: {} },
-        extra: { user: { id: 7 } },
-      } as never),
+      callTestContext(
+        rawConfig.context as unknown,
+        {
+          req: { headers: { authorization: "Bearer token" } },
+          res: { locals: {} },
+          extra: { user: { id: 7 } },
+        } as never,
+      ),
     ).toEqual({
       req: { headers: { authorization: "Bearer token" } },
       res: { locals: {} },

@@ -96,6 +96,18 @@ export class PostReadService {
     const orderBy = params?.orderBy ?? ChronologicalOrder.NEWEST;
     const cursor = params?.after ? decodeChronoCursor(params.after) : undefined;
     const cursorFilter = buildChronologicalCursorFilter(cursor, orderBy);
+    const relatedBlocks = await this.prisma.userBlock.findMany({
+      where: {
+        OR: [{ blockerId: currentUserId }, { blockedId: currentUserId }],
+      },
+      select: {
+        blockerId: true,
+        blockedId: true,
+      },
+    });
+    const blockedAuthorIds = relatedBlocks.map((block) =>
+      block.blockerId === currentUserId ? block.blockedId : block.blockerId,
+    );
 
     const rows = await this.prisma.post.findMany({
       where: {
@@ -114,6 +126,9 @@ export class PostReadService {
               },
             ],
           },
+          ...(blockedAuthorIds.length > 0
+            ? [{ authorId: { notIn: blockedAuthorIds } }]
+            : []),
           ...(cursorFilter ? [cursorFilter] : []),
         ],
       },
