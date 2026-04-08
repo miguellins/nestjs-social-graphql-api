@@ -1,4 +1,5 @@
 import { ApolloDriver, type ApolloDriverConfig } from "@nestjs/apollo";
+import { HttpException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { JwtService } from "@nestjs/jwt";
 
@@ -9,11 +10,86 @@ import type {
   SubscriptionExtra,
 } from "@/graphql/config/graphql-context.types";
 
-import type { GraphQLFormattedError } from "graphql";
+import { GRAPHQL_ERROR_CODES } from "@/common/constants/graphql-error-code.constants";
+
+import type { GraphQLError, GraphQLFormattedError } from "graphql";
 
 import type { Request, Response } from "express";
 
 import { join } from "path";
+
+type PublicGraphqlErrorExtensions = {
+  code: string;
+  fields?: string[];
+};
+
+const PUBLIC_GRAPHQL_ERROR_CODES = new Set<string>(
+  Object.values(GRAPHQL_ERROR_CODES),
+);
+
+/** Narrows unknown values to plain object records. */
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+/** Checks whether a raw GraphQL error code is part of the public API contract. */
+function isPublicGraphqlErrorCode(code: unknown): code is string {
+  return typeof code === "string" && PUBLIC_GRAPHQL_ERROR_CODES.has(code);
+}
+
+/** Extracts the sanitized original error payload from the underlying GraphQL runtime error when available. */
+function getOriginalErrorExtensions(error: unknown): Record<string, unknown> | undefined {
+  if (error instanceof HttpException) {
+    const response = error.getResponse();
+    return isObject(response) ? response : undefined;
+  }
+
+  if (!isObject(error)) return undefined;
+
+  if (typeof error["code"] === "string" || Array.isArray(error["fields"])) {
+    return error;
+  }
+
+  const response = error["response"];
+  if (isObject(response)) return response;
+
+  const originalError = error["originalError"];
+  if (isObject(originalError) || originalError instanceof HttpException) {
+    return getOriginalErrorExtensions(originalError);
+  }
+
+  const extensions = error["extensions"];
+  if (isObject(extensions)) {
+    const nestedOriginalError = extensions["originalError"];
+    if (isObject(nestedOriginalError) || nestedOriginalError instanceof HttpException) {
+      return getOriginalErrorExtensions(nestedOriginalError);
+    }
+  }
+
+  return undefined;
+}
+
+/** Maps a GraphQL formatted error to safe public error extensions for clients. */
+function toPublicGraphqlErrorExtensions(
+  error: GraphQLFormattedError,
+  originalError: GraphQLError | undefined,
+): PublicGraphqlErrorExtensions {
+  const originalErrorExtensions = getOriginalErrorExtensions(originalError);
+  const rawCode =
+    originalErrorExtensions?.["code"] ?? error.extensions?.["code"];
+  const rawFields =
+    originalErrorExtensions?.["fields"] ?? error.extensions?.["fields"];
+  const fields = Array.isArray(rawFields)
+    ? rawFields.filter((field): field is string => typeof field === "string")
+    : undefined;
+
+  return {
+    code: isPublicGraphqlErrorCode(rawCode)
+      ? rawCode
+      : GRAPHQL_ERROR_CODES.INTERNAL_SERVER_ERROR,
+    ...(fields && fields.length > 0 ? { fields } : {}),
+  };
+}
 
 /** Creates Apollo GraphQL server config with query complexity limits, subscriptions, error formatting, and context setup. */
 export function createGraphqlConfig(
@@ -44,8 +120,12 @@ export function createGraphqlConfig(
     subscriptions: createGraphqlSubscriptionsConfig(jwtService),
 
     // Strips internal error details from GraphQL responses sent to clients
-    formatError: (error: GraphQLFormattedError) => ({
+    formatError: (
+      error: GraphQLFormattedError,
+      originalError: GraphQLError,
+    ) => ({
       message: error.message,
+      extensions: toPublicGraphqlErrorExtensions(error, originalError),
     }),
 
     // Builds the unified context object available to all resolvers

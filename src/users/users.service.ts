@@ -185,7 +185,7 @@ export class UsersService {
       "error",
       `Failed to refresh caches after creating user ${user.id}`,
       async () => {
-        await this.userCache.cacheUser(user);
+        await this.userCache.cacheUsernameLookup(user.username, user.id);
         await this.cacheHelper.bumpVersion("v:user:list");
       },
     );

@@ -5,4 +5,7 @@ import { ObjectType } from "@nestjs/graphql";
 export class AuthPayload {
   /** JWT access token returned after successful authentication. */
   access_token: string;
+
+  /** Opaque refresh token used to rotate the auth session. */
+  refreshToken: string;
 }

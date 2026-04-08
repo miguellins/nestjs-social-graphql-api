@@ -19,6 +19,46 @@ This backend currently provides:
 - Global throttling and auth-by-default resolver protection
 - Centralized validation and GraphQL-safe error handling
 
+## GraphQL Error Contract
+GraphQL errors are sanitized but machine-readable.
+
+Current public shape:
+- `message`
+- `errors[].extensions.code`
+- `errors[].extensions.fields` when relevant
+
+Example:
+```json
+{
+  "errors": [
+    {
+      "message": "Already exists: email",
+      "extensions": {
+        "code": "DUPLICATE",
+        "fields": ["email"]
+      }
+    }
+  ],
+  "data": null
+}
+```
+
+Stable public error codes:
+- `BAD_REQUEST`
+- `UNAUTHENTICATED`
+- `FORBIDDEN`
+- `NOT_FOUND`
+- `DUPLICATE`
+- `FOREIGN_KEY`
+- `DB_ERROR`
+- `INTERNAL_SERVER_ERROR`
+
+Notes:
+- clients that only read `message` remain compatible
+- clients can now branch on `extensions.code`
+- `fields` is included only when relevant and safe
+- stack traces and internal exception objects are not exposed
+
 ## Stack and Tools
 - Runtime: Node.js, TypeScript
 - Framework: NestJS 11
@@ -119,6 +159,8 @@ Defined in `prisma/schema.prisma`.
 ## Feature Modules
 ### Auth
 - `login(input)`
+- `refreshSession(input)`
+- `logout(input)`
 - `requestPasswordReset(input)`
 - `resetPassword(input)`
 
@@ -127,6 +169,8 @@ Current strengths:
 - hashed reset tokens with expiry and single-use semantics
 - password reset performed transactionally
 - password hash upgrade path during login
+- persisted refresh sessions with hashed token storage
+- refresh-token rotation and explicit logout/revocation
 
 ### Users
 - `users(first, after, orderBy)`
@@ -255,6 +299,8 @@ This is already stronger than in-memory pubsub and is designed for multi-instanc
 
 ### Mutations
 - `login`
+- `refreshSession`
+- `logout`
 - `requestPasswordReset`
 - `resetPassword`
 - `createUser`
@@ -286,6 +332,7 @@ This is already stronger than in-memory pubsub and is designed for multi-instanc
 - service-level Zod parsing where modules follow that pattern
 - safe DTO/select exports for public reads
 - cursor-based pagination with opaque cursors and bounded page size
+- hashed refresh-session tokens with rotation and revocation
 - Prisma transactions for consistency-critical updates
 - best-effort side effects after committed writes
 - version-key cache invalidation instead of wildcard deletes
@@ -300,6 +347,7 @@ DATABASE_URL=mysql://root:root@localhost:3307/mydb
 JWT_SECRET=your_long_secret
 JWT_EXPIRES_IN=7d
 PASSWORD_RESET_TOKEN_TTL_MINUTES=30
+REFRESH_SESSION_TTL_DAYS=30
 PASSWORD_PEPPER=your_password_pepper
 REDIS_URL=redis://localhost:6379
 GRAPHQL_SUBSCRIPTIONS_REDIS_URL=redis://localhost:6379

@@ -22,6 +22,8 @@ export const envSchema = z.object({
   JWT_SECRET: z.string().trim().min(1, "JWT_SECRET is required"),
   JWT_EXPIRES_IN: z.string().trim().min(1).default("7d"),
   PASSWORD_RESET_TOKEN_TTL_MINUTES: positiveIntFromEnv.default(30),
+  EMAIL_VERIFICATION_TTL_HOURS: positiveIntFromEnv.default(24),
+  REFRESH_SESSION_TTL_DAYS: positiveIntFromEnv.default(30),
   PASSWORD_PEPPER: z.string().trim().min(1, "PASSWORD_PEPPER is required"),
   REDIS_URL: z.string().trim().min(1, "REDIS_URL is required"),
   GRAPHQL_SUBSCRIPTIONS_REDIS_URL: z.string().trim().min(1).optional(),

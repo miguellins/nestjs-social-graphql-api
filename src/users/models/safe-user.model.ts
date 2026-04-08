@@ -8,6 +8,10 @@ import { UserCounts } from "@/users/models/user-counts.model";
 /** Public user representation with non-sensitive fields */
 @ObjectType({ implements: () => PublicUserIdentity })
 export class SafeUser extends PublicUserIdentity {
+  /** Whether the user has verified ownership of their email address. */
+  @Field()
+  isEmailVerified: boolean;
+
   /** When the user account was created */
   @Field(() => GraphQLISODateTime)
   createdAt: Date;

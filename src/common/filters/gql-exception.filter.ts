@@ -6,6 +6,8 @@ import {
 } from "@nestjs/common";
 import { GqlArgumentsHost, GqlExceptionFilter } from "@nestjs/graphql";
 
+import { GRAPHQL_ERROR_CODES } from "@/common/constants/graphql-error-code.constants";
+
 import { Prisma } from "@prisma/client";
 
 /** Represents the normalized GraphQL-safe error payload shape. */
@@ -61,7 +63,7 @@ export class GlobalGqlExceptionFilter implements GqlExceptionFilter {
         return new HttpException(
           {
             message: `Already exists: ${fields.join(", ") || "unique field"}`,
-            code: "DUPLICATE",
+            code: GRAPHQL_ERROR_CODES.DUPLICATE,
             fields,
           },
           HttpStatus.CONFLICT,
@@ -70,20 +72,23 @@ export class GlobalGqlExceptionFilter implements GqlExceptionFilter {
 
       if (exception.code === "P2003") {
         return new HttpException(
-          { message: "Invalid reference", code: "FOREIGN_KEY" },
+          {
+            message: "Invalid reference",
+            code: GRAPHQL_ERROR_CODES.FOREIGN_KEY,
+          },
           HttpStatus.BAD_REQUEST,
         );
       }
 
       if (exception.code === "P2025") {
         return new HttpException(
-          { message: "Not found", code: "NOT_FOUND" },
+          { message: "Not found", code: GRAPHQL_ERROR_CODES.NOT_FOUND },
           HttpStatus.NOT_FOUND,
         );
       }
 
       return new HttpException(
-        { message: "Database error", code: "DB_ERROR" },
+        { message: "Database error", code: GRAPHQL_ERROR_CODES.DB_ERROR },
         HttpStatus.BAD_REQUEST,
       );
     }
@@ -105,14 +110,18 @@ export class GlobalGqlExceptionFilter implements GqlExceptionFilter {
       const code =
         normalized.code ??
         (status === 400
-          ? "BAD_REQUEST"
+          ? GRAPHQL_ERROR_CODES.BAD_REQUEST
+          : status === 409
+            ? GRAPHQL_ERROR_CODES.DUPLICATE
           : status === 401
-            ? "UNAUTHENTICATED"
+            ? GRAPHQL_ERROR_CODES.UNAUTHENTICATED
             : status === 403
-              ? "FORBIDDEN"
+              ? GRAPHQL_ERROR_CODES.FORBIDDEN
               : status === 404
-                ? "NOT_FOUND"
-                : "ERROR");
+                ? GRAPHQL_ERROR_CODES.NOT_FOUND
+                : status >= 500
+                  ? GRAPHQL_ERROR_CODES.INTERNAL_SERVER_ERROR
+                  : GRAPHQL_ERROR_CODES.ERROR);
 
       const fields = normalized.fields;
 
@@ -120,7 +129,10 @@ export class GlobalGqlExceptionFilter implements GqlExceptionFilter {
     }
 
     return new HttpException(
-      { message: "Internal server error", code: "INTERNAL_SERVER_ERROR" },
+      {
+        message: "Internal server error",
+        code: GRAPHQL_ERROR_CODES.INTERNAL_SERVER_ERROR,
+      },
       HttpStatus.INTERNAL_SERVER_ERROR,
     );
   }

@@ -5,6 +5,7 @@ export type SafeUserDTO = {
   id: number;
   name: string;
   username: string;
+  isEmailVerified: boolean;
   createdAt: Date;
   updatedAt: Date;
 
@@ -21,6 +22,7 @@ export const SafeUserSelect = {
   id: true,
   name: true,
   username: true,
+  isEmailVerified: true,
   createdAt: true,
   updatedAt: true,
 

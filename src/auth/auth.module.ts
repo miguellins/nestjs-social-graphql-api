@@ -3,6 +3,7 @@ import { ConfigService } from "@nestjs/config";
 import { Module } from "@nestjs/common";
 import { JwtModule } from "@nestjs/jwt";
 
+import { EmailVerificationDeliveryService } from "@/auth/email-verification-delivery.service";
 import { PasswordResetDeliveryService } from "@/auth/password-reset-delivery.service";
 import { AuthResolver } from "@/auth/auth.resolver";
 import { AuthService } from "@/auth/auth.service";
@@ -38,6 +39,7 @@ import type { StringValue } from "ms";
     AuthService,
     AuthResolver,
     JwtStrategy,
+    EmailVerificationDeliveryService,
     PasswordResetDeliveryService,
   ],
   exports: [AuthService, JwtModule],

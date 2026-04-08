@@ -8,11 +8,12 @@ datasource db {
 }
 
 model User {
-  id       Int    @id @default(autoincrement())
-  name     String
-  email    String @unique
-  username String @unique
-  password String
+  id              Int     @id @default(autoincrement())
+  name            String
+  email           String  @unique
+  username        String  @unique
+  password        String
+  isEmailVerified Boolean @default(false)
 
   // Timestamps
   createdAt DateTime @default(now())
@@ -59,6 +60,18 @@ model User {
    * Password reset tokens issued for this user
    */
   passwordResetTokens PasswordResetToken[]
+
+  /**
+   * 1:N relation
+   * Refresh sessions issued for this user
+   */
+  refreshSessions RefreshSession[]
+
+  /**
+   * 1:N relation
+   * Email verification tokens issued for this user
+   */
+  emailVerificationTokens EmailVerificationToken[]
 
   /**
    * 1:N relation
@@ -362,7 +375,15 @@ model Notification {
    * Optimizes the common query: "fetch unread notifications for a user, ordered by date"
    */
   @@index([recipientId, isRead, createdAt])
+  /**
+   * Compound index on recipientId, createdAt, and id descending
+   * Improves notification timeline pagination for one recipient ordered by newest first.
+   */
   @@index([recipientId, createdAt(sort: Desc), id(sort: Desc)])
+  /**
+   * Compound index on recipientId, isRead, createdAt, and id descending
+   * Improves unread/read-filtered notification pagination with deterministic tie-breaking.
+   */
   @@index([recipientId, isRead, createdAt(sort: Desc), id(sort: Desc)])
 }
 
@@ -382,8 +403,99 @@ model PasswordResetToken {
    */
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  /**
+   * Database index on userId
+   * Improves queries like:
+   * - "delete all password reset tokens for one user"
+   * - "list reset tokens issued for one user"
+   */
   @@index([userId])
+  /**
+   * Database index on expiresAt
+   * Improves cleanup and expiry checks for password reset tokens
+   */
   @@index([expiresAt])
+}
+
+model RefreshSession {
+  id                  Int       @id @default(autoincrement())
+  userId              Int
+  tokenHash           String    @unique
+  expiresAt           DateTime
+  revokedAt           DateTime?
+  replacedBySessionId Int?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  /**
+   * Relation to User
+   * fields: [userId] - is a foreign key
+   * references: [id] - references User.id
+   * onDelete: Cascade - delete refresh sessions if user is deleted
+   */
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /**
+   * Database index on userId
+   * Improves queries like:
+   * - "list all refresh sessions for one user"
+   */
+  @@index([userId])
+  /**
+   * Database index on expiresAt
+   * Improves cleanup and expiry checks for refresh sessions
+   */
+  @@index([expiresAt])
+  /**
+   * Database index on revokedAt
+   * Improves queries that check active vs revoked refresh sessions
+   */
+  @@index([revokedAt])
+  /**
+   * Compound index on userId, revokedAt, and expiresAt
+   * Improves user-scoped session reads filtered by active/revoked state and expiry
+   */
+  @@index([userId, revokedAt, expiresAt])
+}
+
+model EmailVerificationToken {
+  id        Int       @id @default(autoincrement())
+  userId    Int
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  /**
+   * Relation to User
+   * fields: [userId] - is a foreign key
+   * references: [id] - references User.id
+   * onDelete: Cascade - delete verification tokens if user is deleted
+   */
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /**
+   * Database index on userId
+   * Improves queries like:
+   * - "list all verification tokens for one user"
+   */
+  @@index([userId])
+  /**
+   * Database index on expiresAt
+   * Improves cleanup and expiry checks for verification tokens
+   */
+  @@index([expiresAt])
+  /**
+   * Database index on usedAt
+   * Improves queries that check active vs consumed verification tokens
+   */
+  @@index([usedAt])
+  /**
+   * Compound index on userId, usedAt, and expiresAt
+   * Improves user-scoped verification token reads filtered by active/used state and expiry
+   */
+  @@index([userId, usedAt, expiresAt])
 }
 
 enum MediaKind {
@@ -445,9 +557,25 @@ model Media {
    */
   postAttachments PostMedia[]
 
+  /**
+   * Compound index on ownerId + createdAt descending
+   * Improves owner-scoped media reads ordered by newest first.
+   */
   @@index([ownerId, createdAt(sort: Desc)])
+  /**
+   * Compound index on ownerId + createdAt + id descending
+   * Improves cursor-pagination for owner-scoped media lists with deterministic tie-breaking.
+   */
   @@index([ownerId, createdAt(sort: Desc), id(sort: Desc)])
+  /**
+   * Compound index on status + expiresAt
+   * Improves cleanup and lookup of pending or expired media uploads.
+   */
   @@index([status, expiresAt])
+  /**
+   * Compound index on type + status
+   * Improves media validation and attachment-rule queries filtered by type and lifecycle status.
+   */
   @@index([type, status])
 }
 
@@ -476,6 +604,16 @@ model PostMedia {
 
   @@unique([postId, mediaId])
   @@unique([postId, sortOrder])
+  /**
+   * Database index on postId
+   * Improves queries like:
+   * - "load all media attachments for one post"
+   */
   @@index([postId])
+  /**
+   * Database index on mediaId
+   * Improves queries like:
+   * - "find post attachments for one media item"
+   */
   @@index([mediaId])
 }

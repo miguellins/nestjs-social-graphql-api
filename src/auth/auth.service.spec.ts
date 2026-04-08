@@ -8,6 +8,7 @@ import { JwtService } from "@nestjs/jwt";
 import { Test, TestingModule } from "@nestjs/testing";
 import { Prisma } from "@prisma/client";
 
+import { EmailVerificationDeliveryService } from "@/auth/email-verification-delivery.service";
 import { PasswordResetDeliveryService } from "@/auth/password-reset-delivery.service";
 import { SALT_ROUNDS } from "@/common/constants/security.constants";
 import { PasswordService } from "@/common/security/password.service";
@@ -28,7 +29,15 @@ describe("AuthService", () => {
   const tokenCreateMock = jest.fn();
   const tokenDeleteManyMock = jest.fn();
   const tokenUpdateManyMock = jest.fn();
+  const emailVerificationFindUniqueMock = jest.fn();
+  const emailVerificationCreateMock = jest.fn();
+  const emailVerificationDeleteManyMock = jest.fn();
+  const emailVerificationUpdateManyMock = jest.fn();
+  const refreshSessionFindFirstMock = jest.fn();
+  const refreshSessionCreateMock = jest.fn();
+  const refreshSessionUpdateManyMock = jest.fn();
   const signAsyncMock = jest.fn();
+  const sendEmailVerificationInstructionsMock = jest.fn();
   const sendPasswordResetInstructionsMock = jest.fn();
   const configGetMock = jest.fn();
 
@@ -43,11 +52,24 @@ describe("AuthService", () => {
       deleteMany: tokenDeleteManyMock,
       updateMany: tokenUpdateManyMock,
     },
+    emailVerificationToken: {
+      findUnique: emailVerificationFindUniqueMock,
+      create: emailVerificationCreateMock,
+      deleteMany: emailVerificationDeleteManyMock,
+      updateMany: emailVerificationUpdateManyMock,
+    },
+    refreshSession: {
+      findFirst: refreshSessionFindFirstMock,
+      create: refreshSessionCreateMock,
+      updateMany: refreshSessionUpdateManyMock,
+    },
   };
 
   const prismaMock = {
     user: txMock.user,
     passwordResetToken: txMock.passwordResetToken,
+    emailVerificationToken: txMock.emailVerificationToken,
+    refreshSession: txMock.refreshSession,
     $transaction: jest.fn(async (arg: unknown) => {
       if (typeof arg === "function") {
         return (arg as (tx: typeof txMock) => Promise<unknown>)(txMock);
@@ -60,6 +82,10 @@ describe("AuthService", () => {
   const jwtMock = {
     signAsync: signAsyncMock,
   } as unknown as JwtService;
+
+  const emailVerificationDeliveryMock = {
+    sendEmailVerificationInstructions: sendEmailVerificationInstructionsMock,
+  } as unknown as EmailVerificationDeliveryService;
 
   const deliveryMock = {
     sendPasswordResetInstructions: sendPasswordResetInstructionsMock,
@@ -74,13 +100,20 @@ describe("AuthService", () => {
 
     configGetMock.mockImplementation((key: string) => {
       if (key === "PASSWORD_PEPPER") return "test-pepper";
+      if (key === "EMAIL_VERIFICATION_TTL_HOURS") return 24;
       if (key === "PASSWORD_RESET_TOKEN_TTL_MINUTES") return 30;
+      if (key === "REFRESH_SESSION_TTL_DAYS") return 30;
       return undefined;
     });
 
+    emailVerificationDeleteManyMock.mockResolvedValue({ count: 0 });
+    emailVerificationCreateMock.mockResolvedValue({ id: 1 });
+    emailVerificationUpdateManyMock.mockResolvedValue({ count: 1 });
     tokenDeleteManyMock.mockResolvedValue({ count: 0 });
     tokenCreateMock.mockResolvedValue({ id: 1 });
     tokenUpdateManyMock.mockResolvedValue({ count: 1 });
+    refreshSessionCreateMock.mockResolvedValue({ id: 1 });
+    refreshSessionUpdateManyMock.mockResolvedValue({ count: 1 });
 
     moduleRef = await Test.createTestingModule({
       providers: [
@@ -88,6 +121,10 @@ describe("AuthService", () => {
         PasswordService,
         { provide: PrismaService, useValue: prismaMock },
         { provide: JwtService, useValue: jwtMock },
+        {
+          provide: EmailVerificationDeliveryService,
+          useValue: emailVerificationDeliveryMock,
+        },
         { provide: PasswordResetDeliveryService, useValue: deliveryMock },
         { provide: ConfigService, useValue: configMock },
       ],
@@ -163,7 +200,7 @@ describe("AuthService", () => {
       expect(signAsyncMock).not.toHaveBeenCalled();
     });
 
-    it("returns access_token when credentials are valid", async () => {
+    it("returns access_token and refreshToken when credentials are valid", async () => {
       userFindUniqueMock.mockResolvedValue({
         id: 7,
         username: "john",
@@ -182,7 +219,28 @@ describe("AuthService", () => {
         select: { id: true, username: true, password: true },
       });
       expect(signAsyncMock).toHaveBeenCalledWith({ sub: 7 });
-      expect(result).toEqual({ access_token: "jwt.token.value" });
+      const refreshSessionCreateCalls = refreshSessionCreateMock.mock
+        .calls as Array<
+        [
+          {
+            data?: {
+              userId?: number;
+              tokenHash?: string;
+              expiresAt?: Date;
+            };
+            select?: { id?: true };
+          },
+        ]
+      >;
+      const refreshSessionCreateCall = refreshSessionCreateCalls[0]?.[0];
+
+      expect(refreshSessionCreateCall?.data?.userId).toBe(7);
+      expect(refreshSessionCreateCall?.data?.tokenHash).toEqual(
+        expect.any(String),
+      );
+      expect(refreshSessionCreateCall?.data?.expiresAt).toBeInstanceOf(Date);
+      expect(result.access_token).toBe("jwt.token.value");
+      expect(result.refreshToken).toEqual(expect.any(String));
     });
 
     it("upgrades a legacy hash after successful verification", async () => {
@@ -207,7 +265,8 @@ describe("AuthService", () => {
 
       expect(upgradedCall?.where).toEqual({ id: 9 });
       expect(upgradedCall?.data?.password).toContain("bcrypt+hmac-sha256:v1$");
-      expect(result).toEqual({ access_token: "jwt.token.value" });
+      expect(result.access_token).toBe("jwt.token.value");
+      expect(result.refreshToken).toEqual(expect.any(String));
     });
 
     it("throws InternalServerErrorException when jwt signing fails", async () => {
@@ -266,6 +325,163 @@ describe("AuthService", () => {
       await expect(
         service.login({ username: "john", password: "pass" }),
       ).rejects.toBeInstanceOf(InternalServerErrorException);
+    });
+  });
+
+  describe("refreshSession", () => {
+    it("rotates a valid refresh session and returns a new token pair", async () => {
+      refreshSessionFindFirstMock.mockResolvedValue({
+        id: 11,
+        userId: 7,
+      });
+      refreshSessionCreateMock.mockResolvedValue({ id: 12 });
+      refreshSessionUpdateManyMock
+        .mockResolvedValueOnce({ count: 1 })
+        .mockResolvedValueOnce({ count: 1 });
+      signAsyncMock.mockResolvedValue("jwt.token.value");
+
+      const result = await service.refreshSession({
+        refreshToken: "raw-refresh-token",
+      });
+
+      const refreshFindCalls = refreshSessionFindFirstMock.mock.calls as Array<
+        [
+          {
+            where?: {
+              tokenHash?: string;
+              revokedAt?: null;
+              expiresAt?: { gt?: Date };
+            };
+            select?: {
+              id?: true;
+              userId?: true;
+            };
+          },
+        ]
+      >;
+      const refreshFindCall = refreshFindCalls[0]?.[0];
+      const refreshCreateCalls = refreshSessionCreateMock.mock.calls as Array<
+        [
+          {
+            data?: {
+              userId?: number;
+              tokenHash?: string;
+              expiresAt?: Date;
+            };
+            select?: { id?: true };
+          },
+        ]
+      >;
+      const refreshCreateCall = refreshCreateCalls[0]?.[0];
+      const refreshUpdateCalls = refreshSessionUpdateManyMock.mock
+        .calls as Array<
+        [
+          {
+            where?: {
+              id?: number;
+              tokenHash?: string;
+              revokedAt?: null;
+              expiresAt?: { gt?: Date };
+              replacedBySessionId?: null;
+            };
+            data?: {
+              revokedAt?: Date;
+              replacedBySessionId?: number;
+            };
+          },
+        ]
+      >;
+      const refreshUpdateCall = refreshUpdateCalls[0]?.[0];
+      const refreshLinkCall = refreshUpdateCalls[1]?.[0];
+
+      expect(refreshFindCall?.where?.tokenHash).toEqual(expect.any(String));
+      expect(refreshFindCall?.where?.revokedAt).toBeNull();
+      expect(refreshFindCall?.where?.expiresAt?.gt).toBeInstanceOf(Date);
+      expect(refreshFindCall?.select).toEqual({
+        id: true,
+        userId: true,
+      });
+      expect(refreshCreateCall?.data?.userId).toBe(7);
+      expect(refreshCreateCall?.data?.tokenHash).toEqual(expect.any(String));
+      expect(refreshCreateCall?.data?.expiresAt).toBeInstanceOf(Date);
+      expect(refreshCreateCall?.select).toEqual({ id: true });
+      expect(refreshUpdateCall?.where?.id).toBe(11);
+      expect(refreshUpdateCall?.where?.tokenHash).toEqual(expect.any(String));
+      expect(refreshUpdateCall?.where?.revokedAt).toBeNull();
+      expect(refreshUpdateCall?.where?.expiresAt?.gt).toBeInstanceOf(Date);
+      expect(refreshUpdateCall?.data?.revokedAt).toBeInstanceOf(Date);
+      expect(refreshLinkCall?.where?.id).toBe(11);
+      expect(refreshLinkCall?.where?.replacedBySessionId).toBeNull();
+      expect(refreshLinkCall?.data?.replacedBySessionId).toBe(12);
+      expect(result.access_token).toBe("jwt.token.value");
+      expect(result.refreshToken).toEqual(expect.any(String));
+    });
+
+    it("rejects a missing refresh session", async () => {
+      refreshSessionFindFirstMock.mockResolvedValue(null);
+
+      await expect(
+        service.refreshSession({ refreshToken: "missing" }),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+
+      expect(signAsyncMock).not.toHaveBeenCalled();
+    });
+
+    it("rejects a revoked refresh session", async () => {
+      refreshSessionFindFirstMock.mockResolvedValue(null);
+
+      await expect(
+        service.refreshSession({ refreshToken: "revoked" }),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+    });
+
+    it("rejects reusing the old refresh token after a successful rotation", async () => {
+      refreshSessionFindFirstMock
+        .mockResolvedValueOnce({
+          id: 11,
+          userId: 7,
+        })
+        .mockResolvedValueOnce(null);
+      refreshSessionUpdateManyMock
+        .mockResolvedValueOnce({ count: 1 })
+        .mockResolvedValueOnce({ count: 1 });
+      refreshSessionCreateMock.mockResolvedValue({ id: 12 });
+      signAsyncMock.mockResolvedValue("jwt.token.value");
+
+      await service.refreshSession({
+        refreshToken: "old-refresh-token",
+      });
+
+      await expect(
+        service.refreshSession({ refreshToken: "old-refresh-token" }),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+    });
+  });
+
+  describe("logout", () => {
+    it("revokes the matching refresh session and returns a success message", async () => {
+      refreshSessionUpdateManyMock.mockResolvedValue({ count: 1 });
+
+      const result = await service.logout({
+        refreshToken: "raw-refresh-token",
+      });
+
+      const logoutCalls = refreshSessionUpdateManyMock.mock.calls as Array<
+        [
+          {
+            where?: { tokenHash?: string; revokedAt?: null };
+            data?: { revokedAt?: Date };
+          },
+        ]
+      >;
+      const logoutCall = logoutCalls[0]?.[0];
+
+      expect(logoutCall?.where?.tokenHash).toEqual(expect.any(String));
+      expect(logoutCall?.where?.revokedAt).toBeNull();
+      expect(logoutCall?.data?.revokedAt).toBeInstanceOf(Date);
+      expect(result).toEqual({
+        message: "Logged out successfully",
+      });
     });
   });
 
@@ -349,6 +565,118 @@ describe("AuthService", () => {
       });
 
       expect(missing).toEqual(existing);
+    });
+  });
+
+  describe("requestEmailVerification", () => {
+    it("creates a hashed token for an unverified user and returns the generic response", async () => {
+      userFindUniqueMock.mockResolvedValue({
+        id: 42,
+        email: "user@example.com",
+        isEmailVerified: false,
+      });
+
+      const result = await service.requestEmailVerification(42);
+
+      expect(userFindUniqueMock).toHaveBeenCalledWith({
+        where: { id: 42 },
+        select: {
+          id: true,
+          email: true,
+          isEmailVerified: true,
+        },
+      });
+      expect(emailVerificationDeleteManyMock).toHaveBeenCalledWith({
+        where: {
+          userId: 42,
+          usedAt: null,
+        },
+      });
+      const createCalls = emailVerificationCreateMock.mock.calls as Array<
+        [
+          {
+            data?: {
+              userId?: number;
+              tokenHash?: string;
+              expiresAt?: Date;
+            };
+          },
+        ]
+      >;
+      const deliveryCalls = sendEmailVerificationInstructionsMock.mock
+        .calls as Array<
+        [
+          {
+            email?: string;
+            token?: string;
+            expiresAt?: Date;
+          },
+        ]
+      >;
+      const createCall = createCalls[0]?.[0];
+      const deliveryCall = deliveryCalls[0]?.[0];
+
+      expect(createCall?.data?.userId).toBe(42);
+      expect(createCall?.data?.tokenHash).toMatch(/^[a-f0-9]{64}$/);
+      expect(createCall?.data?.expiresAt).toBeInstanceOf(Date);
+      expect(deliveryCall?.email).toBe("user@example.com");
+      expect(deliveryCall?.token).toEqual(expect.any(String));
+      expect(deliveryCall?.expiresAt).toBeInstanceOf(Date);
+      expect(deliveryCall?.token).not.toEqual(createCall?.data?.tokenHash);
+      expect(result).toEqual({
+        message:
+          "Verification instructions generated if your account is eligible.",
+      });
+    });
+
+    it("returns the generic response and does nothing for an already verified user", async () => {
+      userFindUniqueMock.mockResolvedValue({
+        id: 42,
+        email: "user@example.com",
+        isEmailVerified: true,
+      });
+
+      const result = await service.requestEmailVerification(42);
+
+      expect(emailVerificationDeleteManyMock).not.toHaveBeenCalled();
+      expect(emailVerificationCreateMock).not.toHaveBeenCalled();
+      expect(sendEmailVerificationInstructionsMock).not.toHaveBeenCalled();
+      expect(result).toEqual({
+        message:
+          "Verification instructions generated if your account is eligible.",
+      });
+    });
+
+    it("fails when verification delivery fails and cleans up the active token", async () => {
+      userFindUniqueMock.mockResolvedValue({
+        id: 42,
+        email: "user@example.com",
+        isEmailVerified: false,
+      });
+      sendEmailVerificationInstructionsMock.mockRejectedValueOnce(
+        new InternalServerErrorException("Delivery failed"),
+      );
+
+      await expect(service.requestEmailVerification(42)).rejects.toThrow(
+        "Delivery failed",
+      );
+
+      const deleteCalls = emailVerificationDeleteManyMock.mock.calls as Array<
+        [
+          {
+            where?: {
+              userId?: number;
+              usedAt?: null;
+              tokenHash?: string;
+            };
+          },
+        ]
+      >;
+      const cleanupCall = deleteCalls[1]?.[0];
+
+      expect(cleanupCall?.where?.userId).toBe(42);
+      expect(cleanupCall?.where?.usedAt).toBeNull();
+      expect(cleanupCall?.where?.tokenHash).toMatch(/^[a-f0-9]{64}$/);
     });
   });
 
@@ -506,7 +834,98 @@ describe("AuthService", () => {
 
       await expect(
         service.login({ username: "john", password: "new-password-123" }),
-      ).resolves.toEqual({ access_token: "jwt.token.value" });
+      ).resolves.toMatchObject({
+        access_token: "jwt.token.value",
+      });
+    });
+  });
+
+  describe("verifyEmail", () => {
+    it("marks the user verified, consumes the token, and clears sibling tokens", async () => {
+      emailVerificationFindUniqueMock.mockResolvedValue({
+        id: 8,
+        userId: 13,
+        usedAt: null,
+        expiresAt: new Date(Date.now() + 10 * 60 * 60_000),
+      });
+
+      const result = await service.verifyEmail({
+        token: "valid-verification-token",
+      });
+
+      const consumeCalls = emailVerificationUpdateManyMock.mock.calls as Array<
+        [
+          {
+            where?: {
+              id?: number;
+              usedAt?: null;
+              expiresAt?: { gt?: Date };
+            };
+            data?: {
+              usedAt?: Date;
+            };
+          },
+        ]
+      >;
+      const userUpdateCalls = userUpdateMock.mock.calls as Array<
+        [
+          {
+            where?: { id?: number };
+            data?: { isEmailVerified?: boolean };
+          },
+        ]
+      >;
+      const consumeCall = consumeCalls[0]?.[0];
+      const verifiedUpdateCall = userUpdateCalls[0]?.[0];
+
+      expect(consumeCall?.where?.id).toBe(8);
+      expect(consumeCall?.where?.usedAt).toBeNull();
+      expect(consumeCall?.where?.expiresAt?.gt).toBeInstanceOf(Date);
+      expect(consumeCall?.data?.usedAt).toBeInstanceOf(Date);
+      expect(verifiedUpdateCall?.where).toEqual({ id: 13 });
+      expect(verifiedUpdateCall?.data).toEqual({ isEmailVerified: true });
+      expect(emailVerificationDeleteManyMock).toHaveBeenCalledWith({
+        where: {
+          userId: 13,
+          id: { not: 8 },
+          usedAt: null,
+        },
+      });
+      expect(result).toEqual({ message: "Email verified successfully" });
+    });
+
+    it("rejects an invalid token", async () => {
+      emailVerificationFindUniqueMock.mockResolvedValue(null);
+
+      await expect(
+        service.verifyEmail({ token: "invalid-token" }),
+      ).rejects.toThrow("Invalid email verification token");
+    });
+
+    it("rejects an expired token", async () => {
+      emailVerificationFindUniqueMock.mockResolvedValue({
+        id: 1,
+        userId: 9,
+        usedAt: null,
+        expiresAt: new Date(Date.now() - 60_000),
+      });
+
+      await expect(
+        service.verifyEmail({ token: "expired-token" }),
+      ).rejects.toThrow("Email verification token has expired");
+    });
+
+    it("rejects a used token", async () => {
+      emailVerificationFindUniqueMock.mockResolvedValue({
+        id: 1,
+        userId: 9,
+        usedAt: new Date(),
+        expiresAt: new Date(Date.now() + 60_000),
+      });
+
+      await expect(
+        service.verifyEmail({ token: "used-token" }),
+      ).rejects.toThrow("Email verification token has already been used");
     });
   });
 });

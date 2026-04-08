@@ -396,11 +396,6 @@ describe("UsersService", () => {
       });
 
       expect(cacheMock.set).toHaveBeenCalledWith(
-        "user:safe:10",
-        created,
-        5 * 60_000,
-      );
-      expect(cacheMock.set).toHaveBeenCalledWith(
         "user:lookup:username:john",
         10,
         5 * 60_000,

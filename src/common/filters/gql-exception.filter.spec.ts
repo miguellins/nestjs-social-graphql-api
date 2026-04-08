@@ -4,6 +4,8 @@ import { GqlArgumentsHost } from "@nestjs/graphql";
 
 import { Prisma } from "@prisma/client";
 
+import { GRAPHQL_ERROR_CODES } from "@/common/constants/graphql-error-code.constants";
+
 import { GlobalGqlExceptionFilter } from "./gql-exception.filter";
 
 describe("GlobalGqlExceptionFilter", () => {
@@ -33,7 +35,7 @@ describe("GlobalGqlExceptionFilter", () => {
     expect(result.getStatus()).toBe(HttpStatus.CONFLICT);
     expect(result.getResponse()).toEqual({
       message: "Already exists: email",
-      code: "DUPLICATE",
+      code: GRAPHQL_ERROR_CODES.DUPLICATE,
       fields: ["email"],
     });
   });
@@ -49,7 +51,7 @@ describe("GlobalGqlExceptionFilter", () => {
     expect(result.getStatus()).toBe(HttpStatus.BAD_REQUEST);
     expect(result.getResponse()).toEqual({
       message: "Invalid reference",
-      code: "FOREIGN_KEY",
+      code: GRAPHQL_ERROR_CODES.FOREIGN_KEY,
     });
   });
 
@@ -64,7 +66,7 @@ describe("GlobalGqlExceptionFilter", () => {
     expect(result.getStatus()).toBe(HttpStatus.NOT_FOUND);
     expect(result.getResponse()).toEqual({
       message: "Not found",
-      code: "NOT_FOUND",
+      code: GRAPHQL_ERROR_CODES.NOT_FOUND,
     });
   });
 
@@ -79,7 +81,7 @@ describe("GlobalGqlExceptionFilter", () => {
     expect(result.getStatus()).toBe(HttpStatus.BAD_REQUEST);
     expect(result.getResponse()).toEqual({
       message: "Database error",
-      code: "DB_ERROR",
+      code: GRAPHQL_ERROR_CODES.DB_ERROR,
     });
   });
 
@@ -94,7 +96,7 @@ describe("GlobalGqlExceptionFilter", () => {
     expect(result.getStatus()).toBe(HttpStatus.UNAUTHORIZED);
     expect(result.getResponse()).toEqual({
       message: "Auth required",
-      code: "UNAUTHENTICATED",
+      code: GRAPHQL_ERROR_CODES.UNAUTHENTICATED,
       fields: undefined,
     });
   });
@@ -115,13 +117,65 @@ describe("GlobalGqlExceptionFilter", () => {
     });
   });
 
+  it("maps HttpException conflict responses without explicit code to DUPLICATE", () => {
+    const exception = new HttpException(
+      "Username already exists",
+      HttpStatus.CONFLICT,
+    );
+
+    const result = filter.catch(exception, {} as ArgumentsHost);
+
+    expect(result.getStatus()).toBe(HttpStatus.CONFLICT);
+    expect(result.getResponse()).toEqual({
+      message: "Username already exists",
+      code: GRAPHQL_ERROR_CODES.DUPLICATE,
+      fields: undefined,
+    });
+  });
+
+  it("sanitizes malformed fields from HttpException object responses", () => {
+    const exception = new HttpException(
+      {
+        message: "Invalid input",
+        code: GRAPHQL_ERROR_CODES.BAD_REQUEST,
+        fields: ["email", 12, null],
+      },
+      HttpStatus.BAD_REQUEST,
+    );
+
+    const result = filter.catch(exception, {} as ArgumentsHost);
+
+    expect(result.getStatus()).toBe(HttpStatus.BAD_REQUEST);
+    expect(result.getResponse()).toEqual({
+      message: "Invalid input",
+      code: GRAPHQL_ERROR_CODES.BAD_REQUEST,
+      fields: ["email"],
+    });
+  });
+
   it("maps unknown errors to INTERNAL_SERVER_ERROR", () => {
     const result = filter.catch(new Error("boom"), {} as ArgumentsHost);
 
     expect(result.getStatus()).toBe(HttpStatus.INTERNAL_SERVER_ERROR);
     expect(result.getResponse()).toEqual({
       message: "Internal server error",
-      code: "INTERNAL_SERVER_ERROR",
+      code: GRAPHQL_ERROR_CODES.INTERNAL_SERVER_ERROR,
+    });
+  });
+
+  it("maps internal HttpException responses without explicit code to INTERNAL_SERVER_ERROR", () => {
+    const exception = new HttpException(
+      { message: "Server exploded" },
+      HttpStatus.INTERNAL_SERVER_ERROR,
+    );
+
+    const result = filter.catch(exception, {} as ArgumentsHost);
+
+    expect(result.getStatus()).toBe(HttpStatus.INTERNAL_SERVER_ERROR);
+    expect(result.getResponse()).toEqual({
+      message: "Server exploded",
+      code: GRAPHQL_ERROR_CODES.INTERNAL_SERVER_ERROR,
+      fields: undefined,
     });
   });
 });
