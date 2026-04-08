@@ -11,6 +11,7 @@ import { GraphqlSubscriptionsModule } from "@/graphql/subscriptions/graphql-subs
 import { NotificationsModule } from "@/notifications/notifications.module";
 import { CommentsModule } from "@/comments/comments.module";
 import { FollowsModule } from "@/follows/follows.module";
+import { ReportsModule } from "@/reports/reports.module";
 import { BlocksModule } from "@/blocks/blocks.module";
 import { LikesModule } from "@/likes/likes.module";
 import { PostsModule } from "@/posts/posts.module";
@@ -67,6 +68,7 @@ import { validateEnv } from "@/config/env/env.schema";
     LikesModule,
     BlocksModule,
     FollowsModule,
+    ReportsModule,
     CommentsModule,
     NotificationsModule,
     GraphqlSubscriptionsModule,

@@ -27,6 +27,11 @@ const PUBLIC_GRAPHQL_ERROR_CODES = new Set<string>(
   Object.values(GRAPHQL_ERROR_CODES),
 );
 
+const GRAPHQL_BAD_REQUEST_CODES = new Set([
+  "BAD_USER_INPUT",
+  "GRAPHQL_VALIDATION_FAILED",
+]);
+
 /** Narrows unknown values to plain object records. */
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -35,6 +40,36 @@ function isObject(value: unknown): value is Record<string, unknown> {
 /** Checks whether a raw GraphQL error code is part of the public API contract. */
 function isPublicGraphqlErrorCode(code: unknown): code is string {
   return typeof code === "string" && PUBLIC_GRAPHQL_ERROR_CODES.has(code);
+}
+
+/** Detects GraphQL request/input validation failures that happen before resolver execution. */
+function isGraphqlBadRequestMessage(message: string): boolean {
+  return (
+    message.startsWith('Variable "$') ||
+    message.includes("got invalid value") ||
+    message.includes("was not provided") ||
+    message.includes("Expected type") ||
+    message.includes("Cannot query field") ||
+    message.includes("Unknown argument") ||
+    message.includes("Unknown type")
+  );
+}
+
+/** Maps GraphQL runtime validation/input errors to the public bad-request contract. */
+function toPublicGraphqlErrorCode(code: unknown, message: string): string {
+  if (typeof code === "string" && GRAPHQL_BAD_REQUEST_CODES.has(code)) {
+    return GRAPHQL_ERROR_CODES.BAD_REQUEST;
+  }
+
+  if (isGraphqlBadRequestMessage(message)) {
+    return GRAPHQL_ERROR_CODES.BAD_REQUEST;
+  }
+
+  if (isPublicGraphqlErrorCode(code)) {
+    return code;
+  }
+
+  return GRAPHQL_ERROR_CODES.INTERNAL_SERVER_ERROR;
 }
 
 /** Extracts the sanitized original error payload from the underlying GraphQL runtime error when available. */
@@ -89,9 +124,7 @@ function toPublicGraphqlErrorExtensions(
     : undefined;
 
   return {
-    code: isPublicGraphqlErrorCode(rawCode)
-      ? rawCode
-      : GRAPHQL_ERROR_CODES.INTERNAL_SERVER_ERROR,
+    code: toPublicGraphqlErrorCode(rawCode, error.message),
     ...(fields && fields.length > 0 ? { fields } : {}),
   };
 }

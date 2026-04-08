@@ -22,9 +22,6 @@ via the GitLens Inspect
 
 
 
-
-
-
 # NEXT FEATURE
 
 
@@ -62,7 +59,6 @@ SEND THIS TO GPT:
 
 
 
-# TELL CODEX TO CONTINUE IN THE PHASE 2
 
 
 

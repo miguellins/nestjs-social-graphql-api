@@ -81,6 +81,27 @@ CREATE TABLE `UserBlock` (
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
+CREATE TABLE `ContentReport` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `reporterId` INTEGER NOT NULL,
+    `postId` INTEGER NULL,
+    `commentId` INTEGER NULL,
+    `reason` ENUM('SPAM', 'HARASSMENT', 'HATE', 'SEXUAL_CONTENT', 'VIOLENCE', 'MISINFORMATION', 'OTHER') NOT NULL,
+    `details` VARCHAR(191) NULL,
+    `status` ENUM('OPEN', 'DISMISSED', 'ACTIONED') NOT NULL DEFAULT 'OPEN',
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    INDEX `ContentReport_reporterId_createdAt_id_idx`(`reporterId`, `createdAt` DESC, `id` DESC),
+    INDEX `ContentReport_postId_idx`(`postId`),
+    INDEX `ContentReport_commentId_idx`(`commentId`),
+    INDEX `ContentReport_status_createdAt_idx`(`status`, `createdAt` DESC),
+    UNIQUE INDEX `ContentReport_reporterId_postId_status_key`(`reporterId`, `postId`, `status`),
+    UNIQUE INDEX `ContentReport_reporterId_commentId_status_key`(`reporterId`, `commentId`, `status`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
 CREATE TABLE `Like` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
@@ -234,6 +255,15 @@ ALTER TABLE `UserBlock` ADD CONSTRAINT `UserBlock_blockerId_fkey` FOREIGN KEY (`
 
 -- AddForeignKey
 ALTER TABLE `UserBlock` ADD CONSTRAINT `UserBlock_blockedId_fkey` FOREIGN KEY (`blockedId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `ContentReport` ADD CONSTRAINT `ContentReport_reporterId_fkey` FOREIGN KEY (`reporterId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `ContentReport` ADD CONSTRAINT `ContentReport_postId_fkey` FOREIGN KEY (`postId`) REFERENCES `Post`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `ContentReport` ADD CONSTRAINT `ContentReport_commentId_fkey` FOREIGN KEY (`commentId`) REFERENCES `Comment`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `Like` ADD CONSTRAINT `Like_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;

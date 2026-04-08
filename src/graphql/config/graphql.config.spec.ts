@@ -248,6 +248,43 @@ describe("createGraphqlConfig", () => {
     expect(
       formatError(
         {
+          message:
+            'Variable "$input" got invalid value "" at "input.reason"; Value "" does not exist in "ReportReason" enum.',
+          locations: [],
+          path: ["reportPost"],
+          extensions: {
+            code: "GRAPHQL_VALIDATION_FAILED",
+          },
+        } as never,
+        {} as never,
+      ),
+    ).toEqual({
+      message:
+        'Variable "$input" got invalid value "" at "input.reason"; Value "" does not exist in "ReportReason" enum.',
+      extensions: {
+        code: GRAPHQL_ERROR_CODES.BAD_REQUEST,
+      },
+    });
+    expect(
+      formatError(
+        {
+          message:
+            'Variable "$input" got invalid value "" at "input.reason"; Value "" does not exist in "ReportReason" enum.',
+          locations: [],
+          path: ["reportPost"],
+        } as never,
+        {} as never,
+      ),
+    ).toEqual({
+      message:
+        'Variable "$input" got invalid value "" at "input.reason"; Value "" does not exist in "ReportReason" enum.',
+      extensions: {
+        code: GRAPHQL_ERROR_CODES.BAD_REQUEST,
+      },
+    });
+    expect(
+      formatError(
+        {
           message: "Invalid input",
           locations: [],
           path: ["updateUser"],

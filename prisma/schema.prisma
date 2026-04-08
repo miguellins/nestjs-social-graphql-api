@@ -57,6 +57,12 @@ model User {
 
   /**
    * 1:N relation
+   * Content reports submitted by this user
+   */
+  reportsSubmitted ContentReport[]
+
+  /**
+   * 1:N relation
    * Notifications sent by this user (as the actor who triggered the event)
    */
   sentNotifications Notification[] @relation("NotificationActor")
@@ -152,6 +158,12 @@ model Post {
 
   /**
    * One-to-many relation
+   * A post can have many content reports
+   */
+  reports ContentReport[]
+
+  /**
+   * One-to-many relation
    * A post can have many media attachments via the join table
    */
   mediaAttachments PostMedia[]
@@ -217,6 +229,12 @@ model Comment {
    * onDelete: Cascade  - delete comments if the post is deleted
    */
   post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  /**
+   * One-to-many relation
+   * A comment can have many content reports
+   */
+  reports ContentReport[]
 
   /**
    * Database index on authorId
@@ -311,6 +329,94 @@ model UserBlock {
   @@unique([blockerId, blockedId])
   @@index([blockerId, createdAt(sort: Desc), id(sort: Desc)])
   @@index([blockedId])
+}
+
+enum ReportReason {
+  SPAM
+  HARASSMENT
+  HATE
+  SEXUAL_CONTENT
+  VIOLENCE
+  MISINFORMATION
+  OTHER
+}
+
+enum ReportStatus {
+  OPEN
+  DISMISSED
+  ACTIONED
+}
+
+model ContentReport {
+  id Int @id @default(autoincrement())
+
+  /**
+   * Stores the reporting user.
+   * Application-level invariant for V1:
+   * - exactly one of postId or commentId must be set
+   * Prisma schema cannot express that CHECK constraint directly,
+   * so migration generation/review is still required if you want
+   * the database to enforce it beyond the service layer.
+   */
+  reporterId Int
+  postId     Int?
+  commentId  Int?
+
+  reason  ReportReason
+  details String?
+  status  ReportStatus @default(OPEN)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /**
+   * Relation to User
+   * fields: [reporterId] - this model stores the foreign key
+   * references: [id]     - references User.id
+   * onDelete: Cascade    - delete reports if reporter is deleted
+   */
+  reporter User @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+
+  /**
+   * Relation to Post
+   * fields: [postId]     - nullable post target
+   * references: [id]     - references Post.id
+   * onDelete: Cascade    - delete reports if reported post is deleted
+   */
+  post Post? @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  /**
+   * Relation to Comment
+   * fields: [commentId]  - nullable comment target
+   * references: [id]     - references Comment.id
+   * onDelete: Cascade    - delete reports if reported comment is deleted
+   */
+  comment Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@unique([reporterId, postId, status])
+  @@unique([reporterId, commentId, status])
+  /**
+   * Compound index on reporterId + createdAt + id descending
+   * Improves moderation-history queries scoped to one reporter
+   * with deterministic newest-first ordering.
+   */
+  @@index([reporterId, createdAt(sort: Desc), id(sort: Desc)])
+  /**
+   * Database index on postId
+   * Improves review queries for reports attached to one post.
+   */
+  @@index([postId])
+  /**
+   * Database index on commentId
+   * Improves review queries for reports attached to one comment.
+   */
+  @@index([commentId])
+  /**
+   * Compound index on status + createdAt descending
+   * Improves moderation queue queries filtered by report status
+   * and ordered by newest reports first.
+   */
+  @@index([status, createdAt(sort: Desc)])
 }
 
 model Like {
