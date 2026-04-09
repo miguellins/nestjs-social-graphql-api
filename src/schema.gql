@@ -238,6 +238,71 @@ type FollowPage {
   pageInfo: PageInfo!
 }
 
+"""Safe moderation review representation of a submitted content report."""
+type ReviewReport {
+  """Unique identifier of the report."""
+  id: ID!
+
+  """Indicates whether the report targets a post or a comment."""
+  targetType: ReportTargetType!
+
+  """Identifier of the reported post or comment."""
+  targetId: Int!
+
+  """Product-facing category explaining why the content was reported."""
+  reason: ReportReason!
+
+  """Optional reporter-provided context shown to moderators during review."""
+  details: String
+
+  """Current moderation review state of the report."""
+  status: ReportStatus!
+
+  """Timestamp indicating when the report was created."""
+  createdAt: DateTime!
+
+  """Presentation-friendly UTC timestamp for when the report was created."""
+  createdAtFormatted: String
+
+  """Safe preview of the user who submitted the report."""
+  reporter: SafeUserPreview!
+}
+
+"""Identifies whether a report targets a post or a comment"""
+enum ReportTargetType {
+  POST
+  COMMENT
+}
+
+"""Classifies the reason a user is reporting content"""
+enum ReportReason {
+  SPAM
+  HARASSMENT
+  HATE
+  SEXUAL_CONTENT
+  VIOLENCE
+  MISINFORMATION
+  OTHER
+}
+
+"""Represents the current moderation review state of a content report"""
+enum ReportStatus {
+  OPEN
+  DISMISSED
+  ACTIONED
+}
+
+"""
+Cursor-paginated page of moderation review reports plus navigation metadata.
+"""
+type ReviewReportPage {
+  """Items returned for the current page."""
+  items: [ReviewReport!]!
+
+  """Cursor navigation metadata for the current page."""
+  pageInfo: PageInfo!
+}
+
 """Cursor-paginated page of users plus navigation metadata."""
 type UserPage {
   """Items returned for the current page."""
@@ -888,6 +953,28 @@ type Query {
     orderBy: ChronologicalOrder
   ): FollowPage!
   followById(id: Int!): Follow!
+  reviewReports(
+    """Maximum number of items to return (1-${PAGINATION.MAX_TAKE})."""
+    first: Int
+
+    """
+    Cursor for the last item from the previous page. Reuse it only with the same filter and ordering inputs.
+    """
+    after: String
+
+    """Controls chronological ordering for paged list results."""
+    orderBy: ChronologicalOrder
+
+    """
+    Optional filter for the moderation status currently assigned to each report.
+    """
+    status: ReportStatus
+
+    """
+    Optional filter for limiting the review list to post or comment reports.
+    """
+    targetType: ReportTargetType
+  ): ReviewReportPage!
   commentsByPost(
     """Maximum number of items to return (1-${PAGINATION.MAX_TAKE})."""
     first: Int
@@ -945,6 +1032,8 @@ type Mutation {
   deleteFollow(id: Int!): MessageResponse!
   reportPost(input: ReportPostInput!): MessageResponse!
   reportComment(input: ReportCommentInput!): MessageResponse!
+  dismissReport(reportId: Int!): MessageResponse!
+  actionReport(reportId: Int!): MessageResponse!
   createComment(input: CreateCommentInput!): Comment!
   updateComment(commentId: Int!, input: UpdateCommentInput!): Comment!
   deleteComment(commentId: Int!): MessageResponse!
@@ -1070,17 +1159,6 @@ input ReportPostInput {
 
   """Optional extra reporter-provided context about the issue."""
   details: String
-}
-
-"""Classifies the reason a user is reporting content"""
-enum ReportReason {
-  SPAM
-  HARASSMENT
-  HATE
-  SEXUAL_CONTENT
-  VIOLENCE
-  MISINFORMATION
-  OTHER
 }
 
 """

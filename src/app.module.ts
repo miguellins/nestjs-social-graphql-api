@@ -20,6 +20,7 @@ import { MediaModule } from "@/media/media.module";
 import { AuthModule } from "@/auth/auth.module";
 
 import { GqlThrottlerGuard } from "@/common/guards/gql-throttler.guard";
+import { GqlRolesGuard } from "@/common/guards/gql-roles.guard";
 import { GqlJwtGuard } from "@/common/guards/gql-jwt.guard";
 
 import { createGraphqlConfig } from "@/graphql/config/graphql.config";
@@ -81,6 +82,10 @@ import { validateEnv } from "@/config/env/env.schema";
     {
       provide: APP_GUARD,
       useClass: GqlJwtGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: GqlRolesGuard,
     },
   ],
 })

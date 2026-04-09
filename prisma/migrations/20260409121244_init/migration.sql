@@ -5,6 +5,7 @@ CREATE TABLE `User` (
     `email` VARCHAR(191) NOT NULL,
     `username` VARCHAR(191) NOT NULL,
     `password` VARCHAR(191) NOT NULL,
+    `role` ENUM('USER', 'MODERATOR', 'ADMIN') NOT NULL DEFAULT 'USER',
     `isEmailVerified` BOOLEAN NOT NULL DEFAULT false,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
@@ -92,12 +93,12 @@ CREATE TABLE `ContentReport` (
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
+    INDEX `ContentReport_reporterId_postId_status_idx`(`reporterId`, `postId`, `status`),
+    INDEX `ContentReport_reporterId_commentId_status_idx`(`reporterId`, `commentId`, `status`),
     INDEX `ContentReport_reporterId_createdAt_id_idx`(`reporterId`, `createdAt` DESC, `id` DESC),
     INDEX `ContentReport_postId_idx`(`postId`),
     INDEX `ContentReport_commentId_idx`(`commentId`),
     INDEX `ContentReport_status_createdAt_idx`(`status`, `createdAt` DESC),
-    UNIQUE INDEX `ContentReport_reporterId_postId_status_key`(`reporterId`, `postId`, `status`),
-    UNIQUE INDEX `ContentReport_reporterId_commentId_status_key`(`reporterId`, `commentId`, `status`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 

@@ -41,6 +41,8 @@ import { PasswordService } from "@/common/security/password.service";
 import { parseWithBadRequest } from "@/common/zod/parse-with-zod";
 import { runBestEffort } from "@/common/errors/run-best-effort";
 
+import type { UserRole } from "@/users/enums/user-role.enum";
+
 import { PrismaService } from "@/prisma/prisma.service";
 
 import { createHash, randomBytes } from "crypto";
@@ -89,7 +91,7 @@ export class AuthService {
     try {
       const user = await this.prisma.user.findUnique({
         where: { username: credentials.username },
-        select: { id: true, username: true, password: true },
+        select: { id: true, username: true, password: true, role: true },
       });
 
       if (!user) throw new UnauthorizedException("Invalid credentials");
@@ -129,7 +131,7 @@ export class AuthService {
       });
 
       return {
-        access_token: await this.signAccessToken(user.id),
+        access_token: await this.signAccessToken(user.id, user.role),
         refreshToken: refreshToken.raw,
       };
     } catch (err) {
@@ -425,7 +427,7 @@ export class AuthService {
     const nextRefreshToken = this.createRefreshSessionToken();
     const nextExpiresAt = this.buildRefreshSessionExpiry();
 
-    const userId = await this.prisma.$transaction(async (tx) => {
+    const sessionData = await this.prisma.$transaction(async (tx) => {
       const session = await tx.refreshSession.findFirst({
         where: {
           tokenHash,
@@ -437,6 +439,11 @@ export class AuthService {
         select: {
           id: true,
           userId: true,
+          user: {
+            select: {
+              role: true,
+            },
+          },
         },
       });
 
@@ -487,11 +494,17 @@ export class AuthService {
         },
       });
 
-      return session.userId;
+      return {
+        userId: session.userId,
+        role: session.user.role,
+      };
     });
 
     return {
-      access_token: await this.signAccessToken(userId),
+      access_token: await this.signAccessToken(
+        sessionData.userId,
+        sessionData.role,
+      ),
       refreshToken: nextRefreshToken.raw,
     };
   }
@@ -571,8 +584,8 @@ export class AuthService {
   }
 
   /** Signs a short-lived access token for one authenticated user. */
-  private signAccessToken(userId: number): Promise<string> {
-    return this.jwtService.signAsync({ sub: userId });
+  private signAccessToken(userId: number, role: UserRole): Promise<string> {
+    return this.jwtService.signAsync({ sub: userId, role });
   }
 
   /** Builds a high-entropy token and returns both raw and stored-safe representations. */

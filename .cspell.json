@@ -27,7 +27,8 @@
     "autoincrement",
     "ftyp",
     "EBML",
-    "Chrono"
+    "Chrono",
+    "ACTIONED"
   ],
   "ignoreWords": [],
   "ignorePaths": [

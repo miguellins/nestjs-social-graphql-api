@@ -1,20 +1,27 @@
 # NestJS Social GraphQL API
 A production-oriented social platform backend built with NestJS, GraphQL, Prisma, MySQL, Redis, and Cloudflare R2.
 
-This project currently covers users, auth, posts, comments, likes, follows, notifications, realtime subscriptions, and media upload flows. The codebase is organized as a code-first GraphQL monolith with safe DTO/select patterns, global GraphQL guards, throttling, Redis-backed caching, and Redis-backed subscription delivery.
+This project currently covers users, auth, posts, comments, likes, follows, blocks, content reports, moderation review, notifications, realtime subscriptions, and media upload flows. The codebase is organized as a code-first GraphQL monolith with safe DTO/select patterns, global GraphQL guards, throttling, Redis-backed caching, and Redis-backed subscription delivery.
 
 ## What This Project Does
 This backend currently provides:
 - User registration and profile management
-- JWT-based authentication
+- JWT-based authentication with role-aware request context
+- User roles with `USER`, `MODERATOR`, and `ADMIN`
 - Password reset initiation and completion
+- Email verification initiation and completion
+- Refresh-session rotation and logout
 - Cursor-based pagination for list-style queries
 - Post creation, listing, detail view, update, and delete
 - Comment creation, listing, update, and delete
 - Like/unlike post behavior with atomic counter updates
 - Follow/unfollow user behavior
+- User blocking and blocked-user listing
+- Content reporting for posts and comments
+- Moderator/admin report review with dismiss/action flows
 - Notification persistence and realtime notification delivery
 - Direct-to-R2 media upload orchestration for posts
+- Authenticated media listing and signed media view URLs
 - Public-safe data exposure with explicit DTO/select patterns
 - Global throttling and auth-by-default resolver protection
 - Centralized validation and GraphQL-safe error handling
@@ -122,7 +129,8 @@ Defined in `prisma/schema.prisma`.
 - `User`
   - unique `email`
   - unique `username`
-  - has many posts, comments, likes, follows, notifications, password reset tokens, and media uploads
+  - role-based auth via `UserRole`
+  - has many posts, comments, likes, follows, blocks, reports, notifications, password reset tokens, refresh sessions, email verification tokens, and media uploads
 
 - `Post`
   - belongs to an author
@@ -142,6 +150,15 @@ Defined in `prisma/schema.prisma`.
   - self-relation between users
   - unique pair `@@unique([followerId, followingId])`
 
+- `UserBlock`
+  - self-relation between users
+  - unique pair `@@unique([blockerId, blockedId])`
+
+- `ContentReport`
+  - submitted by a reporter
+  - targets exactly one post or comment at the application layer
+  - stores reason, optional details, and moderation status
+
 - `Notification`
   - belongs to an actor and a recipient
   - stores type, title, body, related entity id, and read state
@@ -156,9 +173,17 @@ Defined in `prisma/schema.prisma`.
 - `PasswordResetToken`
   - stores hashed one-time-use reset tokens with expiry
 
+- `RefreshSession`
+  - stores hashed refresh-session tokens with rotation and revocation support
+
+- `EmailVerificationToken`
+  - stores hashed one-time-use verification tokens with expiry and used-at state
+
 ## Feature Modules
 ### Auth
 - `login(input)`
+- `requestEmailVerification`
+- `verifyEmail(input)`
 - `refreshSession(input)`
 - `logout(input)`
 - `requestPasswordReset(input)`
@@ -166,11 +191,14 @@ Defined in `prisma/schema.prisma`.
 
 Current strengths:
 - generic reset-initiation response to avoid account enumeration
+- generic email-verification initiation response where appropriate
 - hashed reset tokens with expiry and single-use semantics
+- hashed verification tokens with expiry and single-use semantics
 - password reset performed transactionally
 - password hash upgrade path during login
 - persisted refresh sessions with hashed token storage
 - refresh-token rotation and explicit logout/revocation
+- role propagation through JWT validation and request/subscription context
 
 ### Users
 - `users(first, after, orderBy)`
@@ -186,6 +214,7 @@ Current strengths:
 - cache refresh and invalidation after writes
 - service-level validation and password hashing
 - cursor-based user list pagination
+- account auth state now includes `isEmailVerified`
 
 ### Posts
 - `posts(first, after, orderBy, q)`
@@ -240,6 +269,32 @@ Current strengths:
 - follow notification triggering
 - cursor-based follow list pagination
 
+### Blocks
+- `blockUser(input)`
+- `unblockUser(input)`
+- `myBlockedUsers(first, after, orderBy)`
+
+Current strengths:
+- self-block prevention
+- idempotent block/unblock behavior
+- safe blocked-user list exposure
+- cursor-based blocked-user pagination
+
+### Reports and Moderation Review
+- `reportPost(input)`
+- `reportComment(input)`
+- `reviewReports(first, after, orderBy, status, targetType)`
+- `dismissReport(reportId)`
+- `actionReport(reportId)`
+
+Current strengths:
+- post and comment report submission with duplicate-open prevention
+- self-report prevention and missing-target handling
+- durable report persistence with explicit `OPEN`, `DISMISSED`, and `ACTIONED` states
+- moderator/admin-only review access
+- cursor-based moderation review list with `status` and `targetType` filters
+- status-only moderation actions in V1 with no notification, realtime, or auto-hide side effects
+
 ### Notifications
 - `myNotifications(first, after, orderBy, status)`
 - `unreadNotificationsCount`
@@ -292,6 +347,8 @@ This is already stronger than in-memory pubsub and is designed for multi-instanc
 - `likeById`
 - `follows`
 - `followById`
+- `myBlockedUsers`
+- `reviewReports`
 - `myNotifications`
 - `unreadNotificationsCount`
 - `myMedia`
@@ -303,6 +360,8 @@ This is already stronger than in-memory pubsub and is designed for multi-instanc
 - `logout`
 - `requestPasswordReset`
 - `resetPassword`
+- `requestEmailVerification`
+- `verifyEmail`
 - `createUser`
 - `updateMe`
 - `deleteMe`
@@ -316,6 +375,12 @@ This is already stronger than in-memory pubsub and is designed for multi-instanc
 - `deleteLike`
 - `createFollow`
 - `deleteFollow`
+- `blockUser`
+- `unblockUser`
+- `reportPost`
+- `reportComment`
+- `dismissReport`
+- `actionReport`
 - `markNotificationAsRead`
 - `markAllNotificationsAsRead`
 - `requestPostMediaUpload`
@@ -327,12 +392,14 @@ This is already stronger than in-memory pubsub and is designed for multi-instanc
 
 ## Security and Reliability Techniques Used
 - GraphQL JWT guard with `@Public()` opt-out
+- GraphQL role guard with `@Roles(...)` metadata for moderator/admin operations
 - GraphQL throttling guard with shared rate-limit categories
 - DTO validation at the GraphQL boundary
 - service-level Zod parsing where modules follow that pattern
 - safe DTO/select exports for public reads
 - cursor-based pagination with opaque cursors and bounded page size
 - hashed refresh-session tokens with rotation and revocation
+- hashed email verification tokens with controlled verification flow
 - Prisma transactions for consistency-critical updates
 - best-effort side effects after committed writes
 - version-key cache invalidation instead of wildcard deletes
@@ -352,6 +419,7 @@ PASSWORD_PEPPER=your_password_pepper
 REDIS_URL=redis://localhost:6379
 GRAPHQL_SUBSCRIPTIONS_REDIS_URL=redis://localhost:6379
 GRAPHQL_SUBSCRIPTIONS_REDIS_NAMESPACE=graphql-subscriptions
+EMAIL_VERIFICATION_TTL_HOURS=24
 R2_ACCOUNT_ID=your_r2_account_id
 R2_BUCKET=your_bucket
 R2_ACCESS_KEY_ID=your_access_key
@@ -425,6 +493,7 @@ docker compose down -v
 ```text
 src/
   auth/            # login + password reset
+  blocks/          # user block workflows
   comments/        # comment CRUD + post comment reads
   common/          # guards, decorators, constants, filters, args, helpers
   config/          # env schema and config helpers
@@ -435,6 +504,7 @@ src/
   notifications/   # notification persistence + delivery
   posts/           # post CRUD, feed, detail reads, media attachment integration
   prisma/          # Prisma service/module
+  reports/         # content reports + moderation review
   users/           # user CRUD + cache helpers
 prisma/
   schema.prisma
@@ -446,6 +516,7 @@ prisma/
 - Service-owned domain logic with thin resolvers
 - Denormalized counters for read performance
 - Global auth-by-default GraphQL protection
+- Role-aware authorization for moderation operations
 - Shared cursor pagination with `items + pageInfo`
 - Read-through caching plus version-key invalidation
 - Feature-private helpers where complexity justifies them
@@ -457,10 +528,14 @@ This codebase is already coherent and production-minded, but it is still intenti
 
 - Feed design is still simple
   - `myFeed` is a bounded relational query, not a scalable feed system
-- Structured GraphQL errors may still be flattened at the GraphQL config layer
+- Moderation is still V1-only
+  - no audit log
+  - no moderator dashboard UI
+  - no suspension workflow
+  - no auto-moderation
 - Product realism is still limited
   - no privacy controls
-  - no blocks / mutes / reports
+  - no mute system
   - no bookmarks
   - no mentions / hashtags
   - no richer profile domain
@@ -484,10 +559,9 @@ Current strengths worth preserving:
   - `NotificationDeliveryService`
 
 The strongest next technical platform improvements are:
-- preserving structured GraphQL error metadata
 - defining a more realistic feed strategy
-- adding session/refresh-token lifecycle
-- adding moderation and privacy foundations
+- deepening session/device management
+- building on the current moderation and privacy foundations
 
 ---
 

@@ -1,13 +1,20 @@
-import { Args, Mutation, Resolver } from "@nestjs/graphql";
+import { Args, Int, Mutation, Query, Resolver } from "@nestjs/graphql";
 import { Throttle } from "@nestjs/throttler";
 
 import { CurrentUser } from "@/common/decorators/current-user.decorator";
 import { THROTTLE_LIMITS } from "@/common/constants/throttle.constants";
 import { MessageResponse } from "@/common/types/message-response.type";
+import { Roles } from "@/common/decorators/auth.decorator";
 
+import { FindReviewReportsArgs } from "@/reports/args/find-review-reports.args";
+import { ReviewReportPage } from "@/reports/models/review-report-page.model";
 import { ReportCommentInput } from "@/reports/dto/report-comment.input";
 import { ReportPostInput } from "@/reports/dto/report-post.input";
 import { ReportsService } from "@/reports/reports.service";
+
+import type { AuthenticatedUser } from "@/auth/authenticated-user.type";
+
+import { USER_ROLE } from "@/users/enums/user-role.enum";
 
 @Resolver()
 export class ReportsResolver {
@@ -29,5 +36,35 @@ export class ReportsResolver {
     @CurrentUser() user: { id: number },
   ): Promise<MessageResponse> {
     return this.reportsService.reportComment(input, user.id);
+  }
+
+  @Roles(USER_ROLE.MODERATOR, USER_ROLE.ADMIN)
+  @Throttle({ default: THROTTLE_LIMITS.LIST })
+  @Query(() => ReviewReportPage, { name: "reviewReports" })
+  async reviewReports(
+    @Args() args: FindReviewReportsArgs,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<ReviewReportPage> {
+    return this.reportsService.reviewReports(args, user);
+  }
+
+  @Roles(USER_ROLE.MODERATOR, USER_ROLE.ADMIN)
+  @Throttle({ default: THROTTLE_LIMITS.MUTATION })
+  @Mutation(() => MessageResponse, { name: "dismissReport" })
+  async dismissReport(
+    @Args("reportId", { type: () => Int }) reportId: number,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<MessageResponse> {
+    return this.reportsService.dismissReport(reportId, user);
+  }
+
+  @Roles(USER_ROLE.MODERATOR, USER_ROLE.ADMIN)
+  @Throttle({ default: THROTTLE_LIMITS.MUTATION })
+  @Mutation(() => MessageResponse, { name: "actionReport" })
+  async actionReport(
+    @Args("reportId", { type: () => Int }) reportId: number,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<MessageResponse> {
+    return this.reportsService.actionReport(reportId, user);
   }
 }

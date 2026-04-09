@@ -1,5 +1,6 @@
 import { ConfigService } from "@nestjs/config";
 
+import { USER_ROLE } from "@/users/enums/user-role.enum";
 import { JwtStrategy } from "./jwt.strategy";
 
 describe("JwtStrategy", () => {
@@ -23,6 +24,9 @@ describe("JwtStrategy", () => {
     const strategy = new JwtStrategy(configMock);
 
     expect(strategy).toBeInstanceOf(JwtStrategy);
-    expect(strategy.validate({ sub: 42 })).toEqual({ id: 42 });
+    expect(strategy.validate({ sub: 42, role: USER_ROLE.ADMIN })).toEqual({
+      id: 42,
+      role: USER_ROLE.ADMIN,
+    });
   });
 });

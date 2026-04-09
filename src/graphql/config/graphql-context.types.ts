@@ -1,12 +1,11 @@
 import type { Request, Response } from "express";
 
+import type { AuthenticatedUser } from "@/auth/authenticated-user.type";
+
 /** Extra data attached to a GraphQL WebSocket subscription connection (lives on `context.extra` for subscription operations and stores connection-scoped metadata such as the authenticated user resolved during the WebSocket handshake) */
 export type SubscriptionExtra = {
   // Authenticated user attached during the WebSocket connection handshake
-  user?: {
-    // Unique identifier of the authenticated user
-    id: number;
-  };
+  user?: AuthenticatedUser;
 
   // Allows attaching other connection-scoped metadata later if needed
   [key: string]: unknown;

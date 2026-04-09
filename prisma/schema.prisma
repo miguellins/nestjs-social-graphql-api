@@ -8,12 +8,13 @@ datasource db {
 }
 
 model User {
-  id              Int     @id @default(autoincrement())
+  id              Int      @id @default(autoincrement())
   name            String
-  email           String  @unique
-  username        String  @unique
+  email           String   @unique
+  username        String   @unique
   password        String
-  isEmailVerified Boolean @default(false)
+  role            UserRole @default(USER)
+  isEmailVerified Boolean  @default(false)
 
   // Timestamps
   createdAt DateTime @default(now())
@@ -103,6 +104,12 @@ model User {
    * ordered by newest first with deterministic id tie-breaking.
    */
   @@index([createdAt(sort: Desc), id(sort: Desc)])
+}
+
+enum UserRole {
+  USER
+  MODERATOR
+  ADMIN
 }
 
 model Post {
@@ -393,8 +400,18 @@ model ContentReport {
    */
   comment Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
 
-  @@unique([reporterId, postId, status])
-  @@unique([reporterId, commentId, status])
+  /**
+   * Compound index on reporterId + postId + status
+   * Improves duplicate-open checks for post reports without enforcing
+   * uniqueness across all final statuses.
+   */
+  @@index([reporterId, postId, status])
+  /**
+   * Compound index on reporterId + commentId + status
+   * Improves duplicate-open checks for comment reports without enforcing
+   * uniqueness across all final statuses.
+   */
+  @@index([reporterId, commentId, status])
   /**
    * Compound index on reporterId + createdAt + id descending
    * Improves moderation-history queries scoped to one reporter

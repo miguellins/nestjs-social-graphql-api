@@ -13,6 +13,7 @@ import { PasswordResetDeliveryService } from "@/auth/password-reset-delivery.ser
 import { SALT_ROUNDS } from "@/common/constants/security.constants";
 import { PasswordService } from "@/common/security/password.service";
 import { PrismaService } from "@/prisma/prisma.service";
+import { USER_ROLE } from "@/users/enums/user-role.enum";
 
 import { AuthService } from "./auth.service";
 
@@ -172,7 +173,7 @@ describe("AuthService", () => {
 
       expect(userFindUniqueMock).toHaveBeenCalledWith({
         where: { username: "john" },
-        select: { id: true, username: true, password: true },
+        select: { id: true, username: true, password: true, role: true },
       });
     });
 
@@ -191,6 +192,7 @@ describe("AuthService", () => {
         id: 1,
         username: "john",
         password: await passwordService.hashPassword("correct-password"),
+        role: USER_ROLE.USER,
       });
 
       await expect(
@@ -205,6 +207,7 @@ describe("AuthService", () => {
         id: 7,
         username: "john",
         password: await passwordService.hashPassword("pass12345"),
+        role: USER_ROLE.USER,
       });
 
       signAsyncMock.mockResolvedValue("jwt.token.value");
@@ -216,9 +219,12 @@ describe("AuthService", () => {
 
       expect(userFindUniqueMock).toHaveBeenCalledWith({
         where: { username: "john" },
-        select: { id: true, username: true, password: true },
+        select: { id: true, username: true, password: true, role: true },
       });
-      expect(signAsyncMock).toHaveBeenCalledWith({ sub: 7 });
+      expect(signAsyncMock).toHaveBeenCalledWith({
+        sub: 7,
+        role: USER_ROLE.USER,
+      });
       const refreshSessionCreateCalls = refreshSessionCreateMock.mock
         .calls as Array<
         [
@@ -250,6 +256,7 @@ describe("AuthService", () => {
         id: 9,
         username: "john",
         password: legacyHash,
+        role: USER_ROLE.USER,
       });
       signAsyncMock.mockResolvedValue("jwt.token.value");
 
@@ -274,6 +281,7 @@ describe("AuthService", () => {
         id: 1,
         username: "john",
         password: await passwordService.hashPassword("pass12345"),
+        role: USER_ROLE.USER,
       });
       signAsyncMock.mockRejectedValue(new Error("jwt fail"));
 
@@ -304,6 +312,7 @@ describe("AuthService", () => {
         id: 1,
         username: "john",
         password: "hashed",
+        role: USER_ROLE.USER,
       });
 
       const verifySpy = jest
@@ -333,6 +342,9 @@ describe("AuthService", () => {
       refreshSessionFindFirstMock.mockResolvedValue({
         id: 11,
         userId: 7,
+        user: {
+          role: USER_ROLE.MODERATOR,
+        },
       });
       refreshSessionCreateMock.mockResolvedValue({ id: 12 });
       refreshSessionUpdateManyMock
@@ -400,6 +412,11 @@ describe("AuthService", () => {
       expect(refreshFindCall?.select).toEqual({
         id: true,
         userId: true,
+        user: {
+          select: {
+            role: true,
+          },
+        },
       });
       expect(refreshCreateCall?.data?.userId).toBe(7);
       expect(refreshCreateCall?.data?.tokenHash).toEqual(expect.any(String));
@@ -413,6 +430,10 @@ describe("AuthService", () => {
       expect(refreshLinkCall?.where?.id).toBe(11);
       expect(refreshLinkCall?.where?.replacedBySessionId).toBeNull();
       expect(refreshLinkCall?.data?.replacedBySessionId).toBe(12);
+      expect(signAsyncMock).toHaveBeenCalledWith({
+        sub: 7,
+        role: USER_ROLE.MODERATOR,
+      });
       expect(result.access_token).toBe("jwt.token.value");
       expect(result.refreshToken).toEqual(expect.any(String));
     });
@@ -440,6 +461,9 @@ describe("AuthService", () => {
         .mockResolvedValueOnce({
           id: 11,
           userId: 7,
+          user: {
+            role: USER_ROLE.MODERATOR,
+          },
         })
         .mockResolvedValueOnce(null);
       refreshSessionUpdateManyMock

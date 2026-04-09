@@ -7,16 +7,13 @@ import { GqlExecutionContext } from "@nestjs/graphql";
 import { AuthGuard } from "@nestjs/passport";
 import { Reflector } from "@nestjs/core";
 
+import type { AuthenticatedUser } from "@/auth/authenticated-user.type";
+
 import { IS_PUBLIC_KEY } from "@/common/decorators/auth.decorator";
 
 import { OperationTypeNode, type GraphQLResolveInfo } from "graphql";
 
 import type { Request } from "express";
-
-/** Represents the minimal authenticated user payload attached to requests. */
-type AuthenticatedUser = {
-  id: number;
-};
 
 /** Describes the GraphQL context shape used by the JWT guard. */
 type GraphQLContext = {

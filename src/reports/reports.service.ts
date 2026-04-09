@@ -1,29 +1,64 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   InternalServerErrorException,
   Logger,
   NotFoundException,
 } from "@nestjs/common";
 
+import { decodeChronoCursor } from "@/common/pagination/chrono-cursor";
 import { MessageResponse } from "@/common/types/message-response.type";
 import { parseWithBadRequest } from "@/common/zod/parse-with-zod";
+import {
+  ChronologicalOrder,
+  toSortDirection,
+} from "@/common/enums/chronological-order.enum";
+import {
+  buildChronologicalCursorFilter,
+  buildCursorPage,
+  normalizeCursorTake,
+  type CursorPageResult,
+} from "@/common/pagination/cursor-pagination";
 
+import { ReportTargetType } from "@/reports/enums/report-target-type.enum";
 import { ReportReason } from "@/reports/enums/report-reason.enum";
+import { ReportStatus } from "@/reports/enums/report-status.enum";
+import {
+  reportCommentCommandSchema,
+  type ReportCommentCommand,
+} from "@/reports/schemas/report-comment-command.schema";
 import {
   reportPostCommandSchema,
   type ReportPostCommand,
 } from "@/reports/schemas/report-post-command.schema";
 import {
-  reportCommentCommandSchema,
-  type ReportCommentCommand,
-} from "@/reports/schemas/report-comment-command.schema";
+  reviewReportActionCommandSchema,
+  type ReviewReportActionCommand,
+} from "@/reports/schemas/review-report-action-command.schema";
+import {
+  reviewReportsCommandSchema,
+  type ReviewReportsCommand,
+} from "@/reports/schemas/review-reports-command.schema";
+import {
+  ReviewReportSelect,
+  type ReviewReportDTO,
+  type ReviewReportRow,
+} from "@/reports/dto/review-report.dto";
+
+import type { AuthenticatedUser } from "@/auth/authenticated-user.type";
+
+import { USER_ROLE, type UserRole } from "@/users/enums/user-role.enum";
 
 import { PrismaService } from "@/prisma/prisma.service";
-import { Prisma, ReportStatus } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 
 const OPEN_REPORT_STATUS = ReportStatus.OPEN;
+const MODERATION_REVIEWER_ROLES = new Set<UserRole>([
+  USER_ROLE.MODERATOR,
+  USER_ROLE.ADMIN,
+]);
 
 @Injectable()
 export class ReportsService {
@@ -143,6 +178,73 @@ export class ReportsService {
     };
   }
 
+  async reviewReports(
+    input: ReviewReportsCommand,
+    currentUser: AuthenticatedUser,
+  ): Promise<CursorPageResult<ReviewReportDTO>> {
+    this.assertCanReviewReports(currentUser);
+
+    const data = this.parseReviewReportsInput(input);
+    const take = normalizeCursorTake(data.first);
+    const orderBy = data.orderBy ?? ChronologicalOrder.NEWEST;
+    const cursor = data.after ? decodeChronoCursor(data.after) : undefined;
+    const cursorFilter = buildChronologicalCursorFilter(cursor, orderBy);
+    const status = data.status ?? ReportStatus.OPEN;
+
+    const rows = await this.prisma.contentReport.findMany({
+      take: take + 1,
+      where: {
+        ...cursorFilter,
+        status,
+        ...(data.targetType === ReportTargetType.POST
+          ? { postId: { not: null } }
+          : data.targetType === ReportTargetType.COMMENT
+            ? { commentId: { not: null } }
+            : {}),
+      },
+      orderBy: [
+        { createdAt: toSortDirection(orderBy) },
+        { id: toSortDirection(orderBy) },
+      ],
+      select: ReviewReportSelect,
+    });
+
+    return buildCursorPage(
+      rows.map((row) => this.toReviewReport(row)),
+      take,
+    );
+  }
+
+  async dismissReport(
+    reportId: number,
+    currentUser: AuthenticatedUser,
+  ): Promise<MessageResponse> {
+    this.assertCanReviewReports(currentUser);
+
+    const data = this.parseReviewReportActionInput({ reportId });
+    await this.updateReportStatus(data.reportId, ReportStatus.DISMISSED);
+
+    return {
+      message: "Report dismissed successfully",
+    };
+  }
+
+  async actionReport(
+    reportId: number,
+    currentUser: AuthenticatedUser,
+  ): Promise<MessageResponse> {
+    this.assertCanReviewReports(currentUser);
+
+    const data = this.parseReviewReportActionInput({ reportId });
+    await this.updateReportStatus(data.reportId, ReportStatus.ACTIONED);
+
+    return {
+      message: "Report actioned successfully",
+    };
+  }
+
+  // Private Helpers
+  /** Parses and normalizes post-report input before report creation. */
   private parseReportPostInput(input: ReportPostCommand): ReportPostCommand {
     return parseWithBadRequest(
       reportPostCommandSchema,
@@ -151,6 +253,7 @@ export class ReportsService {
     );
   }
 
+  /** Parses and normalizes comment-report input before report creation. */
   private parseReportCommentInput(
     input: ReportCommentCommand,
   ): ReportCommentCommand {
@@ -161,6 +264,124 @@ export class ReportsService {
     );
   }
 
+  /** Parses and normalizes moderation review list input before querying reports. */
+  private parseReviewReportsInput(
+    input: ReviewReportsCommand,
+  ): ReviewReportsCommand {
+    return parseWithBadRequest(
+      reviewReportsCommandSchema,
+      input,
+      "Invalid review reports input",
+    );
+  }
+
+  /** Parses and normalizes a moderation action targeting one report id. */
+  private parseReviewReportActionInput(
+    input: ReviewReportActionCommand,
+  ): ReviewReportActionCommand {
+    return parseWithBadRequest(
+      reviewReportActionCommandSchema,
+      input,
+      "Invalid review report action input",
+    );
+  }
+
+  /** Ensures the current user can access moderator/admin report review operations. */
+  private assertCanReviewReports(currentUser: AuthenticatedUser): void {
+    if (!currentUser.role || !MODERATION_REVIEWER_ROLES.has(currentUser.role)) {
+      throw new ForbiddenException("Forbidden resource");
+    }
+  }
+
+  /** Applies one terminal moderation status transition to an open report. */
+  private async updateReportStatus(
+    reportId: number,
+    nextStatus: ReportStatus.DISMISSED | ReportStatus.ACTIONED,
+  ): Promise<void> {
+    try {
+      const result = await this.prisma.contentReport.updateMany({
+        where: {
+          id: reportId,
+          status: ReportStatus.OPEN,
+        },
+        data: {
+          status: nextStatus,
+        },
+      });
+
+      if (result.count === 1) {
+        return;
+      }
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError) {
+        if (err.code === "P2002") {
+          throw new BadRequestException("Report status could not be updated");
+        }
+      }
+
+      this.logger.error(
+        `Unexpected persistence failure while trying to update report ${reportId} to ${nextStatus}`,
+        err instanceof Error ? err.stack : undefined,
+      );
+
+      throw new InternalServerErrorException("Failed to update report");
+    }
+
+    const report = await this.prisma.contentReport.findUnique({
+      where: { id: reportId },
+      select: {
+        id: true,
+        status: true,
+      },
+    });
+
+    if (!report) {
+      throw new NotFoundException("Report not found");
+    }
+
+    if ((report.status as ReportStatus) !== ReportStatus.OPEN) {
+      throw new BadRequestException("Reviewed reports cannot be changed again");
+    }
+
+    this.logger.error(
+      `Unexpected moderation transition mismatch for report ${reportId}`,
+    );
+
+    throw new InternalServerErrorException("Failed to update report");
+  }
+
+  /** Maps one raw report row into the safe moderation review DTO shape. */
+  private toReviewReport(row: ReviewReportRow): ReviewReportDTO {
+    if (row.postId !== null) {
+      return {
+        id: row.id,
+        targetType: ReportTargetType.POST,
+        targetId: row.postId,
+        reason: row.reason as ReportReason,
+        details: row.details,
+        status: row.status as ReportStatus,
+        createdAt: row.createdAt,
+        reporter: row.reporter,
+      };
+    }
+
+    if (row.commentId !== null) {
+      return {
+        id: row.id,
+        targetType: ReportTargetType.COMMENT,
+        targetId: row.commentId,
+        reason: row.reason as ReportReason,
+        details: row.details,
+        status: row.status as ReportStatus,
+        createdAt: row.createdAt,
+        reporter: row.reporter,
+      };
+    }
+
+    throw new InternalServerErrorException("Report target is invalid");
+  }
+
+  /** Maps report-persistence failures into sanitized domain-specific exceptions. */
   private throwReportPersistenceFailure(
     target: "post" | "comment",
     err: unknown,

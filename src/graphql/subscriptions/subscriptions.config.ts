@@ -4,6 +4,8 @@ import { Logger } from "@nestjs/common";
 import { subscriptionConnectionParamsSchema } from "@/graphql/subscriptions/schemas/subscription-connection-params.schema";
 import type { SubscriptionExtra } from "@/graphql/config/graphql-context.types";
 
+import type { UserRole } from "@/users/enums/user-role.enum";
+
 /** Builds the GraphQL websocket transport configuration. */
 export function createGraphqlSubscriptionsConfig(jwtService: JwtService) {
   const logger = new Logger("GraphQLModule");
@@ -27,7 +29,10 @@ export function createGraphqlSubscriptionsConfig(jwtService: JwtService) {
           const token = subscriptionConnectionParamsSchema.parse(
             context.connectionParams ?? {},
           );
-          const payload = await jwtService.verifyAsync<{ sub: number }>(token);
+          const payload = await jwtService.verifyAsync<{
+            sub: number;
+            role?: UserRole;
+          }>(token);
 
           // Reject tokens that do not carry the numeric user id expected by subscriptions
           if (typeof payload.sub !== "number") {
@@ -36,6 +41,7 @@ export function createGraphqlSubscriptionsConfig(jwtService: JwtService) {
 
           extra.user = {
             id: payload.sub,
+            role: payload.role,
           };
 
           logger.debug(`WS authenticated — userId: ${extra.user.id}`);
