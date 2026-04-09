@@ -259,8 +259,7 @@ describe("createGraphqlConfig", () => {
         {} as never,
       ),
     ).toEqual({
-      message:
-        'Variable "$input" got invalid value "" at "input.reason"; Value "" does not exist in "ReportReason" enum.',
+      message: "Invalid value for input.reason.",
       extensions: {
         code: GRAPHQL_ERROR_CODES.BAD_REQUEST,
       },
@@ -276,8 +275,7 @@ describe("createGraphqlConfig", () => {
         {} as never,
       ),
     ).toEqual({
-      message:
-        'Variable "$input" got invalid value "" at "input.reason"; Value "" does not exist in "ReportReason" enum.',
+      message: "Invalid value for input.reason.",
       extensions: {
         code: GRAPHQL_ERROR_CODES.BAD_REQUEST,
       },

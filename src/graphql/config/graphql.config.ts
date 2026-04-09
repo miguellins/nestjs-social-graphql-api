@@ -55,6 +55,25 @@ function isGraphqlBadRequestMessage(message: string): boolean {
   );
 }
 
+/** Rewrites verbose GraphQL variable validation messages into shorter field-specific input errors. */
+function toPublicGraphqlErrorMessage(message: string): string {
+  const invalidValueMatch = /^Variable "\$[^"]+" got invalid value .* at "([^"]+)";/.exec(
+    message,
+  );
+  if (invalidValueMatch) {
+    return `Invalid value for ${invalidValueMatch[1]}.`;
+  }
+
+  const missingValueMatch = /^Variable "\$[^"]+" of required type .* was not provided\./.exec(
+    message,
+  );
+  if (missingValueMatch) {
+    return "Required input value was not provided.";
+  }
+
+  return message;
+}
+
 /** Maps GraphQL runtime validation/input errors to the public bad-request contract. */
 function toPublicGraphqlErrorCode(code: unknown, message: string): string {
   if (typeof code === "string" && GRAPHQL_BAD_REQUEST_CODES.has(code)) {
@@ -162,7 +181,7 @@ export function createGraphqlConfig(
       error: GraphQLFormattedError,
       originalError: GraphQLError,
     ) => ({
-      message: error.message,
+      message: toPublicGraphqlErrorMessage(error.message),
       extensions: toPublicGraphqlErrorExtensions(error, originalError),
     }),
 
