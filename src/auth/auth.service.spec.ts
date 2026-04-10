@@ -277,10 +277,16 @@ describe("AuthService", () => {
     });
 
     it("throws InternalServerErrorException when jwt signing fails", async () => {
+      const verifySpy = jest
+        .spyOn(passwordService, "verifyPassword")
+        .mockResolvedValue({
+          isValid: true,
+        });
+
       userFindUniqueMock.mockResolvedValue({
         id: 1,
         username: "john",
-        password: await passwordService.hashPassword("pass12345"),
+        password: "stored-hash",
         role: USER_ROLE.USER,
       });
       signAsyncMock.mockRejectedValue(new Error("jwt fail"));
@@ -292,6 +298,8 @@ describe("AuthService", () => {
       await expect(
         service.login({ username: "john", password: "pass12345" }),
       ).rejects.toThrow("Login failed");
+
+      verifySpy.mockRestore();
     });
 
     it("throws InternalServerErrorException on Prisma known request error", async () => {

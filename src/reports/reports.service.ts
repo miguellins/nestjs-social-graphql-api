@@ -49,16 +49,12 @@ import {
 
 import type { AuthenticatedUser } from "@/auth/authenticated-user.type";
 
-import { USER_ROLE, type UserRole } from "@/users/enums/user-role.enum";
+import { MODERATION_ROLE_SET } from "@/users/enums/user-role.enum";
 
 import { PrismaService } from "@/prisma/prisma.service";
 import { Prisma } from "@prisma/client";
 
 const OPEN_REPORT_STATUS = ReportStatus.OPEN;
-const MODERATION_REVIEWER_ROLES = new Set<UserRole>([
-  USER_ROLE.MODERATOR,
-  USER_ROLE.ADMIN,
-]);
 
 @Injectable()
 export class ReportsService {
@@ -76,10 +72,10 @@ export class ReportsService {
 
     const post = await this.prisma.post.findUnique({
       where: { id: data.postId },
-      select: { id: true, authorId: true },
+      select: { id: true, authorId: true, removedAt: true },
     });
 
-    if (!post) {
+    if (!post || post.removedAt) {
       throw new NotFoundException("Post not found");
     }
 
@@ -134,10 +130,10 @@ export class ReportsService {
 
     const comment = await this.prisma.comment.findUnique({
       where: { id: data.commentId },
-      select: { id: true, authorId: true },
+      select: { id: true, authorId: true, removedAt: true },
     });
 
-    if (!comment) {
+    if (!comment || comment.removedAt) {
       throw new NotFoundException("Comment not found");
     }
 
@@ -288,7 +284,7 @@ export class ReportsService {
 
   /** Ensures the current user can access moderator/admin report review operations. */
   private assertCanReviewReports(currentUser: AuthenticatedUser): void {
-    if (!currentUser.role || !MODERATION_REVIEWER_ROLES.has(currentUser.role)) {
+    if (!currentUser.role || !MODERATION_ROLE_SET.has(currentUser.role)) {
       throw new ForbiddenException("Forbidden resource");
     }
   }

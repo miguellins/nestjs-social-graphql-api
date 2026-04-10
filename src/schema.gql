@@ -1019,6 +1019,7 @@ type Mutation {
   createPost(input: CreatePostInput!): CreatedPost!
   updatePost(id: Int!, input: UpdatePostInput!): Post!
   deletePost(id: Int!): MessageResponse!
+  removePostByModerator(input: RemovePostByModeratorInput!): MessageResponse!
   requestPostMediaUpload(input: RequestPostMediaUploadInput!): RequestPostMediaUpload!
   completePostMediaUpload(input: CompletePostMediaUploadInput!): Media!
   attachMediaToPost(input: AttachMediaToPostInput!): AttachMediaPostResult!
@@ -1037,6 +1038,7 @@ type Mutation {
   createComment(input: CreateCommentInput!): Comment!
   updateComment(commentId: Int!, input: UpdateCommentInput!): Comment!
   deleteComment(commentId: Int!): MessageResponse!
+  removeCommentByModerator(input: RemoveCommentByModeratorInput!): MessageResponse!
 }
 
 input LoginInput {
@@ -1124,6 +1126,18 @@ input UpdatePostInput {
   content: String
 }
 
+"""GraphQL input for moderator/admin post removal with a required reason."""
+input RemovePostByModeratorInput {
+  """Unique identifier of the post being removed from normal reads."""
+  postId: Int!
+
+  """Required moderator/admin justification for the removal action."""
+  reason: String!
+
+  """Optional reviewed report linked to the removal action."""
+  reportId: Int
+}
+
 input RequestPostMediaUploadInput {
   postId: Int!
   mimeType: String!
@@ -1186,6 +1200,20 @@ input CreateCommentInput {
 input UpdateCommentInput {
   """Updated text content of the comment."""
   content: String!
+}
+
+"""
+GraphQL input for moderator/admin comment removal with a required reason.
+"""
+input RemoveCommentByModeratorInput {
+  """Unique identifier of the comment being removed from normal reads."""
+  commentId: Int!
+
+  """Required moderator/admin justification for the removal action."""
+  reason: String!
+
+  """Optional reviewed report linked to the removal action."""
+  reportId: Int
 }
 
 type Subscription {

@@ -57,16 +57,14 @@ function isGraphqlBadRequestMessage(message: string): boolean {
 
 /** Rewrites verbose GraphQL variable validation messages into shorter field-specific input errors. */
 function toPublicGraphqlErrorMessage(message: string): string {
-  const invalidValueMatch = /^Variable "\$[^"]+" got invalid value .* at "([^"]+)";/.exec(
-    message,
-  );
+  const invalidValueMatch =
+    /^Variable "\$[^"]+" got invalid value .* at "([^"]+)";/.exec(message);
   if (invalidValueMatch) {
     return `Invalid value for ${invalidValueMatch[1]}.`;
   }
 
-  const missingValueMatch = /^Variable "\$[^"]+" of required type .* was not provided\./.exec(
-    message,
-  );
+  const missingValueMatch =
+    /^Variable "\$[^"]+" of required type .* was not provided\./.exec(message);
   if (missingValueMatch) {
     return "Required input value was not provided.";
   }

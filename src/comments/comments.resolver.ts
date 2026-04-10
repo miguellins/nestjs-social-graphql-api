@@ -1,6 +1,7 @@
 import { Args, Int, Mutation, Query, Resolver } from "@nestjs/graphql";
 import { Throttle } from "@nestjs/throttler";
 
+import { RemoveCommentByModeratorInput } from "@/comments/dto/remove-comment-by-moderator.input";
 import { FindCommentsByPostArgs } from "@/comments/args/find-comments-by-post.args";
 import { CreateCommentInput } from "@/comments/dto/create-comment.input";
 import { UpdateCommentInput } from "@/comments/dto/update-comment.input";
@@ -11,7 +12,11 @@ import { Comment } from "@/comments/models/comment.model";
 import { CurrentUser } from "@/common/decorators/current-user.decorator";
 import { THROTTLE_LIMITS } from "@/common/constants/throttle.constants";
 import { MessageResponse } from "@/common/types/message-response.type";
-import { Public } from "@/common/decorators/auth.decorator";
+import { Public, Roles } from "@/common/decorators/auth.decorator";
+
+import type { AuthenticatedUser } from "@/auth/authenticated-user.type";
+
+import { MODERATION_ROLES } from "@/users/enums/user-role.enum";
 
 @Resolver(() => Comment)
 export class CommentsResolver {
@@ -57,5 +62,15 @@ export class CommentsResolver {
     @CurrentUser() user: { id: number },
   ): Promise<MessageResponse> {
     return this.commentsService.deleteComment(commentId, user.id);
+  }
+
+  @Roles(...MODERATION_ROLES)
+  @Throttle({ default: THROTTLE_LIMITS.DESTRUCTIVE })
+  @Mutation(() => MessageResponse, { name: "removeCommentByModerator" })
+  async removeCommentByModerator(
+    @Args("input") input: RemoveCommentByModeratorInput,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<MessageResponse> {
+    return this.commentsService.removeCommentByModerator(input, user);
   }
 }

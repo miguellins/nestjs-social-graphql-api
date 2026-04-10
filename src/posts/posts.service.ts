@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   HttpException,
   Injectable,
@@ -7,15 +8,15 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 
-import {
-  ChronologicalOrder,
-  toSortDirection,
-} from "@/common/enums/chronological-order.enum";
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
 import { MessageResponse } from "@/common/types/message-response.type";
 import { decodeChronoCursor } from "@/common/pagination/chrono-cursor";
 import { parseWithBadRequest } from "@/common/zod/parse-with-zod";
 import { runBestEffort } from "@/common/errors/run-best-effort";
+import {
+  ChronologicalOrder,
+  toSortDirection,
+} from "@/common/enums/chronological-order.enum";
 import {
   buildChronologicalCursorFilter,
   buildCursorPage,
@@ -32,6 +33,10 @@ import {
   type UpdatePostCommand,
 } from "@/posts/schemas/post-write.schema";
 import {
+  removePostByModeratorCommandSchema,
+  type RemovePostByModeratorCommand,
+} from "@/posts/schemas/remove-post-by-moderator.schema";
+import {
   type CreatedPostDTO,
   CreatedPostSelect,
 } from "@/posts/dto/created-post.dto";
@@ -44,6 +49,10 @@ import {
   getUserByUsernameCommandSchema,
   type GetUserByUsernameCommand,
 } from "@/users/schemas/user-read.schema";
+
+import type { AuthenticatedUser } from "@/auth/authenticated-user.type";
+
+import { MODERATION_ROLE_SET } from "@/users/enums/user-role.enum";
 
 import { PrismaService } from "@/prisma/prisma.service";
 import { Prisma } from "@prisma/client";
@@ -95,6 +104,10 @@ export class PostsService {
       cacheKey,
       async () => {
         const filters: Prisma.PostWhereInput[] = [];
+
+        filters.push({
+          removedAt: null,
+        });
 
         if (search) {
           filters.push({
@@ -166,10 +179,11 @@ export class PostsService {
           take: take + 1,
           where: cursorFilter
             ? {
-                AND: [{ authorId }, cursorFilter],
+                AND: [{ authorId }, { removedAt: null }, cursorFilter],
               }
             : {
                 authorId,
+                removedAt: null,
               },
 
           orderBy: [
@@ -289,10 +303,13 @@ export class PostsService {
           authorId: true,
           title: true,
           content: true,
+          removedAt: true,
         },
       });
 
-      if (!existing) throw new NotFoundException("Post not found");
+      if (!existing || existing.removedAt) {
+        throw new NotFoundException("Post not found");
+      }
 
       if (existing.authorId !== currentUserId) {
         throw new ForbiddenException(
@@ -343,10 +360,12 @@ export class PostsService {
     try {
       const existing = await this.prisma.post.findUnique({
         where: { id },
-        select: { id: true, authorId: true },
+        select: { id: true, authorId: true, removedAt: true },
       });
 
-      if (!existing) throw new NotFoundException("Post not found");
+      if (!existing || existing.removedAt) {
+        throw new NotFoundException("Post not found");
+      }
 
       if (existing.authorId !== currentUserId) {
         throw new ForbiddenException(
@@ -388,6 +407,111 @@ export class PostsService {
     };
   }
 
+  async removePostByModerator(
+    input: RemovePostByModeratorCommand,
+    currentUser: AuthenticatedUser,
+  ): Promise<MessageResponse> {
+    this.assertCanModerateContent(currentUser);
+
+    const data = this.parseRemovePostByModeratorInput(input);
+
+    const existing = await this.prisma.post.findUnique({
+      where: { id: data.postId },
+      select: {
+        id: true,
+        authorId: true,
+        removedAt: true,
+      },
+    });
+
+    if (!existing) {
+      throw new NotFoundException("Post not found");
+    }
+
+    if (existing.removedAt) {
+      throw new BadRequestException("Post has already been removed");
+    }
+
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        const removal = await tx.post.updateMany({
+          where: {
+            id: data.postId,
+            removedAt: null,
+          },
+          data: {
+            removedAt: new Date(),
+            removedById: currentUser.id,
+            removalReason: data.reason,
+          },
+        });
+
+        if (removal.count === 0) {
+          throw new BadRequestException("Post has already been removed");
+        }
+
+        if (data.reportId !== undefined) {
+          const linkedReport = await tx.contentReport.updateMany({
+            where: {
+              id: data.reportId,
+              postId: data.postId,
+              status: "OPEN",
+            },
+            data: {
+              status: "ACTIONED",
+            },
+          });
+
+          if (linkedReport.count === 0) {
+            throw new BadRequestException(
+              "Linked report is not open for this post",
+            );
+          }
+        }
+
+        await tx.moderationAction.create({
+          data: {
+            actorId: currentUser.id,
+            actionType: "REMOVE_POST",
+            targetType: "POST",
+            targetId: data.postId,
+            reason: data.reason,
+            reportId: data.reportId,
+            postId: data.postId,
+          },
+        });
+      });
+    } catch (err) {
+      if (err instanceof HttpException) throw err;
+
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === "P2025"
+      ) {
+        throw new NotFoundException("Post not found");
+      }
+
+      this.throwUnexpectedPersistenceFailure("remove post by moderator", err);
+    }
+
+    await runBestEffort(
+      this.logger,
+      "error",
+      `Failed to invalidate caches after moderator removed post ${data.postId}`,
+      async () => {
+        await this.cacheHelper.del(`posts:detail:${data.postId}`);
+        await this.cacheHelper.bumpVersion("v:posts:list");
+        await this.cacheHelper.bumpVersion(
+          this.getUserPostsListVersionKey(existing.authorId),
+        );
+      },
+    );
+
+    return {
+      message: "Post removed successfully",
+    };
+  }
+
   // Private Helpers
   // Parses and normalizes create-post input
   private parseCreatePostInput(input: CreatePostCommand) {
@@ -404,6 +528,15 @@ export class PostsService {
       updatePostCommandSchema,
       input,
       "Invalid post input",
+    );
+  }
+
+  // Parses and normalizes moderator/admin post-removal input
+  private parseRemovePostByModeratorInput(input: RemovePostByModeratorCommand) {
+    return parseWithBadRequest(
+      removePostByModeratorCommandSchema,
+      input,
+      "Invalid moderator post removal input",
     );
   }
 
@@ -449,6 +582,15 @@ export class PostsService {
     return `v:user:${userId}:posts:list`;
   }
 
+  // Enforces that only moderators/admins can perform moderation actions
+  private assertCanModerateContent(user: AuthenticatedUser): void {
+    if (!user.role || !MODERATION_ROLE_SET.has(user.role)) {
+      throw new ForbiddenException(
+        "You do not have permission to moderate content",
+      );
+    }
+  }
+
   // Determines if the provided input would result in a content change for a given post
   private didPostContentChange(
     existing: {
@@ -465,7 +607,11 @@ export class PostsService {
 
   // Logs and throws an internal server error for unexpected persistence failures
   private throwUnexpectedPersistenceFailure(
-    action: "create post" | "update post" | "delete post",
+    action:
+      | "create post"
+      | "update post"
+      | "delete post"
+      | "remove post by moderator",
     err: unknown,
   ): never {
     this.logger.error(

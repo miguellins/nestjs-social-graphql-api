@@ -24,7 +24,10 @@ CREATE TABLE `Post` (
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
     `editedAt` DATETIME(3) NULL,
+    `removedAt` DATETIME(3) NULL,
     `authorId` INTEGER NOT NULL,
+    `removedById` INTEGER NULL,
+    `removalReason` VARCHAR(191) NULL,
     `likesCount` INTEGER NOT NULL DEFAULT 0,
     `commentsCount` INTEGER NOT NULL DEFAULT 0,
     `viewsCount` INTEGER NOT NULL DEFAULT 0,
@@ -34,6 +37,7 @@ CREATE TABLE `Post` (
     INDEX `Post_authorId_createdAt_idx`(`authorId`, `createdAt` DESC),
     INDEX `Post_createdAt_id_idx`(`createdAt` DESC, `id` DESC),
     INDEX `Post_authorId_createdAt_id_idx`(`authorId`, `createdAt` DESC, `id` DESC),
+    INDEX `Post_removedAt_createdAt_id_idx`(`removedAt`, `createdAt` DESC, `id` DESC),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -43,7 +47,10 @@ CREATE TABLE `Comment` (
     `content` VARCHAR(191) NOT NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
+    `removedAt` DATETIME(3) NULL,
     `authorId` INTEGER NOT NULL,
+    `removedById` INTEGER NULL,
+    `removalReason` VARCHAR(191) NULL,
     `postId` INTEGER NOT NULL,
 
     INDEX `Comment_authorId_idx`(`authorId`),
@@ -51,6 +58,28 @@ CREATE TABLE `Comment` (
     INDEX `Comment_createdAt_idx`(`createdAt` DESC),
     INDEX `Comment_postId_createdAt_idx`(`postId`, `createdAt` DESC),
     INDEX `Comment_postId_createdAt_id_idx`(`postId`, `createdAt` DESC, `id` DESC),
+    INDEX `Comment_postId_removedAt_createdAt_id_idx`(`postId`, `removedAt`, `createdAt` DESC, `id` DESC),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `ModerationAction` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `actorId` INTEGER NOT NULL,
+    `actionType` ENUM('REMOVE_POST', 'REMOVE_COMMENT') NOT NULL,
+    `targetType` ENUM('POST', 'COMMENT') NOT NULL,
+    `targetId` INTEGER NOT NULL,
+    `reason` VARCHAR(191) NOT NULL,
+    `reportId` INTEGER NULL,
+    `postId` INTEGER NULL,
+    `commentId` INTEGER NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+
+    INDEX `ModerationAction_actorId_createdAt_idx`(`actorId`, `createdAt` DESC),
+    INDEX `ModerationAction_targetType_targetId_createdAt_idx`(`targetType`, `targetId`, `createdAt` DESC),
+    INDEX `ModerationAction_reportId_idx`(`reportId`),
+    INDEX `ModerationAction_postId_idx`(`postId`),
+    INDEX `ModerationAction_commentId_idx`(`commentId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -244,6 +273,18 @@ ALTER TABLE `Comment` ADD CONSTRAINT `Comment_authorId_fkey` FOREIGN KEY (`autho
 
 -- AddForeignKey
 ALTER TABLE `Comment` ADD CONSTRAINT `Comment_postId_fkey` FOREIGN KEY (`postId`) REFERENCES `Post`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `ModerationAction` ADD CONSTRAINT `ModerationAction_actorId_fkey` FOREIGN KEY (`actorId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `ModerationAction` ADD CONSTRAINT `ModerationAction_reportId_fkey` FOREIGN KEY (`reportId`) REFERENCES `ContentReport`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `ModerationAction` ADD CONSTRAINT `ModerationAction_postId_fkey` FOREIGN KEY (`postId`) REFERENCES `Post`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `ModerationAction` ADD CONSTRAINT `ModerationAction_commentId_fkey` FOREIGN KEY (`commentId`) REFERENCES `Comment`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `Follow` ADD CONSTRAINT `Follow_followerId_fkey` FOREIGN KEY (`followerId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;

@@ -43,4 +43,24 @@ describe("CommentsResolver", () => {
       7,
     );
   });
+
+  it("forwards removeCommentByModerator args to the service", async () => {
+    const commentsService = {
+      removeCommentByModerator: jest.fn().mockResolvedValue({
+        message: "Comment removed successfully",
+      }),
+    };
+
+    const resolver = new CommentsResolver(commentsService as never);
+
+    await resolver.removeCommentByModerator(
+      { commentId: 10, reason: "abuse", reportId: 77 },
+      { id: 7, role: "MODERATOR" },
+    );
+
+    expect(commentsService.removeCommentByModerator).toHaveBeenCalledWith(
+      { commentId: 10, reason: "abuse", reportId: 77 },
+      { id: 7, role: "MODERATOR" },
+    );
+  });
 });

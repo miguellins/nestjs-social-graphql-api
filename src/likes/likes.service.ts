@@ -67,7 +67,15 @@ export class LikesService {
     return this.cacheHelper.getOrSet(
       cacheKey,
       async () => {
-        const filters: Prisma.LikeWhereInput[] = [];
+        const filters: Prisma.LikeWhereInput[] = [
+          {
+            post: {
+              is: {
+                removedAt: null,
+              },
+            },
+          },
+        ];
 
         if (postId !== undefined) {
           filters.push({ postId });
@@ -110,8 +118,15 @@ export class LikesService {
     return this.cacheHelper.getOrSet(
       cacheKey,
       async () => {
-        const like = await this.prisma.like.findUnique({
-          where: { id },
+        const like = await this.prisma.like.findFirst({
+          where: {
+            id,
+            post: {
+              is: {
+                removedAt: null,
+              },
+            },
+          },
 
           select: LikeDetailSelect,
         });
@@ -142,12 +157,13 @@ export class LikesService {
         select: {
           id: true,
           authorId: true,
+          removedAt: true,
         },
       }),
     ]);
 
     if (!currentUser) throw new NotFoundException("Current user not found");
-    if (!post) throw new NotFoundException("Post not found");
+    if (!post || post.removedAt) throw new NotFoundException("Post not found");
 
     let like: LikeDetailDTO;
 

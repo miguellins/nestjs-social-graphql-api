@@ -5,8 +5,9 @@ import { CursorPaginationArgs } from "@/common/args/cursor-pagination.args";
 import { CurrentUser } from "@/common/decorators/current-user.decorator";
 import { THROTTLE_LIMITS } from "@/common/constants/throttle.constants";
 import { MessageResponse } from "@/common/types/message-response.type";
-import { Public } from "@/common/decorators/auth.decorator";
+import { Public, Roles } from "@/common/decorators/auth.decorator";
 
+import { RemovePostByModeratorInput } from "@/posts/dto/remove-post-by-moderator.input";
 import { FindPostsByUsernameArgs } from "@/posts/args/find-posts-by-username.args";
 import { CreatedPost } from "@/posts/models/created-post.model";
 import { CreatePostInput } from "@/posts/dto/create-post.input";
@@ -16,6 +17,10 @@ import { FindPostsArgs } from "@/posts/args/find-posts.args";
 import { PostPage } from "@/posts/models/post-page.model";
 import { PostsService } from "@/posts/posts.service";
 import { Post } from "@/posts/models/post.model";
+
+import type { AuthenticatedUser } from "@/auth/authenticated-user.type";
+
+import { MODERATION_ROLES } from "@/users/enums/user-role.enum";
 
 @Resolver(() => Post)
 export class PostsResolver {
@@ -81,5 +86,15 @@ export class PostsResolver {
     @CurrentUser() user: { id: number },
   ): Promise<MessageResponse> {
     return this.postsService.deletePost(id, user.id);
+  }
+
+  @Roles(...MODERATION_ROLES)
+  @Throttle({ default: THROTTLE_LIMITS.DESTRUCTIVE })
+  @Mutation(() => MessageResponse, { name: "removePostByModerator" })
+  async removePostByModerator(
+    @Args("input") input: RemovePostByModeratorInput,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<MessageResponse> {
+    return this.postsService.removePostByModerator(input, user);
   }
 }

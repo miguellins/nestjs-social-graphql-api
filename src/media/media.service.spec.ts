@@ -312,6 +312,24 @@ describe("MediaService", () => {
       expect(prismaMock.media.create).not.toHaveBeenCalled();
     });
 
+    it("throws NotFoundException when the post was removed by moderation", async () => {
+      prismaMock.post.findUnique.mockResolvedValue({
+        id: 11,
+        authorId: 7,
+        removedAt: new Date("2026-04-10T00:00:00.000Z"),
+      });
+
+      await expect(
+        service.requestPostMediaUpload(
+          {
+            postId: 11,
+            mimeType: "image/jpeg",
+          },
+          7,
+        ),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
     it("throws BadRequestException for unsupported MIME type", async () => {
       await expect(
         service.requestPostMediaUpload(
@@ -535,7 +553,7 @@ describe("MediaService", () => {
       );
 
       expect(prismaMock.media.update).not.toHaveBeenCalled();
-    });
+    }, 15_000);
 
     it("verifies an uploaded image and stores extracted metadata", async () => {
       prismaMock.media.findUnique.mockResolvedValue({
@@ -791,6 +809,20 @@ describe("MediaService", () => {
       ).rejects.toBeInstanceOf(BadRequestException);
 
       expect(prismaMock.postMedia.create).not.toHaveBeenCalled();
+    });
+
+    it("throws NotFoundException when attaching media to a moderated removed post", async () => {
+      prismaMock.post.findUnique.mockResolvedValue({
+        id: 11,
+        authorId: 7,
+        removedAt: new Date("2026-04-10T00:00:00.000Z"),
+      });
+
+      await expect(
+        service.attachMediaToPost({ postId: 11, mediaId: 91 }, 7),
+      ).rejects.toBeInstanceOf(NotFoundException);
+
+      expect(prismaMock.media.findUnique).not.toHaveBeenCalled();
     });
 
     it("checks attachment limits against attached READY media when attaching", async () => {

@@ -28,12 +28,6 @@ import { MediaReadProjectionService } from "@/media/media-read-projection.servic
 import { PrismaService } from "@/prisma/prisma.service";
 import { Prisma } from "@prisma/client";
 
-/**
- * Feature-private post read helpers
- *
- * Owns detailed post reads and cached view-count refresh behavior
- */
-
 type PaginationParams = {
   after?: string;
   first?: number;
@@ -57,8 +51,11 @@ export class PostReadService {
 
     const commentsTake = Math.min(PAGINATION.DEFAULT_TAKE, PAGINATION.MAX_TAKE);
 
-    const post = await this.prisma.post.findUnique({
-      where: { id },
+    const post = await this.prisma.post.findFirst({
+      where: {
+        id,
+        removedAt: null,
+      },
       select: {
         ...SafePostDetailSelect,
 
@@ -72,6 +69,9 @@ export class PostReadService {
 
         comments: {
           take: commentsTake,
+          where: {
+            removedAt: null,
+          },
           orderBy: {
             createdAt: "desc",
           },
@@ -112,6 +112,9 @@ export class PostReadService {
     const rows = await this.prisma.post.findMany({
       where: {
         AND: [
+          {
+            removedAt: null,
+          },
           {
             OR: [
               { authorId: currentUserId },

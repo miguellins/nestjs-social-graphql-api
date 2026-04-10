@@ -14,7 +14,7 @@ import { ReportsService } from "@/reports/reports.service";
 
 import type { AuthenticatedUser } from "@/auth/authenticated-user.type";
 
-import { USER_ROLE } from "@/users/enums/user-role.enum";
+import { MODERATION_ROLES } from "@/users/enums/user-role.enum";
 
 @Resolver()
 export class ReportsResolver {
@@ -38,7 +38,7 @@ export class ReportsResolver {
     return this.reportsService.reportComment(input, user.id);
   }
 
-  @Roles(USER_ROLE.MODERATOR, USER_ROLE.ADMIN)
+  @Roles(...MODERATION_ROLES)
   @Throttle({ default: THROTTLE_LIMITS.LIST })
   @Query(() => ReviewReportPage, { name: "reviewReports" })
   async reviewReports(
@@ -48,7 +48,7 @@ export class ReportsResolver {
     return this.reportsService.reviewReports(args, user);
   }
 
-  @Roles(USER_ROLE.MODERATOR, USER_ROLE.ADMIN)
+  @Roles(...MODERATION_ROLES)
   @Throttle({ default: THROTTLE_LIMITS.MUTATION })
   @Mutation(() => MessageResponse, { name: "dismissReport" })
   async dismissReport(
@@ -58,7 +58,7 @@ export class ReportsResolver {
     return this.reportsService.dismissReport(reportId, user);
   }
 
-  @Roles(USER_ROLE.MODERATOR, USER_ROLE.ADMIN)
+  @Roles(...MODERATION_ROLES)
   @Throttle({ default: THROTTLE_LIMITS.MUTATION })
   @Mutation(() => MessageResponse, { name: "actionReport" })
   async actionReport(

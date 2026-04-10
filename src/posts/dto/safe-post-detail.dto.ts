@@ -106,6 +106,10 @@ export const SafePostDetailSelect = {
   },
 
   comments: {
+    where: {
+      removedAt: null,
+    },
+
     orderBy: {
       createdAt: "desc",
     },

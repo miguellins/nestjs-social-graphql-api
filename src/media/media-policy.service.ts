@@ -29,10 +29,11 @@ export class MediaPolicyService {
       select: {
         id: true,
         authorId: true,
+        removedAt: true,
       },
     });
 
-    if (!post) {
+    if (!post || post.removedAt) {
       throw new NotFoundException("Post not found");
     }
 

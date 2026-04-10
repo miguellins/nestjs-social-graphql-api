@@ -54,6 +54,7 @@ describe("LikesService", () => {
   const prismaMock: {
     like: {
       findMany: jest.Mock;
+      findFirst: jest.Mock;
       findUnique: jest.Mock;
       create: jest.Mock;
       delete: jest.Mock;
@@ -69,6 +70,7 @@ describe("LikesService", () => {
   } = {
     like: {
       findMany: jest.fn(),
+      findFirst: jest.fn(),
       findUnique: jest.fn(),
       create: jest.fn(),
       delete: jest.fn(),
@@ -175,6 +177,13 @@ describe("LikesService", () => {
         take: expectedTake + 1,
         where: {
           AND: [
+            {
+              post: {
+                is: {
+                  removedAt: null,
+                },
+              },
+            },
             { postId: 20 },
             { userId: 10 },
             {
@@ -210,7 +219,13 @@ describe("LikesService", () => {
 
       expect(prismaMock.like.findMany).toHaveBeenCalledWith({
         take: PAGINATION.DEFAULT_TAKE + 1,
-        where: {},
+        where: {
+          post: {
+            is: {
+              removedAt: null,
+            },
+          },
+        },
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         select: LikeDetailSelect,
       });
@@ -225,7 +240,18 @@ describe("LikesService", () => {
 
       expect(prismaMock.like.findMany).toHaveBeenCalledWith({
         take: PAGINATION.DEFAULT_TAKE + 1,
-        where: { postId: 55 },
+        where: {
+          AND: [
+            {
+              post: {
+                is: {
+                  removedAt: null,
+                },
+              },
+            },
+            { postId: 55 },
+          ],
+        },
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         select: LikeDetailSelect,
       });
@@ -240,7 +266,18 @@ describe("LikesService", () => {
 
       expect(prismaMock.like.findMany).toHaveBeenCalledWith({
         take: PAGINATION.DEFAULT_TAKE + 1,
-        where: { userId: 77 },
+        where: {
+          AND: [
+            {
+              post: {
+                is: {
+                  removedAt: null,
+                },
+              },
+            },
+            { userId: 77 },
+          ],
+        },
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         select: LikeDetailSelect,
       });
@@ -260,7 +297,13 @@ describe("LikesService", () => {
 
       expect(prismaMock.like.findMany).toHaveBeenCalledWith({
         take: PAGINATION.DEFAULT_TAKE + 1,
-        where: {},
+        where: {
+          post: {
+            is: {
+              removedAt: null,
+            },
+          },
+        },
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         select: LikeDetailSelect,
       });
@@ -309,11 +352,22 @@ describe("LikesService", () => {
       expect(prismaMock.like.findMany).toHaveBeenCalledWith({
         take: 6,
         where: {
-          OR: [
-            { createdAt: { gt: new Date("2026-04-10T00:00:00.000Z") } },
+          AND: [
             {
-              createdAt: new Date("2026-04-10T00:00:00.000Z"),
-              id: { gt: 999 },
+              post: {
+                is: {
+                  removedAt: null,
+                },
+              },
+            },
+            {
+              OR: [
+                { createdAt: { gt: new Date("2026-04-10T00:00:00.000Z") } },
+                {
+                  createdAt: new Date("2026-04-10T00:00:00.000Z"),
+                  id: { gt: 999 },
+                },
+              ],
             },
           ],
         },
@@ -325,7 +379,7 @@ describe("LikesService", () => {
 
   describe("getLike", () => {
     it("returns like when found", async () => {
-      prismaMock.like.findUnique.mockResolvedValue({
+      prismaMock.like.findFirst.mockResolvedValue({
         id: 1,
         userId: 10,
         postId: 20,
@@ -339,8 +393,15 @@ describe("LikesService", () => {
         30_000,
       );
 
-      expect(prismaMock.like.findUnique).toHaveBeenCalledWith({
-        where: { id: 1 },
+      expect(prismaMock.like.findFirst).toHaveBeenCalledWith({
+        where: {
+          id: 1,
+          post: {
+            is: {
+              removedAt: null,
+            },
+          },
+        },
         select: LikeDetailSelect,
       });
 
@@ -348,15 +409,23 @@ describe("LikesService", () => {
     });
 
     it("throws NotFoundException when like does not exist", async () => {
-      prismaMock.like.findUnique.mockResolvedValue(null);
+      prismaMock.like.findFirst.mockResolvedValue(null);
 
       await expect(service.getLike(123)).rejects.toBeInstanceOf(
         NotFoundException,
       );
     });
 
+    it("hides likes whose post was moderated away", async () => {
+      prismaMock.like.findFirst.mockResolvedValue(null);
+
+      await expect(service.getLike(55)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+
     it("lets unexpected read errors bubble for the global filter to normalize", async () => {
-      prismaMock.like.findUnique.mockRejectedValue(new Error("boom"));
+      prismaMock.like.findFirst.mockRejectedValue(new Error("boom"));
 
       await expect(service.getLike(1)).rejects.toThrow("boom");
     });
@@ -483,6 +552,20 @@ describe("LikesService", () => {
       await expect(service.createLike(10, 20)).rejects.toBeInstanceOf(
         NotFoundException,
       );
+    });
+
+    it("rejects likes on moderated removed posts", async () => {
+      prismaMock.post.findUnique.mockResolvedValue({
+        id: 20,
+        authorId: 2,
+        removedAt: new Date("2026-04-10T00:00:00.000Z"),
+      });
+
+      await expect(service.createLike(10, 20)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+
+      expect(prismaMock.$transaction).not.toHaveBeenCalled();
     });
 
     it("lets unexpected write errors bubble for the global filter to normalize", async () => {

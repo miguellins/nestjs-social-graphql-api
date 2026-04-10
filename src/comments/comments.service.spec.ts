@@ -44,6 +44,12 @@ describe("CommentsService", () => {
       findUnique: jest.Mock;
       update: jest.Mock;
     };
+    contentReport: {
+      updateMany: jest.Mock;
+    };
+    moderationAction: {
+      create: jest.Mock;
+    };
     comment: {
       create: jest.Mock;
       findMany: jest.Mock;
@@ -56,6 +62,12 @@ describe("CommentsService", () => {
     post: {
       findUnique: jest.fn(),
       update: jest.fn(),
+    },
+    contentReport: {
+      updateMany: jest.fn(),
+    },
+    moderationAction: {
+      create: jest.fn(),
     },
     comment: {
       create: jest.fn(),
@@ -220,7 +232,7 @@ describe("CommentsService", () => {
 
       expect(prismaMock.comment.findMany).toHaveBeenCalledWith({
         take: PAGINATION.DEFAULT_TAKE + 1,
-        where: { postId: 1 },
+        where: { postId: 1, removedAt: null },
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         select: SafeCommentSelect,
       });
@@ -237,7 +249,7 @@ describe("CommentsService", () => {
 
       expect(prismaMock.comment.findMany).toHaveBeenCalledWith({
         take: PAGINATION.MAX_TAKE + 1,
-        where: { postId: 1 },
+        where: { postId: 1, removedAt: null },
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         select: SafeCommentSelect,
       });
@@ -263,6 +275,7 @@ describe("CommentsService", () => {
         where: {
           AND: [
             { postId: 1 },
+            { removedAt: null },
             {
               OR: [
                 { createdAt: { lt: new Date("2026-04-10T00:00:00.000Z") } },
@@ -317,6 +330,7 @@ describe("CommentsService", () => {
         where: {
           AND: [
             { postId: 1 },
+            { removedAt: null },
             {
               OR: [
                 { createdAt: { gt: new Date("2026-04-10T00:00:00.000Z") } },
@@ -329,6 +343,28 @@ describe("CommentsService", () => {
           ],
         },
         orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        select: SafeCommentSelect,
+      });
+    });
+
+    it("hides moderated comments from commentsByPost", async () => {
+      prismaMock.post.findUnique.mockResolvedValue({
+        id: 1,
+        removedAt: null,
+      });
+      const visibleRows = [makeComment(2), makeComment(1)];
+      prismaMock.comment.findMany.mockResolvedValue(visibleRows);
+
+      const result = await service.findCommentsByPost({ postId: 1 });
+
+      expect(result.items).toEqual(visibleRows);
+      expect(result.pageInfo.hasNextPage).toBe(false);
+      expect(result.pageInfo.endCursor).toEqual(expect.any(String));
+
+      expect(prismaMock.comment.findMany).toHaveBeenCalledWith({
+        take: PAGINATION.DEFAULT_TAKE + 1,
+        where: { postId: 1, removedAt: null },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         select: SafeCommentSelect,
       });
     });
@@ -431,6 +467,332 @@ describe("CommentsService", () => {
       );
 
       loggerErrorSpy.mockRestore();
+    });
+  });
+
+  describe("removeCommentByModerator", () => {
+    it("removes a comment, decrements the counter, logs the action, and invalidates caches", async () => {
+      prismaMock.comment.findUnique.mockResolvedValue({
+        id: 1,
+        postId: 3,
+        removedAt: null,
+        post: {
+          authorId: 7,
+        },
+      });
+
+      prismaMock.$transaction.mockImplementation(
+        async (
+          cb: (tx: {
+            comment: { updateMany: jest.Mock };
+            post: { update: jest.Mock };
+            contentReport: { updateMany: jest.Mock };
+            moderationAction: { create: jest.Mock };
+          }) => Promise<void>,
+        ) => {
+          const tx = {
+            comment: {
+              updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+            },
+            post: {
+              update: jest.fn().mockResolvedValue({ id: 3 }),
+            },
+            contentReport: {
+              updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+            },
+            moderationAction: {
+              create: jest.fn().mockResolvedValue({ id: 1 }),
+            },
+          };
+
+          await cb(tx);
+
+          expect(tx.comment.updateMany).toHaveBeenCalledWith({
+            where: { id: 1, removedAt: null },
+            data: {
+              removedAt: expect.any(Date) as Date,
+              removedById: 3,
+              removalReason: "abuse",
+            },
+          });
+          expect(tx.post.update).toHaveBeenCalledWith({
+            where: { id: 3 },
+            data: {
+              commentsCount: {
+                decrement: 1,
+              },
+            },
+          });
+          expect(tx.contentReport.updateMany).toHaveBeenCalledWith({
+            where: {
+              id: 77,
+              commentId: 1,
+              status: "OPEN",
+            },
+            data: {
+              status: "ACTIONED",
+            },
+          });
+          expect(tx.moderationAction.create).toHaveBeenCalledWith({
+            data: {
+              actorId: 3,
+              actionType: "REMOVE_COMMENT",
+              targetType: "COMMENT",
+              targetId: 1,
+              reason: "abuse",
+              reportId: 77,
+              commentId: 1,
+            },
+          });
+        },
+      );
+
+      await expect(
+        service.removeCommentByModerator(
+          { commentId: 1, reason: "  abuse  ", reportId: 77 },
+          { id: 3, role: "MODERATOR" },
+        ),
+      ).resolves.toEqual({
+        message: "Comment removed successfully",
+      });
+
+      expect(cacheMock.del).toHaveBeenCalledWith("posts:detail:3");
+      expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:posts:list");
+      expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:user:7:posts:list");
+    });
+
+    it("rejects normal users", async () => {
+      await expect(
+        service.removeCommentByModerator(
+          { commentId: 1, reason: "abuse" },
+          { id: 3, role: "USER" },
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it("throws NotFoundException when target comment does not exist", async () => {
+      prismaMock.comment.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.removeCommentByModerator(
+          { commentId: 1, reason: "abuse" },
+          { id: 3, role: "ADMIN" },
+        ),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it("throws BadRequestException when comment is already removed", async () => {
+      prismaMock.comment.findUnique.mockResolvedValue({
+        id: 1,
+        postId: 3,
+        removedAt: new Date("2026-04-09T12:00:00.000Z"),
+        post: {
+          authorId: 7,
+        },
+      });
+
+      await expect(
+        service.removeCommentByModerator(
+          { commentId: 1, reason: "abuse" },
+          { id: 3, role: "ADMIN" },
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it("allows admins to remove a comment", async () => {
+      prismaMock.comment.findUnique.mockResolvedValue({
+        id: 1,
+        postId: 3,
+        removedAt: null,
+        post: {
+          authorId: 7,
+        },
+      });
+      prismaMock.$transaction.mockImplementation(
+        async (
+          cb: (tx: {
+            comment: { updateMany: jest.Mock };
+            post: { update: jest.Mock };
+            moderationAction: { create: jest.Mock };
+          }) => Promise<void>,
+        ) => {
+          const tx = {
+            comment: {
+              updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+            },
+            post: {
+              update: jest.fn().mockResolvedValue({ id: 3 }),
+            },
+            moderationAction: {
+              create: jest.fn().mockResolvedValue({ id: 1 }),
+            },
+          };
+
+          await cb(tx as never);
+        },
+      );
+
+      await expect(
+        service.removeCommentByModerator(
+          { commentId: 1, reason: "policy violation" },
+          { id: 9, role: "ADMIN" },
+        ),
+      ).resolves.toEqual({
+        message: "Comment removed successfully",
+      });
+
+      expect(cacheMock.del).toHaveBeenCalledWith("posts:detail:3");
+      expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:posts:list");
+      expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:user:7:posts:list");
+    });
+
+    it("does not require a report id", async () => {
+      prismaMock.comment.findUnique.mockResolvedValue({
+        id: 1,
+        postId: 3,
+        removedAt: null,
+        post: {
+          authorId: 7,
+        },
+      });
+      prismaMock.$transaction.mockImplementation(
+        async (
+          cb: (tx: {
+            comment: { updateMany: jest.Mock };
+            post: { update: jest.Mock };
+            contentReport: { updateMany: jest.Mock };
+            moderationAction: { create: jest.Mock };
+          }) => Promise<void>,
+        ) => {
+          const tx = {
+            comment: {
+              updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+            },
+            post: {
+              update: jest.fn().mockResolvedValue({ id: 3 }),
+            },
+            contentReport: {
+              updateMany: jest.fn(),
+            },
+            moderationAction: {
+              create: jest.fn().mockResolvedValue({ id: 1 }),
+            },
+          };
+
+          await cb(tx);
+
+          expect(tx.contentReport.updateMany).not.toHaveBeenCalled();
+          expect(tx.post.update).toHaveBeenCalledWith({
+            where: { id: 3 },
+            data: {
+              commentsCount: {
+                decrement: 1,
+              },
+            },
+          });
+        },
+      );
+
+      await expect(
+        service.removeCommentByModerator(
+          { commentId: 1, reason: "abuse" },
+          { id: 3, role: "MODERATOR" },
+        ),
+      ).resolves.toEqual({
+        message: "Comment removed successfully",
+      });
+    });
+
+    it("rejects a linked report that is not open for the comment", async () => {
+      prismaMock.comment.findUnique.mockResolvedValue({
+        id: 1,
+        postId: 3,
+        removedAt: null,
+        post: {
+          authorId: 7,
+        },
+      });
+      prismaMock.$transaction.mockImplementation(
+        async (
+          cb: (tx: {
+            comment: { updateMany: jest.Mock };
+            post: { update: jest.Mock };
+            contentReport: { updateMany: jest.Mock };
+            moderationAction: { create: jest.Mock };
+          }) => Promise<void>,
+        ) => {
+          const tx = {
+            comment: {
+              updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+            },
+            post: {
+              update: jest.fn().mockResolvedValue({ id: 3 }),
+            },
+            contentReport: {
+              updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+            },
+            moderationAction: {
+              create: jest.fn(),
+            },
+          };
+
+          await cb(tx);
+        },
+      );
+
+      await expect(
+        service.removeCommentByModerator(
+          { commentId: 1, reason: "abuse", reportId: 77 },
+          { id: 3, role: "MODERATOR" },
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it("rejects a concurrent second moderation removal without decrementing comments twice", async () => {
+      prismaMock.comment.findUnique.mockResolvedValue({
+        id: 1,
+        postId: 3,
+        removedAt: null,
+        post: {
+          authorId: 7,
+        },
+      });
+      prismaMock.$transaction.mockImplementation(
+        async (
+          cb: (tx: {
+            comment: { updateMany: jest.Mock };
+            post: { update: jest.Mock };
+            contentReport: { updateMany: jest.Mock };
+            moderationAction: { create: jest.Mock };
+          }) => Promise<void>,
+        ) => {
+          const tx = {
+            comment: {
+              updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+            },
+            post: {
+              update: jest.fn(),
+            },
+            contentReport: {
+              updateMany: jest.fn(),
+            },
+            moderationAction: {
+              create: jest.fn(),
+            },
+          };
+
+          await cb(tx);
+          expect(tx.post.update).not.toHaveBeenCalled();
+          expect(tx.moderationAction.create).not.toHaveBeenCalled();
+        },
+      );
+
+      await expect(
+        service.removeCommentByModerator(
+          { commentId: 1, reason: "abuse" },
+          { id: 3, role: "MODERATOR" },
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
     });
   });
 

@@ -53,6 +53,7 @@ describe("PostsService", () => {
   const prismaMock: {
     post: {
       findMany: jest.Mock;
+      findFirst: jest.Mock;
       findUnique: jest.Mock;
       create: jest.Mock;
       update: jest.Mock;
@@ -61,12 +62,20 @@ describe("PostsService", () => {
     user: {
       findUnique: jest.Mock;
     };
+    contentReport: {
+      updateMany: jest.Mock;
+    };
+    moderationAction: {
+      create: jest.Mock;
+    };
     userBlock: {
       findMany: jest.Mock;
     };
+    $transaction: jest.Mock;
   } = {
     post: {
       findMany: jest.fn(),
+      findFirst: jest.fn(),
       findUnique: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
@@ -75,9 +84,16 @@ describe("PostsService", () => {
     user: {
       findUnique: jest.fn(),
     },
+    contentReport: {
+      updateMany: jest.fn(),
+    },
+    moderationAction: {
+      create: jest.fn(),
+    },
     userBlock: {
       findMany: jest.fn(),
     },
+    $transaction: jest.fn(),
   };
 
   const cacheMock: {
@@ -183,6 +199,7 @@ describe("PostsService", () => {
         take: expectedFirst + 1,
         where: {
           AND: [
+            { removedAt: null },
             {
               OR: [
                 { title: { contains: expectedSearch } },
@@ -220,7 +237,7 @@ describe("PostsService", () => {
 
       expect(prismaMock.post.findMany).toHaveBeenCalledWith({
         take: PAGINATION.DEFAULT_TAKE + 1,
-        where: undefined,
+        where: { removedAt: null },
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         select: SafePostListSelect,
       });
@@ -269,15 +286,41 @@ describe("PostsService", () => {
       expect(prismaMock.post.findMany).toHaveBeenCalledWith({
         take: 6,
         where: {
-          OR: [
-            { createdAt: { gt: new Date("2026-04-10T00:00:00.000Z") } },
+          AND: [
             {
-              createdAt: new Date("2026-04-10T00:00:00.000Z"),
-              id: { gt: 999 },
+              removedAt: null,
+            },
+            {
+              OR: [
+                { createdAt: { gt: new Date("2026-04-10T00:00:00.000Z") } },
+                {
+                  createdAt: new Date("2026-04-10T00:00:00.000Z"),
+                  id: { gt: 999 },
+                },
+              ],
             },
           ],
         },
         orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        select: SafePostListSelect,
+      });
+    });
+
+    it("hides moderated posts from the public posts list", async () => {
+      cacheMock.getVersion.mockResolvedValue(1);
+      const visibleRows = [makeListPost(2), makeListPost(1)];
+      prismaMock.post.findMany.mockResolvedValue(visibleRows);
+
+      const result = await service.findPosts({ first: 5 });
+
+      expect(result.items).toEqual(visibleRows);
+      expect(result.pageInfo.hasNextPage).toBe(false);
+      expect(result.pageInfo.endCursor).toEqual(expect.any(String));
+
+      expect(prismaMock.post.findMany).toHaveBeenCalledWith({
+        take: 6,
+        where: { removedAt: null },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         select: SafePostListSelect,
       });
     });
@@ -319,6 +362,7 @@ describe("PostsService", () => {
         where: {
           AND: [
             { authorId: 7 },
+            { removedAt: null },
             {
               OR: [
                 { createdAt: { lt: new Date("2026-04-10T00:00:00.000Z") } },
@@ -382,6 +426,29 @@ describe("PostsService", () => {
 
       expect(prismaMock.post.findMany).not.toHaveBeenCalled();
     });
+
+    it("hides moderated posts from postsByUsername", async () => {
+      prismaMock.user.findUnique.mockResolvedValue({ id: 7 });
+      cacheMock.getVersion.mockResolvedValue(1);
+      const visibleRows = [makeListPost(2), makeListPost(1)];
+      prismaMock.post.findMany.mockResolvedValue(visibleRows);
+
+      const result = await service.findPostsByUsername("tester");
+
+      expect(result.items).toEqual(visibleRows);
+      expect(result.pageInfo.hasNextPage).toBe(false);
+      expect(result.pageInfo.endCursor).toEqual(expect.any(String));
+
+      expect(prismaMock.post.findMany).toHaveBeenCalledWith({
+        take: PAGINATION.DEFAULT_TAKE + 1,
+        where: {
+          authorId: 7,
+          removedAt: null,
+        },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        select: SafePostListSelect,
+      });
+    });
   });
 
   describe("myFeed", () => {
@@ -395,6 +462,7 @@ describe("PostsService", () => {
       expect(prismaMock.post.findMany).toHaveBeenCalledWith({
         where: {
           AND: [
+            { removedAt: null },
             {
               OR: [
                 { authorId: 7 },
@@ -434,6 +502,7 @@ describe("PostsService", () => {
       expect(prismaMock.post.findMany).toHaveBeenCalledWith({
         where: {
           AND: [
+            { removedAt: null },
             {
               OR: [
                 { authorId: 7 },
@@ -491,6 +560,7 @@ describe("PostsService", () => {
       expect(prismaMock.post.findMany).toHaveBeenCalledWith({
         where: {
           AND: [
+            { removedAt: null },
             {
               OR: [
                 { authorId: 7 },
@@ -535,6 +605,9 @@ describe("PostsService", () => {
         where: {
           AND: [
             {
+              removedAt: null,
+            },
+            {
               OR: [
                 { authorId: 7 },
                 {
@@ -558,6 +631,43 @@ describe("PostsService", () => {
         select: SafePostListSelect,
       });
     });
+
+    it("hides moderated posts from myFeed", async () => {
+      const visibleRows = [makeListPost(2), makeListPost(1)];
+      prismaMock.userBlock.findMany.mockResolvedValue([]);
+      prismaMock.post.findMany.mockResolvedValue(visibleRows);
+
+      const result = await service.myFeed(7, { first: 5 });
+
+      expect(result.items).toEqual(visibleRows);
+      expect(result.pageInfo.hasNextPage).toBe(false);
+      expect(result.pageInfo.endCursor).toEqual(expect.any(String));
+
+      expect(prismaMock.post.findMany).toHaveBeenCalledWith({
+        where: {
+          AND: [
+            { removedAt: null },
+            {
+              OR: [
+                { authorId: 7 },
+                {
+                  author: {
+                    followers: {
+                      some: {
+                        followerId: 7,
+                      },
+                    },
+                  },
+                },
+              ],
+            },
+          ],
+        },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take: 6,
+        select: SafePostListSelect,
+      });
+    });
   });
 
   describe("getPost", () => {
@@ -570,7 +680,7 @@ describe("PostsService", () => {
         }),
       );
 
-      prismaMock.post.findUnique.mockResolvedValue({
+      prismaMock.post.findFirst.mockResolvedValue({
         id: 10,
         viewsCount: 1,
         editedAt: null,
@@ -584,8 +694,8 @@ describe("PostsService", () => {
         60_000,
       );
 
-      expect(prismaMock.post.findUnique).toHaveBeenCalledWith({
-        where: { id: 10 },
+      expect(prismaMock.post.findFirst).toHaveBeenCalledWith({
+        where: { id: 10, removedAt: null },
         select: {
           ...SafePostDetailSelect,
           likes: {
@@ -595,6 +705,7 @@ describe("PostsService", () => {
           },
           comments: {
             take: 20,
+            where: { removedAt: null },
             orderBy: { createdAt: "desc" },
             select: SafePostDetailSelect.comments.select,
           },
@@ -621,7 +732,7 @@ describe("PostsService", () => {
     it("patches the cached viewsCount after the asynchronous increment succeeds", async () => {
       const cachedPost = { id: 10, viewsCount: 1, editedAt: null };
 
-      prismaMock.post.findUnique.mockResolvedValue(cachedPost);
+      prismaMock.post.findFirst.mockResolvedValue(cachedPost);
       prismaMock.post.update.mockResolvedValue({ viewsCount: 42 });
 
       const res = await service.getPost(10);
@@ -638,7 +749,7 @@ describe("PostsService", () => {
     });
 
     it("throws NotFoundException when post does not exist", async () => {
-      prismaMock.post.findUnique.mockResolvedValue(null);
+      prismaMock.post.findFirst.mockResolvedValue(null);
 
       await expect(service.getPost(999)).rejects.toBeInstanceOf(
         NotFoundException,
@@ -648,7 +759,7 @@ describe("PostsService", () => {
     });
 
     it("keeps the read response successful when the async viewsCount increment fails", async () => {
-      prismaMock.post.findUnique.mockResolvedValue({
+      prismaMock.post.findFirst.mockResolvedValue({
         id: 10,
         viewsCount: 1,
         editedAt: null,
@@ -664,6 +775,14 @@ describe("PostsService", () => {
       await new Promise(setImmediate);
 
       expect(cacheMock.set).not.toHaveBeenCalled();
+    });
+
+    it("hides moderated posts from normal detail reads", async () => {
+      prismaMock.post.findFirst.mockResolvedValue(null);
+
+      await expect(service.getPost(10)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
     });
   });
 
@@ -1091,6 +1210,288 @@ describe("PostsService", () => {
       await expect(service.deletePost(1, 1)).rejects.toThrow(
         "Failed to delete post",
       );
+    });
+  });
+
+  describe("removePostByModerator", () => {
+    it("removes a post, logs the moderation action, and invalidates caches", async () => {
+      prismaMock.post.findUnique.mockResolvedValue({
+        id: 10,
+        authorId: 7,
+        removedAt: null,
+      });
+
+      prismaMock.$transaction.mockImplementation(
+        async (
+          cb: (tx: {
+            post: { updateMany: jest.Mock };
+            contentReport: { updateMany: jest.Mock };
+            moderationAction: { create: jest.Mock };
+          }) => Promise<void>,
+        ) => {
+          const tx = {
+            post: {
+              updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+            },
+            contentReport: {
+              updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+            },
+            moderationAction: {
+              create: jest.fn().mockResolvedValue({ id: 1 }),
+            },
+          };
+
+          await cb(tx);
+
+          expect(tx.post.updateMany).toHaveBeenCalledWith({
+            where: { id: 10, removedAt: null },
+            data: {
+              removedAt: expect.any(Date) as Date,
+              removedById: 3,
+              removalReason: "spam",
+            },
+          });
+          expect(tx.contentReport.updateMany).toHaveBeenCalledWith({
+            where: {
+              id: 99,
+              postId: 10,
+              status: "OPEN",
+            },
+            data: {
+              status: "ACTIONED",
+            },
+          });
+          expect(tx.moderationAction.create).toHaveBeenCalledWith({
+            data: {
+              actorId: 3,
+              actionType: "REMOVE_POST",
+              targetType: "POST",
+              targetId: 10,
+              reason: "spam",
+              reportId: 99,
+              postId: 10,
+            },
+          });
+        },
+      );
+
+      await expect(
+        service.removePostByModerator(
+          { postId: 10, reason: "  spam  ", reportId: 99 },
+          { id: 3, role: "MODERATOR" },
+        ),
+      ).resolves.toEqual({
+        message: "Post removed successfully",
+      });
+
+      expect(cacheMock.del).toHaveBeenCalledWith("posts:detail:10");
+      expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:posts:list");
+      expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:user:7:posts:list");
+    });
+
+    it("rejects normal users", async () => {
+      await expect(
+        service.removePostByModerator(
+          { postId: 10, reason: "spam" },
+          { id: 3, role: "USER" },
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it("throws NotFoundException when target post does not exist", async () => {
+      prismaMock.post.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.removePostByModerator(
+          { postId: 10, reason: "spam" },
+          { id: 3, role: "ADMIN" },
+        ),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it("throws BadRequestException when post is already removed", async () => {
+      prismaMock.post.findUnique.mockResolvedValue({
+        id: 10,
+        authorId: 7,
+        removedAt: new Date("2026-04-09T12:00:00.000Z"),
+      });
+
+      await expect(
+        service.removePostByModerator(
+          { postId: 10, reason: "spam" },
+          { id: 3, role: "ADMIN" },
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it("allows admins to remove a post", async () => {
+      prismaMock.post.findUnique.mockResolvedValue({
+        id: 10,
+        authorId: 7,
+        removedAt: null,
+      });
+      prismaMock.$transaction.mockImplementation(
+        async (
+          cb: (tx: {
+            post: { updateMany: jest.Mock };
+            moderationAction: { create: jest.Mock };
+          }) => Promise<void>,
+        ) => {
+          const tx = {
+            post: {
+              updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+            },
+            moderationAction: {
+              create: jest.fn().mockResolvedValue({ id: 1 }),
+            },
+          };
+
+          await cb(tx as never);
+        },
+      );
+
+      await expect(
+        service.removePostByModerator(
+          { postId: 10, reason: "policy violation" },
+          { id: 9, role: "ADMIN" },
+        ),
+      ).resolves.toEqual({
+        message: "Post removed successfully",
+      });
+
+      expect(cacheMock.del).toHaveBeenCalledWith("posts:detail:10");
+      expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:posts:list");
+      expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:user:7:posts:list");
+    });
+
+    it("does not require a report id", async () => {
+      prismaMock.post.findUnique.mockResolvedValue({
+        id: 10,
+        authorId: 7,
+        removedAt: null,
+      });
+      prismaMock.$transaction.mockImplementation(
+        async (
+          cb: (tx: {
+            post: { updateMany: jest.Mock };
+            contentReport: { updateMany: jest.Mock };
+            moderationAction: { create: jest.Mock };
+          }) => Promise<void>,
+        ) => {
+          const tx = {
+            post: {
+              updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+            },
+            contentReport: {
+              updateMany: jest.fn(),
+            },
+            moderationAction: {
+              create: jest.fn().mockResolvedValue({ id: 1 }),
+            },
+          };
+
+          await cb(tx);
+
+          expect(tx.contentReport.updateMany).not.toHaveBeenCalled();
+          expect(tx.moderationAction.create).toHaveBeenCalledWith({
+            data: {
+              actorId: 3,
+              actionType: "REMOVE_POST",
+              targetType: "POST",
+              targetId: 10,
+              reason: "spam",
+              reportId: undefined,
+              postId: 10,
+            },
+          });
+        },
+      );
+
+      await expect(
+        service.removePostByModerator(
+          { postId: 10, reason: "spam" },
+          { id: 3, role: "MODERATOR" },
+        ),
+      ).resolves.toEqual({
+        message: "Post removed successfully",
+      });
+    });
+
+    it("rejects a linked report that is not open for the post", async () => {
+      prismaMock.post.findUnique.mockResolvedValue({
+        id: 10,
+        authorId: 7,
+        removedAt: null,
+      });
+      prismaMock.$transaction.mockImplementation(
+        async (
+          cb: (tx: {
+            post: { updateMany: jest.Mock };
+            contentReport: { updateMany: jest.Mock };
+            moderationAction: { create: jest.Mock };
+          }) => Promise<void>,
+        ) => {
+          const tx = {
+            post: {
+              updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+            },
+            contentReport: {
+              updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+            },
+            moderationAction: {
+              create: jest.fn(),
+            },
+          };
+
+          await cb(tx);
+        },
+      );
+
+      await expect(
+        service.removePostByModerator(
+          { postId: 10, reason: "spam", reportId: 99 },
+          { id: 3, role: "MODERATOR" },
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it("rejects a concurrent second moderation removal without writing an action log", async () => {
+      prismaMock.post.findUnique.mockResolvedValue({
+        id: 10,
+        authorId: 7,
+        removedAt: null,
+      });
+      prismaMock.$transaction.mockImplementation(
+        async (
+          cb: (tx: {
+            post: { updateMany: jest.Mock };
+            contentReport: { updateMany: jest.Mock };
+            moderationAction: { create: jest.Mock };
+          }) => Promise<void>,
+        ) => {
+          const tx = {
+            post: {
+              updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+            },
+            contentReport: {
+              updateMany: jest.fn(),
+            },
+            moderationAction: {
+              create: jest.fn(),
+            },
+          };
+
+          await cb(tx);
+          expect(tx.moderationAction.create).not.toHaveBeenCalled();
+        },
+      );
+
+      await expect(
+        service.removePostByModerator(
+          { postId: 10, reason: "spam" },
+          { id: 3, role: "MODERATOR" },
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
     });
   });
 });

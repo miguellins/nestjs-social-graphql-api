@@ -94,6 +94,12 @@ model User {
 
   /**
    * 1:N relation
+   * Moderation actions performed by this user
+   */
+  moderationActions ModerationAction[]
+
+  /**
+   * 1:N relation
    * Media uploaded and owned by this user
    */
   media Media[]
@@ -121,9 +127,21 @@ model Post {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   editedAt  DateTime?
+  removedAt DateTime?
 
   // Stores the ID of the author (User)
   authorId Int
+
+  /**
+   * Optional moderator/admin actor who removed this post
+   * Stored as an id only because the public API never exposes it directly.
+   */
+  removedById Int?
+
+  /**
+   * Moderator/admin reason for removing this post from normal reads
+   */
+  removalReason String?
 
   /**
    * Relation to User
@@ -176,6 +194,12 @@ model Post {
   mediaAttachments PostMedia[]
 
   /**
+   * One-to-many relation
+   * A post can have many moderation actions targeting it
+   */
+  moderationActions ModerationAction[] @relation("ModerationActionPost")
+
+  /**
    * Database index on authorId
    * Improves queries like:
    * - "get all posts from one author"
@@ -205,6 +229,12 @@ model Post {
    * Improves author-scoped timelines with cursor-pagination tie-breaking.
    */
   @@index([authorId, createdAt(sort: Desc), id(sort: Desc)])
+  /**
+   * Compound index on removedAt + createdAt + id descending
+   * Supports normal read paths that exclude moderated content while keeping
+   * chronological ordering deterministic.
+   */
+  @@index([removedAt, createdAt(sort: Desc), id(sort: Desc)])
 }
 
 model Comment {
@@ -212,11 +242,23 @@ model Comment {
   content String
 
   // Timestamps
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  removedAt DateTime?
 
   // Stores the ID of the author (User)
   authorId Int
+
+  /**
+   * Optional moderator/admin actor who removed this comment
+   * Stored as an id only because the public API never exposes it directly.
+   */
+  removedById Int?
+
+  /**
+   * Moderator/admin reason for removing this comment from normal reads
+   */
+  removalReason String?
 
   /**
    * Relation to User
@@ -242,6 +284,12 @@ model Comment {
    * A comment can have many content reports
    */
   reports ContentReport[]
+
+  /**
+   * One-to-many relation
+   * A comment can have many moderation actions targeting it
+   */
+  moderationActions ModerationAction[] @relation("ModerationActionComment")
 
   /**
    * Database index on authorId
@@ -272,6 +320,65 @@ model Comment {
    * Improves cursor-pagination for post comments with deterministic id tie-breaking.
    */
   @@index([postId, createdAt(sort: Desc), id(sort: Desc)])
+  /**
+   * Compound index on postId + removedAt + createdAt + id descending
+   * Supports post-scoped comment reads that hide moderated comments.
+   */
+  @@index([postId, removedAt, createdAt(sort: Desc), id(sort: Desc)])
+}
+
+enum ModerationActionType {
+  REMOVE_POST
+  REMOVE_COMMENT
+}
+
+enum ModerationTargetType {
+  POST
+  COMMENT
+}
+
+model ModerationAction {
+  id Int @id @default(autoincrement())
+
+  actorId    Int
+  actionType ModerationActionType
+  targetType ModerationTargetType
+  targetId   Int
+  reason     String
+  reportId   Int?
+  postId     Int?
+  commentId  Int?
+
+  createdAt DateTime @default(now())
+
+  /**
+   * Relation to User
+   * fields: [actorId] - the moderator/admin who performed the action
+   * references: [id]  - references User.id
+   * onDelete: Cascade - delete action logs if the actor is deleted
+   */
+  actor User @relation(fields: [actorId], references: [id], onDelete: Cascade)
+
+  /**
+   * Optional relation to a linked reviewed report
+   */
+  report ContentReport? @relation(fields: [reportId], references: [id], onDelete: SetNull)
+
+  /**
+   * Optional relation to the targeted post
+   */
+  post Post? @relation("ModerationActionPost", fields: [postId], references: [id], onDelete: SetNull)
+
+  /**
+   * Optional relation to the targeted comment
+   */
+  comment Comment? @relation("ModerationActionComment", fields: [commentId], references: [id], onDelete: SetNull)
+
+  @@index([actorId, createdAt(sort: Desc)])
+  @@index([targetType, targetId, createdAt(sort: Desc)])
+  @@index([reportId])
+  @@index([postId])
+  @@index([commentId])
 }
 
 model Follow {
@@ -399,6 +506,12 @@ model ContentReport {
    * onDelete: Cascade    - delete reports if reported comment is deleted
    */
   comment Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  /**
+   * One-to-many relation
+   * A report can be linked to later moderation actions
+   */
+  moderationActions ModerationAction[]
 
   /**
    * Compound index on reporterId + postId + status

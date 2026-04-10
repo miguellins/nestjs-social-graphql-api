@@ -100,6 +100,18 @@ describe("ReportsService", () => {
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
+    it("rejects reporting a post that was already removed", async () => {
+      prismaMock.post.findUnique.mockResolvedValue({
+        id: 5,
+        authorId: 2,
+        removedAt: new Date("2026-04-10T00:00:00.000Z"),
+      });
+
+      await expect(
+        service.reportPost({ postId: 5, reason: ReportReason.SPAM }, 1),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
     it("rejects self-reporting a post", async () => {
       prismaMock.post.findUnique.mockResolvedValue({ id: 5, authorId: 1 });
 
@@ -215,6 +227,21 @@ describe("ReportsService", () => {
 
     it("throws NotFound when comment does not exist", async () => {
       prismaMock.comment.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.reportComment(
+          { commentId: 8, reason: ReportReason.HARASSMENT },
+          1,
+        ),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it("rejects reporting a comment that was already removed", async () => {
+      prismaMock.comment.findUnique.mockResolvedValue({
+        id: 8,
+        authorId: 2,
+        removedAt: new Date("2026-04-10T00:00:00.000Z"),
+      });
 
       await expect(
         service.reportComment(
