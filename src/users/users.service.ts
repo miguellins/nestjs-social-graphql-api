@@ -1,5 +1,7 @@
 import {
+  BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   InternalServerErrorException,
   Logger,
@@ -24,6 +26,10 @@ import {
 } from "@/common/pagination/cursor-pagination";
 
 import { SafeUserSelect, type SafeUserDTO } from "@/users/dto/safe-user.dto";
+import { UserPrivacySetting } from "@/users/enums/user-privacy-setting.enum";
+import { MyPrivacySettings } from "@/users/models/my-privacy-settings.model";
+import { MODERATION_ROLE_SET } from "@/users/enums/user-role.enum";
+import { AccountState } from "@/users/enums/account-state.enum";
 import { UserCacheService } from "@/users/user-cache.service";
 import {
   createUserCommandSchema,
@@ -39,6 +45,16 @@ import {
   CreatedUserSelect,
   type CreatedUserDTO,
 } from "@/users/dto/created-user.dto";
+import {
+  reactivateUserCommandSchema,
+  suspendUserCommandSchema,
+  updateMyPrivacySettingCommandSchema,
+  type ReactivateUserCommand,
+  type SuspendUserCommand,
+  type UpdateMyPrivacySettingCommand,
+} from "@/users/schemas/privacy-account-state.schema";
+
+import type { AuthenticatedUser } from "@/auth/authenticated-user.type";
 
 import { PrismaService } from "@/prisma/prisma.service";
 import { Prisma } from "@prisma/client";
@@ -81,7 +97,22 @@ export class UsersService {
       async () => {
         const rows = await this.prisma.user.findMany({
           take: limit + 1,
-          where: cursorFilter,
+          where: cursorFilter
+            ? {
+                AND: [
+                  cursorFilter,
+                  {
+                    accountState: {
+                      not: AccountState.DEACTIVATED,
+                    },
+                  },
+                ],
+              }
+            : {
+                accountState: {
+                  not: AccountState.DEACTIVATED,
+                },
+              },
           orderBy: [
             { createdAt: toSortDirection(orderby) },
             { id: toSortDirection(orderby) },
@@ -89,7 +120,10 @@ export class UsersService {
           select: SafeUserSelect,
         });
 
-        return buildCursorPage(rows, limit);
+        return buildCursorPage(
+          rows.map((row) => this.toPublicUserView(row)),
+          limit,
+        );
       },
       60_000,
     );
@@ -102,14 +136,16 @@ export class UsersService {
     return this.cacheHelper.getOrSet(
       cacheKey,
       async () => {
-        const user = await this.prisma.user.findUnique({
+        const safeUser = await this.prisma.user.findUnique({
           where: { id },
           select: SafeUserSelect,
         });
 
-        if (!user) throw new NotFoundException(`User with ID ${id} not found`);
+        if (!safeUser || safeUser.accountState === AccountState.DEACTIVATED) {
+          throw new NotFoundException(`User with ID ${id} not found`);
+        }
 
-        return user;
+        return this.toPublicUserView(safeUser);
       },
       5 * 60_000,
     );
@@ -132,7 +168,7 @@ export class UsersService {
       select: SafeUserSelect,
     });
 
-    if (!user) {
+    if (!user || user.accountState === AccountState.DEACTIVATED) {
       throw new NotFoundException(
         `User with username "${normalized.username}" not found`,
       );
@@ -147,7 +183,7 @@ export class UsersService {
       },
     );
 
-    return user;
+    return this.toPublicUserView(user);
   }
 
   // Creates a new user with a hashed password
@@ -278,6 +314,76 @@ export class UsersService {
     return updated;
   }
 
+  async getMyPrivacySettings(
+    currentUserId: number,
+  ): Promise<MyPrivacySettings> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: currentUserId },
+      select: {
+        privacySetting: true,
+        accountState: true,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException("User not found");
+    }
+
+    return {
+      message: "Privacy settings loaded successfully",
+      privacySetting: user.privacySetting,
+      accountState: user.accountState,
+    };
+  }
+
+  async updateMyPrivacySetting(
+    input: UpdateMyPrivacySettingCommand,
+    currentUserId: number,
+  ): Promise<MyPrivacySettings> {
+    const data = this.parseUpdateMyPrivacySettingInput(input);
+
+    const existing = await this.prisma.user.findUnique({
+      where: { id: currentUserId },
+      select: {
+        id: true,
+        username: true,
+      },
+    });
+
+    if (!existing) {
+      throw new NotFoundException("User not found");
+    }
+
+    const updated = await this.prisma.user.update({
+      where: { id: currentUserId },
+      data: {
+        privacySetting: data.privacySetting,
+      },
+      select: {
+        privacySetting: true,
+        accountState: true,
+      },
+    });
+
+    await runBestEffort(
+      this.logger,
+      "error",
+      `Failed to invalidate visibility caches after updating privacy for user ${currentUserId}`,
+      async () => {
+        await this.invalidateUserVisibilityCaches(
+          currentUserId,
+          existing.username,
+        );
+      },
+    );
+
+    return {
+      message: "Privacy setting updated successfully",
+      privacySetting: updated.privacySetting,
+      accountState: updated.accountState,
+    };
+  }
+
   // Deletes the current user and clears related cache entries
   async deleteUser(currentUserId: number): Promise<MessageResponse> {
     let deletedUser: { username: string };
@@ -311,6 +417,140 @@ export class UsersService {
     };
   }
 
+  async suspendUser(
+    input: SuspendUserCommand,
+    currentUser: AuthenticatedUser,
+  ): Promise<MessageResponse> {
+    this.assertCanModerateUsers(currentUser);
+
+    const data = this.parseSuspendUserInput(input);
+    const target = await this.prisma.user.findUnique({
+      where: { id: data.userId },
+      select: {
+        id: true,
+        username: true,
+        accountState: true,
+      },
+    });
+
+    if (!target) {
+      throw new NotFoundException("User not found");
+    }
+
+    if (target.accountState === AccountState.SUSPENDED) {
+      throw new BadRequestException("User is already suspended");
+    }
+
+    if (target.accountState === AccountState.DEACTIVATED) {
+      throw new BadRequestException("Deactivated users cannot be suspended");
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: data.userId },
+        data: {
+          accountState: AccountState.SUSPENDED,
+          accountStateReason: data.reason,
+          accountStateChangedAt: new Date(),
+          accountStateChangedById: currentUser.id,
+        },
+      });
+
+      await tx.refreshSession.updateMany({
+        where: {
+          userId: data.userId,
+          revokedAt: null,
+        },
+        data: {
+          revokedAt: new Date(),
+        },
+      });
+
+      await tx.moderationAction.create({
+        data: {
+          actorId: currentUser.id,
+          actionType: "SUSPEND_USER",
+          targetType: "USER",
+          targetId: data.userId,
+          reason: data.reason,
+        },
+      });
+    });
+
+    await runBestEffort(
+      this.logger,
+      "error",
+      `Failed to invalidate visibility caches after suspending user ${data.userId}`,
+      async () => {
+        await this.invalidateUserVisibilityCaches(data.userId, target.username);
+      },
+    );
+
+    return {
+      message: "User suspended successfully",
+    };
+  }
+
+  async reactivateUser(
+    input: ReactivateUserCommand,
+    currentUser: AuthenticatedUser,
+  ): Promise<MessageResponse> {
+    this.assertCanModerateUsers(currentUser);
+
+    const data = this.parseReactivateUserInput(input);
+    const target = await this.prisma.user.findUnique({
+      where: { id: data.userId },
+      select: {
+        id: true,
+        username: true,
+        accountState: true,
+      },
+    });
+
+    if (!target) {
+      throw new NotFoundException("User not found");
+    }
+
+    if (target.accountState !== AccountState.SUSPENDED) {
+      throw new BadRequestException("Only suspended users can be reactivated");
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: data.userId },
+        data: {
+          accountState: AccountState.ACTIVE,
+          accountStateReason: data.reason,
+          accountStateChangedAt: new Date(),
+          accountStateChangedById: currentUser.id,
+        },
+      });
+
+      await tx.moderationAction.create({
+        data: {
+          actorId: currentUser.id,
+          actionType: "REACTIVATE_USER",
+          targetType: "USER",
+          targetId: data.userId,
+          reason: data.reason,
+        },
+      });
+    });
+
+    await runBestEffort(
+      this.logger,
+      "error",
+      `Failed to invalidate visibility caches after reactivating user ${data.userId}`,
+      async () => {
+        await this.invalidateUserVisibilityCaches(data.userId, target.username);
+      },
+    );
+
+    return {
+      message: "User reactivated successfully",
+    };
+  }
+
   // Private Helpers
   // Parses and normalizes create-user input
   private parseCreateUserInput(input: CreateUserCommand) {
@@ -330,6 +570,35 @@ export class UsersService {
     );
   }
 
+  /** Parses and normalizes privacy-setting updates for the current user. */
+  private parseUpdateMyPrivacySettingInput(
+    input: UpdateMyPrivacySettingCommand,
+  ) {
+    return parseWithBadRequest(
+      updateMyPrivacySettingCommandSchema,
+      input,
+      "Invalid privacy setting input",
+    );
+  }
+
+  /** Parses and normalizes moderator suspension input. */
+  private parseSuspendUserInput(input: SuspendUserCommand) {
+    return parseWithBadRequest(
+      suspendUserCommandSchema,
+      input,
+      "Invalid suspend user input",
+    );
+  }
+
+  /** Parses and normalizes moderator reactivation input. */
+  private parseReactivateUserInput(input: ReactivateUserCommand) {
+    return parseWithBadRequest(
+      reactivateUserCommandSchema,
+      input,
+      "Invalid reactivate user input",
+    );
+  }
+
   // Parses and normalizes public username lookup input
   private parseGetUserByUsernameInput(input: GetUserByUsernameCommand) {
     return parseWithBadRequest(
@@ -337,6 +606,49 @@ export class UsersService {
       input,
       "Invalid user lookup input",
     );
+  }
+
+  /** Hides sensitive counters for private accounts in public profile reads. */
+  private toPublicUserView(user: SafeUserDTO): SafeUserDTO {
+    if (user.privacySetting !== UserPrivacySetting.PRIVATE) {
+      return user;
+    }
+
+    return {
+      ...user,
+      _count: undefined,
+    };
+  }
+
+  /** Ensures only moderators and admins can mutate account state. */
+  private assertCanModerateUsers(currentUser: AuthenticatedUser): void {
+    if (!currentUser.role || !MODERATION_ROLE_SET.has(currentUser.role)) {
+      throw new ForbiddenException("Forbidden resource");
+    }
+  }
+
+  /** Invalidates user/profile/post caches affected by privacy or account-state changes. */
+  private async invalidateUserVisibilityCaches(
+    userId: number,
+    username: string,
+  ): Promise<void> {
+    const postIds = await this.prisma.post.findMany({
+      where: {
+        authorId: userId,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    await this.userCache.clearUser(username, userId);
+    await this.cacheHelper.bumpVersion("v:user:list");
+    await this.cacheHelper.bumpVersion("v:posts:list");
+    await this.cacheHelper.bumpVersion(`v:user:${userId}:posts:list`);
+
+    for (const post of postIds) {
+      await this.cacheHelper.del(`posts:detail:${post.id}`);
+    }
   }
 
   // Maps unique user constraint violations to specific conflict errors

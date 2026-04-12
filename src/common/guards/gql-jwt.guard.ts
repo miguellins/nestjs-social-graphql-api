@@ -38,8 +38,6 @@ export class GqlJwtGuard extends AuthGuard("jwt") {
       context.getClass(),
     ]);
 
-    if (isPublic) return true;
-
     const gqlContext = GqlExecutionContext.create(context);
     const info = gqlContext.getInfo<GraphQLResolveInfo>();
     const operation = info.operation.operation;
@@ -48,6 +46,16 @@ export class GqlJwtGuard extends AuthGuard("jwt") {
     if (operation === OperationTypeNode.SUBSCRIPTION) {
       if (!ctx.extra?.user) {
         throw new UnauthorizedException("Unauthorized");
+      }
+
+      return true;
+    }
+
+    if (isPublic) {
+      try {
+        await super.canActivate(context);
+      } catch {
+        return true;
       }
 
       return true;

@@ -8,13 +8,18 @@ datasource db {
 }
 
 model User {
-  id              Int      @id @default(autoincrement())
-  name            String
-  email           String   @unique
-  username        String   @unique
-  password        String
-  role            UserRole @default(USER)
-  isEmailVerified Boolean  @default(false)
+  id                      Int                @id @default(autoincrement())
+  name                    String
+  email                   String             @unique
+  username                String             @unique
+  password                String
+  role                    UserRole           @default(USER)
+  privacySetting          UserPrivacySetting @default(PUBLIC)
+  accountState            AccountState       @default(ACTIVE)
+  accountStateReason      String?
+  accountStateChangedAt   DateTime?
+  accountStateChangedById Int?
+  isEmailVerified         Boolean            @default(false)
 
   // Timestamps
   createdAt DateTime @default(now())
@@ -43,6 +48,18 @@ model User {
 
   // Users this user is following
   following Follow[] @relation("follower")
+
+  /**
+   * Self-relation
+   * Follow requests sent by this user
+   */
+  followRequestsSent FollowRequest[] @relation("FollowRequestRequester")
+
+  /**
+   * Self-relation
+   * Follow requests received by this user
+   */
+  followRequestsReceived FollowRequest[] @relation("FollowRequestTarget")
 
   /**
    * 1:N relation
@@ -116,6 +133,17 @@ enum UserRole {
   USER
   MODERATOR
   ADMIN
+}
+
+enum UserPrivacySetting {
+  PUBLIC
+  PRIVATE
+}
+
+enum AccountState {
+  ACTIVE
+  SUSPENDED
+  DEACTIVATED
 }
 
 model Post {
@@ -330,11 +358,14 @@ model Comment {
 enum ModerationActionType {
   REMOVE_POST
   REMOVE_COMMENT
+  SUSPEND_USER
+  REACTIVATE_USER
 }
 
 enum ModerationTargetType {
   POST
   COMMENT
+  USER
 }
 
 model ModerationAction {
@@ -412,6 +443,60 @@ model Follow {
   @@index([followingId])
   // Improves public follow-list cursor pagination ordered by newest first
   @@index([createdAt(sort: Desc), id(sort: Desc)])
+}
+
+enum FollowRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELED
+}
+
+model FollowRequest {
+  id Int @id @default(autoincrement())
+
+  // Id of the user who sent the follow request
+  requesterId Int
+
+  // Id of the private-account user who received the follow request
+  targetUserId Int
+
+  /**
+   * Current workflow state for the follow request
+   * Defaults to pending until the target user approves, rejects, or the requester cancels
+   */
+  status FollowRequestStatus @default(PENDING)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /**
+   * Relation to User (the requester)
+   * "FollowRequestRequester" is the relation name
+   * needed because User is referenced twice
+   */
+  requester User @relation("FollowRequestRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+
+  /**
+   * Relation to User (the target user)
+   * "FollowRequestTarget" is the relation name
+   * needed because User is referenced twice
+   */
+  targetUser User @relation("FollowRequestTarget", fields: [targetUserId], references: [id], onDelete: Cascade)
+
+  // Ensures only one active request record exists per requester-target pair
+  @@unique([requesterId, targetUserId])
+  /**
+   * Improves inbox-style queries for requests received by a target user
+   * filtered by status and ordered by newest first with deterministic id tie-breaking
+   */
+  @@index([targetUserId, status, createdAt(sort: Desc), id(sort: Desc)])
+  /**
+   * Improves sent-request queries for a requester
+   * filtered by status and ordered by newest first with deterministic id tie-breaking
+   */
+  @@index([requesterId, status, createdAt(sort: Desc), id(sort: Desc)])
 }
 
 model UserBlock {

@@ -44,6 +44,9 @@ type SafeUser implements PublicUserIdentity {
   name: String!
   username: String!
 
+  """Account-wide privacy mode for this user."""
+  privacySetting: UserPrivacySetting!
+
   """Whether the user has verified ownership of their email address."""
   isEmailVerified: Boolean!
 
@@ -71,6 +74,12 @@ interface PublicUserIdentity {
   id: ID!
   name: String!
   username: String!
+}
+
+"""Controls whether a user's account is public or private"""
+enum UserPrivacySetting {
+  PUBLIC
+  PRIVATE
 }
 
 """
@@ -201,6 +210,65 @@ type CommentPage {
 
   """Cursor navigation metadata for the current page."""
   pageInfo: PageInfo!
+}
+
+"""
+Core representation of a FollowRequest entity for private-account approval flows.
+"""
+type FollowRequest {
+  """Unique identifier of the follow request record."""
+  id: ID!
+
+  """Current review state of the follow request."""
+  status: FollowRequestStatus!
+
+  """Timestamp indicating when the follow request was originally created."""
+  createdAt: DateTime!
+
+  """
+  Presentation-friendly UTC timestamp for when the follow request was originally created.
+  """
+  createdAtFormatted: String
+
+  """Public safe preview of the user who initiated the follow request."""
+  requester: SafeUserPreview!
+
+  """
+  Public safe preview of the target user who must approve or reject the request.
+  """
+  targetUser: SafeUserPreview!
+}
+
+"""Represents the current state of a follow request"""
+enum FollowRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELED
+}
+
+"""Cursor-paginated page of follow requests plus navigation metadata."""
+type FollowRequestPage {
+  """Items returned for the current page."""
+  items: [FollowRequest!]!
+
+  """Cursor navigation metadata for the current page."""
+  pageInfo: PageInfo!
+}
+
+"""Result returned after attempting to follow a user."""
+type FollowUserResult {
+  """Final outcome of the follow attempt."""
+  status: FollowRequestStatus!
+
+  """Created follow id when the relationship was established immediately."""
+  followId: ID
+
+  """Follow request id when the target account requires approval."""
+  followRequestId: ID
+
+  """Optional human-readable summary of the outcome."""
+  message: String
 }
 
 """Core representation of a Follow relationship between two users."""
@@ -784,6 +852,25 @@ type PostPage {
   pageInfo: PageInfo!
 }
 
+"""Authenticated viewer's privacy and account-state settings."""
+type MyPrivacySettings {
+  """Human-readable result message for privacy-setting reads or updates."""
+  message: String!
+
+  """Current account-wide privacy mode."""
+  privacySetting: UserPrivacySetting!
+
+  """Current account access state."""
+  accountState: AccountState!
+}
+
+"""Represents the current access state of a user account"""
+enum AccountState {
+  ACTIVE
+  SUSPENDED
+  DEACTIVATED
+}
+
 """
 Public user payload returned immediately after successful account creation.
 """
@@ -838,6 +925,7 @@ type Query {
     """Public username used to identify a user profile."""
     username: String!
   ): SafeUser!
+  myPrivacySettings: MyPrivacySettings!
   posts(
     """Maximum number of items to return (1-${PAGINATION.MAX_TAKE})."""
     first: Int
@@ -953,6 +1041,30 @@ type Query {
     orderBy: ChronologicalOrder
   ): FollowPage!
   followById(id: Int!): Follow!
+  myIncomingFollowRequests(
+    """Maximum number of items to return (1-${PAGINATION.MAX_TAKE})."""
+    first: Int
+
+    """
+    Cursor for the last item from the previous page. Reuse it only with the same filter and ordering inputs.
+    """
+    after: String
+
+    """Controls chronological ordering for paged list results."""
+    orderBy: ChronologicalOrder
+  ): FollowRequestPage!
+  myOutgoingFollowRequests(
+    """Maximum number of items to return (1-${PAGINATION.MAX_TAKE})."""
+    first: Int
+
+    """
+    Cursor for the last item from the previous page. Reuse it only with the same filter and ordering inputs.
+    """
+    after: String
+
+    """Controls chronological ordering for paged list results."""
+    orderBy: ChronologicalOrder
+  ): FollowRequestPage!
   reviewReports(
     """Maximum number of items to return (1-${PAGINATION.MAX_TAKE})."""
     first: Int
@@ -1015,7 +1127,10 @@ type Mutation {
   logout(input: LogoutInput!): MessageResponse!
   createUser(input: CreateUserInput!): CreatedUser!
   updateMe(input: UpdateUserInput!): SafeUser!
+  updateMyPrivacySetting(input: UpdateMyPrivacySettingInput!): MyPrivacySettings!
   deleteMe: MessageResponse!
+  suspendUser(input: SuspendUserInput!): MessageResponse!
+  reactivateUser(input: ReactivateUserInput!): MessageResponse!
   createPost(input: CreatePostInput!): CreatedPost!
   updatePost(id: Int!, input: UpdatePostInput!): Post!
   deletePost(id: Int!): MessageResponse!
@@ -1029,7 +1144,10 @@ type Mutation {
   markAllNotificationsAsRead: MessageResponse!
   blockUser(input: BlockUserInput!): MessageResponse!
   unblockUser(input: UnblockUserInput!): MessageResponse!
-  createFollow(followingId: Int!): Follow!
+  followUser(userId: Int!): FollowUserResult!
+  approveFollowRequest(requestId: Int!): FollowRequest!
+  rejectFollowRequest(requestId: Int!): FollowRequest!
+  cancelFollowRequest(requestId: Int!): FollowRequest!
   deleteFollow(id: Int!): MessageResponse!
   reportPost(input: ReportPostInput!): MessageResponse!
   reportComment(input: ReportCommentInput!): MessageResponse!
@@ -1105,6 +1223,32 @@ input UpdateUserInput {
 
   """Updated plain-text password that will be re-hashed before persistence."""
   password: String
+}
+
+"""
+Updates the current authenticated user's account-level privacy setting.
+"""
+input UpdateMyPrivacySettingInput {
+  """New account privacy setting applied to profile and content visibility."""
+  privacySetting: UserPrivacySetting!
+}
+
+"""Moderation input used to suspend a user account."""
+input SuspendUserInput {
+  """User id to suspend."""
+  userId: Int!
+
+  """Required moderation reason for the suspension."""
+  reason: String!
+}
+
+"""Moderation input used to reactivate a suspended user account."""
+input ReactivateUserInput {
+  """User id to reactivate."""
+  userId: Int!
+
+  """Required moderation reason for the reactivation."""
+  reason: String!
 }
 
 input CreatePostInput {

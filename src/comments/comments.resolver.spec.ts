@@ -18,13 +18,14 @@ describe("CommentsResolver", () => {
       first: 5,
       after: "cursor",
       orderBy: ChronologicalOrder.OLDEST,
-    });
+    }, { id: 4, role: "USER" });
 
     expect(commentsService.findCommentsByPost).toHaveBeenCalledWith({
       postId: 10,
       first: 5,
       after: "cursor",
       orderBy: ChronologicalOrder.OLDEST,
+      viewerId: 4,
     });
   });
 

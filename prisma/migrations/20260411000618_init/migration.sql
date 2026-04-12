@@ -6,6 +6,11 @@ CREATE TABLE `User` (
     `username` VARCHAR(191) NOT NULL,
     `password` VARCHAR(191) NOT NULL,
     `role` ENUM('USER', 'MODERATOR', 'ADMIN') NOT NULL DEFAULT 'USER',
+    `privacySetting` ENUM('PUBLIC', 'PRIVATE') NOT NULL DEFAULT 'PUBLIC',
+    `accountState` ENUM('ACTIVE', 'SUSPENDED', 'DEACTIVATED') NOT NULL DEFAULT 'ACTIVE',
+    `accountStateReason` VARCHAR(191) NULL,
+    `accountStateChangedAt` DATETIME(3) NULL,
+    `accountStateChangedById` INTEGER NULL,
     `isEmailVerified` BOOLEAN NOT NULL DEFAULT false,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
@@ -66,8 +71,8 @@ CREATE TABLE `Comment` (
 CREATE TABLE `ModerationAction` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `actorId` INTEGER NOT NULL,
-    `actionType` ENUM('REMOVE_POST', 'REMOVE_COMMENT') NOT NULL,
-    `targetType` ENUM('POST', 'COMMENT') NOT NULL,
+    `actionType` ENUM('REMOVE_POST', 'REMOVE_COMMENT', 'SUSPEND_USER', 'REACTIVATE_USER') NOT NULL,
+    `targetType` ENUM('POST', 'COMMENT', 'USER') NOT NULL,
     `targetId` INTEGER NOT NULL,
     `reason` VARCHAR(191) NOT NULL,
     `reportId` INTEGER NULL,
@@ -94,6 +99,21 @@ CREATE TABLE `Follow` (
     INDEX `Follow_followingId_idx`(`followingId`),
     INDEX `Follow_createdAt_id_idx`(`createdAt` DESC, `id` DESC),
     UNIQUE INDEX `Follow_followerId_followingId_key`(`followerId`, `followingId`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `FollowRequest` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `requesterId` INTEGER NOT NULL,
+    `targetUserId` INTEGER NOT NULL,
+    `status` ENUM('PENDING', 'APPROVED', 'REJECTED', 'CANCELED') NOT NULL DEFAULT 'PENDING',
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    INDEX `FollowRequest_targetUserId_status_createdAt_id_idx`(`targetUserId`, `status`, `createdAt` DESC, `id` DESC),
+    INDEX `FollowRequest_requesterId_status_createdAt_id_idx`(`requesterId`, `status`, `createdAt` DESC, `id` DESC),
+    UNIQUE INDEX `FollowRequest_requesterId_targetUserId_key`(`requesterId`, `targetUserId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -291,6 +311,12 @@ ALTER TABLE `Follow` ADD CONSTRAINT `Follow_followerId_fkey` FOREIGN KEY (`follo
 
 -- AddForeignKey
 ALTER TABLE `Follow` ADD CONSTRAINT `Follow_followingId_fkey` FOREIGN KEY (`followingId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `FollowRequest` ADD CONSTRAINT `FollowRequest_requesterId_fkey` FOREIGN KEY (`requesterId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `FollowRequest` ADD CONSTRAINT `FollowRequest_targetUserId_fkey` FOREIGN KEY (`targetUserId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `UserBlock` ADD CONSTRAINT `UserBlock_blockerId_fkey` FOREIGN KEY (`blockerId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;

@@ -28,6 +28,8 @@ import { UpdatePostInput } from "@/posts/dto/update-post.input";
 import { R2StorageService } from "@/media/storage/r2-storage.service";
 import { PostReadService } from "@/posts/post-read.service";
 import { PrismaService } from "@/prisma/prisma.service";
+import { AccountState } from "@/users/enums/account-state.enum";
+import { UserPrivacySetting } from "@/users/enums/user-privacy-setting.enum";
 
 import { PostsService } from "./posts.service";
 
@@ -47,6 +49,8 @@ describe("PostsService", () => {
       id,
       name: `User ${id}`,
       username: `user${id}`,
+      privacySetting: UserPrivacySetting.PUBLIC,
+      accountState: AccountState.ACTIVE,
     },
   });
 
@@ -124,6 +128,12 @@ describe("PostsService", () => {
   beforeEach(async () => {
     jest.clearAllMocks();
     mem.clear();
+    prismaMock.user.findUnique.mockResolvedValue({
+      id: 7,
+      accountState: AccountState.ACTIVE,
+      privacySetting: UserPrivacySetting.PUBLIC,
+    });
+    prismaMock.userBlock.findMany.mockResolvedValue([]);
     r2StorageMock.getPublicUrl.mockImplementation(
       (objectKey: string) => `https://media.example.com/${objectKey}`,
     );
@@ -201,6 +211,12 @@ describe("PostsService", () => {
           AND: [
             { removedAt: null },
             {
+              author: {
+                privacySetting: UserPrivacySetting.PUBLIC,
+                accountState: { not: AccountState.DEACTIVATED },
+              },
+            },
+            {
               OR: [
                 { title: { contains: expectedSearch } },
                 { content: { contains: expectedSearch } },
@@ -237,7 +253,17 @@ describe("PostsService", () => {
 
       expect(prismaMock.post.findMany).toHaveBeenCalledWith({
         take: PAGINATION.DEFAULT_TAKE + 1,
-        where: { removedAt: null },
+        where: {
+          AND: [
+            { removedAt: null },
+            {
+              author: {
+                privacySetting: UserPrivacySetting.PUBLIC,
+                accountState: { not: AccountState.DEACTIVATED },
+              },
+            },
+          ],
+        },
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         select: SafePostListSelect,
       });
@@ -291,6 +317,12 @@ describe("PostsService", () => {
               removedAt: null,
             },
             {
+              author: {
+                privacySetting: UserPrivacySetting.PUBLIC,
+                accountState: { not: AccountState.DEACTIVATED },
+              },
+            },
+            {
               OR: [
                 { createdAt: { gt: new Date("2026-04-10T00:00:00.000Z") } },
                 {
@@ -319,7 +351,17 @@ describe("PostsService", () => {
 
       expect(prismaMock.post.findMany).toHaveBeenCalledWith({
         take: 6,
-        where: { removedAt: null },
+        where: {
+          AND: [
+            { removedAt: null },
+            {
+              author: {
+                privacySetting: UserPrivacySetting.PUBLIC,
+                accountState: { not: AccountState.DEACTIVATED },
+              },
+            },
+          ],
+        },
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         select: SafePostListSelect,
       });
@@ -329,7 +371,11 @@ describe("PostsService", () => {
   describe("findPostsByUsername", () => {
     it("normalizes username, caches timeline by author id, and returns a page of posts", async () => {
       cacheMock.getVersion.mockResolvedValue(4);
-      prismaMock.user.findUnique.mockResolvedValue({ id: 7 });
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: 7,
+        privacySetting: UserPrivacySetting.PUBLIC,
+        accountState: AccountState.ACTIVE,
+      });
       const rows = [makeListPost(3), makeListPost(2), makeListPost(1)];
       prismaMock.post.findMany.mockResolvedValue(rows);
       const after = encodeChronoCursor({
@@ -344,13 +390,12 @@ describe("PostsService", () => {
 
       expect(prismaMock.user.findUnique).toHaveBeenCalledWith({
         where: { username: "tester" },
-        select: { id: true },
+        select: {
+          id: true,
+          privacySetting: true,
+          accountState: true,
+        },
       });
-      expect(cacheMock.set).toHaveBeenCalledWith(
-        "user:lookup:username:tester",
-        7,
-        5 * 60_000,
-      );
       expect(cacheMock.getVersion).toHaveBeenCalledWith("v:user:7:posts:list");
       expect(cacheMock.getOrSet).toHaveBeenCalledWith(
         `user:7:posts:list:v4:first=${PAGINATION.MAX_TAKE}:after=${after}:order=${ChronologicalOrder.NEWEST}`,
@@ -381,17 +426,6 @@ describe("PostsService", () => {
       expect(res.pageInfo.hasNextPage).toBe(false);
     });
 
-    it("uses cached username lookup id when available", async () => {
-      mem.set("user:lookup:username:tester", 7);
-      cacheMock.getVersion.mockResolvedValue(2);
-      prismaMock.post.findMany.mockResolvedValue([]);
-
-      await service.findPostsByUsername("tester");
-
-      expect(prismaMock.user.findUnique).not.toHaveBeenCalled();
-      expect(cacheMock.getVersion).toHaveBeenCalledWith("v:user:7:posts:list");
-    });
-
     it("throws NotFoundException when author username does not exist", async () => {
       prismaMock.user.findUnique.mockResolvedValue(null);
 
@@ -403,7 +437,11 @@ describe("PostsService", () => {
     });
 
     it("returns an empty list when the author exists but has no posts", async () => {
-      prismaMock.user.findUnique.mockResolvedValue({ id: 7 });
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: 7,
+        privacySetting: UserPrivacySetting.PUBLIC,
+        accountState: AccountState.ACTIVE,
+      });
       cacheMock.getVersion.mockResolvedValue(1);
       prismaMock.post.findMany.mockResolvedValue([]);
 
@@ -428,7 +466,11 @@ describe("PostsService", () => {
     });
 
     it("hides moderated posts from postsByUsername", async () => {
-      prismaMock.user.findUnique.mockResolvedValue({ id: 7 });
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: 7,
+        privacySetting: UserPrivacySetting.PUBLIC,
+        accountState: AccountState.ACTIVE,
+      });
       cacheMock.getVersion.mockResolvedValue(1);
       const visibleRows = [makeListPost(2), makeListPost(1)];
       prismaMock.post.findMany.mockResolvedValue(visibleRows);
@@ -464,10 +506,18 @@ describe("PostsService", () => {
           AND: [
             { removedAt: null },
             {
+              author: {
+                accountState: AccountState.ACTIVE,
+              },
+            },
+            {
               OR: [
-                { authorId: 7 },
+                {
+                  authorId: 7,
+                },
                 {
                   author: {
+                    privacySetting: UserPrivacySetting.PRIVATE,
                     followers: {
                       some: {
                         followerId: 7,
@@ -504,10 +554,18 @@ describe("PostsService", () => {
           AND: [
             { removedAt: null },
             {
+              author: {
+                accountState: AccountState.ACTIVE,
+              },
+            },
+            {
               OR: [
-                { authorId: 7 },
+                {
+                  authorId: 7,
+                },
                 {
                   author: {
+                    privacySetting: UserPrivacySetting.PRIVATE,
                     followers: {
                       some: {
                         followerId: 7,
@@ -562,10 +620,18 @@ describe("PostsService", () => {
           AND: [
             { removedAt: null },
             {
+              author: {
+                accountState: AccountState.ACTIVE,
+              },
+            },
+            {
               OR: [
-                { authorId: 7 },
+                {
+                  authorId: 7,
+                },
                 {
                   author: {
+                    privacySetting: UserPrivacySetting.PRIVATE,
                     followers: {
                       some: {
                         followerId: 7,
@@ -608,10 +674,18 @@ describe("PostsService", () => {
               removedAt: null,
             },
             {
+              author: {
+                accountState: AccountState.ACTIVE,
+              },
+            },
+            {
               OR: [
-                { authorId: 7 },
+                {
+                  authorId: 7,
+                },
                 {
                   author: {
+                    privacySetting: UserPrivacySetting.PRIVATE,
                     followers: {
                       some: {
                         followerId: 7,
@@ -648,10 +722,18 @@ describe("PostsService", () => {
           AND: [
             { removedAt: null },
             {
+              author: {
+                accountState: AccountState.ACTIVE,
+              },
+            },
+            {
               OR: [
-                { authorId: 7 },
+                {
+                  authorId: 7,
+                },
                 {
                   author: {
+                    privacySetting: UserPrivacySetting.PRIVATE,
                     followers: {
                       some: {
                         followerId: 7,
@@ -695,7 +777,22 @@ describe("PostsService", () => {
       );
 
       expect(prismaMock.post.findFirst).toHaveBeenCalledWith({
-        where: { id: 10, removedAt: null },
+        where: {
+          AND: [
+            {
+              id: 10,
+              removedAt: null,
+              author: {
+                accountState: { not: AccountState.DEACTIVATED },
+              },
+            },
+            {
+              author: {
+                privacySetting: UserPrivacySetting.PUBLIC,
+              },
+            },
+          ],
+        },
         select: {
           ...SafePostDetailSelect,
           likes: {

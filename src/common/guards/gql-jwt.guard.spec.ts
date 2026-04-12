@@ -52,13 +52,14 @@ describe("GqlJwtGuard", () => {
     });
   });
 
-  it("returns true for public routes", async () => {
+  it("returns true for public routes even when passport auth fails", async () => {
     (reflector.getAllAndOverride as jest.Mock).mockReturnValue(true);
+    canActivateMock.mockRejectedValue(new Error("unauthorized"));
 
     const result = await guard.canActivate(context);
 
     expect(result).toBe(true);
-    expect(canActivateMock).not.toHaveBeenCalled();
+    expect(canActivateMock).toHaveBeenCalledWith(context);
   });
 
   it("delegates to passport guard for non-public routes", async () => {

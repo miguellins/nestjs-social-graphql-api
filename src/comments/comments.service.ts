@@ -6,8 +6,10 @@ import {
   InternalServerErrorException,
   Logger,
   NotFoundException,
+  UnauthorizedException,
 } from "@nestjs/common";
 
+import { GRAPHQL_ERROR_CODES } from "@/common/constants/graphql-error-code.constants";
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
 import { MessageResponse } from "@/common/types/message-response.type";
 import { decodeChronoCursor } from "@/common/pagination/chrono-cursor";
@@ -43,7 +45,9 @@ import {
 
 import type { AuthenticatedUser } from "@/auth/authenticated-user.type";
 
+import { UserPrivacySetting } from "@/users/enums/user-privacy-setting.enum";
 import { MODERATION_ROLE_SET } from "@/users/enums/user-role.enum";
+import { AccountState } from "@/users/enums/account-state.enum";
 
 import { PrismaService } from "@/prisma/prisma.service";
 import { Prisma } from "@prisma/client";
@@ -53,6 +57,7 @@ type FindCommentsByPostParams = {
   first?: number;
   postId: number;
   orderBy?: ChronologicalOrder;
+  viewerId?: number;
 };
 
 @Injectable()
@@ -68,6 +73,7 @@ export class CommentsService {
     input: CreateCommentCommand,
     currentUserId: number,
   ): Promise<SafeCommentDTO> {
+    await this.assertActiveCurrentUserById(currentUserId);
     const data = this.parseCreateCommentInput(input);
 
     const post = await this.prisma.post.findUnique({
@@ -122,13 +128,43 @@ export class CommentsService {
     first,
     postId,
     orderBy,
+    viewerId,
   }: FindCommentsByPostParams): Promise<CursorPageResult<SafeCommentDTO>> {
+    if (viewerId !== undefined) {
+      await this.assertActiveCurrentUserById(viewerId);
+    }
+
     const post = await this.prisma.post.findUnique({
       where: { id: postId },
-      select: { id: true, removedAt: true },
+      select: {
+        id: true,
+        authorId: true,
+        removedAt: true,
+        author: {
+          select: {
+            accountState: true,
+            privacySetting: true,
+          },
+        },
+      },
     });
 
-    if (!post || post.removedAt) throw new NotFoundException("Post not found");
+    if (
+      !post ||
+      post.removedAt ||
+      post.author.accountState === AccountState.DEACTIVATED
+    ) {
+      throw new NotFoundException("Post not found");
+    }
+
+    if (
+      !(await this.canViewerReadPostContent(viewerId, {
+        authorId: post.authorId,
+        privacySetting: post.author.privacySetting,
+      }))
+    ) {
+      throw new NotFoundException("Post not found");
+    }
 
     const normalizedTake = normalizeCursorTake(first);
     const orderby = orderBy ?? ChronologicalOrder.NEWEST;
@@ -160,6 +196,7 @@ export class CommentsService {
     input: UpdateCommentCommand,
     currentUserId: number,
   ): Promise<SafeCommentDTO> {
+    await this.assertActiveCurrentUserById(currentUserId);
     const data = this.parseUpdateCommentInput(input);
 
     const updateData: Prisma.CommentUpdateInput = {
@@ -228,6 +265,7 @@ export class CommentsService {
     commentId: number,
     currentUserId: number,
   ): Promise<MessageResponse> {
+    await this.assertActiveCurrentUserById(currentUserId);
     const comment = await this.prisma.comment.findUnique({
       where: { id: commentId },
 
@@ -292,6 +330,7 @@ export class CommentsService {
     input: RemoveCommentByModeratorCommand,
     currentUser: AuthenticatedUser,
   ): Promise<MessageResponse> {
+    await this.assertActiveCurrentUserById(currentUser.id);
     this.assertCanModerateContent(currentUser);
 
     const data = this.parseRemoveCommentByModeratorInput(input);
@@ -447,6 +486,89 @@ export class CommentsService {
         "You do not have permission to moderate content",
       );
     }
+  }
+
+  /** Enforces active-account status for authenticated comment operations. */
+  private async assertActiveCurrentUserById(
+    currentUserId: number,
+  ): Promise<void> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: currentUserId },
+      select: {
+        accountState: true,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException("Current user not found");
+    }
+
+    if (user.accountState === AccountState.SUSPENDED) {
+      throw new UnauthorizedException({
+        message: "This account is suspended",
+        code: GRAPHQL_ERROR_CODES.ACCOUNT_SUSPENDED,
+      });
+    }
+
+    if (user.accountState === AccountState.DEACTIVATED) {
+      throw new UnauthorizedException({
+        message: "This account is deactivated",
+        code: GRAPHQL_ERROR_CODES.ACCOUNT_DEACTIVATED,
+      });
+    }
+  }
+
+  /** Checks whether the viewer can read comments by virtue of the parent post visibility. */
+  private async canViewerReadPostContent(
+    viewerId: number | undefined,
+    post: {
+      authorId: number;
+      privacySetting: UserPrivacySetting;
+    },
+  ): Promise<boolean> {
+    if (viewerId === post.authorId) {
+      return true;
+    }
+
+    if (!viewerId) {
+      return post.privacySetting === UserPrivacySetting.PUBLIC;
+    }
+
+    const blockRelationship = await this.prisma.userBlock.findFirst({
+      where: {
+        OR: [
+          {
+            blockerId: viewerId,
+            blockedId: post.authorId,
+          },
+          {
+            blockerId: post.authorId,
+            blockedId: viewerId,
+          },
+        ],
+      },
+      select: { id: true },
+    });
+
+    if (blockRelationship) {
+      return false;
+    }
+
+    if (post.privacySetting === UserPrivacySetting.PUBLIC) {
+      return true;
+    }
+
+    const follow = await this.prisma.follow.findUnique({
+      where: {
+        followerId_followingId: {
+          followerId: viewerId,
+          followingId: post.authorId,
+        },
+      },
+      select: { id: true },
+    });
+
+    return Boolean(follow);
   }
 
   /** Logs and throws InternalServerErrorException for unexpected persistence errors. */

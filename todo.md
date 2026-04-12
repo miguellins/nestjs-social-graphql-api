@@ -10,6 +10,7 @@ via the GitLens Inspect
 - UPDATE THE .GITIGNORE FILE
 - UPDATE ALL .MD FILES
 - Check my project and evaluate whether barrel imports are useful now that the codebase has grown.
+- ADD PNG LOGOS OF ALL STACK/TECHNOLOGIES/LIBRARIES IN THE README.MD FILE. ASK CHATGPT IF THIS IS A GOOD IDEA
 
 
 

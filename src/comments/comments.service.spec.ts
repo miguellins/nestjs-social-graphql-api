@@ -19,6 +19,8 @@ import { PAGINATION } from "@/common/constants/hard-cap.constants";
 import { encodeChronoCursor } from "@/common/pagination/chrono-cursor";
 
 import { PrismaService } from "@/prisma/prisma.service";
+import { AccountState } from "@/users/enums/account-state.enum";
+import { UserPrivacySetting } from "@/users/enums/user-privacy-setting.enum";
 
 import { CommentsService } from "./comments.service";
 
@@ -44,6 +46,9 @@ describe("CommentsService", () => {
       findUnique: jest.Mock;
       update: jest.Mock;
     };
+    user: {
+      findUnique: jest.Mock;
+    };
     contentReport: {
       updateMany: jest.Mock;
     };
@@ -62,6 +67,9 @@ describe("CommentsService", () => {
     post: {
       findUnique: jest.fn(),
       update: jest.fn(),
+    },
+    user: {
+      findUnique: jest.fn(),
     },
     contentReport: {
       updateMany: jest.fn(),
@@ -89,6 +97,9 @@ describe("CommentsService", () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    prismaMock.user.findUnique.mockResolvedValue({
+      accountState: AccountState.ACTIVE,
+    });
 
     moduleRef = await Test.createTestingModule({
       providers: [
@@ -123,7 +134,11 @@ describe("CommentsService", () => {
     });
 
     it("creates comment in transaction, increments counter and invalidates cache", async () => {
-      prismaMock.post.findUnique.mockResolvedValue({ id: 1, authorId: 7 });
+      prismaMock.post.findUnique.mockResolvedValue({
+        id: 1,
+        authorId: 7,
+        removedAt: null,
+      });
 
       const created = {
         id: 99,
@@ -225,7 +240,15 @@ describe("CommentsService", () => {
     });
 
     it("uses cursor pagination defaults when first is not provided", async () => {
-      prismaMock.post.findUnique.mockResolvedValue({ id: 1 });
+      prismaMock.post.findUnique.mockResolvedValue({
+        id: 1,
+        authorId: 7,
+        removedAt: null,
+        author: {
+          accountState: AccountState.ACTIVE,
+          privacySetting: UserPrivacySetting.PUBLIC,
+        },
+      });
       prismaMock.comment.findMany.mockResolvedValue([]);
 
       await service.findCommentsByPost({ postId: 1 });
@@ -239,7 +262,15 @@ describe("CommentsService", () => {
     });
 
     it("caps first to max pagination value", async () => {
-      prismaMock.post.findUnique.mockResolvedValue({ id: 1 });
+      prismaMock.post.findUnique.mockResolvedValue({
+        id: 1,
+        authorId: 7,
+        removedAt: null,
+        author: {
+          accountState: AccountState.ACTIVE,
+          privacySetting: UserPrivacySetting.PUBLIC,
+        },
+      });
       prismaMock.comment.findMany.mockResolvedValue([]);
 
       await service.findCommentsByPost({
@@ -256,7 +287,15 @@ describe("CommentsService", () => {
     });
 
     it("returns a page and applies the cursor filter", async () => {
-      prismaMock.post.findUnique.mockResolvedValue({ id: 1 });
+      prismaMock.post.findUnique.mockResolvedValue({
+        id: 1,
+        authorId: 7,
+        removedAt: null,
+        author: {
+          accountState: AccountState.ACTIVE,
+          privacySetting: UserPrivacySetting.PUBLIC,
+        },
+      });
       const rows = [makeComment(3), makeComment(2), makeComment(1)];
       prismaMock.comment.findMany.mockResolvedValue(rows);
       const after = encodeChronoCursor({
@@ -297,7 +336,15 @@ describe("CommentsService", () => {
     });
 
     it("throws BadRequestException for an invalid cursor", async () => {
-      prismaMock.post.findUnique.mockResolvedValue({ id: 1 });
+      prismaMock.post.findUnique.mockResolvedValue({
+        id: 1,
+        authorId: 7,
+        removedAt: null,
+        author: {
+          accountState: AccountState.ACTIVE,
+          privacySetting: UserPrivacySetting.PUBLIC,
+        },
+      });
 
       await expect(
         service.findCommentsByPost({
@@ -311,7 +358,15 @@ describe("CommentsService", () => {
     });
 
     it("uses ascending tie-breaker filtering for OLDEST comment pagination", async () => {
-      prismaMock.post.findUnique.mockResolvedValue({ id: 1 });
+      prismaMock.post.findUnique.mockResolvedValue({
+        id: 1,
+        authorId: 7,
+        removedAt: null,
+        author: {
+          accountState: AccountState.ACTIVE,
+          privacySetting: UserPrivacySetting.PUBLIC,
+        },
+      });
       prismaMock.comment.findMany.mockResolvedValue([]);
       const after = encodeChronoCursor({
         createdAt: new Date("2026-04-10T00:00:00.000Z"),
@@ -350,7 +405,12 @@ describe("CommentsService", () => {
     it("hides moderated comments from commentsByPost", async () => {
       prismaMock.post.findUnique.mockResolvedValue({
         id: 1,
+        authorId: 7,
         removedAt: null,
+        author: {
+          accountState: AccountState.ACTIVE,
+          privacySetting: UserPrivacySetting.PUBLIC,
+        },
       });
       const visibleRows = [makeComment(2), makeComment(1)];
       prismaMock.comment.findMany.mockResolvedValue(visibleRows);
@@ -384,6 +444,7 @@ describe("CommentsService", () => {
         id: 1,
         authorId: 999,
         postId: 3,
+        removedAt: null,
       });
 
       await expect(service.deleteComment(1, 10)).rejects.toBeInstanceOf(
@@ -396,6 +457,7 @@ describe("CommentsService", () => {
         id: 1,
         authorId: 10,
         postId: 3,
+        removedAt: null,
         post: {
           authorId: 7,
         },
@@ -450,6 +512,7 @@ describe("CommentsService", () => {
         id: 1,
         authorId: 10,
         postId: 3,
+        removedAt: null,
         post: {
           authorId: 7,
         },
@@ -830,6 +893,7 @@ describe("CommentsService", () => {
         id: 1,
         authorId: 10,
         postId: 3,
+        removedAt: null,
       });
       prismaMock.comment.update.mockResolvedValue({
         id: 1,
@@ -860,6 +924,7 @@ describe("CommentsService", () => {
         id: 1,
         authorId: 10,
         postId: 3,
+        removedAt: null,
       });
       prismaMock.comment.update.mockRejectedValue(
         new Prisma.PrismaClientKnownRequestError("missing", {
@@ -878,6 +943,7 @@ describe("CommentsService", () => {
         id: 1,
         authorId: 10,
         postId: 3,
+        removedAt: null,
       });
       prismaMock.comment.update.mockRejectedValue(new Error("boom"));
 

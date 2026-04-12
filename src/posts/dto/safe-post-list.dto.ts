@@ -1,5 +1,8 @@
 import type { Prisma } from "@prisma/client";
 
+import { UserPrivacySetting } from "@/users/enums/user-privacy-setting.enum";
+import { AccountState } from "@/users/enums/account-state.enum";
+
 /** Defines the safe post list shape used by services. */
 export type SafePostListDTO = {
   id: number;
@@ -13,6 +16,8 @@ export type SafePostListDTO = {
     id: number;
     name: string;
     username: string;
+    privacySetting: UserPrivacySetting;
+    accountState: AccountState;
   };
 };
 
@@ -30,6 +35,8 @@ export const SafePostListSelect = {
       id: true,
       name: true,
       username: true,
+      privacySetting: true,
+      accountState: true,
     },
   },
 } satisfies Prisma.PostSelect;

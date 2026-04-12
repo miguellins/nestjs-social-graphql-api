@@ -71,6 +71,22 @@ export class BlocksService {
       select: { id: true },
     });
 
+    const existingFollowRequestIds = await this.prisma.followRequest.findMany({
+      where: {
+        OR: [
+          {
+            requesterId: currentUserId,
+            targetUserId: targetUserId,
+          },
+          {
+            requesterId: targetUserId,
+            targetUserId: currentUserId,
+          },
+        ],
+      },
+      select: { id: true },
+    });
+
     try {
       await this.prisma.$transaction(async (tx) => {
         await tx.userBlock.upsert({
@@ -101,6 +117,21 @@ export class BlocksService {
             ],
           },
         });
+
+        await tx.followRequest.deleteMany({
+          where: {
+            OR: [
+              {
+                requesterId: currentUserId,
+                targetUserId: targetUserId,
+              },
+              {
+                requesterId: targetUserId,
+                targetUserId: currentUserId,
+              },
+            ],
+          },
+        });
       });
     } catch (err) {
       this.throwBlockPersistenceFailure(err);
@@ -118,6 +149,16 @@ export class BlocksService {
         if (existingFollowIds.length > 0) {
           await this.cacheHelper.bumpVersion("v:follows:list");
           await this.cacheHelper.bumpVersion("v:user:list");
+        }
+
+        if (existingFollowRequestIds.length > 0) {
+          await this.cacheHelper.bumpVersion(
+            `v:user:${currentUserId}:posts:list`,
+          );
+          await this.cacheHelper.bumpVersion(
+            `v:user:${targetUserId}:posts:list`,
+          );
+          await this.cacheHelper.bumpVersion("v:posts:list");
         }
 
         await this.cacheHelper.del(`user:safe:${currentUserId}`);

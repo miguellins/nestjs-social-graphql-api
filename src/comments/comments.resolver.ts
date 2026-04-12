@@ -12,7 +12,7 @@ import { Comment } from "@/comments/models/comment.model";
 import { CurrentUser } from "@/common/decorators/current-user.decorator";
 import { THROTTLE_LIMITS } from "@/common/constants/throttle.constants";
 import { MessageResponse } from "@/common/types/message-response.type";
-import { Public, Roles } from "@/common/decorators/auth.decorator";
+import { Roles } from "@/common/decorators/auth.decorator";
 
 import type { AuthenticatedUser } from "@/auth/authenticated-user.type";
 
@@ -31,17 +31,18 @@ export class CommentsResolver {
     return this.commentsService.createComment(input, user.id);
   }
 
-  @Public()
   @Throttle({ default: THROTTLE_LIMITS.LIST })
   @Query(() => CommentPage, { name: "commentsByPost" })
   async commentsByPost(
     @Args() args: FindCommentsByPostArgs,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<CommentPage> {
     return this.commentsService.findCommentsByPost({
       postId: args.postId,
       first: args.first,
       after: args.after,
       orderBy: args.orderBy,
+      viewerId: user.id,
     });
   }
 

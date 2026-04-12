@@ -13,6 +13,7 @@ import { PasswordResetDeliveryService } from "@/auth/password-reset-delivery.ser
 import { SALT_ROUNDS } from "@/common/constants/security.constants";
 import { PasswordService } from "@/common/security/password.service";
 import { PrismaService } from "@/prisma/prisma.service";
+import { AccountState } from "@/users/enums/account-state.enum";
 import { USER_ROLE } from "@/users/enums/user-role.enum";
 
 import { AuthService } from "./auth.service";
@@ -173,7 +174,13 @@ describe("AuthService", () => {
 
       expect(userFindUniqueMock).toHaveBeenCalledWith({
         where: { username: "john" },
-        select: { id: true, username: true, password: true, role: true },
+        select: {
+          id: true,
+          username: true,
+          password: true,
+          role: true,
+          accountState: true,
+        },
       });
     });
 
@@ -193,6 +200,7 @@ describe("AuthService", () => {
         username: "john",
         password: await passwordService.hashPassword("correct-password"),
         role: USER_ROLE.USER,
+        accountState: AccountState.ACTIVE,
       });
 
       await expect(
@@ -208,6 +216,7 @@ describe("AuthService", () => {
         username: "john",
         password: await passwordService.hashPassword("pass12345"),
         role: USER_ROLE.USER,
+        accountState: AccountState.ACTIVE,
       });
 
       signAsyncMock.mockResolvedValue("jwt.token.value");
@@ -219,7 +228,13 @@ describe("AuthService", () => {
 
       expect(userFindUniqueMock).toHaveBeenCalledWith({
         where: { username: "john" },
-        select: { id: true, username: true, password: true, role: true },
+        select: {
+          id: true,
+          username: true,
+          password: true,
+          role: true,
+          accountState: true,
+        },
       });
       expect(signAsyncMock).toHaveBeenCalledWith({
         sub: 7,
@@ -257,6 +272,7 @@ describe("AuthService", () => {
         username: "john",
         password: legacyHash,
         role: USER_ROLE.USER,
+        accountState: AccountState.ACTIVE,
       });
       signAsyncMock.mockResolvedValue("jwt.token.value");
 
@@ -288,6 +304,7 @@ describe("AuthService", () => {
         username: "john",
         password: "stored-hash",
         role: USER_ROLE.USER,
+        accountState: AccountState.ACTIVE,
       });
       signAsyncMock.mockRejectedValue(new Error("jwt fail"));
 
@@ -321,6 +338,7 @@ describe("AuthService", () => {
         username: "john",
         password: "hashed",
         role: USER_ROLE.USER,
+        accountState: AccountState.ACTIVE,
       });
 
       const verifySpy = jest
@@ -352,6 +370,7 @@ describe("AuthService", () => {
         userId: 7,
         user: {
           role: USER_ROLE.MODERATOR,
+          accountState: AccountState.ACTIVE,
         },
       });
       refreshSessionCreateMock.mockResolvedValue({ id: 12 });
@@ -423,6 +442,7 @@ describe("AuthService", () => {
         user: {
           select: {
             role: true,
+            accountState: true,
           },
         },
       });
@@ -471,6 +491,7 @@ describe("AuthService", () => {
           userId: 7,
           user: {
             role: USER_ROLE.MODERATOR,
+            accountState: AccountState.ACTIVE,
           },
         })
         .mockResolvedValueOnce(null);

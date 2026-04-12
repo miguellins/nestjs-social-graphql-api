@@ -27,6 +27,9 @@ describe("BlocksService", () => {
     follow: {
       findMany: jest.fn(),
     },
+    followRequest: {
+      findMany: jest.fn(),
+    },
     userBlock: {
       upsert: jest.fn(),
       deleteMany: jest.fn(),
@@ -43,6 +46,9 @@ describe("BlocksService", () => {
     follow: {
       deleteMany: jest.fn(),
     },
+    followRequest: {
+      deleteMany: jest.fn(),
+    },
   };
 
   const cacheMock = {
@@ -54,6 +60,8 @@ describe("BlocksService", () => {
     id,
     name: `User ${id}`,
     username: `user${id}`,
+    privacySetting: "PUBLIC",
+    accountState: "ACTIVE",
     isEmailVerified: true,
     createdAt: new Date(`2026-04-0${id}T00:00:00.000Z`),
     updatedAt: new Date(`2026-04-1${id}T00:00:00.000Z`),
@@ -110,6 +118,7 @@ describe("BlocksService", () => {
     it("creates an idempotent block, removes follow edges, and invalidates caches", async () => {
       prismaMock.user.findUnique.mockResolvedValue({ id: 2 });
       prismaMock.follow.findMany.mockResolvedValue([{ id: 10 }, { id: 11 }]);
+      prismaMock.followRequest.findMany.mockResolvedValue([]);
 
       await expect(service.blockUser(1, 2)).resolves.toEqual({
         message: "User blocked successfully",
@@ -137,6 +146,14 @@ describe("BlocksService", () => {
           ],
         },
       });
+      expect(txMock.followRequest.deleteMany).toHaveBeenCalledWith({
+        where: {
+          OR: [
+            { requesterId: 1, targetUserId: 2 },
+            { requesterId: 2, targetUserId: 1 },
+          ],
+        },
+      });
       expect(cacheMock.del).toHaveBeenCalledWith("follow:detail:10");
       expect(cacheMock.del).toHaveBeenCalledWith("follow:detail:11");
       expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:follows:list");
@@ -148,6 +165,7 @@ describe("BlocksService", () => {
     it("returns the same success message on repeated block requests", async () => {
       prismaMock.user.findUnique.mockResolvedValue({ id: 2 });
       prismaMock.follow.findMany.mockResolvedValue([]);
+      prismaMock.followRequest.findMany.mockResolvedValue([]);
 
       await expect(service.blockUser(1, 2)).resolves.toEqual({
         message: "User blocked successfully",
@@ -162,6 +180,7 @@ describe("BlocksService", () => {
     it("does not bump follow caches when there were no follow edges to remove", async () => {
       prismaMock.user.findUnique.mockResolvedValue({ id: 2 });
       prismaMock.follow.findMany.mockResolvedValue([]);
+      prismaMock.followRequest.findMany.mockResolvedValue([]);
 
       await service.blockUser(1, 2);
 
@@ -172,6 +191,7 @@ describe("BlocksService", () => {
     it("maps known Prisma missing-target errors to NotFound", async () => {
       prismaMock.user.findUnique.mockResolvedValue({ id: 2 });
       prismaMock.follow.findMany.mockResolvedValue([]);
+      prismaMock.followRequest.findMany.mockResolvedValue([]);
       prismaMock.$transaction.mockRejectedValueOnce(
         new Prisma.PrismaClientKnownRequestError("missing user", {
           code: "P2003",
@@ -187,6 +207,7 @@ describe("BlocksService", () => {
     it("throws a sanitized error on unexpected persistence failure", async () => {
       prismaMock.user.findUnique.mockResolvedValue({ id: 2 });
       prismaMock.follow.findMany.mockResolvedValue([]);
+      prismaMock.followRequest.findMany.mockResolvedValue([]);
       prismaMock.$transaction.mockRejectedValueOnce(new Error("boom"));
 
       const loggerSpy = jest
@@ -317,22 +338,7 @@ describe("BlocksService", () => {
           createdAt: true,
           id: true,
           blocked: {
-            select: {
-              id: true,
-              name: true,
-              username: true,
-              isEmailVerified: true,
-              createdAt: true,
-              updatedAt: true,
-              _count: {
-                select: {
-                  likes: true,
-                  posts: true,
-                  followers: true,
-                  following: true,
-                },
-              },
-            },
+            select: SafeUserSelect,
           },
         },
       });

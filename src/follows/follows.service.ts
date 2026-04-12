@@ -5,8 +5,10 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  UnauthorizedException,
 } from "@nestjs/common";
 
+import { GRAPHQL_ERROR_CODES } from "@/common/constants/graphql-error-code.constants";
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
 import { MessageResponse } from "@/common/types/message-response.type";
 import { decodeChronoCursor } from "@/common/pagination/chrono-cursor";
@@ -22,10 +24,19 @@ import {
   type CursorPageResult,
 } from "@/common/pagination/cursor-pagination";
 
+import { FollowRequestStatus } from "@/follows/enums/follow-request-status.enum";
+import { FollowUserResult } from "@/follows/models/follow-user-result.model";
+import {
+  FollowRequestSelect,
+  type FollowRequestDTO,
+} from "@/follows/dto/follow-request.dto";
 import {
   type SafeFollowDTO,
   SafeFollowSelect,
 } from "@/follows/dto/safe-follow.dto";
+
+import { UserPrivacySetting } from "@/users/enums/user-privacy-setting.enum";
+import { AccountState } from "@/users/enums/account-state.enum";
 
 import { NotificationTriggerService } from "@/notifications/notification-trigger.service";
 
@@ -96,10 +107,10 @@ export class FollowsService {
     );
   }
 
-  async createFollow(
+  async followUser(
     currentUserId: number,
     followingId: number,
-  ): Promise<SafeFollowDTO> {
+  ): Promise<FollowUserResult> {
     const followerId = currentUserId;
 
     if (followerId === followingId) {
@@ -108,10 +119,16 @@ export class FollowsService {
 
     const target = await this.prisma.user.findUnique({
       where: { id: followingId },
-      select: { id: true },
+      select: {
+        id: true,
+        privacySetting: true,
+        accountState: true,
+      },
     });
 
-    if (!target) throw new NotFoundException("User to follow not found");
+    if (!target || target.accountState === AccountState.DEACTIVATED) {
+      throw new NotFoundException("User to follow not found");
+    }
 
     const currentUser = await this.prisma.user.findUnique({
       where: { id: followerId },
@@ -119,10 +136,13 @@ export class FollowsService {
       select: {
         id: true,
         username: true,
+        accountState: true,
       },
     });
 
     if (!currentUser) throw new NotFoundException("Current user not found");
+
+    this.assertActiveCurrentUser(currentUser.accountState);
 
     const blockRelationship = await this.prisma.userBlock.findFirst({
       where: {
@@ -144,13 +164,102 @@ export class FollowsService {
       throw new ForbiddenException("You cannot follow this user");
     }
 
+    const existingFollow = await this.prisma.follow.findUnique({
+      where: {
+        followerId_followingId: {
+          followerId,
+          followingId,
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (existingFollow) {
+      throw new ConflictException("You already follow this user");
+    }
+
+    if (target.privacySetting === UserPrivacySetting.PRIVATE) {
+      const request = await this.prisma.followRequest.findUnique({
+        where: {
+          requesterId_targetUserId: {
+            requesterId: followerId,
+            targetUserId: followingId,
+          },
+        },
+        select: {
+          id: true,
+          status: true,
+        },
+      });
+
+      if (request?.status === FollowRequestStatus.PENDING) {
+        throw new ConflictException({
+          message: "Follow request is already pending",
+          code: GRAPHQL_ERROR_CODES.FOLLOW_REQUEST_PENDING,
+        });
+      }
+
+      const followRequest = await this.prisma.followRequest.upsert({
+        where: {
+          requesterId_targetUserId: {
+            requesterId: followerId,
+            targetUserId: followingId,
+          },
+        },
+        update: {
+          status: FollowRequestStatus.PENDING,
+        },
+        create: {
+          requesterId: followerId,
+          targetUserId: followingId,
+          status: FollowRequestStatus.PENDING,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      return {
+        status: FollowRequestStatus.PENDING,
+        followRequestId: followRequest.id,
+        message: "Follow request sent",
+      };
+    }
+
+    const existingRequest = await this.prisma.followRequest.findUnique({
+      where: {
+        requesterId_targetUserId: {
+          requesterId: followerId,
+          targetUserId: followingId,
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
     let follow: SafeFollowDTO;
 
     try {
-      follow = await this.prisma.follow.create({
-        data: { followerId, followingId },
+      follow = await this.prisma.$transaction(async (tx) => {
+        const createdFollow = await tx.follow.create({
+          data: { followerId, followingId },
 
-        select: SafeFollowSelect,
+          select: SafeFollowSelect,
+        });
+
+        if (existingRequest) {
+          await tx.followRequest.update({
+            where: { id: existingRequest.id },
+            data: {
+              status: FollowRequestStatus.APPROVED,
+            },
+          });
+        }
+
+        return createdFollow;
       });
     } catch (err: unknown) {
       if (err instanceof Prisma.PrismaClientKnownRequestError) {
@@ -192,7 +301,281 @@ export class FollowsService {
       },
     );
 
-    return follow;
+    return {
+      status: FollowRequestStatus.APPROVED,
+      followId: follow.id,
+      message: "User followed successfully",
+    };
+  }
+
+  /** Backward-compatible helper used by older tests that still expect a direct follow object. */
+  async createFollow(
+    currentUserId: number,
+    followingId: number,
+  ): Promise<SafeFollowDTO> {
+    const result = await this.followUser(currentUserId, followingId);
+
+    if (!result.followId) {
+      throw new BadRequestException("Follow request created instead of follow");
+    }
+
+    return this.getFollow(result.followId);
+  }
+
+  async findIncomingFollowRequests(
+    currentUserId: number,
+    params?: {
+      after?: string;
+      first?: number;
+      orderBy?: ChronologicalOrder;
+    },
+  ): Promise<CursorPageResult<FollowRequestDTO>> {
+    await this.assertActiveCurrentUserById(currentUserId);
+
+    const take = normalizeCursorTake(params?.first);
+    const orderBy = params?.orderBy ?? ChronologicalOrder.NEWEST;
+    const cursor = params?.after ? decodeChronoCursor(params.after) : undefined;
+    const cursorFilter = buildChronologicalCursorFilter(cursor, orderBy);
+
+    const rows = await this.prisma.followRequest.findMany({
+      where: cursorFilter
+        ? {
+            AND: [
+              {
+                targetUserId: currentUserId,
+                status: FollowRequestStatus.PENDING,
+              },
+              cursorFilter,
+            ],
+          }
+        : {
+            targetUserId: currentUserId,
+            status: FollowRequestStatus.PENDING,
+          },
+      orderBy: [
+        { createdAt: toSortDirection(orderBy) },
+        { id: toSortDirection(orderBy) },
+      ],
+      take: take + 1,
+      select: FollowRequestSelect,
+    });
+
+    return buildCursorPage(
+      rows.map((row) => this.toFollowRequest(row)),
+      take,
+    );
+  }
+
+  async findOutgoingFollowRequests(
+    currentUserId: number,
+    params?: {
+      after?: string;
+      first?: number;
+      orderBy?: ChronologicalOrder;
+    },
+  ): Promise<CursorPageResult<FollowRequestDTO>> {
+    await this.assertActiveCurrentUserById(currentUserId);
+
+    const take = normalizeCursorTake(params?.first);
+    const orderBy = params?.orderBy ?? ChronologicalOrder.NEWEST;
+    const cursor = params?.after ? decodeChronoCursor(params.after) : undefined;
+    const cursorFilter = buildChronologicalCursorFilter(cursor, orderBy);
+
+    const rows = await this.prisma.followRequest.findMany({
+      where: cursorFilter
+        ? {
+            AND: [
+              {
+                requesterId: currentUserId,
+                status: FollowRequestStatus.PENDING,
+              },
+              cursorFilter,
+            ],
+          }
+        : {
+            requesterId: currentUserId,
+            status: FollowRequestStatus.PENDING,
+          },
+      orderBy: [
+        { createdAt: toSortDirection(orderBy) },
+        { id: toSortDirection(orderBy) },
+      ],
+      take: take + 1,
+      select: FollowRequestSelect,
+    });
+
+    return buildCursorPage(
+      rows.map((row) => this.toFollowRequest(row)),
+      take,
+    );
+  }
+
+  async approveFollowRequest(
+    requestId: number,
+    currentUserId: number,
+  ): Promise<FollowRequestDTO> {
+    await this.assertActiveCurrentUserById(currentUserId);
+
+    const existing = await this.prisma.followRequest.findUnique({
+      where: { id: requestId },
+      select: {
+        id: true,
+        requesterId: true,
+        targetUserId: true,
+        status: true,
+      },
+    });
+
+    if (!existing) {
+      throw new NotFoundException("Follow request not found");
+    }
+
+    if (existing.targetUserId !== currentUserId) {
+      throw new ForbiddenException(
+        "You do not have permission to approve this follow request",
+      );
+    }
+
+    if (existing.status !== FollowRequestStatus.PENDING) {
+      throw new BadRequestException("Follow request is no longer pending");
+    }
+
+    const blockRelationship = await this.prisma.userBlock.findFirst({
+      where: {
+        OR: [
+          {
+            blockerId: currentUserId,
+            blockedId: existing.requesterId,
+          },
+          {
+            blockerId: existing.requesterId,
+            blockedId: currentUserId,
+          },
+        ],
+      },
+      select: { id: true },
+    });
+
+    if (blockRelationship) {
+      throw new ForbiddenException("You cannot approve this follow request");
+    }
+
+    const approved = await this.prisma.$transaction(async (tx) => {
+      await tx.followRequest.updateMany({
+        where: {
+          id: requestId,
+          status: FollowRequestStatus.PENDING,
+        },
+        data: {
+          status: FollowRequestStatus.APPROVED,
+        },
+      });
+
+      await tx.follow.upsert({
+        where: {
+          followerId_followingId: {
+            followerId: existing.requesterId,
+            followingId: currentUserId,
+          },
+        },
+        update: {},
+        create: {
+          followerId: existing.requesterId,
+          followingId: currentUserId,
+        },
+      });
+
+      return tx.followRequest.findUniqueOrThrow({
+        where: { id: requestId },
+        select: FollowRequestSelect,
+      });
+    });
+
+    await runBestEffort(
+      this.logger,
+      "error",
+      `Failed to invalidate caches after approving follow request ${requestId}`,
+      async () => {
+        await this.invalidateVisibilityCaches(
+          existing.requesterId,
+          currentUserId,
+        );
+      },
+    );
+
+    return this.toFollowRequest(approved);
+  }
+
+  async rejectFollowRequest(
+    requestId: number,
+    currentUserId: number,
+  ): Promise<FollowRequestDTO> {
+    await this.assertActiveCurrentUserById(currentUserId);
+
+    const request = await this.prisma.followRequest.findUnique({
+      where: { id: requestId },
+      select: FollowRequestSelect,
+    });
+
+    if (!request) {
+      throw new NotFoundException("Follow request not found");
+    }
+
+    if (request.targetUser.id !== currentUserId) {
+      throw new ForbiddenException(
+        "You do not have permission to reject this follow request",
+      );
+    }
+
+    if (request.status !== FollowRequestStatus.PENDING) {
+      throw new BadRequestException("Follow request is no longer pending");
+    }
+
+    const updated = await this.prisma.followRequest.update({
+      where: { id: requestId },
+      data: {
+        status: FollowRequestStatus.REJECTED,
+      },
+      select: FollowRequestSelect,
+    });
+
+    return this.toFollowRequest(updated);
+  }
+
+  async cancelFollowRequest(
+    requestId: number,
+    currentUserId: number,
+  ): Promise<FollowRequestDTO> {
+    await this.assertActiveCurrentUserById(currentUserId);
+
+    const request = await this.prisma.followRequest.findUnique({
+      where: { id: requestId },
+      select: FollowRequestSelect,
+    });
+
+    if (!request) {
+      throw new NotFoundException("Follow request not found");
+    }
+
+    if (request.requester.id !== currentUserId) {
+      throw new ForbiddenException(
+        "You do not have permission to cancel this follow request",
+      );
+    }
+
+    if (request.status !== FollowRequestStatus.PENDING) {
+      throw new BadRequestException("Follow request is no longer pending");
+    }
+
+    const updated = await this.prisma.followRequest.update({
+      where: { id: requestId },
+      data: {
+        status: FollowRequestStatus.CANCELED,
+      },
+      select: FollowRequestSelect,
+    });
+
+    return this.toFollowRequest(updated);
   }
 
   async deleteFollow(
@@ -253,6 +636,10 @@ export class FollowsService {
       "error",
       `Failed to invalidate caches after deleting follow ${existing.id}`,
       async () => {
+        await this.invalidateVisibilityCaches(
+          existing.followerId,
+          existing.followingId,
+        );
         await this.cacheHelper.del(`follow:detail:${existing.id}`);
         await this.cacheHelper.bumpVersion("v:follows:list");
         await this.cacheHelper.del(`user:safe:${existing.followerId}`);
@@ -264,5 +651,60 @@ export class FollowsService {
     return {
       message: "Follow deleted successfully",
     };
+  }
+
+  /** Maps one follow-request row into the GraphQL-safe request DTO shape. */
+  private toFollowRequest(row: FollowRequestDTO): FollowRequestDTO {
+    return {
+      ...row,
+      status: row.status,
+    };
+  }
+
+  /** Ensures only active accounts can perform authenticated follow operations. */
+  private assertActiveCurrentUser(accountState: AccountState): void {
+    if (accountState === AccountState.SUSPENDED) {
+      throw new UnauthorizedException({
+        message: "This account is suspended",
+        code: GRAPHQL_ERROR_CODES.ACCOUNT_SUSPENDED,
+      });
+    }
+
+    if (accountState === AccountState.DEACTIVATED) {
+      throw new UnauthorizedException({
+        message: "This account is deactivated",
+        code: GRAPHQL_ERROR_CODES.ACCOUNT_DEACTIVATED,
+      });
+    }
+  }
+
+  /** Loads and validates the current user's account state for authenticated follow actions. */
+  private async assertActiveCurrentUserById(
+    currentUserId: number,
+  ): Promise<void> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: currentUserId },
+      select: {
+        accountState: true,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException("Current user not found");
+    }
+
+    this.assertActiveCurrentUser(user.accountState);
+  }
+
+  /** Invalidates caches affected by relationship changes that change post visibility. */
+  private async invalidateVisibilityCaches(
+    followerId: number,
+    followingId: number,
+  ): Promise<void> {
+    await this.cacheHelper.bumpVersion(`v:user:${followingId}:posts:list`);
+    await this.cacheHelper.bumpVersion("v:posts:list");
+    await this.cacheHelper.del(`user:safe:${followerId}`);
+    await this.cacheHelper.del(`user:safe:${followingId}`);
+    await this.cacheHelper.bumpVersion("v:user:list");
   }
 }

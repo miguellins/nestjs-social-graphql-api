@@ -140,11 +140,18 @@ describe("UsersService", () => {
       expect(prismaMock.user.findMany).toHaveBeenCalledWith({
         take: expectedTake + 1,
         where: {
-          OR: [
-            { createdAt: { lt: new Date("2026-04-10T00:00:00.000Z") } },
+          AND: [
             {
-              createdAt: new Date("2026-04-10T00:00:00.000Z"),
-              id: { lt: 999 },
+              OR: [
+                { createdAt: { lt: new Date("2026-04-10T00:00:00.000Z") } },
+                {
+                  createdAt: new Date("2026-04-10T00:00:00.000Z"),
+                  id: { lt: 999 },
+                },
+              ],
+            },
+            {
+              accountState: { not: "DEACTIVATED" },
             },
           ],
         },
@@ -164,7 +171,9 @@ describe("UsersService", () => {
 
       expect(prismaMock.user.findMany).toHaveBeenCalledWith({
         take: PAGINATION.DEFAULT_TAKE + 1,
-        where: undefined,
+        where: {
+          accountState: { not: "DEACTIVATED" },
+        },
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         select: SafeUserSelect,
       });
@@ -184,7 +193,9 @@ describe("UsersService", () => {
 
       expect(prismaMock.user.findMany).toHaveBeenCalledWith({
         take: PAGINATION.DEFAULT_TAKE + 1,
-        where: undefined,
+        where: {
+          accountState: { not: "DEACTIVATED" },
+        },
         orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         select: SafeUserSelect,
       });
@@ -215,11 +226,18 @@ describe("UsersService", () => {
       expect(prismaMock.user.findMany).toHaveBeenCalledWith({
         take: 6,
         where: {
-          OR: [
-            { createdAt: { gt: new Date("2026-04-10T00:00:00.000Z") } },
+          AND: [
             {
-              createdAt: new Date("2026-04-10T00:00:00.000Z"),
-              id: { gt: 999 },
+              OR: [
+                { createdAt: { gt: new Date("2026-04-10T00:00:00.000Z") } },
+                {
+                  createdAt: new Date("2026-04-10T00:00:00.000Z"),
+                  id: { gt: 999 },
+                },
+              ],
+            },
+            {
+              accountState: { not: "DEACTIVATED" },
             },
           ],
         },

@@ -22,6 +22,8 @@ import { SafeFollowSelect } from "@/follows/dto/safe-follow.dto";
 import { NotificationTriggerService } from "@/notifications/notification-trigger.service";
 
 import { PrismaService } from "@/prisma/prisma.service";
+import { AccountState } from "@/users/enums/account-state.enum";
+import { UserPrivacySetting } from "@/users/enums/user-privacy-setting.enum";
 
 import { FollowsService } from "./follows.service";
 
@@ -58,6 +60,13 @@ describe("FollowsService", () => {
     userBlock: {
       findFirst: jest.Mock;
     };
+    followRequest: {
+      findUnique: jest.Mock;
+      upsert: jest.Mock;
+      update: jest.Mock;
+      findMany: jest.Mock;
+    };
+    $transaction: jest.Mock;
   } = {
     follow: {
       findMany: jest.fn(),
@@ -71,6 +80,13 @@ describe("FollowsService", () => {
     userBlock: {
       findFirst: jest.fn(),
     },
+    followRequest: {
+      findUnique: jest.fn(),
+      upsert: jest.fn(),
+      update: jest.fn(),
+      findMany: jest.fn(),
+    },
+    $transaction: jest.fn(),
   };
 
   const cacheMock: {
@@ -93,10 +109,15 @@ describe("FollowsService", () => {
 
   beforeEach(async () => {
     jest.resetAllMocks();
+    prismaMock.follow.findUnique.mockResolvedValue(null);
+    prismaMock.followRequest.findUnique.mockResolvedValue(null);
 
     // Default: behave like a real cache wrapper: call the factory and return its result
     cacheMock.getOrSet.mockImplementation(
       async (_key: string, factory: () => Promise<unknown>) => factory(),
+    );
+    prismaMock.$transaction.mockImplementation(
+      async (cb: (tx: typeof prismaMock) => Promise<unknown>) => cb(prismaMock),
     );
 
     moduleRef = await Test.createTestingModule({
@@ -264,7 +285,11 @@ describe("FollowsService", () => {
 
       expect(prismaMock.user.findUnique).toHaveBeenCalledWith({
         where: { id: 999 },
-        select: { id: true },
+        select: {
+          id: true,
+          privacySetting: true,
+          accountState: true,
+        },
       });
 
       expect(prismaMock.follow.create).not.toHaveBeenCalled();
@@ -272,12 +297,23 @@ describe("FollowsService", () => {
 
     it("creates follow and bumps/invalidates caches on success", async () => {
       prismaMock.user.findUnique
-        .mockResolvedValueOnce({ id: 2 })
-        .mockResolvedValueOnce({ id: 1, username: "alice" });
+        .mockResolvedValueOnce({
+          id: 2,
+          privacySetting: UserPrivacySetting.PUBLIC,
+          accountState: AccountState.ACTIVE,
+        })
+        .mockResolvedValueOnce({
+          id: 1,
+          username: "alice",
+          accountState: AccountState.ACTIVE,
+        });
       prismaMock.userBlock.findFirst.mockResolvedValue(null);
 
       const created = { id: 50, followerId: 1, followingId: 2 };
       prismaMock.follow.create.mockResolvedValue(created);
+      prismaMock.follow.findUnique
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(created);
 
       const res = await service.createFollow(1, 2);
 
@@ -303,7 +339,11 @@ describe("FollowsService", () => {
 
     it("throws NotFound when current user does not exist", async () => {
       prismaMock.user.findUnique
-        .mockResolvedValueOnce({ id: 2 })
+        .mockResolvedValueOnce({
+          id: 2,
+          privacySetting: UserPrivacySetting.PUBLIC,
+          accountState: AccountState.ACTIVE,
+        })
         .mockResolvedValueOnce(null);
 
       await expect(service.createFollow(1, 2)).rejects.toBeInstanceOf(
@@ -319,12 +359,23 @@ describe("FollowsService", () => {
         .mockImplementation(() => undefined);
 
       prismaMock.user.findUnique
-        .mockResolvedValueOnce({ id: 2 })
-        .mockResolvedValueOnce({ id: 1, username: "alice" });
+        .mockResolvedValueOnce({
+          id: 2,
+          privacySetting: UserPrivacySetting.PUBLIC,
+          accountState: AccountState.ACTIVE,
+        })
+        .mockResolvedValueOnce({
+          id: 1,
+          username: "alice",
+          accountState: AccountState.ACTIVE,
+        });
       prismaMock.userBlock.findFirst.mockResolvedValue(null);
 
       const created = { id: 50, followerId: 1, followingId: 2 };
       prismaMock.follow.create.mockResolvedValue(created);
+      prismaMock.follow.findUnique
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(created);
       notificationTriggerMock.notifyUserFollowed.mockRejectedValue(
         new Error("notify failed"),
       );
@@ -346,12 +397,23 @@ describe("FollowsService", () => {
         .mockImplementation(() => undefined);
 
       prismaMock.user.findUnique
-        .mockResolvedValueOnce({ id: 2 })
-        .mockResolvedValueOnce({ id: 1, username: "alice" });
+        .mockResolvedValueOnce({
+          id: 2,
+          privacySetting: UserPrivacySetting.PUBLIC,
+          accountState: AccountState.ACTIVE,
+        })
+        .mockResolvedValueOnce({
+          id: 1,
+          username: "alice",
+          accountState: AccountState.ACTIVE,
+        });
       prismaMock.userBlock.findFirst.mockResolvedValue(null);
 
       const created = { id: 50, followerId: 1, followingId: 2 };
       prismaMock.follow.create.mockResolvedValue(created);
+      prismaMock.follow.findUnique
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(created);
       cacheMock.bumpVersion.mockRejectedValueOnce(new Error("cache down"));
 
       await expect(service.createFollow(1, 2)).resolves.toEqual(created);
@@ -366,8 +428,16 @@ describe("FollowsService", () => {
 
     it("throws ConflictException on unique constraint (P2002)", async () => {
       prismaMock.user.findUnique
-        .mockResolvedValueOnce({ id: 2 })
-        .mockResolvedValueOnce({ id: 1, username: "alice" });
+        .mockResolvedValueOnce({
+          id: 2,
+          privacySetting: UserPrivacySetting.PUBLIC,
+          accountState: AccountState.ACTIVE,
+        })
+        .mockResolvedValueOnce({
+          id: 1,
+          username: "alice",
+          accountState: AccountState.ACTIVE,
+        });
       prismaMock.userBlock.findFirst.mockResolvedValue(null);
 
       const err = new Prisma.PrismaClientKnownRequestError("duplicate", {
@@ -383,8 +453,16 @@ describe("FollowsService", () => {
 
     it("throws NotFoundException on FK/record errors (P2003 or P2025)", async () => {
       prismaMock.user.findUnique
-        .mockResolvedValueOnce({ id: 2 })
-        .mockResolvedValueOnce({ id: 1, username: "alice" });
+        .mockResolvedValueOnce({
+          id: 2,
+          privacySetting: UserPrivacySetting.PUBLIC,
+          accountState: AccountState.ACTIVE,
+        })
+        .mockResolvedValueOnce({
+          id: 1,
+          username: "alice",
+          accountState: AccountState.ACTIVE,
+        });
       prismaMock.userBlock.findFirst.mockResolvedValue(null);
 
       const err1 = new Prisma.PrismaClientKnownRequestError("fk", {
@@ -413,8 +491,16 @@ describe("FollowsService", () => {
 
     it("lets unexpected write errors bubble for the global filter to normalize", async () => {
       prismaMock.user.findUnique
-        .mockResolvedValueOnce({ id: 2 })
-        .mockResolvedValueOnce({ id: 1, username: "alice" });
+        .mockResolvedValueOnce({
+          id: 2,
+          privacySetting: UserPrivacySetting.PUBLIC,
+          accountState: AccountState.ACTIVE,
+        })
+        .mockResolvedValueOnce({
+          id: 1,
+          username: "alice",
+          accountState: AccountState.ACTIVE,
+        });
       prismaMock.userBlock.findFirst.mockResolvedValue(null);
       prismaMock.follow.create.mockRejectedValue(new Error("boom"));
 

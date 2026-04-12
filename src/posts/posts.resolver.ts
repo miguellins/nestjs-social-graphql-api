@@ -29,8 +29,11 @@ export class PostsResolver {
   @Public()
   @Throttle({ default: THROTTLE_LIMITS.LIST })
   @Query(() => PostPage, { name: "posts" })
-  async posts(@Args() args: FindPostsArgs): Promise<PostPage> {
-    return this.postsService.findPosts(args);
+  async posts(
+    @Args() args: FindPostsArgs,
+    @CurrentUser() user: AuthenticatedUser | null = null,
+  ): Promise<PostPage> {
+    return this.postsService.findPosts(args, user ?? undefined);
   }
 
   @Public()
@@ -38,8 +41,9 @@ export class PostsResolver {
   @Query(() => PostDetail, { name: "postById" })
   async postById(
     @Args("id", { type: () => Int }) id: number,
+    @CurrentUser() user: AuthenticatedUser | null = null,
   ): Promise<PostDetail> {
-    return this.postsService.getPost(id);
+    return this.postsService.getPost(id, user ?? undefined);
   }
 
   @Public()
@@ -47,8 +51,13 @@ export class PostsResolver {
   @Query(() => PostPage, { name: "postsByUsername" })
   async postsByUsername(
     @Args() args: FindPostsByUsernameArgs,
+    @CurrentUser() user: AuthenticatedUser | null = null,
   ): Promise<PostPage> {
-    return this.postsService.findPostsByUsername(args.username, args);
+    return this.postsService.findPostsByUsername(
+      args.username,
+      args,
+      user ?? undefined,
+    );
   }
 
   @Throttle({ default: THROTTLE_LIMITS.LIST })

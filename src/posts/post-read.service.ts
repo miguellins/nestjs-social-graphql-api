@@ -23,6 +23,9 @@ import {
   SafePostListSelect,
 } from "@/posts/dto/safe-post-list.dto";
 
+import { UserPrivacySetting } from "@/users/enums/user-privacy-setting.enum";
+import { AccountState } from "@/users/enums/account-state.enum";
+
 import { MediaReadProjectionService } from "@/media/media-read-projection.service";
 
 import { PrismaService } from "@/prisma/prisma.service";
@@ -43,7 +46,10 @@ export class PostReadService {
   ) {}
 
   // Returns one detailed post view with bounded likes and comments
-  async getPostDetail(id: number): Promise<SafePostDetailDTO> {
+  async getPostDetail(
+    id: number,
+    viewerId?: number | null,
+  ): Promise<SafePostDetailDTO> {
     const likesTake = Math.min(
       PAGINATION.DEFAULT_TAKE_LIKES,
       PAGINATION.MAX_TAKE_LIKES,
@@ -51,10 +57,27 @@ export class PostReadService {
 
     const commentsTake = Math.min(PAGINATION.DEFAULT_TAKE, PAGINATION.MAX_TAKE);
 
+    const blockedAuthorIds = viewerId
+      ? await this.getBlockedAuthorIds(viewerId)
+      : [];
+
     const post = await this.prisma.post.findFirst({
       where: {
-        id,
-        removedAt: null,
+        AND: [
+          {
+            id,
+            removedAt: null,
+            author: {
+              accountState: {
+                not: AccountState.DEACTIVATED,
+              },
+            },
+          },
+          ...(blockedAuthorIds.length > 0
+            ? [{ authorId: { notIn: blockedAuthorIds } }]
+            : []),
+          ...this.buildViewerVisibilityFilters(viewerId),
+        ],
       },
       select: {
         ...SafePostDetailSelect,
@@ -116,10 +139,16 @@ export class PostReadService {
             removedAt: null,
           },
           {
+            author: {
+              accountState: AccountState.ACTIVE,
+            },
+          },
+          {
             OR: [
               { authorId: currentUserId },
               {
                 author: {
+                  privacySetting: UserPrivacySetting.PRIVATE,
                   followers: {
                     some: {
                       followerId: currentUserId,
@@ -146,6 +175,62 @@ export class PostReadService {
     });
 
     return buildCursorPage(rows, take);
+  }
+
+  /** Builds the viewer-sensitive visibility filter for public/private author content reads. */
+  buildViewerVisibilityFilters(
+    viewerId?: number | null,
+  ): Prisma.PostWhereInput[] {
+    if (!viewerId) {
+      return [
+        {
+          author: {
+            privacySetting: UserPrivacySetting.PUBLIC,
+          },
+        },
+      ];
+    }
+
+    return [
+      {
+        OR: [
+          {
+            authorId: viewerId,
+          },
+          {
+            author: {
+              privacySetting: UserPrivacySetting.PUBLIC,
+            },
+          },
+          {
+            author: {
+              followers: {
+                some: {
+                  followerId: viewerId,
+                },
+              },
+            },
+          },
+        ],
+      },
+    ];
+  }
+
+  /** Returns author ids hidden from the viewer because of a block relationship. */
+  async getBlockedAuthorIds(viewerId: number): Promise<number[]> {
+    const relatedBlocks = await this.prisma.userBlock.findMany({
+      where: {
+        OR: [{ blockerId: viewerId }, { blockedId: viewerId }],
+      },
+      select: {
+        blockerId: true,
+        blockedId: true,
+      },
+    });
+
+    return relatedBlocks.map((block) =>
+      block.blockerId === viewerId ? block.blockedId : block.blockerId,
+    );
   }
 
   // Increments the view counter and refreshes the cached detail when present

@@ -52,7 +52,9 @@ import {
 
 import type { AuthenticatedUser } from "@/auth/authenticated-user.type";
 
+import { UserPrivacySetting } from "@/users/enums/user-privacy-setting.enum";
 import { MODERATION_ROLE_SET } from "@/users/enums/user-role.enum";
+import { AccountState } from "@/users/enums/account-state.enum";
 
 import { PrismaService } from "@/prisma/prisma.service";
 import { Prisma } from "@prisma/client";
@@ -84,18 +86,76 @@ export class PostsService {
     currentUserId: number,
     params?: PaginationParams,
   ): Promise<CursorPageResult<SafePostListDTO>> {
+    await this.assertActiveCurrentUserById(currentUserId);
     return this.postReadService.getMyFeed(currentUserId, params);
   }
 
   async findPosts(
     params?: FindPostsParams,
+    viewer?: AuthenticatedUser,
   ): Promise<CursorPageResult<SafePostListDTO>> {
+    if (viewer?.id) {
+      await this.assertActiveCurrentUserById(viewer.id);
+    }
+
     const take = normalizeCursorTake(params?.first);
 
     const search = params?.q?.trim().toLowerCase() || undefined;
     const orderby = params?.orderBy ?? ChronologicalOrder.NEWEST;
     const cursor = params?.after ? decodeChronoCursor(params.after) : undefined;
     const cursorFilter = buildChronologicalCursorFilter(cursor, orderby);
+
+    if (viewer?.id) {
+      const blockedAuthorIds = await this.postReadService.getBlockedAuthorIds(
+        viewer.id,
+      );
+      const filters: Prisma.PostWhereInput[] = [
+        {
+          removedAt: null,
+        },
+        {
+          author: {
+            accountState: {
+              not: AccountState.DEACTIVATED,
+            },
+          },
+        },
+        ...this.postReadService.buildViewerVisibilityFilters(viewer.id),
+      ];
+
+      if (blockedAuthorIds.length > 0) {
+        filters.push({
+          authorId: {
+            notIn: blockedAuthorIds,
+          },
+        });
+      }
+
+      if (search) {
+        filters.push({
+          OR: [
+            { title: { contains: search } },
+            { content: { contains: search } },
+          ],
+        });
+      }
+
+      if (cursorFilter) {
+        filters.push(cursorFilter);
+      }
+
+      const rows = await this.prisma.post.findMany({
+        take: take + 1,
+        where: filters.length === 1 ? filters[0] : { AND: filters },
+        orderBy: [
+          { createdAt: toSortDirection(orderby) },
+          { id: toSortDirection(orderby) },
+        ],
+        select: SafePostListSelect,
+      });
+
+      return buildCursorPage(rows, take);
+    }
 
     const v = await this.cacheHelper.getVersion("v:posts:list");
     const cacheKey = `posts:list:v${v}:first=${take}:after=${params?.after ?? "none"}:q=${search ?? "all"}:order=${orderby}`;
@@ -107,6 +167,14 @@ export class PostsService {
 
         filters.push({
           removedAt: null,
+        });
+        filters.push({
+          author: {
+            privacySetting: UserPrivacySetting.PUBLIC,
+            accountState: {
+              not: AccountState.DEACTIVATED,
+            },
+          },
         });
 
         if (search) {
@@ -151,7 +219,12 @@ export class PostsService {
   async findPostsByUsername(
     username: string,
     params?: PaginationParams,
+    viewer?: AuthenticatedUser,
   ): Promise<CursorPageResult<SafePostListDTO>> {
+    if (viewer?.id) {
+      await this.assertActiveCurrentUserById(viewer.id);
+    }
+
     const normalized = this.parseGetUserByUsernameInput({ username });
 
     const take = normalizeCursorTake(
@@ -166,11 +239,49 @@ export class PostsService {
     const cursor = after ? decodeChronoCursor(after) : undefined;
     const cursorFilter = buildChronologicalCursorFilter(cursor, orderby);
 
-    const authorId = await this.getUserIdByUsername(normalized.username);
+    const author = await this.prisma.user.findUnique({
+      where: { username: normalized.username },
+      select: {
+        id: true,
+        privacySetting: true,
+        accountState: true,
+      },
+    });
+
+    if (!author || author.accountState === AccountState.DEACTIVATED) {
+      throw new NotFoundException("User not found");
+    }
+
+    if (!(await this.canViewerReadAuthorContent(viewer?.id, author))) {
+      throw new NotFoundException("User not found");
+    }
+
+    const authorId = author.id;
 
     const versionKey = this.getUserPostsListVersionKey(authorId);
     const v = await this.cacheHelper.getVersion(versionKey);
     const cacheKey = `user:${authorId}:posts:list:v${v}:first=${take}:after=${after ?? "none"}:order=${orderby}`;
+
+    if (viewer?.id || author.privacySetting === UserPrivacySetting.PRIVATE) {
+      const rows = await this.prisma.post.findMany({
+        take: take + 1,
+        where: cursorFilter
+          ? {
+              AND: [{ authorId }, { removedAt: null }, cursorFilter],
+            }
+          : {
+              authorId,
+              removedAt: null,
+            },
+        orderBy: [
+          { createdAt: toSortDirection(orderby) },
+          { id: toSortDirection(orderby) },
+        ],
+        select: SafePostListSelect,
+      });
+
+      return buildCursorPage(rows, take);
+    }
 
     return this.cacheHelper.getOrSet(
       cacheKey,
@@ -200,7 +311,18 @@ export class PostsService {
     );
   }
 
-  async getPost(id: number): Promise<SafePostDetailDTO> {
+  async getPost(
+    id: number,
+    viewer?: AuthenticatedUser,
+  ): Promise<SafePostDetailDTO> {
+    if (viewer?.id) {
+      await this.assertActiveCurrentUserById(viewer.id);
+    }
+
+    if (viewer?.id) {
+      return this.postReadService.getPostDetail(id, viewer.id);
+    }
+
     const cacheKey = `posts:detail:${id}`;
 
     const post = await this.cacheHelper.getOrSet(
@@ -229,6 +351,7 @@ export class PostsService {
     input: CreatePostCommand,
     currentUserId: number,
   ): Promise<CreatedPostDTO> {
+    await this.assertActiveCurrentUserById(currentUserId);
     const data = this.parseCreatePostInput(input);
 
     let post: CreatedPostDTO;
@@ -280,6 +403,7 @@ export class PostsService {
     input: UpdatePostCommand,
     currentUserId: number,
   ): Promise<SafePostListDTO> {
+    await this.assertActiveCurrentUserById(currentUserId);
     const normalizedInput = this.parseUpdatePostInput(input);
 
     const data: Prisma.PostUpdateInput = {};
@@ -357,6 +481,7 @@ export class PostsService {
     id: number,
     currentUserId: number,
   ): Promise<MessageResponse> {
+    await this.assertActiveCurrentUserById(currentUserId);
     try {
       const existing = await this.prisma.post.findUnique({
         where: { id },
@@ -411,6 +536,7 @@ export class PostsService {
     input: RemovePostByModeratorCommand,
     currentUser: AuthenticatedUser,
   ): Promise<MessageResponse> {
+    await this.assertActiveCurrentUserById(currentUser.id);
     this.assertCanModerateContent(currentUser);
 
     const data = this.parseRemovePostByModeratorInput(input);
@@ -549,34 +675,6 @@ export class PostsService {
     );
   }
 
-  // Retrieves the user ID for the given username, using cache for performance
-  private async getUserIdByUsername(username: string): Promise<number> {
-    const lookupCacheKey = this.getUserUsernameLookupCacheKey(username);
-    const cachedId = await this.cacheHelper.get<number>(lookupCacheKey);
-
-    if (cachedId !== undefined) {
-      return cachedId;
-    }
-
-    const user = await this.prisma.user.findUnique({
-      where: { username },
-      select: { id: true },
-    });
-
-    if (!user) {
-      throw new NotFoundException(`User with username "${username}" not found`);
-    }
-
-    await this.cacheHelper.set(lookupCacheKey, user.id, 5 * 60_000);
-
-    return user.id;
-  }
-
-  // Returns the cache key string for user lookup by username
-  private getUserUsernameLookupCacheKey(username: string): string {
-    return `user:lookup:username:${username}`;
-  }
-
   // Returns the cache version key string for a user's post list
   private getUserPostsListVersionKey(userId: number): string {
     return `v:user:${userId}:posts:list`;
@@ -620,5 +718,87 @@ export class PostsService {
     );
 
     throw new InternalServerErrorException(`Failed to ${action}`);
+  }
+
+  // Checks whether the viewer can read one author's content under privacy/account-state rules
+  private async canViewerReadAuthorContent(
+    viewerId: number | undefined,
+    author: {
+      id: number;
+      privacySetting: UserPrivacySetting;
+      accountState: AccountState;
+    },
+  ): Promise<boolean> {
+    if (author.accountState === AccountState.DEACTIVATED) {
+      return false;
+    }
+
+    if (viewerId === author.id) {
+      return true;
+    }
+
+    if (!viewerId) {
+      return author.privacySetting === UserPrivacySetting.PUBLIC;
+    }
+
+    const blockRelationship = await this.prisma.userBlock.findFirst({
+      where: {
+        OR: [
+          {
+            blockerId: viewerId,
+            blockedId: author.id,
+          },
+          {
+            blockerId: author.id,
+            blockedId: viewerId,
+          },
+        ],
+      },
+      select: { id: true },
+    });
+
+    if (blockRelationship) {
+      return false;
+    }
+
+    if (author.privacySetting === UserPrivacySetting.PUBLIC) {
+      return true;
+    }
+
+    const follow = await this.prisma.follow.findUnique({
+      where: {
+        followerId_followingId: {
+          followerId: viewerId,
+          followingId: author.id,
+        },
+      },
+      select: { id: true },
+    });
+
+    return Boolean(follow);
+  }
+
+  // Ensures authenticated post operations cannot be performed by disabled accounts
+  private async assertActiveCurrentUserById(
+    currentUserId: number,
+  ): Promise<void> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: currentUserId },
+      select: {
+        accountState: true,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException("Current user not found");
+    }
+
+    if (user.accountState === AccountState.SUSPENDED) {
+      throw new ForbiddenException("This account is suspended");
+    }
+
+    if (user.accountState === AccountState.DEACTIVATED) {
+      throw new NotFoundException("Current user not found");
+    }
   }
 }

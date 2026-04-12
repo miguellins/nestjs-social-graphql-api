@@ -206,6 +206,10 @@ Current strengths:
 - `userByUsername(username)`
 - `createUser(input)`
 - `updateMe(input)`
+- `myPrivacySettings`
+- `updateMyPrivacySetting(input)`
+- `suspendUser(input)`
+- `reactivateUser(input)`
 - `deleteMe`
 
 Current strengths:
@@ -214,7 +218,9 @@ Current strengths:
 - cache refresh and invalidation after writes
 - service-level validation and password hashing
 - cursor-based user list pagination
-- account auth state now includes `isEmailVerified`
+- privacy/account-state controls for visibility-sensitive flows
+- moderator/admin user suspension and reactivation flows
+- account auth state includes `isEmailVerified`
 
 ### Posts
 - `posts(first, after, orderBy, q)`
@@ -259,13 +265,22 @@ Current strengths:
 ### Follows
 - `follows(first, after, orderBy)`
 - `followById(id)`
-- `createFollow(followingId)`
+- `followUser(userId)`
+- `myIncomingFollowRequests(first, after, orderBy)`
+- `myOutgoingFollowRequests(first, after, orderBy)`
+- `approveFollowRequest(requestId)`
+- `rejectFollowRequest(requestId)`
+- `cancelFollowRequest(requestId)`
 - `deleteFollow(id)`
 
 Current strengths:
 - self-follow prevention
 - duplicate follow protection
+- private-account follow request workflow
+- clear split between incoming and outgoing pending request review
+- target-owned approval/rejection and requester-owned cancel flow
 - flexible unfollow behavior by relation id or target user id
+- visibility-aware cache invalidation for follow changes
 - follow notification triggering
 - cursor-based follow list pagination
 
@@ -338,6 +353,7 @@ This is already stronger than in-memory pubsub and is designed for multi-instanc
 - `users`
 - `userById`
 - `userByUsername`
+- `myPrivacySettings`
 - `posts`
 - `postsByUsername`
 - `postById`
@@ -347,6 +363,8 @@ This is already stronger than in-memory pubsub and is designed for multi-instanc
 - `likeById`
 - `follows`
 - `followById`
+- `myIncomingFollowRequests`
+- `myOutgoingFollowRequests`
 - `myBlockedUsers`
 - `reviewReports`
 - `myNotifications`
@@ -364,6 +382,9 @@ This is already stronger than in-memory pubsub and is designed for multi-instanc
 - `verifyEmail`
 - `createUser`
 - `updateMe`
+- `updateMyPrivacySetting`
+- `suspendUser`
+- `reactivateUser`
 - `deleteMe`
 - `createPost`
 - `updatePost`
@@ -373,7 +394,10 @@ This is already stronger than in-memory pubsub and is designed for multi-instanc
 - `deleteComment`
 - `createLike`
 - `deleteLike`
-- `createFollow`
+- `followUser`
+- `approveFollowRequest`
+- `rejectFollowRequest`
+- `cancelFollowRequest`
 - `deleteFollow`
 - `blockUser`
 - `unblockUser`

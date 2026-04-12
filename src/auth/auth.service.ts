@@ -36,11 +36,13 @@ import {
   type ResetPasswordCommand,
 } from "@/auth/schemas/password-reset-command.schema";
 
+import { GRAPHQL_ERROR_CODES } from "@/common/constants/graphql-error-code.constants";
 import { MessageResponse } from "@/common/types/message-response.type";
 import { PasswordService } from "@/common/security/password.service";
 import { parseWithBadRequest } from "@/common/zod/parse-with-zod";
 import { runBestEffort } from "@/common/errors/run-best-effort";
 
+import { AccountState } from "@/users/enums/account-state.enum";
 import type { UserRole } from "@/users/enums/user-role.enum";
 
 import { PrismaService } from "@/prisma/prisma.service";
@@ -64,6 +66,10 @@ export class AuthService {
   private static readonly LOGOUT_SUCCESS_MESSAGE = "Logged out successfully";
   private static readonly INVALID_REFRESH_TOKEN_MESSAGE =
     "Invalid refresh token";
+  private static readonly ACCOUNT_SUSPENDED_MESSAGE =
+    "This account is suspended";
+  private static readonly ACCOUNT_DEACTIVATED_MESSAGE =
+    "This account is deactivated";
 
   constructor(
     private readonly prisma: PrismaService,
@@ -91,10 +97,18 @@ export class AuthService {
     try {
       const user = await this.prisma.user.findUnique({
         where: { username: credentials.username },
-        select: { id: true, username: true, password: true, role: true },
+        select: {
+          id: true,
+          username: true,
+          password: true,
+          role: true,
+          accountState: true,
+        },
       });
 
       if (!user) throw new UnauthorizedException("Invalid credentials");
+
+      this.assertCanAuthenticate(user.accountState);
 
       const verification = await this.passwordService.verifyPassword(
         credentials.password,
@@ -208,6 +222,8 @@ export class AuthService {
   async requestEmailVerification(
     currentUserId: number,
   ): Promise<MessageResponse> {
+    await this.assertCanUseAuthenticatedAuthFlow(currentUserId);
+
     const user = await this.prisma.user.findUnique({
       where: { id: currentUserId },
       select: {
@@ -442,6 +458,7 @@ export class AuthService {
           user: {
             select: {
               role: true,
+              accountState: true,
             },
           },
         },
@@ -451,6 +468,20 @@ export class AuthService {
         throw new UnauthorizedException(
           AuthService.INVALID_REFRESH_TOKEN_MESSAGE,
         );
+      }
+
+      if (session.user.accountState !== AccountState.ACTIVE) {
+        await tx.refreshSession.updateMany({
+          where: {
+            userId: session.userId,
+            revokedAt: null,
+          },
+          data: {
+            revokedAt: now,
+          },
+        });
+
+        this.assertCanAuthenticate(session.user.accountState);
       }
 
       const rotated = await tx.refreshSession.updateMany({
@@ -586,6 +617,41 @@ export class AuthService {
   /** Signs a short-lived access token for one authenticated user. */
   private signAccessToken(userId: number, role: UserRole): Promise<string> {
     return this.jwtService.signAsync({ sub: userId, role });
+  }
+
+  /** Blocks suspended and deactivated accounts from authenticating or rotating sessions. */
+  private assertCanAuthenticate(accountState: AccountState): void {
+    if (accountState === AccountState.SUSPENDED) {
+      throw new UnauthorizedException({
+        message: AuthService.ACCOUNT_SUSPENDED_MESSAGE,
+        code: GRAPHQL_ERROR_CODES.ACCOUNT_SUSPENDED,
+      });
+    }
+
+    if (accountState === AccountState.DEACTIVATED) {
+      throw new UnauthorizedException({
+        message: AuthService.ACCOUNT_DEACTIVATED_MESSAGE,
+        code: GRAPHQL_ERROR_CODES.ACCOUNT_DEACTIVATED,
+      });
+    }
+  }
+
+  /** Ensures authenticated auth flows like verification requests cannot run for disabled accounts. */
+  private async assertCanUseAuthenticatedAuthFlow(
+    currentUserId: number,
+  ): Promise<void> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: currentUserId },
+      select: {
+        accountState: true,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException("Current user not found");
+    }
+
+    this.assertCanAuthenticate(user.accountState);
   }
 
   /** Builds a high-entropy token and returns both raw and stored-safe representations. */
