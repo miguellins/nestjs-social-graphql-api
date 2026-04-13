@@ -18,15 +18,3 @@ via the GitLens Inspect
 
 - Check NEW_codex_recomendations, each module block of good/senior practices and check which modules are using the same practices and whiche ones are not, make more consistent so all modules use the same good/senior practices when it fits and are worth it
 
-
-
-
-# NEXT FEATURE
-
-
-# AFTER IMPLEMENTATION:
-SEND THIS TO GPT:
-
-
-
-//---//---//---// //---//---//---//

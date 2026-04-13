@@ -9,6 +9,7 @@ import { Module } from "@nestjs/common";
 
 import { GraphqlSubscriptionsModule } from "@/graphql/subscriptions/graphql-subscriptions.module";
 import { NotificationsModule } from "@/notifications/notifications.module";
+import { BookmarksModule } from "@/bookmarks/bookmarks.module";
 import { CommentsModule } from "@/comments/comments.module";
 import { FollowsModule } from "@/follows/follows.module";
 import { ReportsModule } from "@/reports/reports.module";
@@ -71,6 +72,7 @@ import { validateEnv } from "@/config/env/env.schema";
     FollowsModule,
     ReportsModule,
     CommentsModule,
+    BookmarksModule,
     NotificationsModule,
     GraphqlSubscriptionsModule,
   ],

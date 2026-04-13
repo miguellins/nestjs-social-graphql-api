@@ -8,7 +8,10 @@ import { GqlJwtGuard } from "./gql-jwt.guard";
 
 import type { Request } from "express";
 
-const canActivateMock = jest.fn<unknown, [ExecutionContext]>();
+const canActivateMock = jest.fn<
+  Promise<boolean> | boolean,
+  [ExecutionContext]
+>();
 
 jest.mock("@nestjs/passport", () => ({
   AuthGuard: jest.fn(() => {

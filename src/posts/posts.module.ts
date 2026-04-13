@@ -12,6 +12,6 @@ import { PrismaModule } from "@/prisma/prisma.module";
 @Module({
   imports: [PrismaModule, CacheHelpersModule, MediaModule],
   providers: [PostReadService, PostsService, PostsResolver],
-  exports: [PostsService],
+  exports: [PostsService, PostReadService],
 })
 export class PostsModule {}

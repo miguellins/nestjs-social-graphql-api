@@ -169,291 +169,6 @@ type SafeUserPreview implements PublicUserIdentity {
   username: String!
 }
 
-"""
-Public-safe comment representation used in comment queries and nested post detail views.
-"""
-type Comment {
-  """Unique identifier of the comment."""
-  id: ID!
-
-  """Comment content visible to clients."""
-  content: String!
-
-  """Presentation-friendly UTC timestamp for when the comment was created."""
-  createdAtFormatted: String
-
-  """
-  Presentation-friendly UTC timestamp for when the comment was last updated.
-  """
-  updatedAtFormatted: String
-
-  """Identifier of the user who authored the comment."""
-  authorId: Int!
-
-  """Identifier of the post that owns the comment."""
-  postId: Int!
-
-  """Public-safe preview of the comment author."""
-  author: SafeUserPreview!
-
-  """Timestamp indicating when the comment was created."""
-  createdAt: DateTime!
-
-  """Timestamp indicating the latest update made to the comment."""
-  updatedAt: DateTime!
-}
-
-"""Cursor-paginated page of comments plus navigation metadata."""
-type CommentPage {
-  """Items returned for the current page."""
-  items: [Comment!]!
-
-  """Cursor navigation metadata for the current page."""
-  pageInfo: PageInfo!
-}
-
-"""
-Core representation of a FollowRequest entity for private-account approval flows.
-"""
-type FollowRequest {
-  """Unique identifier of the follow request record."""
-  id: ID!
-
-  """Current review state of the follow request."""
-  status: FollowRequestStatus!
-
-  """Timestamp indicating when the follow request was originally created."""
-  createdAt: DateTime!
-
-  """
-  Presentation-friendly UTC timestamp for when the follow request was originally created.
-  """
-  createdAtFormatted: String
-
-  """Public safe preview of the user who initiated the follow request."""
-  requester: SafeUserPreview!
-
-  """
-  Public safe preview of the target user who must approve or reject the request.
-  """
-  targetUser: SafeUserPreview!
-}
-
-"""Represents the current state of a follow request"""
-enum FollowRequestStatus {
-  PENDING
-  APPROVED
-  REJECTED
-  CANCELED
-}
-
-"""Cursor-paginated page of follow requests plus navigation metadata."""
-type FollowRequestPage {
-  """Items returned for the current page."""
-  items: [FollowRequest!]!
-
-  """Cursor navigation metadata for the current page."""
-  pageInfo: PageInfo!
-}
-
-"""Result returned after attempting to follow a user."""
-type FollowUserResult {
-  """Final outcome of the follow attempt."""
-  status: FollowRequestStatus!
-
-  """Created follow id when the relationship was established immediately."""
-  followId: ID
-
-  """Follow request id when the target account requires approval."""
-  followRequestId: ID
-
-  """Optional human-readable summary of the outcome."""
-  message: String
-}
-
-"""Core representation of a Follow relationship between two users."""
-type Follow {
-  """Unique identifier of the follow relationship record."""
-  id: ID!
-
-  """Timestamp indicating when the follow relationship was created."""
-  createdAt: DateTime!
-
-  """
-  Presentation-friendly UTC timestamp for when the follow relationship was created.
-  """
-  createdAtFormatted: String
-
-  """Identifier of the user who initiated the follow action (the follower)."""
-  followerId: Int!
-
-  """Identifier of the user being followed (the following)."""
-  followingId: Int!
-
-  """Optional lightweight preview of the follower user."""
-  follower: SafeUserPreview
-
-  """Optional lightweight preview of the followed user."""
-  following: SafeUserPreview
-}
-
-"""Cursor-paginated page of follows plus navigation metadata."""
-type FollowPage {
-  """Items returned for the current page."""
-  items: [Follow!]!
-
-  """Cursor navigation metadata for the current page."""
-  pageInfo: PageInfo!
-}
-
-"""Safe moderation review representation of a submitted content report."""
-type ReviewReport {
-  """Unique identifier of the report."""
-  id: ID!
-
-  """Indicates whether the report targets a post or a comment."""
-  targetType: ReportTargetType!
-
-  """Identifier of the reported post or comment."""
-  targetId: Int!
-
-  """Product-facing category explaining why the content was reported."""
-  reason: ReportReason!
-
-  """Optional reporter-provided context shown to moderators during review."""
-  details: String
-
-  """Current moderation review state of the report."""
-  status: ReportStatus!
-
-  """Timestamp indicating when the report was created."""
-  createdAt: DateTime!
-
-  """Presentation-friendly UTC timestamp for when the report was created."""
-  createdAtFormatted: String
-
-  """Safe preview of the user who submitted the report."""
-  reporter: SafeUserPreview!
-}
-
-"""Identifies whether a report targets a post or a comment"""
-enum ReportTargetType {
-  POST
-  COMMENT
-}
-
-"""Classifies the reason a user is reporting content"""
-enum ReportReason {
-  SPAM
-  HARASSMENT
-  HATE
-  SEXUAL_CONTENT
-  VIOLENCE
-  MISINFORMATION
-  OTHER
-}
-
-"""Represents the current moderation review state of a content report"""
-enum ReportStatus {
-  OPEN
-  DISMISSED
-  ACTIONED
-}
-
-"""
-Cursor-paginated page of moderation review reports plus navigation metadata.
-"""
-type ReviewReportPage {
-  """Items returned for the current page."""
-  items: [ReviewReport!]!
-
-  """Cursor navigation metadata for the current page."""
-  pageInfo: PageInfo!
-}
-
-"""Cursor-paginated page of users plus navigation metadata."""
-type UserPage {
-  """Items returned for the current page."""
-  items: [SafeUser!]!
-
-  """Cursor navigation metadata for the current page."""
-  pageInfo: PageInfo!
-}
-
-"""Public-safe post preview tailored for like payloads."""
-type LikedPostPreview {
-  """Unique identifier of the liked post."""
-  id: ID!
-
-  """Title of the liked post."""
-  title: String
-
-  """Main textual content of the liked post."""
-  content: String!
-
-  """Timestamp indicating when the post was originally created."""
-  createdAt: DateTime!
-
-  """
-  Presentation-friendly UTC timestamp for when the post was originally created.
-  """
-  createdAtFormatted: String
-
-  """Total number of likes associated with the post."""
-  likesCount: Int!
-
-  """Public safe preview of the user who authored the post."""
-  author: SafeUserPreview!
-}
-
-"""
-Lightweight representation of a Like, containing minimal metadata and a safe preview of the user who performed the like.
-"""
-type LikePreview {
-  """
-  Unique identifier of the like record. Used internally for referencing and pagination.
-  """
-  id: ID!
-
-  """Timestamp indicating when the like was created."""
-  createdAt: DateTime!
-
-  """Presentation-friendly UTC timestamp for when the like was created."""
-  createdAtFormatted: String
-
-  """Public safe preview of the user who performed the like."""
-  user: SafeUserPreview!
-}
-
-"""Lightweight representation of a Like entity optimized for list views."""
-type LikeListItem {
-  """
-  Unique identifier of the like record. Used internally for referencing and pagination.
-  """
-  id: ID!
-
-  """Timestamp indicating when the like was created."""
-  createdAt: DateTime!
-
-  """Presentation-friendly UTC timestamp for when the like was created."""
-  createdAtFormatted: String
-
-  """Public safe preview of the user who performed the like."""
-  user: SafeUserPreview!
-
-  """Public representation of the post that was liked."""
-  post: LikedPostPreview!
-}
-
-"""Cursor-paginated page of likes plus navigation metadata."""
-type LikePage {
-  """Items returned for the current page."""
-  items: [LikeListItem!]!
-
-  """Cursor navigation metadata for the current page."""
-  pageInfo: PageInfo!
-}
-
 """Core public representation of a Post entity."""
 type Post {
   """
@@ -486,73 +201,26 @@ type Post {
 }
 
 """
-Full user object model used for internal GraphQL relations where broader user fields are needed.
+Public bookmark representation for one authenticated user's saved post relation.
 """
-type User {
-  """Unique identifier of the user account."""
+type Bookmark {
+  """Unique identifier of the bookmark relation."""
   id: ID!
 
-  """Timestamp indicating when the user account was created."""
+  """Timestamp indicating when the bookmark was created."""
   createdAt: DateTime!
 
-  """
-  Presentation-friendly UTC timestamp for when the user account was created.
-  """
-  createdAtFormatted: String
-
-  """Timestamp indicating when the user account was last updated."""
-  updatedAt: DateTime!
-
-  """
-  Presentation-friendly UTC timestamp for when the user account was last updated.
-  """
-  updatedAtFormatted: String
-
-  """Optional list of posts created by the user."""
-  posts: [Post!]
-
-  """Optional list of likes created by the user."""
-  likes: [Like!]
-
-  """Optional list of users following this user."""
-  followers: [Follow!]
-
-  """Optional list of users this account follows."""
-  following: [Follow!]
-
-  """Public display name."""
-  name: String!
-
-  """Email address associated with the user account."""
-  email: String!
-
-  """Unique username used for identification."""
-  username: String!
+  """Safe public post snapshot nested inside the bookmark result."""
+  post: Post!
 }
 
-"""
-Core representation of a Like entity. Connects a user to a post and exposes minimal relational data.
-"""
-type Like {
-  """
-  Unique identifier of the like record. Used for referencing and relational mapping.
-  """
-  id: ID!
+"""Cursor-paginated page of bookmarks plus navigation metadata."""
+type BookmarkPage {
+  """Items returned for the current page."""
+  items: [Bookmark!]!
 
-  """Timestamp indicating when the like was created."""
-  createdAt: DateTime!
-
-  """Presentation-friendly UTC timestamp for when the like was created."""
-  createdAtFormatted: String
-
-  """Identifier of the user who performed the like."""
-  userId: Int
-
-  """Optional full user object associated with this like."""
-  user: User
-
-  """Identifier of the post that was liked."""
-  postId: Int!
+  """Cursor navigation metadata for the current page."""
+  pageInfo: PageInfo!
 }
 
 """
@@ -779,6 +447,59 @@ type CreatedPost {
 }
 
 """
+Lightweight representation of a Like, containing minimal metadata and a safe preview of the user who performed the like.
+"""
+type LikePreview {
+  """
+  Unique identifier of the like record. Used internally for referencing and pagination.
+  """
+  id: ID!
+
+  """Timestamp indicating when the like was created."""
+  createdAt: DateTime!
+
+  """Presentation-friendly UTC timestamp for when the like was created."""
+  createdAtFormatted: String
+
+  """Public safe preview of the user who performed the like."""
+  user: SafeUserPreview!
+}
+
+"""
+Public-safe comment representation used in comment queries and nested post detail views.
+"""
+type Comment {
+  """Unique identifier of the comment."""
+  id: ID!
+
+  """Comment content visible to clients."""
+  content: String!
+
+  """Presentation-friendly UTC timestamp for when the comment was created."""
+  createdAtFormatted: String
+
+  """
+  Presentation-friendly UTC timestamp for when the comment was last updated.
+  """
+  updatedAtFormatted: String
+
+  """Identifier of the user who authored the comment."""
+  authorId: Int!
+
+  """Identifier of the post that owns the comment."""
+  postId: Int!
+
+  """Public-safe preview of the comment author."""
+  author: SafeUserPreview!
+
+  """Timestamp indicating when the comment was created."""
+  createdAt: DateTime!
+
+  """Timestamp indicating the latest update made to the comment."""
+  updatedAt: DateTime!
+}
+
+"""
 Comprehensive representation of a Post entity intended for detailed views.
 """
 type PostDetail {
@@ -850,6 +571,308 @@ type PostPage {
 
   """Cursor navigation metadata for the current page."""
   pageInfo: PageInfo!
+}
+
+"""Cursor-paginated page of comments plus navigation metadata."""
+type CommentPage {
+  """Items returned for the current page."""
+  items: [Comment!]!
+
+  """Cursor navigation metadata for the current page."""
+  pageInfo: PageInfo!
+}
+
+"""
+Core representation of a FollowRequest entity for private-account approval flows.
+"""
+type FollowRequest {
+  """Unique identifier of the follow request record."""
+  id: ID!
+
+  """Current review state of the follow request."""
+  status: FollowRequestStatus!
+
+  """Timestamp indicating when the follow request was originally created."""
+  createdAt: DateTime!
+
+  """
+  Presentation-friendly UTC timestamp for when the follow request was originally created.
+  """
+  createdAtFormatted: String
+
+  """Public safe preview of the user who initiated the follow request."""
+  requester: SafeUserPreview!
+
+  """
+  Public safe preview of the target user who must approve or reject the request.
+  """
+  targetUser: SafeUserPreview!
+}
+
+"""Represents the current state of a follow request"""
+enum FollowRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELED
+}
+
+"""Cursor-paginated page of follow requests plus navigation metadata."""
+type FollowRequestPage {
+  """Items returned for the current page."""
+  items: [FollowRequest!]!
+
+  """Cursor navigation metadata for the current page."""
+  pageInfo: PageInfo!
+}
+
+"""Result returned after attempting to follow a user."""
+type FollowUserResult {
+  """Final outcome of the follow attempt."""
+  status: FollowRequestStatus!
+
+  """Created follow id when the relationship was established immediately."""
+  followId: ID
+
+  """Follow request id when the target account requires approval."""
+  followRequestId: ID
+
+  """Optional human-readable summary of the outcome."""
+  message: String
+}
+
+"""Core representation of a Follow relationship between two users."""
+type Follow {
+  """Unique identifier of the follow relationship record."""
+  id: ID!
+
+  """Timestamp indicating when the follow relationship was created."""
+  createdAt: DateTime!
+
+  """
+  Presentation-friendly UTC timestamp for when the follow relationship was created.
+  """
+  createdAtFormatted: String
+
+  """Identifier of the user who initiated the follow action (the follower)."""
+  followerId: Int!
+
+  """Identifier of the user being followed (the following)."""
+  followingId: Int!
+
+  """Optional lightweight preview of the follower user."""
+  follower: SafeUserPreview
+
+  """Optional lightweight preview of the followed user."""
+  following: SafeUserPreview
+}
+
+"""Cursor-paginated page of follows plus navigation metadata."""
+type FollowPage {
+  """Items returned for the current page."""
+  items: [Follow!]!
+
+  """Cursor navigation metadata for the current page."""
+  pageInfo: PageInfo!
+}
+
+"""Safe moderation review representation of a submitted content report."""
+type ReviewReport {
+  """Unique identifier of the report."""
+  id: ID!
+
+  """Indicates whether the report targets a post or a comment."""
+  targetType: ReportTargetType!
+
+  """Identifier of the reported post or comment."""
+  targetId: Int!
+
+  """Product-facing category explaining why the content was reported."""
+  reason: ReportReason!
+
+  """Optional reporter-provided context shown to moderators during review."""
+  details: String
+
+  """Current moderation review state of the report."""
+  status: ReportStatus!
+
+  """Timestamp indicating when the report was created."""
+  createdAt: DateTime!
+
+  """Presentation-friendly UTC timestamp for when the report was created."""
+  createdAtFormatted: String
+
+  """Safe preview of the user who submitted the report."""
+  reporter: SafeUserPreview!
+}
+
+"""Identifies whether a report targets a post or a comment"""
+enum ReportTargetType {
+  POST
+  COMMENT
+}
+
+"""Classifies the reason a user is reporting content"""
+enum ReportReason {
+  SPAM
+  HARASSMENT
+  HATE
+  SEXUAL_CONTENT
+  VIOLENCE
+  MISINFORMATION
+  OTHER
+}
+
+"""Represents the current moderation review state of a content report"""
+enum ReportStatus {
+  OPEN
+  DISMISSED
+  ACTIONED
+}
+
+"""
+Cursor-paginated page of moderation review reports plus navigation metadata.
+"""
+type ReviewReportPage {
+  """Items returned for the current page."""
+  items: [ReviewReport!]!
+
+  """Cursor navigation metadata for the current page."""
+  pageInfo: PageInfo!
+}
+
+"""Cursor-paginated page of users plus navigation metadata."""
+type UserPage {
+  """Items returned for the current page."""
+  items: [SafeUser!]!
+
+  """Cursor navigation metadata for the current page."""
+  pageInfo: PageInfo!
+}
+
+"""Public-safe post preview tailored for like payloads."""
+type LikedPostPreview {
+  """Unique identifier of the liked post."""
+  id: ID!
+
+  """Title of the liked post."""
+  title: String
+
+  """Main textual content of the liked post."""
+  content: String!
+
+  """Timestamp indicating when the post was originally created."""
+  createdAt: DateTime!
+
+  """
+  Presentation-friendly UTC timestamp for when the post was originally created.
+  """
+  createdAtFormatted: String
+
+  """Total number of likes associated with the post."""
+  likesCount: Int!
+
+  """Public safe preview of the user who authored the post."""
+  author: SafeUserPreview!
+}
+
+"""Lightweight representation of a Like entity optimized for list views."""
+type LikeListItem {
+  """
+  Unique identifier of the like record. Used internally for referencing and pagination.
+  """
+  id: ID!
+
+  """Timestamp indicating when the like was created."""
+  createdAt: DateTime!
+
+  """Presentation-friendly UTC timestamp for when the like was created."""
+  createdAtFormatted: String
+
+  """Public safe preview of the user who performed the like."""
+  user: SafeUserPreview!
+
+  """Public representation of the post that was liked."""
+  post: LikedPostPreview!
+}
+
+"""Cursor-paginated page of likes plus navigation metadata."""
+type LikePage {
+  """Items returned for the current page."""
+  items: [LikeListItem!]!
+
+  """Cursor navigation metadata for the current page."""
+  pageInfo: PageInfo!
+}
+
+"""
+Full user object model used for internal GraphQL relations where broader user fields are needed.
+"""
+type User {
+  """Unique identifier of the user account."""
+  id: ID!
+
+  """Timestamp indicating when the user account was created."""
+  createdAt: DateTime!
+
+  """
+  Presentation-friendly UTC timestamp for when the user account was created.
+  """
+  createdAtFormatted: String
+
+  """Timestamp indicating when the user account was last updated."""
+  updatedAt: DateTime!
+
+  """
+  Presentation-friendly UTC timestamp for when the user account was last updated.
+  """
+  updatedAtFormatted: String
+
+  """Optional list of posts created by the user."""
+  posts: [Post!]
+
+  """Optional list of likes created by the user."""
+  likes: [Like!]
+
+  """Optional list of users following this user."""
+  followers: [Follow!]
+
+  """Optional list of users this account follows."""
+  following: [Follow!]
+
+  """Public display name."""
+  name: String!
+
+  """Email address associated with the user account."""
+  email: String!
+
+  """Unique username used for identification."""
+  username: String!
+}
+
+"""
+Core representation of a Like entity. Connects a user to a post and exposes minimal relational data.
+"""
+type Like {
+  """
+  Unique identifier of the like record. Used for referencing and relational mapping.
+  """
+  id: ID!
+
+  """Timestamp indicating when the like was created."""
+  createdAt: DateTime!
+
+  """Presentation-friendly UTC timestamp for when the like was created."""
+  createdAtFormatted: String
+
+  """Identifier of the user who performed the like."""
+  userId: Int
+
+  """Optional full user object associated with this like."""
+  user: User
+
+  """Identifier of the post that was liked."""
+  postId: Int!
 }
 
 """Authenticated viewer's privacy and account-state settings."""
@@ -1102,6 +1125,18 @@ type Query {
     """Unique id of the post whose comments should be returned."""
     postId: Int!
   ): CommentPage!
+  myBookmarks(
+    """Maximum number of items to return (1-${PAGINATION.MAX_TAKE})."""
+    first: Int
+
+    """
+    Cursor for the last item from the previous page. Reuse it only with the same filter and ordering inputs.
+    """
+    after: String
+
+    """Controls chronological ordering for paged list results."""
+    orderBy: ChronologicalOrder
+  ): BookmarkPage!
 }
 
 """Controls chronological ordering for list queries"""
@@ -1157,6 +1192,8 @@ type Mutation {
   updateComment(commentId: Int!, input: UpdateCommentInput!): Comment!
   deleteComment(commentId: Int!): MessageResponse!
   removeCommentByModerator(input: RemoveCommentByModeratorInput!): MessageResponse!
+  bookmarkPost(postId: Int!): Bookmark!
+  removeBookmark(postId: Int!): MessageResponse!
 }
 
 input LoginInput {

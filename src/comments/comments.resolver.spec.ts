@@ -13,12 +13,15 @@ describe("CommentsResolver", () => {
 
     const resolver = new CommentsResolver(commentsService as never);
 
-    await resolver.commentsByPost({
-      postId: 10,
-      first: 5,
-      after: "cursor",
-      orderBy: ChronologicalOrder.OLDEST,
-    }, { id: 4, role: "USER" });
+    await resolver.commentsByPost(
+      {
+        postId: 10,
+        first: 5,
+        after: "cursor",
+        orderBy: ChronologicalOrder.OLDEST,
+      },
+      { id: 4, role: "USER" },
+    );
 
     expect(commentsService.findCommentsByPost).toHaveBeenCalledWith({
       postId: 10,

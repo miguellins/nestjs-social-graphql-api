@@ -41,6 +41,11 @@ model User {
   likes Like[]
 
   /**
+   * One user can bookmark many posts
+   */
+  bookmarks Bookmark[]
+
+  /**
    * Self-relation
    * Users who follow this user
    */
@@ -202,6 +207,12 @@ model Post {
    * A post can have many likes
    */
   likes Like[]
+
+  /**
+   * One-to-many relation
+   * A post can have many bookmarks
+   */
+  bookmarks Bookmark[]
 
   /**
    * One-to-many relation
@@ -677,6 +688,33 @@ model Like {
   @@index([postId, createdAt(sort: Desc), id(sort: Desc)])
   // Improves user-scoped like cursor pagination with deterministic tie-breaking
   @@index([userId, createdAt(sort: Desc), id(sort: Desc)])
+}
+
+model Bookmark {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  userId    Int
+  postId    Int
+
+  /**
+   * Relation to User
+   * fields: [userId] - this model stores the bookmarking user foreign key
+   * references: [id] - references User.id
+   * onDelete: Cascade - delete bookmarks if the user is deleted
+   */
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /**
+   * Relation to Post
+   * fields: [postId] - this model stores the bookmarked post foreign key
+   * references: [id] - references Post.id
+   * onDelete: Cascade - delete bookmarks if the post is deleted
+   */
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+  @@index([userId, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([postId])
 }
 
 enum NotificationType {
