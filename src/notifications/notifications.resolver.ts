@@ -1,5 +1,6 @@
 import {
   Args,
+  Context,
   Int,
   Mutation,
   Query,
@@ -12,6 +13,7 @@ import { CurrentUser } from "@/common/decorators/current-user.decorator";
 import { THROTTLE_LIMITS } from "@/common/constants/throttle.constants";
 import { MessageResponse } from "@/common/types/message-response.type";
 
+import { buildNotificationReceivedTrigger } from "@/notifications/notification-delivery.service";
 import { FindNotificationsArgs } from "@/notifications/args/find-notifications.args";
 import { NotificationPage } from "@/notifications/models/notification-page.model";
 import { NotificationsService } from "@/notifications/notifications.service";
@@ -19,6 +21,49 @@ import { NotificationDTO } from "@/notifications/models/notification.model";
 
 import { GraphqlPubSubService } from "@/graphql/subscriptions/graphql-pubsub.service";
 import type { GqlContext } from "@/graphql/config/graphql-context.types";
+
+type SubscriptionContextUserCarrier = {
+  id?: unknown;
+};
+
+type NotificationSubscriptionContext =
+  | GqlContext
+  | {
+      user?: SubscriptionContextUserCarrier;
+      extra?: {
+        user?: SubscriptionContextUserCarrier;
+      };
+      req?: {
+        user?: SubscriptionContextUserCarrier;
+      };
+      connectionParams?: {
+        user?: SubscriptionContextUserCarrier;
+      };
+    };
+
+function getSubscriptionContextUserId(
+  context: NotificationSubscriptionContext,
+): number | undefined {
+  const userCandidates = [
+    context.extra?.user,
+    context.req?.user,
+    "user" in context ? context.user : undefined,
+    "connectionParams" in context ? context.connectionParams?.user : undefined,
+  ];
+
+  for (const candidate of userCandidates) {
+    if (!isSubscriptionContextUserCarrier(candidate)) continue;
+    if (typeof candidate.id === "number") return candidate.id;
+  }
+
+  return undefined;
+}
+
+function isSubscriptionContextUserCarrier(
+  value: unknown,
+): value is SubscriptionContextUserCarrier {
+  return typeof value === "object" && value !== null;
+}
 
 @Resolver(() => NotificationDTO)
 export class NotificationsResolver {
@@ -67,14 +112,17 @@ export class NotificationsResolver {
 
   @Subscription(() => NotificationDTO, {
     name: "notificationReceived",
-    filter: (
-      payload: { notificationReceived: NotificationDTO },
-      _variables: unknown,
-      context: GqlContext,
-    ) => payload.notificationReceived.recipientId === context.extra?.user?.id,
   })
   @Throttle({ default: THROTTLE_LIMITS.LIST })
-  notificationReceived() {
-    return this.graphqlPubSub.asyncIterableIterator("notificationReceived");
+  notificationReceived(@Context() context: NotificationSubscriptionContext) {
+    const subscriberId = getSubscriptionContextUserId(context);
+
+    if (subscriberId === undefined) {
+      throw new Error("Unauthorized");
+    }
+
+    return this.graphqlPubSub.asyncIterableIterator(
+      buildNotificationReceivedTrigger(subscriberId),
+    );
   }
 }

@@ -10,22 +10,19 @@ import {
 } from "@nestjs/common";
 
 import { GRAPHQL_ERROR_CODES } from "@/common/constants/graphql-error-code.constants";
+import { type CursorPageResult } from "@/common/pagination/cursor-pagination";
+import { ChronologicalOrder } from "@/common/enums/chronological-order.enum";
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
 import { MessageResponse } from "@/common/types/message-response.type";
-import { decodeChronoCursor } from "@/common/pagination/chrono-cursor";
 import { parseWithBadRequest } from "@/common/zod/parse-with-zod";
 import { runBestEffort } from "@/common/errors/run-best-effort";
-import {
-  ChronologicalOrder,
-  toSortDirection,
-} from "@/common/enums/chronological-order.enum";
-import {
-  buildChronologicalCursorFilter,
-  buildCursorPage,
-  normalizeCursorTake,
-  type CursorPageResult,
-} from "@/common/pagination/cursor-pagination";
 
+import { CommentsReadService } from "@/comments/comments-read.service";
+import {
+  type SafeCommentDTO,
+  type SafeCommentRecord,
+  SafeCommentSelect,
+} from "@/comments/dto/safe-comment.dto";
 import {
   createCommentCommandSchema,
   type CreateCommentCommand,
@@ -35,19 +32,16 @@ import {
   type RemoveCommentByModeratorCommand,
 } from "@/comments/schemas/remove-comment-by-moderator.schema";
 import {
-  type SafeCommentDTO,
-  SafeCommentSelect,
-} from "@/comments/dto/safe-comment.dto";
-import {
   updateCommentCommandSchema,
   type UpdateCommentCommand,
 } from "@/comments/schemas/update-comment.schema";
 
-import type { AuthenticatedUser } from "@/auth/authenticated-user.type";
-
-import { UserPrivacySetting } from "@/users/enums/user-privacy-setting.enum";
 import { MODERATION_ROLE_SET } from "@/users/enums/user-role.enum";
 import { AccountState } from "@/users/enums/account-state.enum";
+
+import type { AuthenticatedUser } from "@/auth/authenticated-user.type";
+
+import { NotificationTriggerService } from "@/notifications/notification-trigger.service";
 
 import { PrismaService } from "@/prisma/prisma.service";
 import { Prisma } from "@prisma/client";
@@ -67,6 +61,8 @@ export class CommentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cacheHelper: CacheHelperService,
+    private readonly commentsReadService: CommentsReadService,
+    private readonly notificationTrigger: NotificationTriggerService,
   ) {}
 
   async createComment(
@@ -75,13 +71,46 @@ export class CommentsService {
   ): Promise<SafeCommentDTO> {
     await this.assertActiveCurrentUserById(currentUserId);
     const data = this.parseCreateCommentInput(input);
+    const post = await this.commentsReadService.getReadablePostOrThrow(
+      data.postId,
+      currentUserId,
+    );
 
-    const post = await this.prisma.post.findUnique({
-      where: { id: data.postId },
-      select: { id: true, authorId: true, removedAt: true },
-    });
+    let parentCommentAuthorId: number | undefined;
+    if (data.parentCommentId !== undefined) {
+      const parentComment = await this.prisma.comment.findUnique({
+        where: { id: data.parentCommentId },
+        select: {
+          id: true,
+          postId: true,
+          removedAt: true,
+          parentCommentId: true,
+          authorId: true,
+        },
+      });
 
-    if (!post || post.removedAt) throw new NotFoundException("Post not found");
+      if (!parentComment) {
+        throw new NotFoundException("Parent comment not found");
+      }
+
+      if (parentComment.removedAt) {
+        throw new BadRequestException("Parent comment has been removed");
+      }
+
+      if (parentComment.postId !== data.postId) {
+        throw new BadRequestException(
+          "Parent comment does not belong to this post",
+        );
+      }
+
+      if (parentComment.parentCommentId !== null) {
+        throw new BadRequestException(
+          "Replies can only target top-level comments",
+        );
+      }
+
+      parentCommentAuthorId = parentComment.authorId;
+    }
 
     const comment = await this.prisma.$transaction(async (tx) => {
       const createdComment = await tx.comment.create({
@@ -89,6 +118,7 @@ export class CommentsService {
           content: data.content,
           postId: data.postId,
           authorId: currentUserId,
+          parentCommentId: data.parentCommentId,
         },
 
         select: SafeCommentSelect,
@@ -120,7 +150,35 @@ export class CommentsService {
       },
     );
 
-    return comment;
+    if (
+      parentCommentAuthorId !== undefined &&
+      parentCommentAuthorId !== currentUserId
+    ) {
+      const currentUser = await this.prisma.user.findUnique({
+        where: { id: currentUserId },
+        select: {
+          username: true,
+        },
+      });
+
+      if (currentUser) {
+        await runBestEffort(
+          this.logger,
+          "error",
+          `Failed to create reply notification for comment ${comment.id}`,
+          async () => {
+            await this.notificationTrigger.notifyCommentReplied({
+              recipientId: parentCommentAuthorId,
+              actorId: currentUserId,
+              actorUsername: currentUser.username,
+              commentId: comment.id,
+            });
+          },
+        );
+      }
+    }
+
+    return this.toCommentMutationResult(comment);
   }
 
   async findCommentsByPost({
@@ -130,65 +188,13 @@ export class CommentsService {
     orderBy,
     viewerId,
   }: FindCommentsByPostParams): Promise<CursorPageResult<SafeCommentDTO>> {
-    if (viewerId !== undefined) {
-      await this.assertActiveCurrentUserById(viewerId);
-    }
-
-    const post = await this.prisma.post.findUnique({
-      where: { id: postId },
-      select: {
-        id: true,
-        authorId: true,
-        removedAt: true,
-        author: {
-          select: {
-            accountState: true,
-            privacySetting: true,
-          },
-        },
-      },
+    return this.commentsReadService.findCommentsByPost({
+      after,
+      first,
+      postId,
+      orderBy,
+      viewerId,
     });
-
-    if (
-      !post ||
-      post.removedAt ||
-      post.author.accountState === AccountState.DEACTIVATED
-    ) {
-      throw new NotFoundException("Post not found");
-    }
-
-    if (
-      !(await this.canViewerReadPostContent(viewerId, {
-        authorId: post.authorId,
-        privacySetting: post.author.privacySetting,
-      }))
-    ) {
-      throw new NotFoundException("Post not found");
-    }
-
-    const normalizedTake = normalizeCursorTake(first);
-    const orderby = orderBy ?? ChronologicalOrder.NEWEST;
-    const cursor = after ? decodeChronoCursor(after) : undefined;
-    const cursorFilter = buildChronologicalCursorFilter(cursor, orderby);
-
-    const rows = await this.prisma.comment.findMany({
-      take: normalizedTake + 1,
-      where: cursorFilter
-        ? {
-            AND: [{ postId }, { removedAt: null }, cursorFilter],
-          }
-        : {
-            postId,
-            removedAt: null,
-          },
-      orderBy: [
-        { createdAt: toSortDirection(orderby) },
-        { id: toSortDirection(orderby) },
-      ],
-      select: SafeCommentSelect,
-    });
-
-    return buildCursorPage(rows, normalizedTake);
   }
 
   async updateComment(
@@ -203,7 +209,7 @@ export class CommentsService {
       content: data.content,
     };
 
-    let updatedComment: SafeCommentDTO;
+    let updatedComment: SafeCommentRecord;
     let postId: number;
 
     try {
@@ -258,7 +264,7 @@ export class CommentsService {
       },
     );
 
-    return updatedComment;
+    return this.toCommentMutationResult(updatedComment);
   }
 
   async deleteComment(
@@ -273,6 +279,7 @@ export class CommentsService {
         id: true,
         authorId: true,
         postId: true,
+        parentCommentId: true,
         removedAt: true,
         post: {
           select: {
@@ -292,7 +299,25 @@ export class CommentsService {
       );
     }
 
+    const hiddenReplyCount =
+      comment.parentCommentId === null
+        ? await this.prisma.comment.count({
+            where: {
+              parentCommentId: commentId,
+              removedAt: null,
+            },
+          })
+        : 0;
+
     await this.prisma.$transaction(async (tx) => {
+      if (hiddenReplyCount > 0) {
+        await tx.comment.deleteMany({
+          where: {
+            parentCommentId: commentId,
+          },
+        });
+      }
+
       await tx.comment.delete({
         where: { id: commentId },
       });
@@ -302,7 +327,7 @@ export class CommentsService {
 
         data: {
           commentsCount: {
-            decrement: 1,
+            decrement: hiddenReplyCount + 1,
           },
         },
       });
@@ -340,6 +365,7 @@ export class CommentsService {
       select: {
         id: true,
         postId: true,
+        parentCommentId: true,
         removedAt: true,
         post: {
           select: {
@@ -361,7 +387,16 @@ export class CommentsService {
       await this.prisma.$transaction(async (tx) => {
         const removal = await tx.comment.updateMany({
           where: {
-            id: data.commentId,
+            ...(existing.parentCommentId === null
+              ? {
+                  OR: [
+                    { id: data.commentId },
+                    { parentCommentId: data.commentId },
+                  ],
+                }
+              : {
+                  id: data.commentId,
+                }),
             removedAt: null,
           },
           data: {
@@ -379,7 +414,7 @@ export class CommentsService {
           where: { id: existing.postId },
           data: {
             commentsCount: {
-              decrement: 1,
+              decrement: removal.count,
             },
           },
         });
@@ -518,59 +553,6 @@ export class CommentsService {
     }
   }
 
-  /** Checks whether the viewer can read comments by virtue of the parent post visibility. */
-  private async canViewerReadPostContent(
-    viewerId: number | undefined,
-    post: {
-      authorId: number;
-      privacySetting: UserPrivacySetting;
-    },
-  ): Promise<boolean> {
-    if (viewerId === post.authorId) {
-      return true;
-    }
-
-    if (!viewerId) {
-      return post.privacySetting === UserPrivacySetting.PUBLIC;
-    }
-
-    const blockRelationship = await this.prisma.userBlock.findFirst({
-      where: {
-        OR: [
-          {
-            blockerId: viewerId,
-            blockedId: post.authorId,
-          },
-          {
-            blockerId: post.authorId,
-            blockedId: viewerId,
-          },
-        ],
-      },
-      select: { id: true },
-    });
-
-    if (blockRelationship) {
-      return false;
-    }
-
-    if (post.privacySetting === UserPrivacySetting.PUBLIC) {
-      return true;
-    }
-
-    const follow = await this.prisma.follow.findUnique({
-      where: {
-        followerId_followingId: {
-          followerId: viewerId,
-          followingId: post.authorId,
-        },
-      },
-      select: { id: true },
-    });
-
-    return Boolean(follow);
-  }
-
   /** Logs and throws InternalServerErrorException for unexpected persistence errors. */
   private throwUnexpectedPersistenceFailure(
     action: "update comment" | "remove comment by moderator",
@@ -582,5 +564,14 @@ export class CommentsService {
     );
 
     throw new InternalServerErrorException(`Failed to ${action}`);
+  }
+
+  /** Shapes one flat safe comment record into the mutation response contract used by GraphQL. */
+  private toCommentMutationResult(comment: SafeCommentRecord): SafeCommentDTO {
+    return {
+      ...comment,
+      repliesCount: 0,
+      replies: [],
+    };
   }
 }

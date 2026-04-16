@@ -57,6 +57,7 @@ CREATE TABLE `Comment` (
     `removedById` INTEGER NULL,
     `removalReason` VARCHAR(191) NULL,
     `postId` INTEGER NOT NULL,
+    `parentCommentId` INTEGER NULL,
 
     INDEX `Comment_authorId_idx`(`authorId`),
     INDEX `Comment_postId_idx`(`postId`),
@@ -64,6 +65,8 @@ CREATE TABLE `Comment` (
     INDEX `Comment_postId_createdAt_idx`(`postId`, `createdAt` DESC),
     INDEX `Comment_postId_createdAt_id_idx`(`postId`, `createdAt` DESC, `id` DESC),
     INDEX `Comment_postId_removedAt_createdAt_id_idx`(`postId`, `removedAt`, `createdAt` DESC, `id` DESC),
+    INDEX `Comment_postId_parentCommentId_removedAt_createdAt_id_idx`(`postId`, `parentCommentId`, `removedAt`, `createdAt` DESC, `id` DESC),
+    INDEX `Comment_parentCommentId_removedAt_createdAt_id_idx`(`parentCommentId`, `removedAt`, `createdAt` DESC, `id` DESC),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -183,7 +186,7 @@ CREATE TABLE `Bookmark` (
 -- CreateTable
 CREATE TABLE `Notification` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
-    `type` ENUM('USER_FOLLOWED', 'POST_LIKED') NOT NULL,
+    `type` ENUM('USER_FOLLOWED', 'POST_LIKED', 'COMMENT_REPLIED') NOT NULL,
     `title` VARCHAR(191) NOT NULL,
     `body` VARCHAR(191) NULL,
     `isRead` BOOLEAN NOT NULL DEFAULT false,
@@ -306,6 +309,9 @@ ALTER TABLE `Comment` ADD CONSTRAINT `Comment_authorId_fkey` FOREIGN KEY (`autho
 
 -- AddForeignKey
 ALTER TABLE `Comment` ADD CONSTRAINT `Comment_postId_fkey` FOREIGN KEY (`postId`) REFERENCES `Post`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `Comment` ADD CONSTRAINT `Comment_parentCommentId_fkey` FOREIGN KEY (`parentCommentId`) REFERENCES `Comment`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `ModerationAction` ADD CONSTRAINT `ModerationAction_actorId_fkey` FOREIGN KEY (`actorId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;

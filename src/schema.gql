@@ -151,6 +151,7 @@ type NotificationDTO {
 enum NotificationType {
   USER_FOLLOWED
   POST_LIKED
+  COMMENT_REPLIED
 }
 
 """Cursor-paginated page of notifications plus navigation metadata."""
@@ -466,6 +467,43 @@ type LikePreview {
 }
 
 """
+Public-safe direct reply representation exposed under one top-level comment.
+"""
+type CommentReply {
+  """Unique identifier of the reply."""
+  id: ID!
+
+  """Reply content visible to clients."""
+  content: String!
+
+  """Presentation-friendly UTC timestamp for when the reply was created."""
+  createdAtFormatted: String
+
+  """
+  Presentation-friendly UTC timestamp for when the reply was last updated.
+  """
+  updatedAtFormatted: String
+
+  """Identifier of the user who authored the reply."""
+  authorId: Int!
+
+  """Identifier of the post that owns the reply."""
+  postId: Int!
+
+  """Parent top-level comment identifier for this direct reply."""
+  parentCommentId: Int
+
+  """Public-safe preview of the reply author."""
+  author: SafeUserPreview!
+
+  """Timestamp indicating when the reply was created."""
+  createdAt: DateTime!
+
+  """Timestamp indicating the latest update made to the reply."""
+  updatedAt: DateTime!
+}
+
+"""
 Public-safe comment representation used in comment queries and nested post detail views.
 """
 type Comment {
@@ -489,8 +527,19 @@ type Comment {
   """Identifier of the post that owns the comment."""
   postId: Int!
 
+  """
+  Optional parent comment identifier when this comment is a direct reply.
+  """
+  parentCommentId: Int
+
   """Public-safe preview of the comment author."""
   author: SafeUserPreview!
+
+  """Number of direct replies currently visible for this comment thread."""
+  repliesCount: Int!
+
+  """Bounded inline direct replies for this top-level comment."""
+  replies: [CommentReply!]!
 
   """Timestamp indicating when the comment was created."""
   createdAt: DateTime!
@@ -1007,6 +1056,37 @@ type Query {
     orderBy: ChronologicalOrder
   ): MediaPage!
   mediaSignedViewUrl(mediaId: Int!): MediaViewUrl!
+  commentsByPost(
+    """Maximum number of items to return (1-${PAGINATION.MAX_TAKE})."""
+    first: Int
+
+    """
+    Cursor for the last item from the previous page. Reuse it only with the same filter and ordering inputs.
+    """
+    after: String
+
+    """Controls chronological ordering for paged list results."""
+    orderBy: ChronologicalOrder
+
+    """Unique id of the post whose comments should be returned."""
+    postId: Int!
+  ): CommentPage!
+  myNotifications(
+    """Maximum number of items to return (1-${PAGINATION.MAX_TAKE})."""
+    first: Int
+
+    """
+    Cursor for the last item from the previous page. Reuse it only with the same filter and ordering inputs.
+    """
+    after: String
+
+    """Controls chronological ordering for paged list results."""
+    orderBy: ChronologicalOrder
+
+    """Optional filter for notification read status (ALL/READ/UNREAD)."""
+    status: NotificationReadStatus
+  ): NotificationPage!
+  unreadNotificationsCount: Int!
   likes(
     """Maximum number of items to return (1-${PAGINATION.MAX_TAKE})."""
     first: Int
@@ -1028,22 +1108,6 @@ type Query {
     userId: Int
   ): LikePage!
   likeById(id: Int!): LikeListItem!
-  myNotifications(
-    """Maximum number of items to return (1-${PAGINATION.MAX_TAKE})."""
-    first: Int
-
-    """
-    Cursor for the last item from the previous page. Reuse it only with the same filter and ordering inputs.
-    """
-    after: String
-
-    """Controls chronological ordering for paged list results."""
-    orderBy: ChronologicalOrder
-
-    """Optional filter for notification read status (ALL/READ/UNREAD)."""
-    status: NotificationReadStatus
-  ): NotificationPage!
-  unreadNotificationsCount: Int!
   myBlockedUsers(
     """Maximum number of blocked users to return (1-${PAGINATION.MAX_TAKE})."""
     first: Int
@@ -1110,21 +1174,6 @@ type Query {
     """
     targetType: ReportTargetType
   ): ReviewReportPage!
-  commentsByPost(
-    """Maximum number of items to return (1-${PAGINATION.MAX_TAKE})."""
-    first: Int
-
-    """
-    Cursor for the last item from the previous page. Reuse it only with the same filter and ordering inputs.
-    """
-    after: String
-
-    """Controls chronological ordering for paged list results."""
-    orderBy: ChronologicalOrder
-
-    """Unique id of the post whose comments should be returned."""
-    postId: Int!
-  ): CommentPage!
   myBookmarks(
     """Maximum number of items to return (1-${PAGINATION.MAX_TAKE})."""
     first: Int
@@ -1173,10 +1222,14 @@ type Mutation {
   requestPostMediaUpload(input: RequestPostMediaUploadInput!): RequestPostMediaUpload!
   completePostMediaUpload(input: CompletePostMediaUploadInput!): Media!
   attachMediaToPost(input: AttachMediaToPostInput!): AttachMediaPostResult!
-  createLike(postId: Int!): LikeListItem!
-  deleteLike(id: Int!): MessageResponse!
+  createComment(input: CreateCommentInput!): Comment!
+  updateComment(commentId: Int!, input: UpdateCommentInput!): Comment!
+  deleteComment(commentId: Int!): MessageResponse!
+  removeCommentByModerator(input: RemoveCommentByModeratorInput!): MessageResponse!
   markNotificationAsRead(notificationId: Int!): MessageResponse!
   markAllNotificationsAsRead: MessageResponse!
+  createLike(postId: Int!): LikeListItem!
+  deleteLike(id: Int!): MessageResponse!
   blockUser(input: BlockUserInput!): MessageResponse!
   unblockUser(input: UnblockUserInput!): MessageResponse!
   followUser(userId: Int!): FollowUserResult!
@@ -1188,10 +1241,6 @@ type Mutation {
   reportComment(input: ReportCommentInput!): MessageResponse!
   dismissReport(reportId: Int!): MessageResponse!
   actionReport(reportId: Int!): MessageResponse!
-  createComment(input: CreateCommentInput!): Comment!
-  updateComment(commentId: Int!, input: UpdateCommentInput!): Comment!
-  deleteComment(commentId: Int!): MessageResponse!
-  removeCommentByModerator(input: RemoveCommentByModeratorInput!): MessageResponse!
   bookmarkPost(postId: Int!): Bookmark!
   removeBookmark(postId: Int!): MessageResponse!
 }
@@ -1334,6 +1383,36 @@ input AttachMediaToPostInput {
   mediaId: Int!
 }
 
+input CreateCommentInput {
+  """Unique identifier of the post that will receive the new comment."""
+  postId: Int!
+
+  """Optional top-level comment id when creating a direct reply."""
+  parentCommentId: Int
+
+  """Text content of the comment."""
+  content: String!
+}
+
+input UpdateCommentInput {
+  """Updated text content of the comment."""
+  content: String!
+}
+
+"""
+GraphQL input for moderator/admin comment removal with a required reason.
+"""
+input RemoveCommentByModeratorInput {
+  """Unique identifier of the comment being removed from normal reads."""
+  commentId: Int!
+
+  """Required moderator/admin justification for the removal action."""
+  reason: String!
+
+  """Optional reviewed report linked to the removal action."""
+  reportId: Int
+}
+
 input BlockUserInput {
   """Identifier of the user to block."""
   targetUserId: Int!
@@ -1368,33 +1447,6 @@ input ReportCommentInput {
 
   """Optional extra reporter-provided context about the issue."""
   details: String
-}
-
-input CreateCommentInput {
-  """Unique identifier of the post that will receive the new comment."""
-  postId: Int!
-
-  """Text content of the comment."""
-  content: String!
-}
-
-input UpdateCommentInput {
-  """Updated text content of the comment."""
-  content: String!
-}
-
-"""
-GraphQL input for moderator/admin comment removal with a required reason.
-"""
-input RemoveCommentByModeratorInput {
-  """Unique identifier of the comment being removed from normal reads."""
-  commentId: Int!
-
-  """Required moderator/admin justification for the removal action."""
-  reason: String!
-
-  """Optional reviewed report linked to the removal action."""
-  reportId: Int
 }
 
 type Subscription {

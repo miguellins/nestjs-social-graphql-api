@@ -319,6 +319,22 @@ model Comment {
   post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
 
   /**
+   * Optional parent comment id used to model one-level comment replies.
+   * Null means this is a top-level comment.
+   */
+  parentCommentId Int?
+
+  /**
+   * Optional parent comment relation for one-level comment threading.
+   */
+  parentComment Comment? @relation("CommentReplies", fields: [parentCommentId], references: [id], onDelete: Cascade)
+
+  /**
+   * Direct replies to this comment in the one-level thread model.
+   */
+  replies Comment[] @relation("CommentReplies")
+
+  /**
    * One-to-many relation
    * A comment can have many content reports
    */
@@ -364,6 +380,16 @@ model Comment {
    * Supports post-scoped comment reads that hide moderated comments.
    */
   @@index([postId, removedAt, createdAt(sort: Desc), id(sort: Desc)])
+  /**
+   * Compound index on postId + parentCommentId + removedAt + createdAt + id descending
+   * Supports top-level threaded comment reads with deterministic ordering.
+   */
+  @@index([postId, parentCommentId, removedAt, createdAt(sort: Desc), id(sort: Desc)])
+  /**
+   * Compound index on parentCommentId + removedAt + createdAt + id descending
+   * Supports bounded reply reads for one comment thread.
+   */
+  @@index([parentCommentId, removedAt, createdAt(sort: Desc), id(sort: Desc)])
 }
 
 enum ModerationActionType {
@@ -720,6 +746,7 @@ model Bookmark {
 enum NotificationType {
   USER_FOLLOWED
   POST_LIKED
+  COMMENT_REPLIED
 }
 
 model Notification {
