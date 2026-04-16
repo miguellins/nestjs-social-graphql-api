@@ -16,6 +16,7 @@ import { PAGINATION } from "@/common/constants/hard-cap.constants";
 import { encodeChronoCursor } from "@/common/pagination/chrono-cursor";
 
 import { MediaReadProjectionService } from "@/media/media-read-projection.service";
+import { CommentsReadService } from "@/comments/comments-read.service";
 import { CreatedPostSelect } from "@/posts/dto/created-post.dto";
 import { SafePostDetailSelect } from "@/posts/dto/safe-post-detail.dto";
 
@@ -125,6 +126,10 @@ describe("PostsService", () => {
     getPublicUrl: jest.fn(),
   };
 
+  const commentsReadServiceMock = {
+    listThreadedCommentsForPost: jest.fn(),
+  };
+
   beforeEach(async () => {
     jest.clearAllMocks();
     mem.clear();
@@ -137,6 +142,7 @@ describe("PostsService", () => {
     r2StorageMock.getPublicUrl.mockImplementation(
       (objectKey: string) => `https://media.example.com/${objectKey}`,
     );
+    commentsReadServiceMock.listThreadedCommentsForPost.mockResolvedValue([]);
 
     cacheMock.get.mockImplementation((key: string) =>
       Promise.resolve(mem.get(key)),
@@ -167,6 +173,7 @@ describe("PostsService", () => {
         { provide: PrismaService, useValue: prismaMock },
         { provide: CacheHelperService, useValue: cacheMock },
         { provide: R2StorageService, useValue: r2StorageMock },
+        { provide: CommentsReadService, useValue: commentsReadServiceMock },
       ],
     }).compile();
 
@@ -809,7 +816,12 @@ describe("PostsService", () => {
         },
       });
 
-      expect(res).toEqual({ id: 10, viewsCount: 1, editedAt: null });
+      expect(res).toEqual({
+        id: 10,
+        viewsCount: 1,
+        editedAt: null,
+        comments: [],
+      });
 
       expect(prismaMock.post.update).toHaveBeenCalledWith({
         where: { id: 10 },
@@ -827,7 +839,12 @@ describe("PostsService", () => {
     });
 
     it("patches the cached viewsCount after the asynchronous increment succeeds", async () => {
-      const cachedPost = { id: 10, viewsCount: 1, editedAt: null };
+      const cachedPost = {
+        id: 10,
+        viewsCount: 1,
+        editedAt: null,
+        comments: [],
+      };
 
       prismaMock.post.findFirst.mockResolvedValue(cachedPost);
       prismaMock.post.update.mockResolvedValue({ viewsCount: 42 });
@@ -840,7 +857,7 @@ describe("PostsService", () => {
 
       expect(cacheMock.set).toHaveBeenCalledWith(
         "posts:detail:10",
-        { id: 10, viewsCount: 42, editedAt: null },
+        { id: 10, viewsCount: 42, editedAt: null, comments: [] },
         60_000,
       );
     });
@@ -867,6 +884,7 @@ describe("PostsService", () => {
         id: 10,
         viewsCount: 1,
         editedAt: null,
+        comments: [],
       });
 
       await new Promise(setImmediate);

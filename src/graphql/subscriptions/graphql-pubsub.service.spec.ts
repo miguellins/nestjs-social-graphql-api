@@ -102,7 +102,7 @@ describe("GraphqlPubSubService", () => {
     });
 
     expect(redisPubSubMock.publish).toHaveBeenCalledWith(
-      "notificationReceived",
+      "graphql-subscriptions:notificationReceived",
       {
         notificationReceived: {
           id: 1,

@@ -4,6 +4,10 @@ import { GraphqlPubSubService } from "@/graphql/subscriptions/graphql-pubsub.ser
 
 import type { SafeNotificationDTO } from "@/notifications/dto/safe-notification.dto";
 
+export function buildNotificationReceivedTrigger(recipientId: number): string {
+  return `notificationReceived.${recipientId}`;
+}
+
 @Injectable()
 export class NotificationDeliveryService {
   constructor(private readonly graphqlPubSub: GraphqlPubSubService) {}
@@ -12,8 +16,11 @@ export class NotificationDeliveryService {
   async publishNotificationReceived(
     notification: SafeNotificationDTO,
   ): Promise<void> {
-    await this.graphqlPubSub.publish("notificationReceived", {
-      notificationReceived: notification,
-    });
+    await this.graphqlPubSub.publish(
+      buildNotificationReceivedTrigger(notification.recipientId),
+      {
+        notificationReceived: notification,
+      },
+    );
   }
 }

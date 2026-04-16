@@ -41,4 +41,21 @@ export class NotificationTriggerService {
       entityId: params.followId,
     });
   }
+
+  // Creates the standard notification for a reply to one comment
+  async notifyCommentReplied(params: {
+    recipientId: number;
+    actorId: number;
+    actorUsername: string;
+    commentId: number;
+  }): Promise<void> {
+    await this.notificationsService.createAndPublishNotification({
+      recipientId: params.recipientId,
+      actorId: params.actorId,
+      type: NotificationType.COMMENT_REPLIED,
+      title: "New reply",
+      body: `${params.actorUsername} replied to your comment`,
+      entityId: params.commentId,
+    });
+  }
 }

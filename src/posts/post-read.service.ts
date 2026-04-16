@@ -28,6 +28,8 @@ import { AccountState } from "@/users/enums/account-state.enum";
 
 import { MediaReadProjectionService } from "@/media/media-read-projection.service";
 
+import { CommentsReadService } from "@/comments/comments-read.service";
+
 import { PrismaService } from "@/prisma/prisma.service";
 import { Prisma } from "@prisma/client";
 
@@ -43,6 +45,7 @@ export class PostReadService {
     private readonly prisma: PrismaService,
     private readonly cacheHelper: CacheHelperService,
     private readonly mediaReadProjection: MediaReadProjectionService,
+    private readonly commentsReadService: CommentsReadService,
   ) {}
 
   // Returns one detailed post view with bounded likes and comments
@@ -107,7 +110,14 @@ export class PostReadService {
       throw new NotFoundException("Post not found");
     }
 
-    return this.mediaReadProjection.derivePostDetailMediaUrls(post);
+    return this.mediaReadProjection.derivePostDetailMediaUrls({
+      ...post,
+      comments: await this.commentsReadService.listThreadedCommentsForPost(
+        id,
+        viewerId,
+        commentsTake,
+      ),
+    });
   }
 
   // Returns the authenticated user's feed with bounded chronological pagination

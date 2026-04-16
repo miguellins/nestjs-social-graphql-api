@@ -207,6 +207,42 @@ describe("NotificationsService", () => {
         notificationDeliveryMock.publishNotificationReceived,
       ).not.toHaveBeenCalled();
     });
+
+    it("should suppress comment reply notifications for self-replies", async () => {
+      const result = await service.createAndPublishNotification({
+        recipientId: 7,
+        actorId: 7,
+        type: NotificationType.COMMENT_REPLIED,
+        title: "New reply",
+        body: "user7 replied to your comment",
+        entityId: 42,
+      });
+
+      expect(result).toBeNull();
+      expect(prismaMock.notification.create).not.toHaveBeenCalled();
+      expect(
+        notificationDeliveryMock.publishNotificationReceived,
+      ).not.toHaveBeenCalled();
+    });
+
+    it("should suppress comment reply notifications for blocked pairs", async () => {
+      prismaMock.userBlock.findFirst.mockResolvedValue({ id: 99 });
+
+      const result = await service.createAndPublishNotification({
+        recipientId: 7,
+        actorId: 2,
+        type: NotificationType.COMMENT_REPLIED,
+        title: "New reply",
+        body: "user2 replied to your comment",
+        entityId: 42,
+      });
+
+      expect(result).toBeNull();
+      expect(prismaMock.notification.create).not.toHaveBeenCalled();
+      expect(
+        notificationDeliveryMock.publishNotificationReceived,
+      ).not.toHaveBeenCalled();
+    });
   });
 
   describe("findMyNotifications", () => {

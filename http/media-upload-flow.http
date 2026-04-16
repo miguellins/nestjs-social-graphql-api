@@ -1,7 +1,7 @@
 @baseUrl = http://localhost:3000
-@token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOjEsImlhdCI6MTc3NDY1MjAxMiwiZXhwIjoxNzc1MjU2ODEyfQ.NfWPpzsASQ02Vz4fTPcjvLTUzmp1QP_65IqaZb-vUOU
-@postId = 2
-@filename = cutie.png
+@token = 
+@postId = 
+@filename = 
 @mimeType = image/png
 @mediaId = update-media-upload-vars.sh-will-fill-this-automatically
 @uploadUrl = update-media-upload-vars.sh-will-fill-this-automatically

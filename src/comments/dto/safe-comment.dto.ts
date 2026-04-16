@@ -1,21 +1,34 @@
 import type { Prisma } from "@prisma/client";
 
-/** A DTO representing a safe public view of a comment, excluding sensitive fields. */
-export type SafeCommentDTO = {
+/** Shared safe author shape exposed inside comment payloads. */
+export type SafeCommentAuthorDTO = {
+  id: number;
+  name: string;
+  username: string;
+};
+
+/** Flat safe comment record loaded directly from Prisma before thread assembly. */
+export type SafeCommentRecord = {
   id: number;
   content: string;
   createdAt: Date;
   updatedAt: Date;
   authorId: number;
   postId: number;
-  author: {
-    id: number;
-    name: string;
-    username: string;
-  };
+  parentCommentId: number | null;
+  author: SafeCommentAuthorDTO;
 };
 
-/** Prisma select shape for retrieving safe comment fields and author info. */
+/** Safe direct-reply shape exposed under one top-level comment in the v1 thread contract. */
+export type SafeCommentReplyDTO = SafeCommentRecord;
+
+/** Safe threaded comment shape exposed by comment reads and mutations. */
+export type SafeCommentDTO = SafeCommentRecord & {
+  repliesCount: number;
+  replies: SafeCommentReplyDTO[];
+};
+
+/** Prisma select shape for retrieving the flat safe comment record and author info. */
 export const SafeCommentSelect = {
   id: true,
   content: true,
@@ -23,6 +36,7 @@ export const SafeCommentSelect = {
   updatedAt: true,
   authorId: true,
   postId: true,
+  parentCommentId: true,
   author: {
     select: {
       id: true,

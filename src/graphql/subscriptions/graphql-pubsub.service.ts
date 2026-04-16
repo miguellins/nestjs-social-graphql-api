@@ -15,6 +15,7 @@ export class GraphqlPubSubService implements OnModuleDestroy {
   private readonly publisher: Redis;
   private readonly subscriber: Redis;
   private readonly pubSub: RedisPubSub;
+  private readonly namespace: string;
 
   constructor(private readonly configService: ConfigService) {
     const redisUrl =
@@ -27,7 +28,7 @@ export class GraphqlPubSubService implements OnModuleDestroy {
       );
     }
 
-    const namespace =
+    this.namespace =
       this.configService.get<string>("GRAPHQL_SUBSCRIPTIONS_REDIS_NAMESPACE") ??
       "graphql-subscriptions";
 
@@ -38,11 +39,7 @@ export class GraphqlPubSubService implements OnModuleDestroy {
       publisher: this.publisher,
       subscriber: this.subscriber,
       triggerTransform: (trigger) => {
-        const normalizedTrigger = Array.isArray(trigger)
-          ? trigger.join(".")
-          : String(trigger);
-
-        return `${namespace}:${normalizedTrigger}`;
+        return this.transformTrigger(trigger);
       },
       serializer: (payload) => serialize(payload).toString("base64"),
       deserializer: (payload) =>
@@ -65,7 +62,7 @@ export class GraphqlPubSubService implements OnModuleDestroy {
     trigger: string,
     payload: T,
   ): Promise<void> {
-    await this.pubSub.publish(trigger, payload);
+    await this.pubSub.publish(this.transformTrigger(trigger), payload);
   }
 
   asyncIterableIterator<T>(
@@ -100,5 +97,13 @@ export class GraphqlPubSubService implements OnModuleDestroy {
     });
 
     return client;
+  }
+
+  private transformTrigger(trigger: unknown): string {
+    const normalizedTrigger = Array.isArray(trigger)
+      ? trigger.map((segment) => String(segment)).join(".")
+      : String(trigger);
+
+    return `${this.namespace}:${normalizedTrigger}`;
   }
 }

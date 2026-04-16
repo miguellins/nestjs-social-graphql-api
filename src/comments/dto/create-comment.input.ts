@@ -3,8 +3,10 @@ import { Field, InputType, Int } from "@nestjs/graphql";
 import {
   IsInt,
   IsNotEmpty,
+  IsOptional,
   IsString,
   MaxLength,
+  Min,
   MinLength,
 } from "class-validator";
 
@@ -24,4 +26,11 @@ export class CreateCommentInput {
   @Field(() => Int)
   @IsInt()
   postId: number;
+
+  /** Optional top-level comment id when creating a direct reply. */
+  @Field(() => Int, { nullable: true })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  parentCommentId?: number;
 }
