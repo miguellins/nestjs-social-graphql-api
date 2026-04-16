@@ -151,6 +151,7 @@ type NotificationDTO {
 enum NotificationType {
   USER_FOLLOWED
   POST_LIKED
+  COMMENT_REPLIED
 }
 
 """Cursor-paginated page of notifications plus navigation metadata."""
