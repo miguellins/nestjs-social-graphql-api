@@ -12,6 +12,7 @@ import { JwtService } from "@nestjs/jwt";
 
 import { EmailVerificationDeliveryService } from "@/auth/email-verification-delivery.service";
 import { PasswordResetDeliveryService } from "@/auth/password-reset-delivery.service";
+import type { AuthSessionMetadata } from "@/auth/auth-session-metadata.type";
 import { AuthPayload } from "@/auth/auth.payload";
 import {
   loginCommandSchema,
@@ -91,7 +92,10 @@ export class AuthService {
     this.refreshSessionTtlMs = refreshTtlDays * 24 * 60 * 60_000;
   }
 
-  async login(input: LoginCommand): Promise<AuthPayload> {
+  async login(
+    input: LoginCommand,
+    metadata?: AuthSessionMetadata,
+  ): Promise<AuthPayload> {
     const credentials = this.parseLoginInput(input);
 
     try {
@@ -135,17 +139,26 @@ export class AuthService {
 
       const refreshToken = this.createRefreshSessionToken();
       const expiresAt = this.buildRefreshSessionExpiry();
-
-      await this.prisma.refreshSession.create({
+      const refreshSession = await this.prisma.refreshSession.create({
         data: {
           userId: user.id,
           tokenHash: refreshToken.hash,
           expiresAt,
+          lastUsedAt: new Date(),
+          userAgent: metadata?.userAgent,
+          ipAddress: metadata?.ipAddress,
+        },
+        select: {
+          id: true,
         },
       });
 
       return {
-        access_token: await this.signAccessToken(user.id, user.role),
+        access_token: await this.signAccessToken(
+          user.id,
+          user.role,
+          refreshSession.id,
+        ),
         refreshToken: refreshToken.raw,
       };
     } catch (err) {
@@ -436,7 +449,10 @@ export class AuthService {
     };
   }
 
-  async refreshSession(input: RefreshSessionCommand): Promise<AuthPayload> {
+  async refreshSession(
+    input: RefreshSessionCommand,
+    metadata?: AuthSessionMetadata,
+  ): Promise<AuthPayload> {
     const data = this.parseRefreshSessionInput(input);
     const tokenHash = this.hashRefreshToken(data.refreshToken);
     const now = new Date();
@@ -494,7 +510,11 @@ export class AuthService {
           },
         },
         data: {
-          revokedAt: now,
+          tokenHash: nextRefreshToken.hash,
+          expiresAt: nextExpiresAt,
+          lastUsedAt: now,
+          userAgent: metadata?.userAgent,
+          ipAddress: metadata?.ipAddress,
         },
       });
 
@@ -504,28 +524,8 @@ export class AuthService {
         );
       }
 
-      const replacement = await tx.refreshSession.create({
-        data: {
-          userId: session.userId,
-          tokenHash: nextRefreshToken.hash,
-          expiresAt: nextExpiresAt,
-        },
-        select: {
-          id: true,
-        },
-      });
-
-      await tx.refreshSession.updateMany({
-        where: {
-          id: session.id,
-          replacedBySessionId: null,
-        },
-        data: {
-          replacedBySessionId: replacement.id,
-        },
-      });
-
       return {
+        sessionId: session.id,
         userId: session.userId,
         role: session.user.role,
       };
@@ -535,6 +535,7 @@ export class AuthService {
       access_token: await this.signAccessToken(
         sessionData.userId,
         sessionData.role,
+        sessionData.sessionId,
       ),
       refreshToken: nextRefreshToken.raw,
     };
@@ -615,8 +616,12 @@ export class AuthService {
   }
 
   /** Signs a short-lived access token for one authenticated user. */
-  private signAccessToken(userId: number, role: UserRole): Promise<string> {
-    return this.jwtService.signAsync({ sub: userId, role });
+  private signAccessToken(
+    userId: number,
+    role: UserRole,
+    sessionId?: number,
+  ): Promise<string> {
+    return this.jwtService.signAsync({ sub: userId, role, sid: sessionId });
   }
 
   /** Blocks suspended and deactivated accounts from authenticating or rotating sessions. */

@@ -968,6 +968,27 @@ type CreatedUser implements PublicUserIdentity {
   updatedAtFormatted: String
 }
 
+"""Public GraphQL view of one active authenticated session."""
+type SessionInfo {
+  """Stable session identifier."""
+  id: Int!
+
+  """Timestamp when the session was first created."""
+  createdAt: DateTime!
+
+  """Timestamp when the session last refreshed successfully."""
+  lastUsedAt: DateTime!
+
+  """Timestamp when the refresh session expires."""
+  expiresAt: DateTime!
+
+  """Raw user-agent captured for the session when available."""
+  userAgent: String
+
+  """Whether this entry matches the authenticated request session."""
+  isCurrent: Boolean!
+}
+
 """
 Authentication payload returned after successful login and token issuance.
 """
@@ -980,6 +1001,7 @@ type AuthPayload {
 }
 
 type Query {
+  mySessions: [SessionInfo!]!
   users(
     """Maximum number of items to return (1-${PAGINATION.MAX_TAKE})."""
     first: Int
@@ -1206,6 +1228,9 @@ type Mutation {
   requestPasswordReset(input: RequestPasswordResetInput!): MessageResponse!
   resetPassword(input: ResetPasswordInput!): MessageResponse!
   requestEmailVerification: MessageResponse!
+  logoutCurrentSession: MessageResponse!
+  revokeSession(sessionId: Int!): MessageResponse!
+  revokeOtherSessions: MessageResponse!
   verifyEmail(input: VerifyEmailInput!): MessageResponse!
   refreshSession(input: RefreshSessionInput!): AuthPayload!
   logout(input: LogoutInput!): MessageResponse!

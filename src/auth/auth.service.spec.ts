@@ -10,6 +10,7 @@ import { Prisma } from "@prisma/client";
 
 import { EmailVerificationDeliveryService } from "@/auth/email-verification-delivery.service";
 import { PasswordResetDeliveryService } from "@/auth/password-reset-delivery.service";
+import { GRAPHQL_ERROR_CODES } from "@/common/constants/graphql-error-code.constants";
 import { SALT_ROUNDS } from "@/common/constants/security.constants";
 import { PasswordService } from "@/common/security/password.service";
 import { PrismaService } from "@/prisma/prisma.service";
@@ -210,6 +211,28 @@ describe("AuthService", () => {
       expect(signAsyncMock).not.toHaveBeenCalled();
     });
 
+    it("rejects deactivated accounts with a sanitized error code", async () => {
+      userFindUniqueMock.mockResolvedValue({
+        id: 1,
+        username: "john",
+        password: await passwordService.hashPassword("pass12345"),
+        role: USER_ROLE.USER,
+        accountState: AccountState.DEACTIVATED,
+      });
+
+      await expect(
+        service.login({ username: "john", password: "pass12345" }),
+      ).rejects.toMatchObject({
+        response: {
+          message: "This account is deactivated",
+          code: GRAPHQL_ERROR_CODES.ACCOUNT_DEACTIVATED,
+        },
+      });
+
+      expect(signAsyncMock).not.toHaveBeenCalled();
+      expect(refreshSessionCreateMock).not.toHaveBeenCalled();
+    });
+
     it("returns access_token and refreshToken when credentials are valid", async () => {
       userFindUniqueMock.mockResolvedValue({
         id: 7,
@@ -239,6 +262,7 @@ describe("AuthService", () => {
       expect(signAsyncMock).toHaveBeenCalledWith({
         sub: 7,
         role: USER_ROLE.USER,
+        sid: 1,
       });
       const refreshSessionCreateCalls = refreshSessionCreateMock.mock
         .calls as Array<
@@ -373,10 +397,7 @@ describe("AuthService", () => {
           accountState: AccountState.ACTIVE,
         },
       });
-      refreshSessionCreateMock.mockResolvedValue({ id: 12 });
-      refreshSessionUpdateManyMock
-        .mockResolvedValueOnce({ count: 1 })
-        .mockResolvedValueOnce({ count: 1 });
+      refreshSessionUpdateManyMock.mockResolvedValue({ count: 1 });
       signAsyncMock.mockResolvedValue("jwt.token.value");
 
       const result = await service.refreshSession({
@@ -394,24 +415,12 @@ describe("AuthService", () => {
             select?: {
               id?: true;
               userId?: true;
+              user?: { select?: { role?: true; accountState?: true } };
             };
           },
         ]
       >;
       const refreshFindCall = refreshFindCalls[0]?.[0];
-      const refreshCreateCalls = refreshSessionCreateMock.mock.calls as Array<
-        [
-          {
-            data?: {
-              userId?: number;
-              tokenHash?: string;
-              expiresAt?: Date;
-            };
-            select?: { id?: true };
-          },
-        ]
-      >;
-      const refreshCreateCall = refreshCreateCalls[0]?.[0];
       const refreshUpdateCalls = refreshSessionUpdateManyMock.mock
         .calls as Array<
         [
@@ -421,17 +430,18 @@ describe("AuthService", () => {
               tokenHash?: string;
               revokedAt?: null;
               expiresAt?: { gt?: Date };
-              replacedBySessionId?: null;
             };
             data?: {
-              revokedAt?: Date;
-              replacedBySessionId?: number;
+              tokenHash?: string;
+              expiresAt?: Date;
+              lastUsedAt?: Date;
+              userAgent?: string;
+              ipAddress?: string;
             };
           },
         ]
       >;
       const refreshUpdateCall = refreshUpdateCalls[0]?.[0];
-      const refreshLinkCall = refreshUpdateCalls[1]?.[0];
 
       expect(refreshFindCall?.where?.tokenHash).toEqual(expect.any(String));
       expect(refreshFindCall?.where?.revokedAt).toBeNull();
@@ -446,24 +456,58 @@ describe("AuthService", () => {
           },
         },
       });
-      expect(refreshCreateCall?.data?.userId).toBe(7);
-      expect(refreshCreateCall?.data?.tokenHash).toEqual(expect.any(String));
-      expect(refreshCreateCall?.data?.expiresAt).toBeInstanceOf(Date);
-      expect(refreshCreateCall?.select).toEqual({ id: true });
       expect(refreshUpdateCall?.where?.id).toBe(11);
       expect(refreshUpdateCall?.where?.tokenHash).toEqual(expect.any(String));
       expect(refreshUpdateCall?.where?.revokedAt).toBeNull();
       expect(refreshUpdateCall?.where?.expiresAt?.gt).toBeInstanceOf(Date);
-      expect(refreshUpdateCall?.data?.revokedAt).toBeInstanceOf(Date);
-      expect(refreshLinkCall?.where?.id).toBe(11);
-      expect(refreshLinkCall?.where?.replacedBySessionId).toBeNull();
-      expect(refreshLinkCall?.data?.replacedBySessionId).toBe(12);
+      expect(refreshUpdateCall?.data?.tokenHash).toEqual(expect.any(String));
+      expect(refreshUpdateCall?.data?.expiresAt).toBeInstanceOf(Date);
+      expect(refreshUpdateCall?.data?.lastUsedAt).toBeInstanceOf(Date);
+      expect(refreshSessionCreateMock).not.toHaveBeenCalled();
       expect(signAsyncMock).toHaveBeenCalledWith({
         sub: 7,
         role: USER_ROLE.MODERATOR,
+        sid: 11,
       });
       expect(result.access_token).toBe("jwt.token.value");
       expect(result.refreshToken).toEqual(expect.any(String));
+    });
+
+    it("persists updated session metadata during rotation", async () => {
+      refreshSessionFindFirstMock.mockResolvedValue({
+        id: 11,
+        userId: 7,
+        user: {
+          role: USER_ROLE.MODERATOR,
+          accountState: AccountState.ACTIVE,
+        },
+      });
+      refreshSessionUpdateManyMock.mockResolvedValue({ count: 1 });
+      signAsyncMock.mockResolvedValue("jwt.token.value");
+
+      await service.refreshSession(
+        { refreshToken: "raw-refresh-token" },
+        {
+          userAgent: "Mozilla/5.0 Updated Browser",
+          ipAddress: "203.0.113.10",
+        },
+      );
+
+      const refreshUpdateCalls = refreshSessionUpdateManyMock.mock
+        .calls as Array<
+        [
+          {
+            data?: {
+              userAgent?: string;
+              ipAddress?: string;
+            };
+          },
+        ]
+      >;
+      const rotateCall = refreshUpdateCalls[0]?.[0];
+
+      expect(rotateCall?.data?.userAgent).toBe("Mozilla/5.0 Updated Browser");
+      expect(rotateCall?.data?.ipAddress).toBe("203.0.113.10");
     });
 
     it("rejects a missing refresh session", async () => {
@@ -495,10 +539,7 @@ describe("AuthService", () => {
           },
         })
         .mockResolvedValueOnce(null);
-      refreshSessionUpdateManyMock
-        .mockResolvedValueOnce({ count: 1 })
-        .mockResolvedValueOnce({ count: 1 });
-      refreshSessionCreateMock.mockResolvedValue({ id: 12 });
+      refreshSessionUpdateManyMock.mockResolvedValue({ count: 1 });
       signAsyncMock.mockResolvedValue("jwt.token.value");
 
       await service.refreshSession({
@@ -508,6 +549,53 @@ describe("AuthService", () => {
       await expect(
         service.refreshSession({ refreshToken: "old-refresh-token" }),
       ).rejects.toBeInstanceOf(UnauthorizedException);
+    });
+
+    it("revokes all active sessions and rejects deactivated accounts", async () => {
+      refreshSessionFindFirstMock.mockResolvedValue({
+        id: 11,
+        userId: 7,
+        user: {
+          role: USER_ROLE.MODERATOR,
+          accountState: AccountState.DEACTIVATED,
+        },
+      });
+      refreshSessionUpdateManyMock
+        .mockResolvedValueOnce({ count: 3 })
+        .mockResolvedValueOnce({ count: 0 });
+
+      await expect(
+        service.refreshSession({ refreshToken: "raw-refresh-token" }),
+      ).rejects.toMatchObject({
+        response: {
+          message: "This account is deactivated",
+          code: GRAPHQL_ERROR_CODES.ACCOUNT_DEACTIVATED,
+        },
+      });
+
+      expect(refreshSessionUpdateManyMock).toHaveBeenCalledTimes(1);
+      const refreshUpdateCalls = refreshSessionUpdateManyMock.mock
+        .calls as Array<
+        [
+          {
+            where?: {
+              userId?: number;
+              revokedAt?: null;
+            };
+            data?: {
+              revokedAt?: Date;
+            };
+          },
+        ]
+      >;
+      const revokeAllCall = refreshUpdateCalls[0]?.[0];
+
+      expect(revokeAllCall?.where).toEqual({
+        userId: 7,
+        revokedAt: null,
+      });
+      expect(revokeAllCall?.data?.revokedAt).toBeInstanceOf(Date);
+      expect(signAsyncMock).not.toHaveBeenCalled();
     });
   });
 

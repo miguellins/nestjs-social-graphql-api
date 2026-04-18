@@ -4,4 +4,5 @@ import type { UserRole } from "@/users/enums/user-role.enum";
 export type AuthenticatedUser = {
   id: number;
   role?: UserRole;
+  sessionId?: number;
 };

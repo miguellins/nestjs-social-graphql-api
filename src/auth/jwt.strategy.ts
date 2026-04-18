@@ -10,7 +10,7 @@ import {
   type JwtFromRequestFunction,
 } from "passport-jwt";
 
-type JwtPayload = { sub: number; role?: UserRole };
+type JwtPayload = { sub: number; role?: UserRole; sid?: number };
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy, "jwt") {
@@ -30,6 +30,6 @@ export class JwtStrategy extends PassportStrategy(Strategy, "jwt") {
   }
 
   validate(payload: JwtPayload) {
-    return { id: payload.sub, role: payload.role };
+    return { id: payload.sub, role: payload.role, sessionId: payload.sid };
   }
 }

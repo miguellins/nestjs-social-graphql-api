@@ -224,8 +224,11 @@ CREATE TABLE `RefreshSession` (
     `userId` INTEGER NOT NULL,
     `tokenHash` VARCHAR(191) NOT NULL,
     `expiresAt` DATETIME(3) NOT NULL,
+    `lastUsedAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `revokedAt` DATETIME(3) NULL,
     `replacedBySessionId` INTEGER NULL,
+    `userAgent` VARCHAR(191) NULL,
+    `ipAddress` VARCHAR(191) NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 

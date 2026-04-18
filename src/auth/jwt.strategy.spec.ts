@@ -24,9 +24,12 @@ describe("JwtStrategy", () => {
     const strategy = new JwtStrategy(configMock);
 
     expect(strategy).toBeInstanceOf(JwtStrategy);
-    expect(strategy.validate({ sub: 42, role: USER_ROLE.ADMIN })).toEqual({
+    expect(
+      strategy.validate({ sub: 42, role: USER_ROLE.ADMIN, sid: 7 }),
+    ).toEqual({
       id: 42,
       role: USER_ROLE.ADMIN,
+      sessionId: 7,
     });
   });
 });

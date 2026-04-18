@@ -5,6 +5,7 @@ import { JwtModule } from "@nestjs/jwt";
 
 import { EmailVerificationDeliveryService } from "@/auth/email-verification-delivery.service";
 import { PasswordResetDeliveryService } from "@/auth/password-reset-delivery.service";
+import { AuthSessionService } from "@/auth/auth-session.service";
 import { AuthResolver } from "@/auth/auth.resolver";
 import { AuthService } from "@/auth/auth.service";
 import { JwtStrategy } from "@/auth/jwt.strategy";
@@ -37,11 +38,12 @@ import type { StringValue } from "ms";
   ],
   providers: [
     AuthService,
+    AuthSessionService,
     AuthResolver,
     JwtStrategy,
     EmailVerificationDeliveryService,
     PasswordResetDeliveryService,
   ],
-  exports: [AuthService, JwtModule],
+  exports: [AuthService, AuthSessionService, JwtModule],
 })
 export class AuthModule {}
