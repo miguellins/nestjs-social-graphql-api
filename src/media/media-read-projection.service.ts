@@ -11,6 +11,10 @@ import type {
   SafePostDetailDTO,
   SafePostDetailRecord,
 } from "@/posts/dto/safe-post-detail.dto";
+import type {
+  HomeFeedItemDTO,
+  HomeFeedItemRecord,
+} from "@/posts/dto/home-feed-item.dto";
 
 @Injectable()
 export class MediaReadProjectionService {
@@ -50,6 +54,25 @@ export class MediaReadProjectionService {
     return {
       ...post,
       mediaAttachments: post.mediaAttachments.map((attachment) => ({
+        ...attachment,
+        media: this.derivePublicUrl(attachment.media),
+      })),
+    };
+  }
+
+  // Derives browser-facing URLs and viewer-state flags for feed items
+  deriveHomeFeedItemMediaUrls(item: HomeFeedItemRecord): HomeFeedItemDTO {
+    return {
+      id: item.id,
+      title: item.title,
+      content: item.content,
+      createdAt: item.createdAt,
+      likesCount: item.likesCount,
+      commentsCount: item.commentsCount,
+      viewerHasLiked: item.likes.length > 0,
+      viewerHasBookmarked: item.bookmarks.length > 0,
+      author: item.author,
+      mediaAttachments: item.mediaAttachments?.map((attachment) => ({
         ...attachment,
         media: this.derivePublicUrl(attachment.media),
       })),

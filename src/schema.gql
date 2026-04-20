@@ -423,6 +423,55 @@ type AttachMediaPostResult {
 }
 
 """
+Home-screen optimized post representation for the authenticated user's feed.
+"""
+type HomeFeedItem {
+  """Unique identifier of the feed item post."""
+  id: ID!
+
+  """Optional headline attached to the post."""
+  title: String
+
+  """Main textual content shown in the feed card."""
+  content: String!
+
+  """Timestamp indicating when the post was originally created."""
+  createdAt: DateTime!
+
+  """
+  Presentation-friendly UTC timestamp for when the post was originally created.
+  """
+  createdAtFormatted: String
+
+  """Total number of likes associated with the post."""
+  likesCount: Int!
+
+  """Total number of comments associated with the post."""
+  commentsCount: Int!
+
+  """Indicates whether the current viewer has liked the post."""
+  viewerHasLiked: Boolean!
+
+  """Indicates whether the current viewer has bookmarked the post."""
+  viewerHasBookmarked: Boolean!
+
+  """Safe public preview of the post author."""
+  author: SafeUserPreview!
+
+  """Optional ordered list of media attachments associated with the post."""
+  mediaAttachments: [PostMedia!]
+}
+
+"""Cursor-paginated page of home-feed items plus navigation metadata."""
+type HomeFeedPage {
+  """Items returned for the current feed page."""
+  items: [HomeFeedItem!]!
+
+  """Cursor navigation metadata for the current feed page."""
+  pageInfo: PageInfo!
+}
+
+"""
 Public post payload returned immediately after successful post creation.
 """
 type CreatedPost {
@@ -1065,6 +1114,18 @@ type Query {
     """Controls chronological ordering for paged list results."""
     orderBy: ChronologicalOrder
   ): PostPage!
+  homeFeed(
+    """Maximum number of items to return (1-${PAGINATION.MAX_TAKE})."""
+    first: Int
+
+    """
+    Cursor for the last item from the previous page. Reuse it only with the same filter and ordering inputs.
+    """
+    after: String
+
+    """Controls chronological ordering for paged list results."""
+    orderBy: ChronologicalOrder
+  ): HomeFeedPage!
   myMedia(
     """Maximum number of items to return (1-${PAGINATION.MAX_TAKE})."""
     first: Int
