@@ -227,6 +227,97 @@ type BookmarkPage {
 }
 
 """
+Public-safe direct reply representation exposed under one top-level comment.
+"""
+type CommentReply {
+  """Unique identifier of the reply."""
+  id: ID!
+
+  """Reply content visible to clients."""
+  content: String!
+
+  """Presentation-friendly UTC timestamp for when the reply was created."""
+  createdAtFormatted: String
+
+  """
+  Presentation-friendly UTC timestamp for when the reply was last updated.
+  """
+  updatedAtFormatted: String
+
+  """Identifier of the user who authored the reply."""
+  authorId: Int!
+
+  """Identifier of the post that owns the reply."""
+  postId: Int!
+
+  """Parent top-level comment identifier for this direct reply."""
+  parentCommentId: Int
+
+  """Public-safe preview of the reply author."""
+  author: SafeUserPreview!
+
+  """Timestamp indicating when the reply was created."""
+  createdAt: DateTime!
+
+  """Timestamp indicating the latest update made to the reply."""
+  updatedAt: DateTime!
+}
+
+"""
+Public-safe comment representation used in comment queries and nested post detail views.
+"""
+type Comment {
+  """Unique identifier of the comment."""
+  id: ID!
+
+  """Comment content visible to clients."""
+  content: String!
+
+  """Presentation-friendly UTC timestamp for when the comment was created."""
+  createdAtFormatted: String
+
+  """
+  Presentation-friendly UTC timestamp for when the comment was last updated.
+  """
+  updatedAtFormatted: String
+
+  """Identifier of the user who authored the comment."""
+  authorId: Int!
+
+  """Identifier of the post that owns the comment."""
+  postId: Int!
+
+  """
+  Optional parent comment identifier when this comment is a direct reply.
+  """
+  parentCommentId: Int
+
+  """Public-safe preview of the comment author."""
+  author: SafeUserPreview!
+
+  """Number of direct replies currently visible for this comment thread."""
+  repliesCount: Int!
+
+  """Bounded inline direct replies for this top-level comment."""
+  replies: [CommentReply!]!
+
+  """Timestamp indicating when the comment was created."""
+  createdAt: DateTime!
+
+  """Timestamp indicating the latest update made to the comment."""
+  updatedAt: DateTime!
+}
+
+"""Cursor-paginated page of comments plus navigation metadata."""
+type CommentPage {
+  """Items returned for the current page."""
+  items: [Comment!]!
+
+  """Cursor navigation metadata for the current page."""
+  pageInfo: PageInfo!
+}
+
+"""
 Upload instruction payload returned before a client uploads media directly to storage.
 """
 type RequestPostMediaUpload {
@@ -518,88 +609,6 @@ type LikePreview {
 }
 
 """
-Public-safe direct reply representation exposed under one top-level comment.
-"""
-type CommentReply {
-  """Unique identifier of the reply."""
-  id: ID!
-
-  """Reply content visible to clients."""
-  content: String!
-
-  """Presentation-friendly UTC timestamp for when the reply was created."""
-  createdAtFormatted: String
-
-  """
-  Presentation-friendly UTC timestamp for when the reply was last updated.
-  """
-  updatedAtFormatted: String
-
-  """Identifier of the user who authored the reply."""
-  authorId: Int!
-
-  """Identifier of the post that owns the reply."""
-  postId: Int!
-
-  """Parent top-level comment identifier for this direct reply."""
-  parentCommentId: Int
-
-  """Public-safe preview of the reply author."""
-  author: SafeUserPreview!
-
-  """Timestamp indicating when the reply was created."""
-  createdAt: DateTime!
-
-  """Timestamp indicating the latest update made to the reply."""
-  updatedAt: DateTime!
-}
-
-"""
-Public-safe comment representation used in comment queries and nested post detail views.
-"""
-type Comment {
-  """Unique identifier of the comment."""
-  id: ID!
-
-  """Comment content visible to clients."""
-  content: String!
-
-  """Presentation-friendly UTC timestamp for when the comment was created."""
-  createdAtFormatted: String
-
-  """
-  Presentation-friendly UTC timestamp for when the comment was last updated.
-  """
-  updatedAtFormatted: String
-
-  """Identifier of the user who authored the comment."""
-  authorId: Int!
-
-  """Identifier of the post that owns the comment."""
-  postId: Int!
-
-  """
-  Optional parent comment identifier when this comment is a direct reply.
-  """
-  parentCommentId: Int
-
-  """Public-safe preview of the comment author."""
-  author: SafeUserPreview!
-
-  """Number of direct replies currently visible for this comment thread."""
-  repliesCount: Int!
-
-  """Bounded inline direct replies for this top-level comment."""
-  replies: [CommentReply!]!
-
-  """Timestamp indicating when the comment was created."""
-  createdAt: DateTime!
-
-  """Timestamp indicating the latest update made to the comment."""
-  updatedAt: DateTime!
-}
-
-"""
 Comprehensive representation of a Post entity intended for detailed views.
 """
 type PostDetail {
@@ -668,15 +677,6 @@ type PostDetail {
 type PostPage {
   """Items returned for the current page."""
   items: [Post!]!
-
-  """Cursor navigation metadata for the current page."""
-  pageInfo: PageInfo!
-}
-
-"""Cursor-paginated page of comments plus navigation metadata."""
-type CommentPage {
-  """Items returned for the current page."""
-  items: [Comment!]!
 
   """Cursor navigation metadata for the current page."""
   pageInfo: PageInfo!

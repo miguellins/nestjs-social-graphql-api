@@ -184,9 +184,35 @@ CREATE TABLE `Bookmark` (
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
+CREATE TABLE `PostMention` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `postId` INTEGER NOT NULL,
+    `mentionedUserId` INTEGER NOT NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+
+    INDEX `PostMention_mentionedUserId_idx`(`mentionedUserId`),
+    INDEX `PostMention_postId_idx`(`postId`),
+    UNIQUE INDEX `PostMention_postId_mentionedUserId_key`(`postId`, `mentionedUserId`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `CommentMention` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `commentId` INTEGER NOT NULL,
+    `mentionedUserId` INTEGER NOT NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+
+    INDEX `CommentMention_mentionedUserId_idx`(`mentionedUserId`),
+    INDEX `CommentMention_commentId_idx`(`commentId`),
+    UNIQUE INDEX `CommentMention_commentId_mentionedUserId_key`(`commentId`, `mentionedUserId`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
 CREATE TABLE `Notification` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
-    `type` ENUM('USER_FOLLOWED', 'POST_LIKED', 'COMMENT_REPLIED') NOT NULL,
+    `type` ENUM('USER_FOLLOWED', 'POST_LIKED', 'COMMENT_REPLIED', 'POST_MENTIONED', 'COMMENT_MENTIONED') NOT NULL,
     `title` VARCHAR(191) NOT NULL,
     `body` VARCHAR(191) NULL,
     `isRead` BOOLEAN NOT NULL DEFAULT false,
@@ -366,6 +392,18 @@ ALTER TABLE `Bookmark` ADD CONSTRAINT `Bookmark_userId_fkey` FOREIGN KEY (`userI
 
 -- AddForeignKey
 ALTER TABLE `Bookmark` ADD CONSTRAINT `Bookmark_postId_fkey` FOREIGN KEY (`postId`) REFERENCES `Post`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `PostMention` ADD CONSTRAINT `PostMention_postId_fkey` FOREIGN KEY (`postId`) REFERENCES `Post`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `PostMention` ADD CONSTRAINT `PostMention_mentionedUserId_fkey` FOREIGN KEY (`mentionedUserId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `CommentMention` ADD CONSTRAINT `CommentMention_commentId_fkey` FOREIGN KEY (`commentId`) REFERENCES `Comment`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `CommentMention` ADD CONSTRAINT `CommentMention_mentionedUserId_fkey` FOREIGN KEY (`mentionedUserId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `Notification` ADD CONSTRAINT `Notification_actorId_fkey` FOREIGN KEY (`actorId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;

@@ -208,6 +208,43 @@ describe("NotificationsService", () => {
       ).not.toHaveBeenCalled();
     });
 
+    it("creates and publishes post mention notifications", async () => {
+      const mentionNotification = {
+        ...mockNotification,
+        type: NotificationType.POST_MENTIONED,
+        title: "Mentioned in a post",
+        body: "john mentioned you in a post",
+      };
+
+      prismaMock.userBlock.findFirst.mockResolvedValue(null);
+      prismaMock.notification.create.mockResolvedValue(mentionNotification);
+
+      const result = await service.createAndPublishNotification({
+        recipientId: 1,
+        actorId: 2,
+        type: NotificationType.POST_MENTIONED,
+        title: "Mentioned in a post",
+        body: "john mentioned you in a post",
+        entityId: 42,
+      });
+
+      expect(prismaMock.notification.create).toHaveBeenCalledWith({
+        data: {
+          recipientId: 1,
+          actorId: 2,
+          type: NotificationType.POST_MENTIONED,
+          title: "Mentioned in a post",
+          body: "john mentioned you in a post",
+          entityId: 42,
+        },
+        select: NotificationSelect,
+      });
+      expect(result).toEqual(mentionNotification);
+      expect(
+        notificationDeliveryMock.publishNotificationReceived,
+      ).toHaveBeenCalledWith(mentionNotification);
+    });
+
     it("should suppress comment reply notifications for self-replies", async () => {
       const result = await service.createAndPublishNotification({
         recipientId: 7,

@@ -1,0 +1,384 @@
+import { Injectable } from "@nestjs/common";
+
+import { NotificationTriggerService } from "@/notifications/notification-trigger.service";
+
+import { extractUniqueMentionUsernames } from "@/mentions/mention-parser";
+
+import { UserPrivacySetting } from "@/users/enums/user-privacy-setting.enum";
+import { AccountState } from "@/users/enums/account-state.enum";
+
+import { PrismaService } from "@/prisma/prisma.service";
+
+type MentionedUser = {
+  id: number;
+  username: string;
+};
+
+type SyncPostMentionsParams = {
+  postId: number;
+  actorId: number;
+  content: string;
+};
+
+type SyncCommentMentionsParams = {
+  commentId: number;
+  actorId: number;
+  content: string;
+};
+
+type ReadablePost = {
+  id: number;
+  authorId: number;
+  removedAt: Date | null;
+  author: {
+    accountState: AccountState;
+    privacySetting: UserPrivacySetting;
+  };
+};
+
+@Injectable()
+export class MentionsService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationTrigger: NotificationTriggerService,
+  ) {}
+
+  /** Validates mention syntax and cap limits before a post write is attempted. */
+  validatePostContentMentions(content: string): void {
+    extractUniqueMentionUsernames(content);
+  }
+
+  /** Validates mention syntax and cap limits before a comment write is attempted. */
+  validateCommentContentMentions(content: string): void {
+    extractUniqueMentionUsernames(content);
+  }
+
+  /** Recomputes durable post mentions and notifies only newly added visible recipients. */
+  async syncPostMentions({
+    postId,
+    actorId,
+    content,
+  }: SyncPostMentionsParams): Promise<void> {
+    const usernames = extractUniqueMentionUsernames(content);
+    const resolvedUsers = await this.resolveMentionedUsers(usernames);
+    const nextMentionedUserIds = resolvedUsers.map((user) => user.id);
+    const previousMentionedUserIds =
+      await this.getExistingPostMentionUserIds(postId);
+
+    await this.replacePostMentions(postId, nextMentionedUserIds);
+
+    const recipients = resolvedUsers.filter(
+      (user) =>
+        user.id !== actorId &&
+        !previousMentionedUserIds.has(user.id) &&
+        nextMentionedUserIds.includes(user.id),
+    );
+
+    if (recipients.length === 0) {
+      return;
+    }
+
+    const actor = await this.prisma.user.findUnique({
+      where: { id: actorId },
+      select: {
+        username: true,
+      },
+    });
+
+    if (!actor) {
+      return;
+    }
+
+    for (const recipient of recipients) {
+      if (!(await this.canUserReadPost(postId, recipient.id))) {
+        continue;
+      }
+
+      await this.notificationTrigger.notifyPostMentioned({
+        recipientId: recipient.id,
+        actorId,
+        actorUsername: actor.username,
+        postId,
+      });
+    }
+  }
+
+  /** Recomputes durable comment mentions and notifies only newly added visible recipients. */
+  async syncCommentMentions({
+    commentId,
+    actorId,
+    content,
+  }: SyncCommentMentionsParams): Promise<void> {
+    const usernames = extractUniqueMentionUsernames(content);
+    const resolvedUsers = await this.resolveMentionedUsers(usernames);
+    const nextMentionedUserIds = resolvedUsers.map((user) => user.id);
+    const previousMentionedUserIds =
+      await this.getExistingCommentMentionUserIds(commentId);
+
+    await this.replaceCommentMentions(commentId, nextMentionedUserIds);
+
+    const recipients = resolvedUsers.filter(
+      (user) =>
+        user.id !== actorId &&
+        !previousMentionedUserIds.has(user.id) &&
+        nextMentionedUserIds.includes(user.id),
+    );
+
+    if (recipients.length === 0) {
+      return;
+    }
+
+    const actor = await this.prisma.user.findUnique({
+      where: { id: actorId },
+      select: {
+        username: true,
+      },
+    });
+
+    if (!actor) {
+      return;
+    }
+
+    for (const recipient of recipients) {
+      if (!(await this.canUserReadComment(commentId, recipient.id))) {
+        continue;
+      }
+
+      await this.notificationTrigger.notifyCommentMentioned({
+        recipientId: recipient.id,
+        actorId,
+        actorUsername: actor.username,
+        commentId,
+      });
+    }
+  }
+
+  /** Resolves active mentioned users while preserving the parser order from the authored text. */
+  private async resolveMentionedUsers(
+    usernames: string[],
+  ): Promise<MentionedUser[]> {
+    if (usernames.length === 0) {
+      return [];
+    }
+
+    const users = await this.prisma.user.findMany({
+      where: {
+        username: {
+          in: usernames,
+        },
+        accountState: AccountState.ACTIVE,
+      },
+      select: {
+        id: true,
+        username: true,
+      },
+    });
+
+    const byUsername = new Map(users.map((user) => [user.username, user]));
+
+    return usernames
+      .map((username) => byUsername.get(username))
+      .filter((user): user is MentionedUser => user !== undefined);
+  }
+
+  /** Reads the currently stored durable mention recipient ids for a post. */
+  private async getExistingPostMentionUserIds(
+    postId: number,
+  ): Promise<Set<number>> {
+    const rows = await this.prisma.postMention.findMany({
+      where: { postId },
+      select: {
+        mentionedUserId: true,
+      },
+    });
+
+    return new Set(rows.map((row) => row.mentionedUserId));
+  }
+
+  /** Reads the currently stored durable mention recipient ids for a comment. */
+  private async getExistingCommentMentionUserIds(
+    commentId: number,
+  ): Promise<Set<number>> {
+    const rows = await this.prisma.commentMention.findMany({
+      where: { commentId },
+      select: {
+        mentionedUserId: true,
+      },
+    });
+
+    return new Set(rows.map((row) => row.mentionedUserId));
+  }
+
+  /** Reconciles durable post mention rows without clearing unchanged rows on each edit. */
+  private async replacePostMentions(
+    postId: number,
+    mentionedUserIds: number[],
+  ): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      if (mentionedUserIds.length === 0) {
+        await tx.postMention.deleteMany({
+          where: { postId },
+        });
+        return;
+      }
+
+      await tx.postMention.deleteMany({
+        where: {
+          postId,
+          mentionedUserId: {
+            notIn: mentionedUserIds,
+          },
+        },
+      });
+
+      await tx.postMention.createMany({
+        data: mentionedUserIds.map((mentionedUserId) => ({
+          postId,
+          mentionedUserId,
+        })),
+        skipDuplicates: true,
+      });
+    });
+  }
+
+  /** Reconciles durable comment mention rows against the latest stored comment content. */
+  private async replaceCommentMentions(
+    commentId: number,
+    mentionedUserIds: number[],
+  ): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      if (mentionedUserIds.length === 0) {
+        await tx.commentMention.deleteMany({
+          where: { commentId },
+        });
+        return;
+      }
+
+      await tx.commentMention.deleteMany({
+        where: {
+          commentId,
+          mentionedUserId: {
+            notIn: mentionedUserIds,
+          },
+        },
+      });
+
+      await tx.commentMention.createMany({
+        data: mentionedUserIds.map((mentionedUserId) => ({
+          commentId,
+          mentionedUserId,
+        })),
+        skipDuplicates: true,
+      });
+    });
+  }
+
+  /** Applies comment visibility rules before sending mention notifications. */
+  private async canUserReadComment(
+    commentId: number,
+    viewerId: number,
+  ): Promise<boolean> {
+    const comment = await this.prisma.comment.findUnique({
+      where: { id: commentId },
+      select: {
+        removedAt: true,
+        post: {
+          select: {
+            id: true,
+            authorId: true,
+            removedAt: true,
+            author: {
+              select: {
+                accountState: true,
+                privacySetting: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!comment || comment.removedAt) {
+      return false;
+    }
+
+    return this.canViewerReadPost(viewerId, comment.post);
+  }
+
+  /** Loads a post and applies post visibility rules for a specific viewer. */
+  private async canUserReadPost(
+    postId: number,
+    viewerId: number,
+  ): Promise<boolean> {
+    const post = await this.prisma.post.findUnique({
+      where: { id: postId },
+      select: {
+        id: true,
+        authorId: true,
+        removedAt: true,
+        author: {
+          select: {
+            accountState: true,
+            privacySetting: true,
+          },
+        },
+      },
+    });
+
+    if (!post) {
+      return false;
+    }
+
+    return this.canViewerReadPost(viewerId, post);
+  }
+
+  /** Applies post visibility rules used before sending mention notifications. */
+  private async canViewerReadPost(
+    viewerId: number,
+    post: ReadablePost,
+  ): Promise<boolean> {
+    if (post.removedAt || post.author.accountState !== AccountState.ACTIVE) {
+      return false;
+    }
+
+    if (viewerId === post.authorId) {
+      return true;
+    }
+
+    const blockRelationship = await this.prisma.userBlock.findFirst({
+      where: {
+        OR: [
+          {
+            blockerId: viewerId,
+            blockedId: post.authorId,
+          },
+          {
+            blockerId: post.authorId,
+            blockedId: viewerId,
+          },
+        ],
+      },
+      select: { id: true },
+    });
+
+    if (blockRelationship) {
+      return false;
+    }
+
+    if (post.author.privacySetting === UserPrivacySetting.PUBLIC) {
+      return true;
+    }
+
+    const follow = await this.prisma.follow.findUnique({
+      where: {
+        followerId_followingId: {
+          followerId: viewerId,
+          followingId: post.authorId,
+        },
+      },
+      select: { id: true },
+    });
+
+    return Boolean(follow);
+  }
+}

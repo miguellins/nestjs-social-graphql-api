@@ -17,6 +17,7 @@ import { encodeChronoCursor } from "@/common/pagination/chrono-cursor";
 
 import { MediaReadProjectionService } from "@/media/media-read-projection.service";
 import { CommentsReadService } from "@/comments/comments-read.service";
+import { MentionsService } from "@/mentions/mentions.service";
 import { CreatedPostSelect } from "@/posts/dto/created-post.dto";
 import { SafePostDetailSelect } from "@/posts/dto/safe-post-detail.dto";
 
@@ -130,6 +131,11 @@ describe("PostsService", () => {
     listThreadedCommentsForPost: jest.fn(),
   };
 
+  const mentionsServiceMock = {
+    validatePostContentMentions: jest.fn(),
+    syncPostMentions: jest.fn(),
+  };
+
   beforeEach(async () => {
     jest.clearAllMocks();
     mem.clear();
@@ -143,6 +149,8 @@ describe("PostsService", () => {
       (objectKey: string) => `https://media.example.com/${objectKey}`,
     );
     commentsReadServiceMock.listThreadedCommentsForPost.mockResolvedValue([]);
+    mentionsServiceMock.validatePostContentMentions.mockReturnValue(undefined);
+    mentionsServiceMock.syncPostMentions.mockResolvedValue(undefined);
 
     cacheMock.get.mockImplementation((key: string) =>
       Promise.resolve(mem.get(key)),
@@ -174,6 +182,7 @@ describe("PostsService", () => {
         { provide: CacheHelperService, useValue: cacheMock },
         { provide: R2StorageService, useValue: r2StorageMock },
         { provide: CommentsReadService, useValue: commentsReadServiceMock },
+        { provide: MentionsService, useValue: mentionsServiceMock },
       ],
     }).compile();
 
@@ -947,6 +956,14 @@ describe("PostsService", () => {
       expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:user:7:posts:list");
       expect(cacheMock.del).toHaveBeenCalledWith("user:safe:7");
       expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:user:list");
+      expect(
+        mentionsServiceMock.validatePostContentMentions,
+      ).toHaveBeenCalledWith("Content");
+      expect(mentionsServiceMock.syncPostMentions).toHaveBeenCalledWith({
+        postId: 1,
+        actorId: 7,
+        content: "Content",
+      });
 
       expect(res).toEqual(created);
     });
@@ -1123,6 +1140,14 @@ describe("PostsService", () => {
         data: { title: "New", content: "NewC", editedAt },
         select: SafePostListSelect,
       });
+      expect(
+        mentionsServiceMock.validatePostContentMentions,
+      ).toHaveBeenCalledWith("NewC");
+      expect(mentionsServiceMock.syncPostMentions).toHaveBeenCalledWith({
+        postId: 1,
+        actorId: 7,
+        content: "NewC",
+      });
 
       expect(cacheMock.del).toHaveBeenCalledWith("posts:detail:1");
       expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:posts:list");
@@ -1155,6 +1180,14 @@ describe("PostsService", () => {
         data: { content: "Updated body", editedAt },
         select: SafePostListSelect,
       });
+      expect(
+        mentionsServiceMock.validatePostContentMentions,
+      ).toHaveBeenCalledWith("Updated body");
+      expect(mentionsServiceMock.syncPostMentions).toHaveBeenCalledWith({
+        postId: 1,
+        actorId: 7,
+        content: "Updated body",
+      });
       jest.useRealTimers();
     });
 
@@ -1181,6 +1214,10 @@ describe("PostsService", () => {
         data: { title: null, editedAt },
         select: SafePostListSelect,
       });
+      expect(
+        mentionsServiceMock.validatePostContentMentions,
+      ).not.toHaveBeenCalled();
+      expect(mentionsServiceMock.syncPostMentions).not.toHaveBeenCalled();
       jest.useRealTimers();
     });
 

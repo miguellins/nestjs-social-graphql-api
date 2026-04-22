@@ -37,6 +37,18 @@ model User {
    */
   comments Comment[]
 
+  /**
+   * One-to-many relation
+   * A user can be mentioned in many posts
+   */
+  postMentions PostMention[] @relation("UserPostMentions")
+
+  /**
+   * One-to-many relation
+   * A user can be mentioned in many comments
+   */
+  commentMentions CommentMention[] @relation("UserCommentMentions")
+
   // One user can like many posts
   likes Like[]
 
@@ -234,6 +246,12 @@ model Post {
 
   /**
    * One-to-many relation
+   * A post can mention many users via durable mention rows
+   */
+  mentions PostMention[] @relation("PostMentions")
+
+  /**
+   * One-to-many relation
    * A post can have many moderation actions targeting it
    */
   moderationActions ModerationAction[] @relation("ModerationActionPost")
@@ -345,6 +363,12 @@ model Comment {
    * A comment can have many moderation actions targeting it
    */
   moderationActions ModerationAction[] @relation("ModerationActionComment")
+
+  /**
+   * One-to-many relation
+   * A comment can mention many users via durable mention rows
+   */
+  mentions CommentMention[] @relation("CommentMentions")
 
   /**
    * Database index on authorId
@@ -743,10 +767,56 @@ model Bookmark {
   @@index([postId])
 }
 
+model PostMention {
+  id Int @id @default(autoincrement())
+
+  postId          Int
+  mentionedUserId Int
+  createdAt       DateTime @default(now())
+
+  /**
+   * Relation to the post that contains the mention
+   */
+  post Post @relation("PostMentions", fields: [postId], references: [id], onDelete: Cascade)
+
+  /**
+   * Relation to the user mentioned in the post
+   */
+  mentionedUser User @relation("UserPostMentions", fields: [mentionedUserId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, mentionedUserId])
+  @@index([mentionedUserId])
+  @@index([postId])
+}
+
+model CommentMention {
+  id Int @id @default(autoincrement())
+
+  commentId       Int
+  mentionedUserId Int
+  createdAt       DateTime @default(now())
+
+  /**
+   * Relation to the comment that contains the mention
+   */
+  comment Comment @relation("CommentMentions", fields: [commentId], references: [id], onDelete: Cascade)
+
+  /**
+   * Relation to the user mentioned in the comment
+   */
+  mentionedUser User @relation("UserCommentMentions", fields: [mentionedUserId], references: [id], onDelete: Cascade)
+
+  @@unique([commentId, mentionedUserId])
+  @@index([mentionedUserId])
+  @@index([commentId])
+}
+
 enum NotificationType {
   USER_FOLLOWED
   POST_LIKED
   COMMENT_REPLIED
+  POST_MENTIONED
+  COMMENT_MENTIONED
 }
 
 model Notification {
