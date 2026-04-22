@@ -1,6 +1,5 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 
-import { CacheHelperService } from "@/common/cache/cache-helper.service";
 import { decodeChronoCursor } from "@/common/pagination/chrono-cursor";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
 import {
@@ -31,7 +30,8 @@ import { MediaReadProjectionService } from "@/media/media-read-projection.servic
 import { CommentsReadService } from "@/comments/comments-read.service";
 
 import { PrismaService } from "@/prisma/prisma.service";
-import { Prisma } from "@prisma/client";
+
+import type { Prisma } from "@prisma/client";
 
 type PaginationParams = {
   after?: string;
@@ -43,7 +43,6 @@ type PaginationParams = {
 export class PostReadService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly cacheHelper: CacheHelperService,
     private readonly mediaReadProjection: MediaReadProjectionService,
     private readonly commentsReadService: CommentsReadService,
   ) {}
@@ -240,53 +239,6 @@ export class PostReadService {
 
     return relatedBlocks.map((block) =>
       block.blockerId === viewerId ? block.blockedId : block.blockerId,
-    );
-  }
-
-  // Increments the view counter and refreshes the cached detail when present
-  async incrementPostViewsCount(
-    id: number,
-    cacheKey: string,
-    detailCacheTtlMs: number,
-  ): Promise<void> {
-    let updatedPost: { viewsCount: number };
-
-    try {
-      updatedPost = await this.prisma.post.update({
-        where: { id },
-        data: {
-          viewsCount: {
-            increment: 1,
-          },
-        },
-        select: {
-          viewsCount: true,
-        },
-      });
-    } catch (err) {
-      if (
-        err instanceof Prisma.PrismaClientKnownRequestError &&
-        err.code === "P2025"
-      ) {
-        return;
-      }
-
-      throw err;
-    }
-
-    const cachedPost = await this.cacheHelper.get<SafePostDetailDTO>(cacheKey);
-
-    if (!cachedPost) {
-      return;
-    }
-
-    await this.cacheHelper.set(
-      cacheKey,
-      {
-        ...cachedPost,
-        viewsCount: updatedPost.viewsCount,
-      },
-      detailCacheTtlMs,
     );
   }
 }

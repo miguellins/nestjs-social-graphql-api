@@ -39,9 +39,11 @@ import {
 import { MODERATION_ROLE_SET } from "@/users/enums/user-role.enum";
 import { AccountState } from "@/users/enums/account-state.enum";
 
+import { NotificationTriggerService } from "@/notifications/notification-trigger.service";
+
 import type { AuthenticatedUser } from "@/auth/authenticated-user.type";
 
-import { NotificationTriggerService } from "@/notifications/notification-trigger.service";
+import { MentionsService } from "@/mentions/mentions.service";
 
 import { PrismaService } from "@/prisma/prisma.service";
 import { Prisma } from "@prisma/client";
@@ -61,6 +63,7 @@ export class CommentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cacheHelper: CacheHelperService,
+    private readonly mentionsService: MentionsService,
     private readonly commentsReadService: CommentsReadService,
     private readonly notificationTrigger: NotificationTriggerService,
   ) {}
@@ -71,6 +74,7 @@ export class CommentsService {
   ): Promise<SafeCommentDTO> {
     await this.assertActiveCurrentUserById(currentUserId);
     const data = this.parseCreateCommentInput(input);
+    this.mentionsService.validateCommentContentMentions(data.content);
     const post = await this.commentsReadService.getReadablePostOrThrow(
       data.postId,
       currentUserId,
@@ -178,6 +182,19 @@ export class CommentsService {
       }
     }
 
+    await runBestEffort(
+      this.logger,
+      "error",
+      `Failed to sync mentions after creating comment ${comment.id}`,
+      async () => {
+        await this.mentionsService.syncCommentMentions({
+          commentId: comment.id,
+          actorId: currentUserId,
+          content: data.content,
+        });
+      },
+    );
+
     return this.toCommentMutationResult(comment);
   }
 
@@ -204,6 +221,7 @@ export class CommentsService {
   ): Promise<SafeCommentDTO> {
     await this.assertActiveCurrentUserById(currentUserId);
     const data = this.parseUpdateCommentInput(input);
+    this.mentionsService.validateCommentContentMentions(data.content);
 
     const updateData: Prisma.CommentUpdateInput = {
       content: data.content,
@@ -261,6 +279,19 @@ export class CommentsService {
       `Failed to invalidate caches after updating comment ${commentId}`,
       async () => {
         await this.cacheHelper.del(`posts:detail:${postId}`);
+      },
+    );
+
+    await runBestEffort(
+      this.logger,
+      "error",
+      `Failed to sync mentions after updating comment ${commentId}`,
+      async () => {
+        await this.mentionsService.syncCommentMentions({
+          commentId,
+          actorId: currentUserId,
+          content: data.content,
+        });
       },
     );
 

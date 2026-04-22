@@ -11,6 +11,7 @@ import { CacheHelperService } from "@/common/cache/cache-helper.service";
 import { CommentsReadService } from "@/comments/comments-read.service";
 import { SafeCommentSelect } from "@/comments/dto/safe-comment.dto";
 
+import { MentionsService } from "@/mentions/mentions.service";
 import { NotificationTriggerService } from "@/notifications/notification-trigger.service";
 
 import { PrismaService } from "@/prisma/prisma.service";
@@ -81,6 +82,11 @@ describe("CommentsService", () => {
     notifyCommentReplied: jest.fn(),
   };
 
+  const mentionsServiceMock = {
+    validateCommentContentMentions: jest.fn(),
+    syncCommentMentions: jest.fn(),
+  };
+
   beforeEach(async () => {
     jest.clearAllMocks();
 
@@ -98,6 +104,10 @@ describe("CommentsService", () => {
       },
     });
     notificationTriggerMock.notifyCommentReplied.mockResolvedValue(undefined);
+    mentionsServiceMock.validateCommentContentMentions.mockReturnValue(
+      undefined,
+    );
+    mentionsServiceMock.syncCommentMentions.mockResolvedValue(undefined);
 
     moduleRef = await Test.createTestingModule({
       providers: [
@@ -109,6 +119,7 @@ describe("CommentsService", () => {
           provide: NotificationTriggerService,
           useValue: notificationTriggerMock,
         },
+        { provide: MentionsService, useValue: mentionsServiceMock },
       ],
     }).compile();
 
@@ -194,6 +205,14 @@ describe("CommentsService", () => {
       expect(
         notificationTriggerMock.notifyCommentReplied,
       ).not.toHaveBeenCalled();
+      expect(
+        mentionsServiceMock.validateCommentContentMentions,
+      ).toHaveBeenCalledWith("hello");
+      expect(mentionsServiceMock.syncCommentMentions).toHaveBeenCalledWith({
+        commentId: 99,
+        actorId: 10,
+        content: "hello",
+      });
     });
 
     it("rejects replies that target another reply", async () => {
@@ -513,6 +532,14 @@ describe("CommentsService", () => {
       });
 
       expect(cacheMock.del).toHaveBeenCalledWith("posts:detail:3");
+      expect(
+        mentionsServiceMock.validateCommentContentMentions,
+      ).toHaveBeenCalledWith("updated");
+      expect(mentionsServiceMock.syncCommentMentions).toHaveBeenCalledWith({
+        commentId: 10,
+        actorId: 7,
+        content: "updated",
+      });
     });
 
     it("rejects non-owners from updating replies", async () => {

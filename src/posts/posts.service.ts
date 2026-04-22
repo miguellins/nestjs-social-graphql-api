@@ -55,6 +55,7 @@ import type { AuthenticatedUser } from "@/auth/authenticated-user.type";
 import { UserPrivacySetting } from "@/users/enums/user-privacy-setting.enum";
 import { MODERATION_ROLE_SET } from "@/users/enums/user-role.enum";
 import { AccountState } from "@/users/enums/account-state.enum";
+import { MentionsService } from "@/mentions/mentions.service";
 
 import { PrismaService } from "@/prisma/prisma.service";
 import { Prisma } from "@prisma/client";
@@ -80,6 +81,7 @@ export class PostsService {
     private readonly prisma: PrismaService,
     private readonly cacheHelper: CacheHelperService,
     private readonly postReadService: PostReadService,
+    private readonly mentionsService: MentionsService,
   ) {}
 
   async myFeed(
@@ -336,7 +338,7 @@ export class PostsService {
       "warn",
       `Failed to update viewsCount asynchronously for post ${id}`,
       async () => {
-        await this.postReadService.incrementPostViewsCount(
+        await this.incrementPostViewsCount(
           id,
           cacheKey,
           POST_DETAIL_CACHE_TTL_MS,
@@ -353,6 +355,7 @@ export class PostsService {
   ): Promise<CreatedPostDTO> {
     await this.assertActiveCurrentUserById(currentUserId);
     const data = this.parseCreatePostInput(input);
+    this.mentionsService.validatePostContentMentions(data.content);
 
     let post: CreatedPostDTO;
 
@@ -395,6 +398,19 @@ export class PostsService {
       },
     );
 
+    await runBestEffort(
+      this.logger,
+      "error",
+      `Failed to sync mentions after creating post ${post.id}`,
+      async () => {
+        await this.mentionsService.syncPostMentions({
+          postId: post.id,
+          actorId: currentUserId,
+          content: data.content,
+        });
+      },
+    );
+
     return post;
   }
 
@@ -417,6 +433,7 @@ export class PostsService {
     }
 
     let post: SafePostListDTO;
+    let finalContentForMentions: string | undefined;
 
     try {
       const existing = await this.prisma.post.findUnique({
@@ -443,6 +460,13 @@ export class PostsService {
 
       if (this.didPostContentChange(existing, normalizedInput)) {
         data.editedAt = new Date();
+        finalContentForMentions = normalizedInput.content;
+      }
+
+      if (finalContentForMentions !== undefined) {
+        this.mentionsService.validatePostContentMentions(
+          finalContentForMentions,
+        );
       }
 
       post = await this.prisma.post.update({
@@ -473,6 +497,21 @@ export class PostsService {
         );
       },
     );
+
+    if (finalContentForMentions !== undefined) {
+      await runBestEffort(
+        this.logger,
+        "error",
+        `Failed to sync mentions after updating post ${id}`,
+        async () => {
+          await this.mentionsService.syncPostMentions({
+            postId: id,
+            actorId: currentUserId,
+            content: finalContentForMentions,
+          });
+        },
+      );
+    }
 
     return post;
   }
@@ -678,6 +717,53 @@ export class PostsService {
   // Returns the cache version key string for a user's post list
   private getUserPostsListVersionKey(userId: number): string {
     return `v:user:${userId}:posts:list`;
+  }
+
+  // Increments the persisted view counter and refreshes the cached detail when present
+  private async incrementPostViewsCount(
+    id: number,
+    cacheKey: string,
+    detailCacheTtlMs: number,
+  ): Promise<void> {
+    let updatedPost: { viewsCount: number };
+
+    try {
+      updatedPost = await this.prisma.post.update({
+        where: { id },
+        data: {
+          viewsCount: {
+            increment: 1,
+          },
+        },
+        select: {
+          viewsCount: true,
+        },
+      });
+    } catch (err) {
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === "P2025"
+      ) {
+        return;
+      }
+
+      throw err;
+    }
+
+    const cachedPost = await this.cacheHelper.get<SafePostDetailDTO>(cacheKey);
+
+    if (!cachedPost) {
+      return;
+    }
+
+    await this.cacheHelper.set(
+      cacheKey,
+      {
+        ...cachedPost,
+        viewsCount: updatedPost.viewsCount,
+      },
+      detailCacheTtlMs,
+    );
   }
 
   // Enforces that only moderators/admins can perform moderation actions

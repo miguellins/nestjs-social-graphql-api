@@ -90,6 +90,7 @@ This file defines the working rules for contributors and coding agents in this r
 - Do not treat validation, authorization, password/security logic, token invalidation, or required counter consistency as best-effort work.
 - When a feature service grows to coordinate distinct read concerns, write concerns, cache projection, or external side effects, extract feature-private collaborators inside the same module instead of enlarging the main service indefinitely.
 - Prefer feature-private `*ReadService`, `*CacheService`, `*ProjectionService`, or `*TriggerService` helpers before introducing generic cross-project abstractions.
+- Prefer `*ReadService` helpers for query and read orchestration only. If a flow needs write-side behavior such as counters, cache mutation, or delivery side effects, keep it in the main feature service or move it to a differently named collaborator.
 - Do not introduce repository abstractions by default. Use direct `PrismaService` access in feature services or feature-private collaborators unless persistence logic is duplicated enough to justify extraction.
 - If introducing a repository-like helper, keep it feature-local first. Do not add a generic repository layer across the application without explicit need.
 

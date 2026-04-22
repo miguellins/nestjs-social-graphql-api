@@ -58,4 +58,38 @@ export class NotificationTriggerService {
       entityId: params.commentId,
     });
   }
+
+  // Creates the standard notification for a user mentioned in a post
+  async notifyPostMentioned(params: {
+    recipientId: number;
+    actorId: number;
+    actorUsername: string;
+    postId: number;
+  }): Promise<void> {
+    await this.notificationsService.createAndPublishNotification({
+      recipientId: params.recipientId,
+      actorId: params.actorId,
+      type: NotificationType.POST_MENTIONED,
+      title: "Mentioned in a post",
+      body: `${params.actorUsername} mentioned you in a post`,
+      entityId: params.postId,
+    });
+  }
+
+  // Creates the standard notification for a user mentioned in a comment
+  async notifyCommentMentioned(params: {
+    recipientId: number;
+    actorId: number;
+    actorUsername: string;
+    commentId: number;
+  }): Promise<void> {
+    await this.notificationsService.createAndPublishNotification({
+      recipientId: params.recipientId,
+      actorId: params.actorId,
+      type: NotificationType.COMMENT_MENTIONED,
+      title: "Mentioned in a comment",
+      body: `${params.actorUsername} mentioned you in a comment`,
+      entityId: params.commentId,
+    });
+  }
 }
