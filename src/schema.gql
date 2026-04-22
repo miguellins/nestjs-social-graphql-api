@@ -152,6 +152,8 @@ enum NotificationType {
   USER_FOLLOWED
   POST_LIKED
   COMMENT_REPLIED
+  POST_MENTIONED
+  COMMENT_MENTIONED
 }
 
 """Cursor-paginated page of notifications plus navigation metadata."""
