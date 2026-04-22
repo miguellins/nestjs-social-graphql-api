@@ -53,6 +53,7 @@ describe("FollowsService", () => {
       findUnique: jest.Mock;
       create: jest.Mock;
       delete: jest.Mock;
+      upsert: jest.Mock;
     };
     user: {
       findUnique: jest.Mock;
@@ -62,8 +63,10 @@ describe("FollowsService", () => {
     };
     followRequest: {
       findUnique: jest.Mock;
+      findUniqueOrThrow: jest.Mock;
       upsert: jest.Mock;
       update: jest.Mock;
+      updateMany: jest.Mock;
       findMany: jest.Mock;
     };
     $transaction: jest.Mock;
@@ -73,6 +76,7 @@ describe("FollowsService", () => {
       findUnique: jest.fn(),
       create: jest.fn(),
       delete: jest.fn(),
+      upsert: jest.fn(),
     },
     user: {
       findUnique: jest.fn(),
@@ -82,8 +86,10 @@ describe("FollowsService", () => {
     },
     followRequest: {
       findUnique: jest.fn(),
+      findUniqueOrThrow: jest.fn(),
       upsert: jest.fn(),
       update: jest.fn(),
+      updateMany: jest.fn(),
       findMany: jest.fn(),
     },
     $transaction: jest.fn(),
@@ -651,6 +657,161 @@ describe("FollowsService", () => {
       prismaMock.follow.findUnique.mockRejectedValue(new Error("boom"));
 
       await expect(service.deleteFollow(10, 1)).rejects.toThrow("boom");
+    });
+  });
+
+  describe("follow request transitions", () => {
+    beforeEach(() => {
+      prismaMock.user.findUnique.mockResolvedValue({
+        accountState: AccountState.ACTIVE,
+      });
+      prismaMock.userBlock.findFirst.mockResolvedValue(null);
+    });
+
+    it("approves through a guarded transactional transition", async () => {
+      prismaMock.followRequest.findUnique.mockResolvedValue({
+        id: 20,
+        requesterId: 2,
+        targetUserId: 1,
+        status: "PENDING",
+      });
+      prismaMock.followRequest.updateMany.mockResolvedValue({ count: 1 });
+      prismaMock.follow.upsert.mockResolvedValue({
+        id: 50,
+      });
+      prismaMock.followRequest.findUniqueOrThrow.mockResolvedValue({
+        id: 20,
+        status: "APPROVED",
+        requester: { id: 2, name: "Requester", username: "requester" },
+        targetUser: { id: 1, name: "Target", username: "target" },
+        createdAt: new Date("2026-04-10T00:00:00.000Z"),
+        updatedAt: new Date("2026-04-10T00:01:00.000Z"),
+      });
+
+      await expect(service.approveFollowRequest(20, 1)).resolves.toMatchObject({
+        id: 20,
+        status: "APPROVED",
+      });
+
+      expect(prismaMock.followRequest.updateMany).toHaveBeenCalledWith({
+        where: {
+          id: 20,
+          status: "PENDING",
+        },
+        data: {
+          status: "APPROVED",
+        },
+      });
+    });
+
+    it("fails approval when the guarded transition affects zero rows", async () => {
+      prismaMock.followRequest.findUnique.mockResolvedValue({
+        id: 20,
+        requesterId: 2,
+        targetUserId: 1,
+        status: "PENDING",
+      });
+      prismaMock.followRequest.updateMany.mockResolvedValue({ count: 0 });
+
+      await expect(service.approveFollowRequest(20, 1)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+
+      expect(prismaMock.follow.upsert).not.toHaveBeenCalled();
+    });
+
+    it("rejects through a guarded transactional transition", async () => {
+      prismaMock.followRequest.findUnique.mockResolvedValue({
+        id: 21,
+        status: "PENDING",
+        requester: { id: 2, name: "Requester", username: "requester" },
+        targetUser: { id: 1, name: "Target", username: "target" },
+      });
+      prismaMock.followRequest.updateMany.mockResolvedValue({ count: 1 });
+      prismaMock.followRequest.findUniqueOrThrow.mockResolvedValue({
+        id: 21,
+        status: "REJECTED",
+        requester: { id: 2, name: "Requester", username: "requester" },
+        targetUser: { id: 1, name: "Target", username: "target" },
+        createdAt: new Date("2026-04-10T00:00:00.000Z"),
+        updatedAt: new Date("2026-04-10T00:01:00.000Z"),
+      });
+
+      await expect(service.rejectFollowRequest(21, 1)).resolves.toMatchObject({
+        id: 21,
+        status: "REJECTED",
+      });
+
+      expect(prismaMock.followRequest.updateMany).toHaveBeenCalledWith({
+        where: {
+          id: 21,
+          status: "PENDING",
+        },
+        data: {
+          status: "REJECTED",
+        },
+      });
+    });
+
+    it("fails rejection when another transition already consumed the request", async () => {
+      prismaMock.followRequest.findUnique.mockResolvedValue({
+        id: 21,
+        status: "PENDING",
+        requester: { id: 2, name: "Requester", username: "requester" },
+        targetUser: { id: 1, name: "Target", username: "target" },
+      });
+      prismaMock.followRequest.updateMany.mockResolvedValue({ count: 0 });
+
+      await expect(service.rejectFollowRequest(21, 1)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+    });
+
+    it("cancels through a guarded transactional transition", async () => {
+      prismaMock.followRequest.findUnique.mockResolvedValue({
+        id: 22,
+        status: "PENDING",
+        requester: { id: 1, name: "Requester", username: "requester" },
+        targetUser: { id: 2, name: "Target", username: "target" },
+      });
+      prismaMock.followRequest.updateMany.mockResolvedValue({ count: 1 });
+      prismaMock.followRequest.findUniqueOrThrow.mockResolvedValue({
+        id: 22,
+        status: "CANCELED",
+        requester: { id: 1, name: "Requester", username: "requester" },
+        targetUser: { id: 2, name: "Target", username: "target" },
+        createdAt: new Date("2026-04-10T00:00:00.000Z"),
+        updatedAt: new Date("2026-04-10T00:01:00.000Z"),
+      });
+
+      await expect(service.cancelFollowRequest(22, 1)).resolves.toMatchObject({
+        id: 22,
+        status: "CANCELED",
+      });
+
+      expect(prismaMock.followRequest.updateMany).toHaveBeenCalledWith({
+        where: {
+          id: 22,
+          status: "PENDING",
+        },
+        data: {
+          status: "CANCELED",
+        },
+      });
+    });
+
+    it("fails cancel when another transition already consumed the request", async () => {
+      prismaMock.followRequest.findUnique.mockResolvedValue({
+        id: 22,
+        status: "PENDING",
+        requester: { id: 1, name: "Requester", username: "requester" },
+        targetUser: { id: 2, name: "Target", username: "target" },
+      });
+      prismaMock.followRequest.updateMany.mockResolvedValue({ count: 0 });
+
+      await expect(service.cancelFollowRequest(22, 1)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
     });
   });
 });

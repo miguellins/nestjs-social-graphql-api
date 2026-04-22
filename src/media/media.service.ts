@@ -278,39 +278,7 @@ export class MediaService {
       },
     );
 
-    const nextSortOrder = await this.getNextSortOrder(data.postId);
-
-    try {
-      await this.prisma.$transaction([
-        this.prisma.postMedia.create({
-          data: {
-            post: { connect: { id: data.postId } },
-            media: { connect: { id: media.id } },
-            sortOrder: nextSortOrder,
-          },
-        }),
-        this.prisma.media.update({
-          where: { id: media.id },
-          data: {
-            attachedAt: new Date(),
-          },
-        }),
-      ]);
-    } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError) {
-        if (error.code === "P2002") {
-          throw new BadRequestException(
-            "Media is already attached to this post",
-          );
-        }
-
-        if (error.code === "P2003" || error.code === "P2025") {
-          throw new NotFoundException("Post or media not found");
-        }
-      }
-
-      this.throwUnexpectedPersistenceFailure("attach media to post", error);
-    }
+    await this.attachMediaToPostWithRetry(data.postId, media.id);
 
     await runBestEffort(
       this.logger,
@@ -363,9 +331,81 @@ export class MediaService {
   }
 
   // Private Helpers
-  // Returns the next attachment ordering value for one post
-  private async getNextSortOrder(postId: number): Promise<number> {
-    const latestAttachment = await this.prisma.postMedia.findFirst({
+  // Attaches media with a bounded retry only for concurrent sort-order collisions.
+  private async attachMediaToPostWithRetry(
+    postId: number,
+    mediaId: number,
+  ): Promise<void> {
+    const maxAttempts = 3;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        await this.prisma.$transaction(async (tx) => {
+          const nextSortOrder = await this.getNextSortOrder(tx, postId);
+
+          await tx.postMedia.create({
+            data: {
+              post: { connect: { id: postId } },
+              media: { connect: { id: mediaId } },
+              sortOrder: nextSortOrder,
+            },
+          });
+
+          await tx.media.update({
+            where: { id: mediaId },
+            data: {
+              attachedAt: new Date(),
+            },
+          });
+        });
+
+        return;
+      } catch (error) {
+        if (error instanceof Prisma.PrismaClientKnownRequestError) {
+          if (error.code === "P2002") {
+            const target = this.getUniqueConstraintTarget(error);
+
+            if (target.includes("postId") && target.includes("mediaId")) {
+              throw new BadRequestException(
+                "Media is already attached to this post",
+              );
+            }
+
+            if (
+              target.includes("postId") &&
+              target.includes("sortOrder") &&
+              attempt < maxAttempts
+            ) {
+              continue;
+            }
+
+            if (
+              target.includes("postId") &&
+              target.includes("sortOrder") &&
+              attempt === maxAttempts
+            ) {
+              throw new BadRequestException(
+                "Could not reserve media attachment order for this post",
+              );
+            }
+          }
+
+          if (error.code === "P2003" || error.code === "P2025") {
+            throw new NotFoundException("Post or media not found");
+          }
+        }
+
+        this.throwUnexpectedPersistenceFailure("attach media to post", error);
+      }
+    }
+  }
+
+  // Returns the next attachment ordering value for one post inside the current transaction.
+  private async getNextSortOrder(
+    tx: Pick<PrismaService, "postMedia">,
+    postId: number,
+  ): Promise<number> {
+    const latestAttachment = await tx.postMedia.findFirst({
       where: { postId },
       orderBy: {
         sortOrder: "desc",
@@ -376,6 +416,20 @@ export class MediaService {
     });
 
     return (latestAttachment?.sortOrder ?? -1) + 1;
+  }
+
+  // Extracts the Prisma unique-target field list from a known request error.
+  private getUniqueConstraintTarget(
+    error: Prisma.PrismaClientKnownRequestError,
+  ): string[] {
+    const target = (error.meta as { target?: string[] | string } | undefined)
+      ?.target;
+
+    if (Array.isArray(target)) {
+      return target;
+    }
+
+    return typeof target === "string" ? [target] : [];
   }
 
   // Parses and normalizes request-upload input for the service layer

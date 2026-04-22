@@ -104,6 +104,10 @@ export class ReportsService {
           reason: data.reason,
           details: data.details,
           status: OPEN_REPORT_STATUS,
+          openDedupKey: this.buildOpenPostReportDedupKey(
+            currentUserId,
+            data.postId,
+          ),
         },
         select: { id: true },
       });
@@ -162,6 +166,10 @@ export class ReportsService {
           reason: data.reason,
           details: data.details,
           status: OPEN_REPORT_STATUS,
+          openDedupKey: this.buildOpenCommentReportDedupKey(
+            currentUserId,
+            data.commentId,
+          ),
         },
         select: { id: true },
       });
@@ -282,6 +290,22 @@ export class ReportsService {
     );
   }
 
+  /** Builds the nullable unique key used to deduplicate open post reports per reporter. */
+  private buildOpenPostReportDedupKey(
+    reporterId: number,
+    postId: number,
+  ): string {
+    return `post:${postId}:reporter:${reporterId}`;
+  }
+
+  /** Builds the nullable unique key used to deduplicate open comment reports per reporter. */
+  private buildOpenCommentReportDedupKey(
+    reporterId: number,
+    commentId: number,
+  ): string {
+    return `comment:${commentId}:reporter:${reporterId}`;
+  }
+
   /** Ensures the current user can access moderator/admin report review operations. */
   private assertCanReviewReports(currentUser: AuthenticatedUser): void {
     if (!currentUser.role || !MODERATION_ROLE_SET.has(currentUser.role)) {
@@ -302,6 +326,7 @@ export class ReportsService {
         },
         data: {
           status: nextStatus,
+          openDedupKey: null,
         },
       });
 

@@ -1,7 +1,4 @@
-import {
-  type SafeCommentDTO,
-  SafeCommentSelect,
-} from "@/comments/dto/safe-comment.dto";
+import { type SafeCommentDTO } from "@/comments/dto/safe-comment.dto";
 
 import {
   type SafePostListDTO,
@@ -103,18 +100,6 @@ export const SafePostDetailSelect = {
         },
       },
     },
-  },
-
-  comments: {
-    where: {
-      removedAt: null,
-    },
-
-    orderBy: {
-      createdAt: "desc",
-    },
-
-    select: SafeCommentSelect,
   },
 
   mediaAttachments: {

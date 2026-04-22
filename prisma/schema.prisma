@@ -625,6 +625,20 @@ model ContentReport {
   reason  ReportReason
   details String?
   status  ReportStatus @default(OPEN)
+  /**
+   * Nullable deduplication key populated only while the report is OPEN.
+   * This lets MySQL enforce "one open report per reporter per target"
+   * because nullable unique values may repeat only when null.
+   *
+   * Migration note:
+   * - backfill OPEN rows with the computed key before adding the unique index
+   * - keep terminal rows null
+   *
+   * The separate "exactly one of postId/commentId" invariant still requires
+   * a reviewed MySQL CHECK-style migration because Prisma schema cannot
+   * express that cross-column constraint directly.
+   */
+  openDedupKey String? @unique
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -958,6 +972,10 @@ model RefreshSession {
    * Improves user-scoped session reads filtered by active/revoked state and expiry
    */
   @@index([userId, revokedAt, expiresAt])
+  /**
+   * Compound index aligned with session inventory reads ordered by most recently used first.
+   */
+  @@index([userId, revokedAt, lastUsedAt(sort: Desc), id(sort: Desc)])
 }
 
 model EmailVerificationToken {

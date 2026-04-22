@@ -36,6 +36,11 @@ type ReadablePost = {
   };
 };
 
+type VisibilityPrerequisites = {
+  blockedViewerIds: Set<number>;
+  followingViewerIds: Set<number>;
+};
+
 @Injectable()
 export class MentionsService {
   constructor(
@@ -89,8 +94,19 @@ export class MentionsService {
       return;
     }
 
+    const post = await this.getReadablePostForMentions(postId);
+
+    if (!post) {
+      return;
+    }
+
+    const visibleRecipientIds = await this.filterVisibleRecipientIds(
+      post,
+      recipients.map((recipient) => recipient.id),
+    );
+
     for (const recipient of recipients) {
-      if (!(await this.canUserReadPost(postId, recipient.id))) {
+      if (!visibleRecipientIds.has(recipient.id)) {
         continue;
       }
 
@@ -139,8 +155,19 @@ export class MentionsService {
       return;
     }
 
+    const post = await this.getReadablePostForCommentMentions(commentId);
+
+    if (!post) {
+      return;
+    }
+
+    const visibleRecipientIds = await this.filterVisibleRecipientIds(
+      post,
+      recipients.map((recipient) => recipient.id),
+    );
+
     for (const recipient of recipients) {
-      if (!(await this.canUserReadComment(commentId, recipient.id))) {
+      if (!visibleRecipientIds.has(recipient.id)) {
         continue;
       }
 
@@ -273,11 +300,10 @@ export class MentionsService {
     });
   }
 
-  /** Applies comment visibility rules before sending mention notifications. */
-  private async canUserReadComment(
+  /** Loads the post visibility source for one comment mention flow. */
+  private async getReadablePostForCommentMentions(
     commentId: number,
-    viewerId: number,
-  ): Promise<boolean> {
+  ): Promise<ReadablePost | null> {
     const comment = await this.prisma.comment.findUnique({
       where: { id: commentId },
       select: {
@@ -299,17 +325,16 @@ export class MentionsService {
     });
 
     if (!comment || comment.removedAt) {
-      return false;
+      return null;
     }
 
-    return this.canViewerReadPost(viewerId, comment.post);
+    return comment.post;
   }
 
-  /** Loads a post and applies post visibility rules for a specific viewer. */
-  private async canUserReadPost(
+  /** Loads the post visibility source for one post mention flow. */
+  private async getReadablePostForMentions(
     postId: number,
-    viewerId: number,
-  ): Promise<boolean> {
+  ): Promise<ReadablePost | null> {
     const post = await this.prisma.post.findUnique({
       where: { id: postId },
       select: {
@@ -325,60 +350,104 @@ export class MentionsService {
       },
     });
 
-    if (!post) {
-      return false;
-    }
-
-    return this.canViewerReadPost(viewerId, post);
+    return post;
   }
 
-  /** Applies post visibility rules used before sending mention notifications. */
-  private async canViewerReadPost(
-    viewerId: number,
+  /** Resolves which recipients can see the given post using batched block/follow lookups. */
+  private async filterVisibleRecipientIds(
     post: ReadablePost,
-  ): Promise<boolean> {
+    viewerIds: number[],
+  ): Promise<Set<number>> {
     if (post.removedAt || post.author.accountState !== AccountState.ACTIVE) {
-      return false;
+      return new Set();
     }
 
-    if (viewerId === post.authorId) {
-      return true;
+    if (viewerIds.length === 0) {
+      return new Set();
     }
 
-    const blockRelationship = await this.prisma.userBlock.findFirst({
-      where: {
-        OR: [
-          {
-            blockerId: viewerId,
-            blockedId: post.authorId,
-          },
-          {
-            blockerId: post.authorId,
-            blockedId: viewerId,
-          },
-        ],
-      },
-      select: { id: true },
-    });
+    const prerequisites = await this.getVisibilityPrerequisites(
+      post,
+      viewerIds,
+    );
+    const visibleRecipientIds = new Set<number>();
 
-    if (blockRelationship) {
-      return false;
+    for (const viewerId of viewerIds) {
+      if (viewerId === post.authorId) {
+        visibleRecipientIds.add(viewerId);
+        continue;
+      }
+
+      if (prerequisites.blockedViewerIds.has(viewerId)) {
+        continue;
+      }
+
+      if (post.author.privacySetting === UserPrivacySetting.PUBLIC) {
+        visibleRecipientIds.add(viewerId);
+        continue;
+      }
+
+      if (prerequisites.followingViewerIds.has(viewerId)) {
+        visibleRecipientIds.add(viewerId);
+      }
     }
 
-    if (post.author.privacySetting === UserPrivacySetting.PUBLIC) {
-      return true;
-    }
+    return visibleRecipientIds;
+  }
 
-    const follow = await this.prisma.follow.findUnique({
-      where: {
-        followerId_followingId: {
-          followerId: viewerId,
-          followingId: post.authorId,
+  /** Loads the shared block and follow edges needed to evaluate many recipients at once. */
+  private async getVisibilityPrerequisites(
+    post: ReadablePost,
+    viewerIds: number[],
+  ): Promise<VisibilityPrerequisites> {
+    const [blockRows, followRows]: [
+      { blockerId: number; blockedId: number }[],
+      { followerId: number }[],
+    ] = await Promise.all([
+      this.prisma.userBlock.findMany({
+        where: {
+          OR: [
+            {
+              blockerId: {
+                in: viewerIds,
+              },
+              blockedId: post.authorId,
+            },
+            {
+              blockerId: post.authorId,
+              blockedId: {
+                in: viewerIds,
+              },
+            },
+          ],
         },
-      },
-      select: { id: true },
-    });
+        select: {
+          blockerId: true,
+          blockedId: true,
+        },
+      }),
+      post.author.privacySetting === UserPrivacySetting.PRIVATE
+        ? this.prisma.follow.findMany({
+            where: {
+              followerId: {
+                in: viewerIds,
+              },
+              followingId: post.authorId,
+            },
+            select: {
+              followerId: true,
+            },
+          })
+        : Promise.resolve<{ followerId: number }[]>([]),
+    ]);
 
-    return Boolean(follow);
+    return {
+      blockedViewerIds: new Set(
+        blockRows.map((row) =>
+          row.blockerId === post.authorId ? row.blockedId : row.blockerId,
+        ),
+      ),
+      followingViewerIds: new Set(followRows.map((row) => row.followerId)),
+    };
   }
 }

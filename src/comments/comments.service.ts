@@ -330,39 +330,42 @@ export class CommentsService {
       );
     }
 
-    const hiddenReplyCount =
-      comment.parentCommentId === null
-        ? await this.prisma.comment.count({
-            where: {
-              parentCommentId: commentId,
-              removedAt: null,
-            },
-          })
-        : 0;
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        const deletedReplies =
+          comment.parentCommentId === null
+            ? await tx.comment.deleteMany({
+                where: {
+                  parentCommentId: commentId,
+                  removedAt: null,
+                },
+              })
+            : { count: 0 };
 
-    await this.prisma.$transaction(async (tx) => {
-      if (hiddenReplyCount > 0) {
-        await tx.comment.deleteMany({
-          where: {
-            parentCommentId: commentId,
+        await tx.comment.delete({
+          where: { id: commentId },
+        });
+
+        await tx.post.update({
+          where: { id: comment.postId },
+
+          data: {
+            commentsCount: {
+              decrement: deletedReplies.count + 1,
+            },
           },
         });
+      });
+    } catch (err) {
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === "P2025"
+      ) {
+        throw new NotFoundException("Comment not found");
       }
 
-      await tx.comment.delete({
-        where: { id: commentId },
-      });
-
-      await tx.post.update({
-        where: { id: comment.postId },
-
-        data: {
-          commentsCount: {
-            decrement: hiddenReplyCount + 1,
-          },
-        },
-      });
-    });
+      this.throwUnexpectedPersistenceFailure("delete comment", err);
+    }
 
     await runBestEffort(
       this.logger,
@@ -586,7 +589,7 @@ export class CommentsService {
 
   /** Logs and throws InternalServerErrorException for unexpected persistence errors. */
   private throwUnexpectedPersistenceFailure(
-    action: "update comment" | "remove comment by moderator",
+    action: "update comment" | "delete comment" | "remove comment by moderator",
     err: unknown,
   ): never {
     this.logger.error(

@@ -87,6 +87,7 @@ describe("ReportsService", () => {
           reason: ReportReason.SPAM,
           details: "spam post",
           status: OPEN_REPORT_STATUS,
+          openDedupKey: "post:5:reporter:1",
         },
         select: { id: true },
       });
@@ -220,6 +221,7 @@ describe("ReportsService", () => {
           reason: ReportReason.HARASSMENT,
           details: "abusive comment",
           status: OPEN_REPORT_STATUS,
+          openDedupKey: "comment:8:reporter:1",
         },
         select: { id: true },
       });
@@ -481,6 +483,29 @@ describe("ReportsService", () => {
 
       expect(prismaMock.contentReport.findMany).not.toHaveBeenCalled();
     });
+
+    it("fails fast when a report row has no valid target shape", async () => {
+      prismaMock.contentReport.findMany.mockResolvedValue([
+        {
+          id: 40,
+          postId: null,
+          commentId: null,
+          reason: ReportReason.OTHER,
+          details: null,
+          status: ReportStatus.OPEN,
+          createdAt: new Date("2026-04-08T00:00:00.000Z"),
+          reporter: {
+            id: 7,
+            name: "Reporter",
+            username: "reporter",
+          },
+        },
+      ]);
+
+      await expect(
+        service.reviewReports({}, { id: 1, role: USER_ROLE.MODERATOR }),
+      ).rejects.toBeInstanceOf(InternalServerErrorException);
+    });
   });
 
   describe("dismissReport", () => {
@@ -495,7 +520,7 @@ describe("ReportsService", () => {
 
       expect(prismaMock.contentReport.updateMany).toHaveBeenCalledWith({
         where: { id: 10, status: ReportStatus.OPEN },
-        data: { status: ReportStatus.DISMISSED },
+        data: { status: ReportStatus.DISMISSED, openDedupKey: null },
       });
     });
 
@@ -533,7 +558,7 @@ describe("ReportsService", () => {
 
       expect(prismaMock.contentReport.updateMany).toHaveBeenCalledWith({
         where: { id: 12, status: ReportStatus.OPEN },
-        data: { status: ReportStatus.ACTIONED },
+        data: { status: ReportStatus.ACTIONED, openDedupKey: null },
       });
     });
 

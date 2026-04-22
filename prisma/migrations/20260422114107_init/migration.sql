@@ -142,9 +142,11 @@ CREATE TABLE `ContentReport` (
     `reason` ENUM('SPAM', 'HARASSMENT', 'HATE', 'SEXUAL_CONTENT', 'VIOLENCE', 'MISINFORMATION', 'OTHER') NOT NULL,
     `details` VARCHAR(191) NULL,
     `status` ENUM('OPEN', 'DISMISSED', 'ACTIONED') NOT NULL DEFAULT 'OPEN',
+    `openDedupKey` VARCHAR(191) NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
+    UNIQUE INDEX `ContentReport_openDedupKey_key`(`openDedupKey`),
     INDEX `ContentReport_reporterId_postId_status_idx`(`reporterId`, `postId`, `status`),
     INDEX `ContentReport_reporterId_commentId_status_idx`(`reporterId`, `commentId`, `status`),
     INDEX `ContentReport_reporterId_createdAt_id_idx`(`reporterId`, `createdAt` DESC, `id` DESC),
@@ -263,6 +265,7 @@ CREATE TABLE `RefreshSession` (
     INDEX `RefreshSession_expiresAt_idx`(`expiresAt`),
     INDEX `RefreshSession_revokedAt_idx`(`revokedAt`),
     INDEX `RefreshSession_userId_revokedAt_expiresAt_idx`(`userId`, `revokedAt`, `expiresAt`),
+    INDEX `RefreshSession_userId_revokedAt_lastUsedAt_id_idx`(`userId`, `revokedAt`, `lastUsedAt` DESC, `id` DESC),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 

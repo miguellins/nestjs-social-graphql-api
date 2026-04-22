@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
+import { Prisma } from "@prisma/client";
 
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
 
@@ -93,7 +94,6 @@ describe("CommentsService", () => {
     prismaMock.user.findUnique.mockResolvedValue({
       accountState: AccountState.ACTIVE,
     });
-    prismaMock.comment.count.mockResolvedValue(0);
     commentsReadServiceMock.getReadablePostOrThrow.mockResolvedValue({
       id: 1,
       authorId: 7,
@@ -568,8 +568,6 @@ describe("CommentsService", () => {
           authorId: 7,
         },
       });
-      prismaMock.comment.count.mockResolvedValue(2);
-
       prismaMock.$transaction.mockImplementation(
         async (
           cb: (tx: {
@@ -592,6 +590,7 @@ describe("CommentsService", () => {
           expect(tx.comment.deleteMany).toHaveBeenCalledWith({
             where: {
               parentCommentId: 1,
+              removedAt: null,
             },
           });
           expect(tx.comment.delete).toHaveBeenCalledWith({
@@ -611,6 +610,77 @@ describe("CommentsService", () => {
       await expect(service.deleteComment(1, 10)).resolves.toEqual({
         message: "Comment deleted successfully",
       });
+    });
+
+    it("skips reply deletion for reply comments and decrements by one", async () => {
+      prismaMock.comment.findUnique.mockResolvedValue({
+        id: 2,
+        authorId: 10,
+        postId: 3,
+        parentCommentId: 1,
+        removedAt: null,
+        post: {
+          authorId: 7,
+        },
+      });
+
+      prismaMock.$transaction.mockImplementation(
+        async (
+          cb: (tx: {
+            comment: { deleteMany: jest.Mock; delete: jest.Mock };
+            post: { update: jest.Mock };
+          }) => Promise<void>,
+        ) => {
+          const tx = {
+            comment: {
+              deleteMany: jest.fn(),
+              delete: jest.fn().mockResolvedValue({ id: 2 }),
+            },
+            post: {
+              update: jest.fn().mockResolvedValue({ id: 3 }),
+            },
+          };
+
+          await cb(tx);
+
+          expect(tx.comment.deleteMany).not.toHaveBeenCalled();
+          expect(tx.post.update).toHaveBeenCalledWith({
+            where: { id: 3 },
+            data: {
+              commentsCount: {
+                decrement: 1,
+              },
+            },
+          });
+        },
+      );
+
+      await expect(service.deleteComment(2, 10)).resolves.toEqual({
+        message: "Comment deleted successfully",
+      });
+    });
+
+    it("maps transactional P2025 races to NotFound", async () => {
+      prismaMock.comment.findUnique.mockResolvedValue({
+        id: 1,
+        authorId: 10,
+        postId: 3,
+        parentCommentId: null,
+        removedAt: null,
+        post: {
+          authorId: 7,
+        },
+      });
+      prismaMock.$transaction.mockRejectedValue(
+        new Prisma.PrismaClientKnownRequestError("gone", {
+          code: "P2025",
+          clientVersion: "test",
+        }),
+      );
+
+      await expect(service.deleteComment(1, 10)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
     });
   });
 

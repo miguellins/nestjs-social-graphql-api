@@ -461,7 +461,7 @@ export class FollowsService {
     }
 
     const approved = await this.prisma.$transaction(async (tx) => {
-      await tx.followRequest.updateMany({
+      const transitioned = await tx.followRequest.updateMany({
         where: {
           id: requestId,
           status: FollowRequestStatus.PENDING,
@@ -470,6 +470,10 @@ export class FollowsService {
           status: FollowRequestStatus.APPROVED,
         },
       });
+
+      if (transitioned.count !== 1) {
+        throw new BadRequestException("Follow request is no longer pending");
+      }
 
       await tx.follow.upsert({
         where: {
@@ -531,12 +535,25 @@ export class FollowsService {
       throw new BadRequestException("Follow request is no longer pending");
     }
 
-    const updated = await this.prisma.followRequest.update({
-      where: { id: requestId },
-      data: {
-        status: FollowRequestStatus.REJECTED,
-      },
-      select: FollowRequestSelect,
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const transitioned = await tx.followRequest.updateMany({
+        where: {
+          id: requestId,
+          status: FollowRequestStatus.PENDING,
+        },
+        data: {
+          status: FollowRequestStatus.REJECTED,
+        },
+      });
+
+      if (transitioned.count !== 1) {
+        throw new BadRequestException("Follow request is no longer pending");
+      }
+
+      return tx.followRequest.findUniqueOrThrow({
+        where: { id: requestId },
+        select: FollowRequestSelect,
+      });
     });
 
     return this.toFollowRequest(updated);
@@ -567,12 +584,25 @@ export class FollowsService {
       throw new BadRequestException("Follow request is no longer pending");
     }
 
-    const updated = await this.prisma.followRequest.update({
-      where: { id: requestId },
-      data: {
-        status: FollowRequestStatus.CANCELED,
-      },
-      select: FollowRequestSelect,
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const transitioned = await tx.followRequest.updateMany({
+        where: {
+          id: requestId,
+          status: FollowRequestStatus.PENDING,
+        },
+        data: {
+          status: FollowRequestStatus.CANCELED,
+        },
+      });
+
+      if (transitioned.count !== 1) {
+        throw new BadRequestException("Follow request is no longer pending");
+      }
+
+      return tx.followRequest.findUniqueOrThrow({
+        where: { id: requestId },
+        select: FollowRequestSelect,
+      });
     });
 
     return this.toFollowRequest(updated);

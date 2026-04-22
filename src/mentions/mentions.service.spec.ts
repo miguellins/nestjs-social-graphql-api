@@ -31,9 +31,11 @@ describe("MentionsService", () => {
     },
     userBlock: {
       findFirst: jest.fn(),
+      findMany: jest.fn(),
     },
     follow: {
       findUnique: jest.fn(),
+      findMany: jest.fn(),
     },
     $transaction: jest.fn(),
   };
@@ -53,7 +55,9 @@ describe("MentionsService", () => {
     prismaMock.postMention.findMany.mockResolvedValue([]);
     prismaMock.commentMention.findMany.mockResolvedValue([]);
     prismaMock.userBlock.findFirst.mockResolvedValue(null);
+    prismaMock.userBlock.findMany.mockResolvedValue([]);
     prismaMock.follow.findUnique.mockResolvedValue(null);
+    prismaMock.follow.findMany.mockResolvedValue([]);
     notificationTriggerMock.notifyPostMentioned.mockResolvedValue(undefined);
     notificationTriggerMock.notifyCommentMentioned.mockResolvedValue(undefined);
     prismaMock.$transaction.mockImplementation(
@@ -142,7 +146,7 @@ describe("MentionsService", () => {
         privacySetting: UserPrivacySetting.PRIVATE,
       },
     });
-    prismaMock.follow.findUnique.mockResolvedValue(null);
+    prismaMock.follow.findMany.mockResolvedValue([]);
 
     await service.syncPostMentions({
       postId: 21,
@@ -151,6 +155,46 @@ describe("MentionsService", () => {
     });
 
     expect(notificationTriggerMock.notifyPostMentioned).not.toHaveBeenCalled();
+  });
+
+  it("batches post mention visibility checks instead of querying per recipient", async () => {
+    prismaMock.user.findMany.mockResolvedValue([
+      { id: 8, username: "alice" },
+      { id: 9, username: "bob" },
+    ]);
+    prismaMock.post.findUnique.mockResolvedValue({
+      id: 20,
+      authorId: 7,
+      removedAt: null,
+      author: {
+        accountState: AccountState.ACTIVE,
+        privacySetting: UserPrivacySetting.PRIVATE,
+      },
+    });
+    prismaMock.userBlock.findMany.mockResolvedValue([
+      { blockerId: 9, blockedId: 7 },
+    ]);
+    prismaMock.follow.findMany.mockResolvedValue([{ followerId: 8 }]);
+
+    await service.syncPostMentions({
+      postId: 20,
+      actorId: 7,
+      content: "hello @alice and @bob",
+    });
+
+    expect(prismaMock.userBlock.findMany).toHaveBeenCalledTimes(1);
+    expect(prismaMock.follow.findMany).toHaveBeenCalledTimes(1);
+    expect(prismaMock.userBlock.findFirst).not.toHaveBeenCalled();
+    expect(prismaMock.follow.findUnique).not.toHaveBeenCalled();
+    expect(notificationTriggerMock.notifyPostMentioned).toHaveBeenCalledTimes(
+      1,
+    );
+    expect(notificationTriggerMock.notifyPostMentioned).toHaveBeenCalledWith({
+      recipientId: 8,
+      actorId: 7,
+      actorUsername: "actor",
+      postId: 20,
+    });
   });
 
   it("notifies newly added comment mentions again when they are re-added on later edits", async () => {

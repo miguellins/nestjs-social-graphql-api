@@ -91,17 +91,6 @@ export class PostReadService {
           },
           select: SafePostDetailSelect.likes.select,
         },
-
-        comments: {
-          take: commentsTake,
-          where: {
-            removedAt: null,
-          },
-          orderBy: {
-            createdAt: "desc",
-          },
-          select: SafePostDetailSelect.comments.select,
-        },
       },
     });
 

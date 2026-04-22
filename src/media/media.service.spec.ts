@@ -766,23 +766,78 @@ describe("MediaService", () => {
         objectKey: "posts/11/media/file/original.jpg",
       });
       prismaMock.media.findMany.mockResolvedValue([]);
-      prismaMock.postMedia.findFirst.mockResolvedValue(null);
-      prismaMock.postMedia.create.mockResolvedValue({ id: 1 });
-      prismaMock.media.update.mockResolvedValue({ id: 91 });
-      prismaMock.$transaction.mockResolvedValue(undefined);
+      prismaMock.$transaction.mockImplementation(
+        async (
+          cb: (tx: {
+            postMedia: { findFirst: jest.Mock; create: jest.Mock };
+            media: {
+              update: jest.Mock<
+                Promise<{ id: number }>,
+                [
+                  {
+                    where: { id: number };
+                    data: { attachedAt: Date };
+                  },
+                ]
+              >;
+            };
+          }) => Promise<unknown>,
+        ) => {
+          const tx = {
+            postMedia: {
+              findFirst: jest.fn().mockResolvedValue(null),
+              create: jest.fn().mockResolvedValue({ id: 1 }),
+            },
+            media: {
+              update: jest
+                .fn<
+                  Promise<{ id: number }>,
+                  [
+                    {
+                      where: { id: number };
+                      data: { attachedAt: Date };
+                    },
+                  ]
+                >()
+                .mockResolvedValue({ id: 91 }),
+            },
+          };
+
+          const result = await cb(tx);
+
+          expect(tx.postMedia.findFirst).toHaveBeenCalledWith({
+            where: { postId: 11 },
+            orderBy: {
+              sortOrder: "desc",
+            },
+            select: {
+              sortOrder: true,
+            },
+          });
+          expect(tx.postMedia.create).toHaveBeenCalledWith({
+            data: {
+              post: { connect: { id: 11 } },
+              media: { connect: { id: 91 } },
+              sortOrder: 0,
+            },
+          });
+          const mediaUpdateCall = tx.media.update.mock.calls[0]?.[0] as {
+            where: { id: number };
+            data: { attachedAt: Date };
+          };
+
+          expect(mediaUpdateCall.where).toEqual({ id: 91 });
+          expect(mediaUpdateCall.data.attachedAt).toBeInstanceOf(Date);
+
+          return result;
+        },
+      );
 
       const result = await service.attachMediaToPost(
         { postId: 11, mediaId: 91 },
         7,
       );
 
-      expect(prismaMock.postMedia.create).toHaveBeenCalledWith({
-        data: {
-          post: { connect: { id: 11 } },
-          media: { connect: { id: 91 } },
-          sortOrder: 0,
-        },
-      });
       expect(cacheMock.del).toHaveBeenCalledWith("posts:detail:11");
       expect(result).toEqual(
         expect.objectContaining({
@@ -837,8 +892,6 @@ describe("MediaService", () => {
       prismaMock.media.findMany.mockResolvedValue([
         { id: 22, type: MediaType.IMAGE },
       ]);
-      prismaMock.postMedia.findFirst.mockResolvedValue(null);
-      prismaMock.$transaction.mockResolvedValue(undefined);
       prismaMock.post.findUnique
         .mockResolvedValueOnce({ id: 11, authorId: 7 })
         .mockResolvedValueOnce({
@@ -858,6 +911,23 @@ describe("MediaService", () => {
           },
           mediaAttachments: [],
         });
+      prismaMock.$transaction.mockImplementation(
+        async (
+          cb: (tx: {
+            postMedia: { findFirst: jest.Mock; create: jest.Mock };
+            media: { update: jest.Mock };
+          }) => Promise<unknown>,
+        ) =>
+          cb({
+            postMedia: {
+              findFirst: jest.fn().mockResolvedValue(null),
+              create: jest.fn().mockResolvedValue({ id: 1 }),
+            },
+            media: {
+              update: jest.fn().mockResolvedValue({ id: 91 }),
+            },
+          }),
+      );
 
       await service.attachMediaToPost({ postId: 11, mediaId: 91 }, 7);
 
@@ -892,11 +962,11 @@ describe("MediaService", () => {
         objectKey: "posts/11/media/file/original.jpg",
       });
       prismaMock.media.findMany.mockResolvedValue([]);
-      prismaMock.postMedia.findFirst.mockResolvedValue(null);
       prismaMock.$transaction.mockRejectedValue(
         new Prisma.PrismaClientKnownRequestError("duplicate", {
           code: "P2002",
           clientVersion: "test",
+          meta: { target: ["postId", "mediaId"] },
         }),
       );
 
@@ -915,7 +985,6 @@ describe("MediaService", () => {
         objectKey: "posts/11/media/file/original.jpg",
       });
       prismaMock.media.findMany.mockResolvedValue([]);
-      prismaMock.postMedia.findFirst.mockResolvedValue(null);
       prismaMock.$transaction.mockRejectedValue(
         new Prisma.PrismaClientKnownRequestError("missing", {
           code: "P2025",
@@ -926,6 +995,98 @@ describe("MediaService", () => {
       await expect(
         service.attachMediaToPost({ postId: 11, mediaId: 91 }, 7),
       ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it("retries once on concurrent sort-order collision and then succeeds", async () => {
+      prismaMock.post.findUnique
+        .mockResolvedValueOnce({ id: 11, authorId: 7 })
+        .mockResolvedValueOnce({
+          id: 11,
+          title: "Title",
+          content: "Content",
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          editedAt: null,
+          likesCount: 0,
+          commentsCount: 0,
+          viewsCount: 0,
+          author: {
+            id: 7,
+            name: "Miguel",
+            username: "miguel",
+          },
+          mediaAttachments: [],
+        });
+      prismaMock.media.findUnique.mockResolvedValue({
+        id: 91,
+        ownerId: 7,
+        status: MediaStatus.READY,
+        type: MediaType.IMAGE,
+        objectKey: "posts/11/media/file/original.jpg",
+      });
+      prismaMock.media.findMany.mockResolvedValue([]);
+      prismaMock.$transaction
+        .mockRejectedValueOnce(
+          new Prisma.PrismaClientKnownRequestError("sort collision", {
+            code: "P2002",
+            clientVersion: "test",
+            meta: { target: ["postId", "sortOrder"] },
+          }),
+        )
+        .mockImplementationOnce(
+          async (
+            cb: (tx: {
+              postMedia: { findFirst: jest.Mock; create: jest.Mock };
+              media: { update: jest.Mock };
+            }) => Promise<unknown>,
+          ) =>
+            cb({
+              postMedia: {
+                findFirst: jest.fn().mockResolvedValue({ sortOrder: 0 }),
+                create: jest.fn().mockResolvedValue({ id: 1 }),
+              },
+              media: {
+                update: jest.fn().mockResolvedValue({ id: 91 }),
+              },
+            }),
+        );
+
+      await expect(
+        service.attachMediaToPost({ postId: 11, mediaId: 91 }, 7),
+      ).resolves.toEqual(
+        expect.objectContaining({
+          id: 11,
+        }),
+      );
+
+      expect(prismaMock.$transaction).toHaveBeenCalledTimes(2);
+    });
+
+    it("maps repeated sort-order collisions to a specific BadRequestException", async () => {
+      prismaMock.post.findUnique.mockResolvedValue({ id: 11, authorId: 7 });
+      prismaMock.media.findUnique.mockResolvedValue({
+        id: 91,
+        ownerId: 7,
+        status: MediaStatus.READY,
+        type: MediaType.IMAGE,
+        objectKey: "posts/11/media/file/original.jpg",
+      });
+      prismaMock.media.findMany.mockResolvedValue([]);
+      prismaMock.$transaction.mockRejectedValue(
+        new Prisma.PrismaClientKnownRequestError("sort collision", {
+          code: "P2002",
+          clientVersion: "test",
+          meta: { target: ["postId", "sortOrder"] },
+        }),
+      );
+
+      await expect(
+        service.attachMediaToPost({ postId: 11, mediaId: 91 }, 7),
+      ).rejects.toThrow(
+        "Could not reserve media attachment order for this post",
+      );
+
+      expect(prismaMock.$transaction).toHaveBeenCalledTimes(3);
     });
   });
 

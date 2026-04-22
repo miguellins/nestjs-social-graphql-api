@@ -816,12 +816,6 @@ describe("PostsService", () => {
             orderBy: { createdAt: "desc" },
             select: SafePostDetailSelect.likes.select,
           },
-          comments: {
-            take: 20,
-            where: { removedAt: null },
-            orderBy: { createdAt: "desc" },
-            select: SafePostDetailSelect.comments.select,
-          },
         },
       });
 
