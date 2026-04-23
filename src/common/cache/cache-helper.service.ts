@@ -47,6 +47,22 @@ export class CacheHelperService {
     await this.cache.del(key);
   }
 
+  /** Confirms the cache backend can complete a minimal write-read-delete cycle. */
+  async ping(): Promise<void> {
+    const key = `health:cache:${Date.now()}`;
+    const value = "ok";
+
+    await this.set(key, value, 5_000);
+
+    const stored = await this.get<string>(key);
+
+    if (stored !== value) {
+      throw new Error("Cache ping returned an unexpected value");
+    }
+
+    await this.del(key);
+  }
+
   /**
    * Read-through caching helper
    *

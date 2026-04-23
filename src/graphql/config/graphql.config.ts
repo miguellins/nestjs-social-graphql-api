@@ -4,17 +4,20 @@ import { ConfigService } from "@nestjs/config";
 import { JwtService } from "@nestjs/jwt";
 
 import { createGraphqlSubscriptionsConfig } from "@/graphql/subscriptions/subscriptions.config";
+import { createBadRequestStatusPlugin } from "@/graphql/plugins/bad-request-status.plugin";
 import { createQueryComplexityPlugin } from "@/graphql/plugins/query-complexity.plugin";
 import type {
   GqlContext,
+  RequestWithContext,
   SubscriptionExtra,
 } from "@/graphql/config/graphql-context.types";
 
+import { RequestContextService } from "@/common/request-context/request-context.service";
 import { GRAPHQL_ERROR_CODES } from "@/common/constants/graphql-error-code.constants";
 
 import type { GraphQLError, GraphQLFormattedError } from "graphql";
 
-import type { Request, Response } from "express";
+import type { Response } from "express";
 
 import { join } from "path";
 
@@ -64,7 +67,12 @@ function toPublicGraphqlErrorMessage(message: string): string {
   }
 
   const missingValueMatch =
-    /^Variable "\$[^"]+" of required type .* was not provided\./.exec(message);
+    /^Variable "\$[^"]+" of required type .* was not provided\./.exec(
+      message,
+    ) ??
+    /^Variable "\$[^"]+" got invalid value .*; Field "[^"]+" of required type .* was not provided\./.exec(
+      message,
+    );
   if (missingValueMatch) {
     return "Required input value was not provided.";
   }
@@ -150,6 +158,7 @@ function toPublicGraphqlErrorExtensions(
 export function createGraphqlConfig(
   jwtService: JwtService,
   configService: ConfigService,
+  requestContextService: RequestContextService,
 ): ApolloDriverConfig {
   const queryComplexityEnv = {
     GRAPHQL_COMPLEXITY_ENFORCE:
@@ -169,7 +178,10 @@ export function createGraphqlConfig(
     autoSchemaFile: join(process.cwd(), "src/schema.gql"),
 
     // Limits query complexity to prevent expensive or abusive GraphQL queries
-    plugins: [createQueryComplexityPlugin(queryComplexityEnv)],
+    plugins: [
+      createQueryComplexityPlugin(queryComplexityEnv),
+      createBadRequestStatusPlugin(),
+    ],
 
     // Configures WebSocket subscriptions for GraphQL with authentication, using the JWT service
     subscriptions: createGraphqlSubscriptionsConfig(jwtService),
@@ -189,15 +201,71 @@ export function createGraphqlConfig(
       res,
       extra,
     }: {
-      req?: Request;
+      req?: RequestWithContext;
       res?: Response;
       extra?: SubscriptionExtra;
-    }): GqlContext => ({
-      req,
-      res,
-      extra,
-    }),
+    }): GqlContext => {
+      const requestId = req?.requestId ?? extra?.requestId;
+      const operationName = getOperationName(req, extra);
+
+      if (requestId) {
+        requestContextService.setRequestId(requestId);
+      }
+
+      if (operationName) {
+        requestContextService.setOperationName(operationName);
+      }
+
+      return {
+        req,
+        res,
+        extra,
+        requestId,
+        operationName,
+      };
+    },
 
     debug: false,
   };
+}
+
+/** Resolves the GraphQL operation name from HTTP or websocket transport metadata. */
+function getOperationName(
+  req?: RequestWithContext,
+  extra?: SubscriptionExtra,
+): string | undefined {
+  const reqOperationName = getRequestOperationName(req);
+
+  if (typeof reqOperationName === "string" && reqOperationName.trim().length) {
+    return reqOperationName.trim();
+  }
+
+  if (
+    typeof extra?.operationName === "string" &&
+    extra.operationName.trim().length
+  ) {
+    return extra.operationName.trim();
+  }
+
+  return undefined;
+}
+
+/** Safely reads the raw operation name field from the incoming HTTP request body. */
+function getRequestOperationName(req?: RequestWithContext): unknown {
+  const body: unknown = req?.body;
+
+  if (!hasOperationName(body)) {
+    return undefined;
+  }
+
+  return body.operationName;
+}
+
+/** Narrows unknown request bodies to objects that expose an operationName field. */
+function hasOperationName(
+  value: unknown,
+): value is { operationName?: unknown } {
+  return (
+    typeof value === "object" && value !== null && "operationName" in value
+  );
 }

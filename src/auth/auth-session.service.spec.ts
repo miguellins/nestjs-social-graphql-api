@@ -1,4 +1,8 @@
-import { NotFoundException, UnauthorizedException } from "@nestjs/common";
+import {
+  Logger,
+  NotFoundException,
+  UnauthorizedException,
+} from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 
 import type { AuthenticatedUser } from "@/auth/authenticated-user.type";
@@ -111,6 +115,9 @@ describe("AuthSessionService", () => {
   });
 
   it("revokes only the current session for logoutCurrentSession", async () => {
+    const loggerSpy = jest
+      .spyOn(Logger.prototype, "log")
+      .mockImplementation(() => undefined);
     const result = await service.logoutCurrentSession(currentUser);
     const updateCalls = refreshSessionUpdateManyMock.mock.calls as Array<
       [
@@ -129,6 +136,9 @@ describe("AuthSessionService", () => {
     });
     expect(updateCall?.data?.revokedAt).toBeInstanceOf(Date);
     expect(result).toEqual({ message: "Logged out successfully" });
+    expect(loggerSpy).toHaveBeenCalledWith(
+      "Revoked current session for userId=3 sessionId=7",
+    );
   });
 
   it("revokes one selected owned session", async () => {

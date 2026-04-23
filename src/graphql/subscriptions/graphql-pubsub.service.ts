@@ -65,6 +65,10 @@ export class GraphqlPubSubService implements OnModuleDestroy {
     await this.pubSub.publish(this.transformTrigger(trigger), payload);
   }
 
+  async ping(): Promise<string> {
+    return this.publisher.ping();
+  }
+
   asyncIterableIterator<T>(
     triggers: string | string[],
   ): AsyncIterableIterator<T> {

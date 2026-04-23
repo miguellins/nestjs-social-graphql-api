@@ -13,16 +13,45 @@ describe("createGraphqlSubscriptionsConfig", () => {
     await onConnect({
       connectionParams: {
         authorization: "Bearer token-123",
+        "x-request-id": "ws-request-1",
       },
       extra,
     });
 
     expect(jwtService.verifyAsync).toHaveBeenCalledWith("token-123");
     expect(extra).toEqual({
+      requestId: "ws-request-1",
       user: {
         id: 7,
       },
     });
+  });
+
+  it("generates a websocket request id when the client does not provide one", async () => {
+    const jwtService = {
+      verifyAsync: jest.fn().mockResolvedValue({ sub: 7 }),
+    };
+
+    const config = createGraphqlSubscriptionsConfig(jwtService as never);
+    const onConnect = config["graphql-ws"].onConnect;
+    const extra: Record<string, unknown> = {};
+
+    await onConnect({
+      connectionParams: {
+        authorization: "Bearer token-123",
+      },
+      extra,
+    });
+
+    expect(extra["user"]).toEqual({
+      id: 7,
+    });
+    const requestId = extra["requestId"];
+
+    expect(typeof requestId).toBe("string");
+    expect(requestId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    );
   });
 
   it("rejects malformed connection params with a sanitized unauthorized error", async () => {
@@ -77,5 +106,31 @@ describe("createGraphqlSubscriptionsConfig", () => {
         extra: {},
       }),
     ).rejects.toThrow("Unauthorized");
+  });
+
+  it("preserves the authenticated role and trims request ids from array params", async () => {
+    const jwtService = {
+      verifyAsync: jest.fn().mockResolvedValue({ sub: 7, role: "ADMIN" }),
+    };
+
+    const config = createGraphqlSubscriptionsConfig(jwtService as never);
+    const onConnect = config["graphql-ws"].onConnect;
+    const extra: Record<string, unknown> = {};
+
+    await onConnect({
+      connectionParams: {
+        authorization: "Bearer token-123",
+        "x-request-id": ["", "  ws-array-id  "],
+      },
+      extra,
+    });
+
+    expect(extra).toEqual({
+      requestId: "ws-array-id",
+      user: {
+        id: 7,
+        role: "ADMIN",
+      },
+    });
   });
 });

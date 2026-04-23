@@ -16,6 +16,10 @@ type GraphQLContext = {
 @Injectable()
 export class GqlThrottlerGuard extends ThrottlerGuard {
   override async canActivate(context: ExecutionContext): Promise<boolean> {
+    if (context.getType<string>() !== "graphql") {
+      return super.canActivate(context);
+    }
+
     const gqlCtx = GqlExecutionContext.create(context);
     const info = gqlCtx.getInfo<GraphQLResolveInfo>();
     const operation = info.operation.operation;
@@ -34,6 +38,15 @@ export class GqlThrottlerGuard extends ThrottlerGuard {
     req: Request;
     res: Response;
   } {
+    if (context.getType<string>() !== "graphql") {
+      const http = context.switchToHttp();
+
+      return {
+        req: http.getRequest<Request>(),
+        res: http.getResponse<Response>(),
+      };
+    }
+
     const gqlContext = GqlExecutionContext.create(context);
     const ctx = gqlContext.getContext<GraphQLContext>();
 

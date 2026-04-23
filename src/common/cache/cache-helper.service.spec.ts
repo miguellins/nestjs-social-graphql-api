@@ -79,6 +79,28 @@ describe("CacheHelperService", () => {
     });
   });
 
+  describe("ping", () => {
+    it("completes a minimal write-read-delete cache round trip", async () => {
+      cacheMock.set.mockResolvedValue(undefined);
+      cacheMock.get.mockResolvedValue("ok");
+      cacheMock.del.mockResolvedValue(undefined);
+
+      await service.ping();
+
+      expect(cacheMock.set).toHaveBeenCalledWith(
+        expect.stringMatching(/^health:cache:/),
+        "ok",
+        5_000,
+      );
+      expect(cacheMock.get).toHaveBeenCalledWith(
+        expect.stringMatching(/^health:cache:/),
+      );
+      expect(cacheMock.del).toHaveBeenCalledWith(
+        expect.stringMatching(/^health:cache:/),
+      );
+    });
+  });
+
   describe("getOrSet", () => {
     it("returns cached value and does NOT call factory nor set (cache hit)", async () => {
       cacheMock.get.mockResolvedValue({ ok: true });

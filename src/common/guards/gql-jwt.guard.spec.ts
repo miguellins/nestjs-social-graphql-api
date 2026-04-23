@@ -4,6 +4,8 @@ import { ExecutionContext } from "@nestjs/common";
 
 import { Reflector } from "@nestjs/core";
 
+import { RequestContextService } from "@/common/request-context/request-context.service";
+
 import { GqlJwtGuard } from "./gql-jwt.guard";
 
 import type { Request } from "express";
@@ -32,10 +34,13 @@ jest.mock("@nestjs/graphql", () => ({
 describe("GqlJwtGuard", () => {
   let guard: GqlJwtGuard;
   let reflector: Reflector;
+  let requestContextService: jest.Mocked<RequestContextService>;
+  let setUserIdMock: jest.Mock;
 
   const context = {
     getHandler: jest.fn(),
     getClass: jest.fn(),
+    getType: jest.fn(() => "graphql"),
   } as unknown as ExecutionContext;
 
   beforeEach(() => {
@@ -43,7 +48,15 @@ describe("GqlJwtGuard", () => {
     reflector = {
       getAllAndOverride: jest.fn(),
     } as unknown as Reflector;
-    guard = new GqlJwtGuard(reflector);
+    requestContextService = {
+      run: jest.fn(),
+      get: jest.fn(),
+      getStore: jest.fn(),
+      setRequestId: jest.fn(),
+      setUserId: (setUserIdMock = jest.fn()),
+      setOperationName: jest.fn(),
+    } as unknown as jest.Mocked<RequestContextService>;
+    guard = new GqlJwtGuard(reflector, requestContextService);
 
     const gqlExecutionContextMock = GqlExecutionContext as unknown as {
       create: jest.Mock;
@@ -63,6 +76,7 @@ describe("GqlJwtGuard", () => {
 
     expect(result).toBe(true);
     expect(canActivateMock).toHaveBeenCalledWith(context);
+    expect(setUserIdMock).not.toHaveBeenCalled();
   });
 
   it("delegates to passport guard for non-public routes", async () => {
@@ -73,6 +87,7 @@ describe("GqlJwtGuard", () => {
 
     expect(canActivateMock).toHaveBeenCalledWith(context);
     expect(result).toBe(true);
+    expect(setUserIdMock).not.toHaveBeenCalled();
   });
 
   it("extracts GraphQL request from context", () => {
@@ -107,6 +122,40 @@ describe("GqlJwtGuard", () => {
     const result = await guard.canActivate(context);
 
     expect(result).toBe(true);
+    expect(canActivateMock).not.toHaveBeenCalled();
+    expect(setUserIdMock).toHaveBeenCalledWith(1);
+  });
+
+  it("stores the authenticated HTTP user id in request context", async () => {
+    (reflector.getAllAndOverride as jest.Mock).mockReturnValue(false);
+
+    const gqlExecutionContextMock = GqlExecutionContext as unknown as {
+      create: jest.Mock;
+    };
+    gqlExecutionContextMock.create.mockReturnValue({
+      getInfo: jest.fn().mockReturnValue({ operation: { operation: "query" } }),
+      getContext: jest.fn().mockReturnValue({ req: { user: { id: 7 } } }),
+    });
+    canActivateMock.mockResolvedValue(true);
+
+    const result = await guard.canActivate(context);
+
+    expect(result).toBe(true);
+    expect(setUserIdMock).toHaveBeenCalledWith(7);
+  });
+
+  it("returns true for public HTTP routes without invoking passport auth", async () => {
+    (reflector.getAllAndOverride as jest.Mock).mockReturnValue(true);
+    const httpContext = {
+      getHandler: jest.fn(),
+      getClass: jest.fn(),
+      getType: jest.fn(() => "http"),
+      switchToHttp: jest.fn(() => ({
+        getRequest: jest.fn(() => ({ headers: {} })),
+      })),
+    } as unknown as ExecutionContext;
+
+    await expect(guard.canActivate(httpContext)).resolves.toBe(true);
     expect(canActivateMock).not.toHaveBeenCalled();
   });
 });

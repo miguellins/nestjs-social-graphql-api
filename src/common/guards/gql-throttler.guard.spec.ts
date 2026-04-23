@@ -18,7 +18,9 @@ describe("GqlThrottlerGuard", () => {
     const guard = Object.create(
       GqlThrottlerGuard.prototype,
     ) as GqlThrottlerGuard;
-    const context = {} as ExecutionContext;
+    const context = {
+      getType: jest.fn(() => "graphql"),
+    } as unknown as ExecutionContext;
 
     const req = { ip: "127.0.0.1" } as Request;
     const res = { statusCode: 200 } as Response;
@@ -41,6 +43,32 @@ describe("GqlThrottlerGuard", () => {
     ).getRequestResponse(context);
 
     expect(createMock).toHaveBeenCalledWith(context);
+    expect(result).toEqual({ req, res });
+  });
+
+  it("returns HTTP req/res directly for non-GraphQL contexts", () => {
+    const guard = Object.create(
+      GqlThrottlerGuard.prototype,
+    ) as GqlThrottlerGuard;
+    const req = { ip: "127.0.0.1" } as Request;
+    const res = { statusCode: 200 } as Response;
+    const context = {
+      getType: jest.fn(() => "http"),
+      switchToHttp: jest.fn(() => ({
+        getRequest: jest.fn(() => req),
+        getResponse: jest.fn(() => res),
+      })),
+    } as unknown as ExecutionContext;
+
+    const result = (
+      guard as unknown as {
+        getRequestResponse: (executionContext: ExecutionContext) => {
+          req: Request;
+          res: Response;
+        };
+      }
+    ).getRequestResponse(context);
+
     expect(result).toEqual({ req, res });
   });
 });

@@ -15,6 +15,7 @@ describe("GqlRolesGuard", () => {
   const context = {
     getHandler: jest.fn(),
     getClass: jest.fn(),
+    getType: jest.fn(() => "graphql"),
   } as never;
 
   let guard: GqlRolesGuard;

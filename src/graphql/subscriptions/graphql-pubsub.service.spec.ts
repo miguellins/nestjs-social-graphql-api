@@ -10,6 +10,7 @@ const redisPubSubMock = {
 
 const redisConstructorMock = jest.fn().mockImplementation((_url, _options) => ({
   on: jest.fn(),
+  ping: jest.fn().mockResolvedValue("PONG"),
 }));
 
 const redisPubSubConstructorMock = jest.fn().mockImplementation(() => ({
@@ -71,6 +72,38 @@ describe("GraphqlPubSubService", () => {
     );
   });
 
+  it("prefers the dedicated subscriptions Redis URL when configured", () => {
+    configServiceMock.get.mockImplementation((key: string) => {
+      switch (key) {
+        case "GRAPHQL_SUBSCRIPTIONS_REDIS_URL":
+          return "redis://pubsub:6379";
+        case "REDIS_URL":
+          return "redis://cache:6379";
+        case "GRAPHQL_SUBSCRIPTIONS_REDIS_NAMESPACE":
+          return "graphql-subscriptions";
+        default:
+          return undefined;
+      }
+    });
+
+    new GraphqlPubSubService(configServiceMock as never);
+
+    expect(redisConstructorMock).toHaveBeenNthCalledWith(
+      1,
+      "redis://pubsub:6379",
+      {
+        maxRetriesPerRequest: null,
+      },
+    );
+    expect(redisConstructorMock).toHaveBeenNthCalledWith(
+      2,
+      "redis://pubsub:6379",
+      {
+        maxRetriesPerRequest: null,
+      },
+    );
+  });
+
   it("prefixes triggers with the configured namespace", () => {
     new GraphqlPubSubService(configServiceMock as never);
 
@@ -118,6 +151,12 @@ describe("GraphqlPubSubService", () => {
     );
   });
 
+  it("delegates ping to the Redis publisher client", async () => {
+    const service = new GraphqlPubSubService(configServiceMock as never);
+
+    await expect(service.ping()).resolves.toBe("PONG");
+  });
+
   it("closes the Redis pubsub engine on module shutdown", async () => {
     redisPubSubMock.close.mockResolvedValue(["OK", "OK"]);
 
@@ -142,6 +181,14 @@ describe("GraphqlPubSubService", () => {
     expect(loggerSpy).toHaveBeenCalledWith(
       "Failed to close Redis pubsub clients cleanly",
       expect.any(String),
+    );
+  });
+
+  it("throws when no Redis URL is configured for subscriptions", () => {
+    configServiceMock.get.mockReturnValue(undefined);
+
+    expect(() => new GraphqlPubSubService(configServiceMock as never)).toThrow(
+      "GRAPHQL_SUBSCRIPTIONS_REDIS_URL or REDIS_URL must be defined",
     );
   });
 });

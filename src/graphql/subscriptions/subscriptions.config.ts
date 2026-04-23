@@ -6,6 +6,8 @@ import type { SubscriptionExtra } from "@/graphql/config/graphql-context.types";
 
 import type { UserRole } from "@/users/enums/user-role.enum";
 
+import { randomUUID } from "crypto";
+
 /** Builds the GraphQL websocket transport configuration. */
 export function createGraphqlSubscriptionsConfig(jwtService: JwtService) {
   const logger = new Logger("GraphQLModule");
@@ -26,6 +28,9 @@ export function createGraphqlSubscriptionsConfig(jwtService: JwtService) {
 
         try {
           const extra = context.extra as SubscriptionExtra;
+          extra.requestId = resolveRequestId(
+            context.connectionParams?.["x-request-id"],
+          );
           const token = subscriptionConnectionParamsSchema.parse(
             context.connectionParams ?? {},
           );
@@ -44,7 +49,9 @@ export function createGraphqlSubscriptionsConfig(jwtService: JwtService) {
             role: payload.role,
           };
 
-          logger.debug(`WS authenticated — userId: ${extra.user.id}`);
+          logger.debug(
+            `WS authenticated — userId: ${extra.user.id}, requestId: ${extra.requestId}`,
+          );
         } catch (error) {
           // Keep handshake failures explicit for clients without leaking verification details
           const reason = error instanceof Error ? `: ${error.name}` : "";
@@ -55,4 +62,24 @@ export function createGraphqlSubscriptionsConfig(jwtService: JwtService) {
       },
     },
   };
+}
+
+function resolveRequestId(value: unknown): string {
+  if (typeof value === "string" && value.trim().length > 0) {
+    return value.trim();
+  }
+
+  if (isUnknownArray(value)) {
+    for (const entry of value) {
+      if (typeof entry === "string" && entry.trim().length > 0) {
+        return entry.trim();
+      }
+    }
+  }
+
+  return randomUUID();
+}
+
+function isUnknownArray(value: unknown): value is unknown[] {
+  return Array.isArray(value);
 }

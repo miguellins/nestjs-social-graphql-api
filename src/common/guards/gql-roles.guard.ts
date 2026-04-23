@@ -37,11 +37,21 @@ export class GqlRolesGuard implements CanActivate {
       return true;
     }
 
+    if (context.getType<string>() !== "graphql") {
+      const currentUser = context.switchToHttp().getRequest<{
+        user?: AuthenticatedUser;
+      }>().user;
+
+      if (!currentUser?.role || !requiredRoles.includes(currentUser.role)) {
+        throw new ForbiddenException("Forbidden resource");
+      }
+
+      return true;
+    }
+
     const gqlContext =
       GqlExecutionContext.create(context).getContext<GqlContext>();
-    const currentUser = (gqlContext.req?.user ?? gqlContext.extra?.user) as
-      | AuthenticatedUser
-      | undefined;
+    const currentUser = gqlContext.req?.user ?? gqlContext.extra?.user;
 
     if (!currentUser?.role || !requiredRoles.includes(currentUser.role)) {
       throw new ForbiddenException("Forbidden resource");

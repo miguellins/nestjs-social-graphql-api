@@ -2,6 +2,7 @@ import {
   NotFoundException,
   UnauthorizedException,
   Injectable,
+  Logger,
 } from "@nestjs/common";
 
 import type { AuthenticatedUser } from "@/auth/authenticated-user.type";
@@ -24,6 +25,7 @@ type SessionRow = {
 
 @Injectable()
 export class AuthSessionService {
+  private readonly logger = new Logger(AuthSessionService.name);
   private static readonly ACCOUNT_SUSPENDED_MESSAGE =
     "This account is suspended";
   private static readonly ACCOUNT_DEACTIVATED_MESSAGE =
@@ -82,6 +84,10 @@ export class AuthSessionService {
           revokedAt: new Date(),
         },
       });
+
+      this.logger.log(
+        `Revoked current session for userId=${currentUser.id} sessionId=${currentUser.sessionId}`,
+      );
     }
 
     return { message: AuthSessionService.LOGOUT_SUCCESS_MESSAGE };
@@ -104,6 +110,10 @@ export class AuthSessionService {
           revokedAt: new Date(),
         },
       });
+
+      this.logger.log(
+        `Revoked session for userId=${currentUser.id} sessionId=${sessionId}`,
+      );
     }
 
     return { message: AuthSessionService.REVOKE_SESSION_SUCCESS_MESSAGE };
@@ -125,6 +135,10 @@ export class AuthSessionService {
           revokedAt: new Date(),
         },
       });
+
+      this.logger.log(
+        `Revoked other sessions for userId=${currentUser.id} currentSessionId=${currentUser.sessionId}`,
+      );
     }
 
     return {

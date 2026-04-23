@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   InternalServerErrorException,
+  Logger,
   UnauthorizedException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
@@ -234,6 +235,9 @@ describe("AuthService", () => {
     });
 
     it("returns access_token and refreshToken when credentials are valid", async () => {
+      const loggerSpy = jest
+        .spyOn(Logger.prototype, "log")
+        .mockImplementation(() => undefined);
       userFindUniqueMock.mockResolvedValue({
         id: 7,
         username: "john",
@@ -286,6 +290,9 @@ describe("AuthService", () => {
       expect(refreshSessionCreateCall?.data?.expiresAt).toBeInstanceOf(Date);
       expect(result.access_token).toBe("jwt.token.value");
       expect(result.refreshToken).toEqual(expect.any(String));
+      expect(loggerSpy).toHaveBeenCalledWith(
+        "Login succeeded for userId=7 sessionId=1",
+      );
     });
 
     it("upgrades a legacy hash after successful verification", async () => {

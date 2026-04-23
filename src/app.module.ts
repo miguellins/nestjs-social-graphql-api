@@ -8,7 +8,9 @@ import { JwtService } from "@nestjs/jwt";
 import { Module } from "@nestjs/common";
 
 import { GraphqlSubscriptionsModule } from "@/graphql/subscriptions/graphql-subscriptions.module";
+import { RequestContextModule } from "@/common/request-context/request-context.module";
 import { NotificationsModule } from "@/notifications/notifications.module";
+import { LoggingModule } from "@/common/logging/logging.module";
 import { BookmarksModule } from "@/bookmarks/bookmarks.module";
 import { CommentsModule } from "@/comments/comments.module";
 import { FollowsModule } from "@/follows/follows.module";
@@ -19,7 +21,9 @@ import { PostsModule } from "@/posts/posts.module";
 import { UsersModule } from "@/users/users.module";
 import { MediaModule } from "@/media/media.module";
 import { AuthModule } from "@/auth/auth.module";
+import { OpsModule } from "@/ops/ops.module";
 
+import { RequestContextService } from "@/common/request-context/request-context.service";
 import { GqlThrottlerGuard } from "@/common/guards/gql-throttler.guard";
 import { GqlRolesGuard } from "@/common/guards/gql-roles.guard";
 import { GqlJwtGuard } from "@/common/guards/gql-jwt.guard";
@@ -32,6 +36,12 @@ import { validateEnv } from "@/config/env/env.schema";
 
 @Module({
   imports: [
+    /** Registers the shared structured logger globally for bootstrap and runtime logs */
+    LoggingModule,
+
+    /** Registers request correlation services globally for HTTP and GraphQL flows */
+    RequestContextModule,
+
     /** Loads and exposes environment variables globally */
     ConfigModule.forRoot({
       isGlobal: true,
@@ -46,8 +56,8 @@ import { validateEnv } from "@/config/env/env.schema";
     /** Initializes GraphQL globally */
     GraphQLModule.forRootAsync({
       driver: ApolloDriver,
-      imports: [AuthModule],
-      inject: [JwtService, ConfigService],
+      imports: [AuthModule, RequestContextModule],
+      inject: [JwtService, ConfigService, RequestContextService],
       useFactory: createGraphqlConfig,
     }),
 
@@ -63,6 +73,7 @@ import { validateEnv } from "@/config/env/env.schema";
     ]),
 
     /** Application Modules */
+    OpsModule,
     AuthModule,
     UsersModule,
     PostsModule,

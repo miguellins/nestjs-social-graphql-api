@@ -153,6 +153,10 @@ export class AuthService {
         },
       });
 
+      this.logger.log(
+        `Login succeeded for userId=${user.id} sessionId=${refreshSession.id}`,
+      );
+
       return {
         access_token: await this.signAccessToken(
           user.id,
@@ -497,6 +501,10 @@ export class AuthService {
           },
         });
 
+        this.logger.warn(
+          `Revoked active sessions during refresh for inactive userId=${session.userId}`,
+        );
+
         this.assertCanAuthenticate(session.user.accountState);
       }
 
@@ -531,6 +539,10 @@ export class AuthService {
       };
     });
 
+    this.logger.log(
+      `Refresh session rotated for userId=${sessionData.userId} sessionId=${sessionData.sessionId}`,
+    );
+
     return {
       access_token: await this.signAccessToken(
         sessionData.userId,
@@ -554,6 +566,8 @@ export class AuthService {
         revokedAt: new Date(),
       },
     });
+
+    this.logger.log("Processed refresh-session logout request");
 
     return {
       message: AuthService.LOGOUT_SUCCESS_MESSAGE,
