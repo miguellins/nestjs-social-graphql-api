@@ -220,6 +220,7 @@ CREATE TABLE `Notification` (
     `isRead` BOOLEAN NOT NULL DEFAULT false,
     `readAt` DATETIME(3) NULL,
     `entityId` INTEGER NULL,
+    `realtimeDeliveredAt` DATETIME(3) NULL,
     `actorId` INTEGER NOT NULL,
     `recipientId` INTEGER NOT NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
@@ -228,6 +229,25 @@ CREATE TABLE `Notification` (
     INDEX `Notification_recipientId_isRead_createdAt_idx`(`recipientId`, `isRead`, `createdAt`),
     INDEX `Notification_recipientId_createdAt_id_idx`(`recipientId`, `createdAt` DESC, `id` DESC),
     INDEX `Notification_recipientId_isRead_createdAt_id_idx`(`recipientId`, `isRead`, `createdAt` DESC, `id` DESC),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `OutboxEvent` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `eventType` VARCHAR(191) NOT NULL,
+    `aggregateType` VARCHAR(191) NOT NULL,
+    `aggregateId` INTEGER NOT NULL,
+    `payload` JSON NOT NULL,
+    `status` ENUM('PENDING', 'PROCESSING', 'PROCESSED', 'FAILED') NOT NULL DEFAULT 'PENDING',
+    `availableAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `attemptCount` INTEGER NOT NULL DEFAULT 0,
+    `processedAt` DATETIME(3) NULL,
+    `lastError` TEXT NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    INDEX `OutboxEvent_status_availableAt_createdAt_idx`(`status`, `availableAt`, `createdAt`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 

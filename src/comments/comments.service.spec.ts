@@ -4,8 +4,9 @@ import {
   Logger,
   NotFoundException,
 } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
-import { Prisma } from "@prisma/client";
+import { NotificationType, Prisma } from "@prisma/client";
 
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
 
@@ -14,6 +15,8 @@ import { SafeCommentSelect } from "@/comments/dto/safe-comment.dto";
 
 import { MentionsService } from "@/mentions/mentions.service";
 import { NotificationTriggerService } from "@/notifications/notification-trigger.service";
+import { NotificationsService } from "@/notifications/notifications.service";
+import { OutboxService } from "@/outbox/outbox.service";
 
 import { PrismaService } from "@/prisma/prisma.service";
 
@@ -82,6 +85,18 @@ describe("CommentsService", () => {
   const notificationTriggerMock = {
     notifyCommentReplied: jest.fn(),
   };
+  const notificationsServiceMock = {
+    createNotification: jest.fn(),
+  };
+  const outboxServiceMock = {
+    enqueue: jest.fn(),
+  };
+  const configServiceMock = {
+    get: jest.fn((key: string) => {
+      if (key === "OUTBOX_COMMENT_REPLIED_ENABLED") return false;
+      return undefined;
+    }),
+  };
 
   const mentionsServiceMock = {
     validateCommentContentMentions: jest.fn(),
@@ -104,6 +119,8 @@ describe("CommentsService", () => {
       },
     });
     notificationTriggerMock.notifyCommentReplied.mockResolvedValue(undefined);
+    notificationsServiceMock.createNotification.mockResolvedValue(null);
+    outboxServiceMock.enqueue.mockResolvedValue(undefined);
     mentionsServiceMock.validateCommentContentMentions.mockReturnValue(
       undefined,
     );
@@ -118,6 +135,18 @@ describe("CommentsService", () => {
         {
           provide: NotificationTriggerService,
           useValue: notificationTriggerMock,
+        },
+        {
+          provide: NotificationsService,
+          useValue: notificationsServiceMock,
+        },
+        {
+          provide: OutboxService,
+          useValue: outboxServiceMock,
+        },
+        {
+          provide: ConfigService,
+          useValue: configServiceMock,
         },
         { provide: MentionsService, useValue: mentionsServiceMock },
       ],
@@ -390,6 +419,10 @@ describe("CommentsService", () => {
           commentId: 101,
         },
       );
+      expect(
+        notificationsServiceMock.createNotification,
+      ).not.toHaveBeenCalled();
+      expect(outboxServiceMock.enqueue).not.toHaveBeenCalled();
     });
 
     it("does not notify when a user replies to their own comment", async () => {
@@ -417,6 +450,160 @@ describe("CommentsService", () => {
         10,
       );
 
+      expect(
+        notificationTriggerMock.notifyCommentReplied,
+      ).not.toHaveBeenCalled();
+    });
+
+    it("persists and enqueues comment reply delivery when the outbox flag is enabled", async () => {
+      configServiceMock.get.mockImplementation((key: string) => {
+        if (key === "OUTBOX_COMMENT_REPLIED_ENABLED") return true;
+        return undefined;
+      });
+
+      await moduleRef?.close();
+
+      moduleRef = await Test.createTestingModule({
+        providers: [
+          CommentsService,
+          { provide: PrismaService, useValue: prismaMock },
+          { provide: CacheHelperService, useValue: cacheMock },
+          { provide: CommentsReadService, useValue: commentsReadServiceMock },
+          {
+            provide: NotificationTriggerService,
+            useValue: notificationTriggerMock,
+          },
+          {
+            provide: NotificationsService,
+            useValue: notificationsServiceMock,
+          },
+          {
+            provide: OutboxService,
+            useValue: outboxServiceMock,
+          },
+          {
+            provide: ConfigService,
+            useValue: configServiceMock,
+          },
+          { provide: MentionsService, useValue: mentionsServiceMock },
+        ],
+      }).compile();
+
+      service = moduleRef.get(CommentsService);
+
+      prismaMock.comment.findUnique.mockResolvedValue({
+        id: 20,
+        postId: 1,
+        removedAt: null,
+        parentCommentId: null,
+        authorId: 7,
+      });
+      prismaMock.user.findUnique
+        .mockResolvedValueOnce({ accountState: AccountState.ACTIVE })
+        .mockResolvedValueOnce({ username: "user10" });
+      notificationsServiceMock.createNotification.mockResolvedValue({
+        id: 501,
+        type: NotificationType.COMMENT_REPLIED,
+        title: "New reply",
+        body: "user10 replied to your comment",
+        isRead: false,
+        readAt: null,
+        entityId: 101,
+        actorId: 10,
+        recipientId: 7,
+        createdAt: new Date("2026-04-01T00:00:00.000Z"),
+        updatedAt: new Date("2026-04-01T00:00:00.000Z"),
+        actor: {
+          id: 10,
+          username: "user10",
+          name: "User 10",
+        },
+      });
+      prismaMock.$transaction.mockImplementation(
+        async (
+          cb: (tx: {
+            comment: { create: jest.Mock };
+            post: { update: jest.Mock };
+            notification: { create: jest.Mock };
+            userBlock: { findFirst: jest.Mock };
+            outboxEvent: { create: jest.Mock };
+          }) => Promise<unknown>,
+        ) => {
+          const tx = {
+            comment: {
+              create: jest.fn().mockResolvedValue(
+                makeComment(101, {
+                  authorId: 10,
+                  parentCommentId: 20,
+                  author: {
+                    id: 10,
+                    name: "User 10",
+                    username: "user10",
+                  },
+                }),
+              ),
+            },
+            post: {
+              update: jest.fn().mockResolvedValue({ id: 1 }),
+            },
+            notification: {
+              create: jest.fn(),
+            },
+            userBlock: {
+              findFirst: jest.fn().mockResolvedValue(null),
+            },
+            outboxEvent: {
+              create: jest.fn().mockResolvedValue({ id: 901 }),
+            },
+          };
+
+          return cb(tx);
+        },
+      );
+
+      await service.createComment(
+        { content: "reply", postId: 1, parentCommentId: 20 },
+        10,
+      );
+
+      const notificationCreateCalls = notificationsServiceMock
+        .createNotification.mock.calls as Array<
+        [Record<string, unknown>, Record<string, unknown>]
+      >;
+      const outboxEnqueueCalls = outboxServiceMock.enqueue.mock.calls as Array<
+        [Record<string, unknown>, Record<string, unknown>]
+      >;
+
+      expect(notificationCreateCalls[0]?.[0]).toEqual({
+        recipientId: 7,
+        actorId: 10,
+        type: NotificationType.COMMENT_REPLIED,
+        title: "New reply",
+        body: "user10 replied to your comment",
+        entityId: 101,
+      });
+      expect(notificationCreateCalls[0]?.[1]?.comment).toBeDefined();
+      expect(notificationCreateCalls[0]?.[1]?.post).toBeDefined();
+      expect(notificationCreateCalls[0]?.[1]?.notification).toBeDefined();
+      expect(notificationCreateCalls[0]?.[1]?.userBlock).toBeDefined();
+      expect(notificationCreateCalls[0]?.[1]?.outboxEvent).toBeDefined();
+      expect(outboxEnqueueCalls[0]?.[0]).toEqual({
+        eventType: "notification.commentReply.deliver",
+        aggregateType: "notification",
+        aggregateId: 501,
+        payload: {
+          notificationId: 501,
+          recipientId: 7,
+          actorId: 10,
+          commentId: 101,
+          notificationType: NotificationType.COMMENT_REPLIED,
+        },
+      });
+      expect(outboxEnqueueCalls[0]?.[1]?.comment).toBeDefined();
+      expect(outboxEnqueueCalls[0]?.[1]?.post).toBeDefined();
+      expect(outboxEnqueueCalls[0]?.[1]?.notification).toBeDefined();
+      expect(outboxEnqueueCalls[0]?.[1]?.userBlock).toBeDefined();
+      expect(outboxEnqueueCalls[0]?.[1]?.outboxEvent).toBeDefined();
       expect(
         notificationTriggerMock.notifyCommentReplied,
       ).not.toHaveBeenCalled();

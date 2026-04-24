@@ -26,6 +26,7 @@ import {
   type SafeNotificationDTO,
 } from "@/notifications/dto/safe-notification.dto";
 
+import type { Prisma, PrismaClient } from "@prisma/client";
 import { PrismaService } from "@/prisma/prisma.service";
 
 type PaginationParams = {
@@ -33,6 +34,8 @@ type PaginationParams = {
   first?: number;
   orderBy?: ChronologicalOrder;
 };
+
+type NotificationWriteClient = Pick<PrismaClient, "notification" | "userBlock">;
 
 @Injectable()
 export class NotificationsService {
@@ -47,6 +50,28 @@ export class NotificationsService {
   async createAndPublishNotification(
     input: CreateNotificationInput,
   ): Promise<SafeNotificationDTO | null> {
+    const notification = await this.createNotification(input);
+
+    if (!notification) return null;
+
+    await runBestEffort(
+      this.logger,
+      "error",
+      "Failed to publish notification subscription event",
+      async () => {
+        await this.notificationDelivery.publishNotificationReceived(
+          notification,
+        );
+      },
+    );
+
+    return notification;
+  }
+
+  async createNotification(
+    input: CreateNotificationInput,
+    client: NotificationWriteClient = this.prisma,
+  ): Promise<SafeNotificationDTO | null> {
     const data = parseWithBadRequest(
       createNotificationInputSchema,
       input,
@@ -55,7 +80,7 @@ export class NotificationsService {
 
     if (data.recipientId === data.actorId) return null;
 
-    const blockRelationship = await this.prisma.userBlock.findFirst({
+    const blockRelationship = await client.userBlock.findFirst({
       where: {
         OR: [
           {
@@ -73,24 +98,40 @@ export class NotificationsService {
 
     if (blockRelationship) return null;
 
-    const notification = await this.prisma.notification.create({
+    return client.notification.create({
       data,
 
       select: NotificationSelect,
     });
+  }
 
-    await runBestEffort(
-      this.logger,
-      "error",
-      "Failed to publish notification subscription event",
-      async () => {
-        await this.notificationDelivery.publishNotificationReceived(
-          notification,
-        );
+  async publishPersistedNotificationIfNeeded(
+    notificationId: number,
+  ): Promise<"already-delivered" | "delivered" | "missing"> {
+    const notification = await this.prisma.notification.findUnique({
+      where: { id: notificationId },
+      select: {
+        ...NotificationSelect,
+        realtimeDeliveredAt: true,
+      } satisfies Prisma.NotificationSelect,
+    });
+
+    if (!notification) return "missing";
+    if (notification.realtimeDeliveredAt) return "already-delivered";
+
+    await this.notificationDelivery.publishNotificationReceived(notification);
+
+    await this.prisma.notification.updateMany({
+      where: {
+        id: notificationId,
+        realtimeDeliveredAt: null,
       },
-    );
+      data: {
+        realtimeDeliveredAt: new Date(),
+      },
+    });
 
-    return notification;
+    return "delivered";
   }
 
   // Lists notifications for the current user with optional status filtering

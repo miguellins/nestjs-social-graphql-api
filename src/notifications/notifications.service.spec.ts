@@ -21,25 +21,16 @@ describe("NotificationsService", () => {
   let service: NotificationsService;
   let moduleRef: TestingModule;
 
-  type NotificationUpdateManyArgs = {
-    where:
-      | { id: number; recipientId: number }
-      | { recipientId: number; isRead: boolean };
-    data: { isRead: boolean; readAt: Date };
-  };
-
   const prismaMock = {
     userBlock: {
       findFirst: jest.fn(),
     },
     notification: {
       create: jest.fn(),
+      findUnique: jest.fn(),
       findMany: jest.fn(),
       count: jest.fn(),
-      updateMany: jest.fn<
-        Promise<{ count: number }>,
-        [NotificationUpdateManyArgs]
-      >(),
+      updateMany: jest.fn(),
     },
   };
 
@@ -66,6 +57,9 @@ describe("NotificationsService", () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    notificationDeliveryMock.publishNotificationReceived.mockResolvedValue(
+      undefined,
+    );
 
     moduleRef = await Test.createTestingModule({
       providers: [
@@ -144,6 +138,25 @@ describe("NotificationsService", () => {
       ).toHaveBeenCalledWith(mockNotification);
 
       expect(result).toEqual(mockNotification);
+    });
+
+    it("creates one notification without publishing when using createNotification directly", async () => {
+      prismaMock.userBlock.findFirst.mockResolvedValue(null);
+      prismaMock.notification.create.mockResolvedValue(mockNotification);
+
+      const result = await service.createNotification({
+        recipientId: 1,
+        actorId: 2,
+        type: NotificationType.USER_FOLLOWED,
+        title: "New follower",
+        body: "john started following you",
+        entityId: 10,
+      });
+
+      expect(result).toEqual(mockNotification);
+      expect(
+        notificationDeliveryMock.publishNotificationReceived,
+      ).not.toHaveBeenCalled();
     });
 
     it("should return notification even if publish fails", async () => {
@@ -276,6 +289,68 @@ describe("NotificationsService", () => {
 
       expect(result).toBeNull();
       expect(prismaMock.notification.create).not.toHaveBeenCalled();
+      expect(
+        notificationDeliveryMock.publishNotificationReceived,
+      ).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("publishPersistedNotificationIfNeeded", () => {
+    it("publishes one persisted notification once and marks it delivered", async () => {
+      prismaMock.notification.findUnique = jest.fn().mockResolvedValue({
+        ...mockNotification,
+        realtimeDeliveredAt: null,
+      });
+      prismaMock.notification.updateMany.mockResolvedValue({ count: 1 });
+
+      const result = await service.publishPersistedNotificationIfNeeded(1);
+
+      expect(result).toBe("delivered");
+      expect(
+        notificationDeliveryMock.publishNotificationReceived,
+      ).toHaveBeenCalledWith({
+        ...mockNotification,
+        realtimeDeliveredAt: null,
+      });
+      const updateManyCalls = prismaMock.notification.updateMany.mock
+        .calls as Array<
+        [
+          {
+            where: { id: number; realtimeDeliveredAt: null };
+            data: { realtimeDeliveredAt: Date };
+          },
+        ]
+      >;
+      const [updateArgs] = updateManyCalls[0] ?? [];
+
+      expect(updateArgs?.where).toEqual({
+        id: 1,
+        realtimeDeliveredAt: null,
+      });
+      expect(updateArgs?.data.realtimeDeliveredAt).toBeInstanceOf(Date);
+    });
+
+    it("returns already-delivered when realtime delivery was recorded before", async () => {
+      prismaMock.notification.findUnique = jest.fn().mockResolvedValue({
+        ...mockNotification,
+        realtimeDeliveredAt: new Date("2026-03-10T10:05:00.000Z"),
+      });
+
+      const result = await service.publishPersistedNotificationIfNeeded(1);
+
+      expect(result).toBe("already-delivered");
+      expect(
+        notificationDeliveryMock.publishNotificationReceived,
+      ).not.toHaveBeenCalled();
+      expect(prismaMock.notification.updateMany).not.toHaveBeenCalled();
+    });
+
+    it("returns missing when the persisted notification no longer exists", async () => {
+      prismaMock.notification.findUnique = jest.fn().mockResolvedValue(null);
+
+      const result = await service.publishPersistedNotificationIfNeeded(1);
+
+      expect(result).toBe("missing");
       expect(
         notificationDeliveryMock.publishNotificationReceived,
       ).not.toHaveBeenCalled();
@@ -483,11 +558,25 @@ describe("NotificationsService", () => {
 
       const result = await service.markAsRead(10, 1);
 
-      const firstCall = prismaMock.notification.updateMany.mock.calls.at(0);
+      const updateCalls = prismaMock.notification.updateMany.mock
+        .calls as Array<
+        [
+          {
+            where: { id: number; recipientId: number };
+            data: { isRead: boolean; readAt: Date };
+          },
+        ]
+      >;
+      const firstCall = updateCalls[0];
       expect(firstCall).toBeDefined();
       if (!firstCall) throw new Error("updateMany was not called");
 
-      const [updateArgs] = firstCall;
+      const [updateArgs] = firstCall as [
+        {
+          where: { id: number; recipientId: number };
+          data: { isRead: boolean; readAt: Date };
+        },
+      ];
 
       expect(updateArgs.where).toEqual({
         id: 10,
@@ -514,11 +603,25 @@ describe("NotificationsService", () => {
 
       const result = await service.markAllAsRead(1);
 
-      const firstCall = prismaMock.notification.updateMany.mock.calls.at(0);
+      const updateCalls = prismaMock.notification.updateMany.mock
+        .calls as Array<
+        [
+          {
+            where: { recipientId: number; isRead: boolean };
+            data: { isRead: boolean; readAt: Date };
+          },
+        ]
+      >;
+      const firstCall = updateCalls[0];
       expect(firstCall).toBeDefined();
       if (!firstCall) throw new Error("updateMany was not called");
 
-      const [updateArgs] = firstCall;
+      const [updateArgs] = firstCall as [
+        {
+          where: { recipientId: number; isRead: boolean };
+          data: { isRead: boolean; readAt: Date };
+        },
+      ];
 
       expect(updateArgs.where).toEqual({
         recipientId: 1,

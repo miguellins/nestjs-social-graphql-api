@@ -4,6 +4,7 @@ import { ConfigService } from "@nestjs/config";
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
 import { GraphqlPubSubService } from "@/graphql/subscriptions/graphql-pubsub.service";
 import { HealthService } from "@/ops/health.service";
+import { OutboxService } from "@/outbox/outbox.service";
 import { PrismaService } from "@/prisma/prisma.service";
 
 describe("HealthService", () => {
@@ -21,6 +22,14 @@ describe("HealthService", () => {
   const graphqlPubSubMock = {
     ping: pubsubPingMock,
   } as unknown as GraphqlPubSubService;
+  const outboxServiceMock = {
+    getSummary: jest.fn().mockResolvedValue({
+      enabled: false,
+      pendingCount: 0,
+      failedCount: 0,
+      oldestPendingAgeMs: null,
+    }),
+  } as unknown as OutboxService;
   const configServiceMock = {
     get: jest.fn((key: string) => {
       switch (key) {
@@ -46,6 +55,7 @@ describe("HealthService", () => {
       cacheHelperMock,
       graphqlPubSubMock,
       configServiceMock,
+      outboxServiceMock,
     );
     service.markBootCompleted();
   });
@@ -71,6 +81,7 @@ describe("HealthService", () => {
       cacheHelperMock,
       graphqlPubSubMock,
       configServiceMock,
+      outboxServiceMock,
     );
 
     const result = unbootedService.liveness();
@@ -103,6 +114,12 @@ describe("HealthService", () => {
         cacheRedisConfigured: true,
         pubsubRedisConfigured: true,
         dedicatedPubsubRedis: true,
+        outbox: {
+          enabled: false,
+          pendingCount: 0,
+          failedCount: 0,
+          oldestPendingAgeMs: null,
+        },
       },
     });
   });
@@ -139,6 +156,7 @@ describe("HealthService", () => {
       cacheHelperMock,
       graphqlPubSubMock,
       configWithoutRedis,
+      outboxServiceMock,
     );
     healthService.markBootCompleted();
 
@@ -148,6 +166,12 @@ describe("HealthService", () => {
       cacheRedisConfigured: false,
       pubsubRedisConfigured: false,
       dedicatedPubsubRedis: false,
+      outbox: {
+        enabled: false,
+        pendingCount: 0,
+        failedCount: 0,
+        oldestPendingAgeMs: null,
+      },
     });
   });
 

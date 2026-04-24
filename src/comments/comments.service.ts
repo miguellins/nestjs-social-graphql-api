@@ -8,6 +8,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 
 import { GRAPHQL_ERROR_CODES } from "@/common/constants/graphql-error-code.constants";
 import { type CursorPageResult } from "@/common/pagination/cursor-pagination";
@@ -39,14 +40,18 @@ import {
 import { MODERATION_ROLE_SET } from "@/users/enums/user-role.enum";
 import { AccountState } from "@/users/enums/account-state.enum";
 
+import { COMMENT_REPLY_NOTIFICATION_DELIVERY_EVENT } from "@/outbox/events/comment-reply-notification-delivery.event";
+import { OutboxService } from "@/outbox/outbox.service";
+
 import { NotificationTriggerService } from "@/notifications/notification-trigger.service";
+import { NotificationsService } from "@/notifications/notifications.service";
 
 import type { AuthenticatedUser } from "@/auth/authenticated-user.type";
 
 import { MentionsService } from "@/mentions/mentions.service";
 
+import { NotificationType, Prisma } from "@prisma/client";
 import { PrismaService } from "@/prisma/prisma.service";
-import { Prisma } from "@prisma/client";
 
 type FindCommentsByPostParams = {
   after?: string;
@@ -59,6 +64,7 @@ type FindCommentsByPostParams = {
 @Injectable()
 export class CommentsService {
   private readonly logger = new Logger(CommentsService.name);
+  private readonly outboxCommentRepliesEnabled: boolean;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -66,7 +72,13 @@ export class CommentsService {
     private readonly mentionsService: MentionsService,
     private readonly commentsReadService: CommentsReadService,
     private readonly notificationTrigger: NotificationTriggerService,
-  ) {}
+    private readonly notificationsService: NotificationsService,
+    private readonly outboxService: OutboxService,
+    configService: ConfigService,
+  ) {
+    this.outboxCommentRepliesEnabled =
+      configService.get<boolean>("OUTBOX_COMMENT_REPLIED_ENABLED") ?? false;
+  }
 
   async createComment(
     input: CreateCommentCommand,
@@ -116,6 +128,26 @@ export class CommentsService {
       parentCommentAuthorId = parentComment.authorId;
     }
 
+    const shouldPersistReplyNotificationInTransaction =
+      this.outboxCommentRepliesEnabled &&
+      parentCommentAuthorId !== undefined &&
+      parentCommentAuthorId !== currentUserId;
+    const replyRecipientId = shouldPersistReplyNotificationInTransaction
+      ? parentCommentAuthorId
+      : undefined;
+
+    let replyActorUsername: string | undefined;
+    if (shouldPersistReplyNotificationInTransaction) {
+      const currentUser = await this.prisma.user.findUnique({
+        where: { id: currentUserId },
+        select: {
+          username: true,
+        },
+      });
+
+      replyActorUsername = currentUser?.username;
+    }
+
     const comment = await this.prisma.$transaction(async (tx) => {
       const createdComment = await tx.comment.create({
         data: {
@@ -138,6 +170,38 @@ export class CommentsService {
         },
       });
 
+      if (replyRecipientId !== undefined && replyActorUsername) {
+        const notification = await this.notificationsService.createNotification(
+          {
+            recipientId: replyRecipientId,
+            actorId: currentUserId,
+            type: NotificationType.COMMENT_REPLIED,
+            title: "New reply",
+            body: `${replyActorUsername} replied to your comment`,
+            entityId: createdComment.id,
+          },
+          tx,
+        );
+
+        if (notification) {
+          await this.outboxService.enqueue(
+            {
+              eventType: COMMENT_REPLY_NOTIFICATION_DELIVERY_EVENT,
+              aggregateType: "notification",
+              aggregateId: notification.id,
+              payload: {
+                notificationId: notification.id,
+                recipientId: notification.recipientId,
+                actorId: notification.actorId,
+                commentId: createdComment.id,
+                notificationType: NotificationType.COMMENT_REPLIED,
+              },
+            },
+            tx,
+          );
+        }
+      }
+
       return createdComment;
     });
 
@@ -155,6 +219,7 @@ export class CommentsService {
     );
 
     if (
+      !this.outboxCommentRepliesEnabled &&
       parentCommentAuthorId !== undefined &&
       parentCommentAuthorId !== currentUserId
     ) {

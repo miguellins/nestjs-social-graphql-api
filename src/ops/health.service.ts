@@ -9,6 +9,8 @@ import { GraphqlPubSubService } from "@/graphql/subscriptions/graphql-pubsub.ser
 
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
 
+import { OutboxService } from "@/outbox/outbox.service";
+
 import { PrismaService } from "@/prisma/prisma.service";
 
 type HealthStatus = "error" | "ok";
@@ -24,6 +26,12 @@ type HealthChecks = Record<string, HealthCheckResult>;
 type HealthSummary = {
   cacheRedisConfigured: boolean;
   dedicatedPubsubRedis: boolean;
+  outbox: {
+    enabled: boolean;
+    failedCount: number;
+    oldestPendingAgeMs: number | null;
+    pendingCount: number;
+  };
   pubsubRedisConfigured: boolean;
 };
 
@@ -52,6 +60,7 @@ export class HealthService {
     private readonly cacheHelper: CacheHelperService,
     private readonly graphqlPubSub: GraphqlPubSubService,
     private readonly configService: ConfigService,
+    private readonly outboxService: OutboxService,
   ) {}
 
   markBootCompleted(): void {
@@ -78,7 +87,7 @@ export class HealthService {
 
   async readiness(): Promise<HealthResponse> {
     const startedAt = Date.now();
-    const [database, cache, pubsub] = await Promise.all([
+    const [database, cache, pubsub, outbox] = await Promise.all([
       this.runCheck("database", async () => {
         await this.prisma.$queryRaw`SELECT 1`;
       }),
@@ -88,6 +97,7 @@ export class HealthService {
       this.runCheck("pubsub", async () => {
         await this.graphqlPubSub.ping();
       }),
+      this.getOutboxSummary(),
     ]);
 
     const checks: HealthChecks = {
@@ -104,7 +114,7 @@ export class HealthService {
       timestamp: new Date().toISOString(),
       checks,
       durationMs: Date.now() - startedAt,
-      summary: this.getSummary(),
+      summary: this.getSummary(outbox),
     };
   }
 
@@ -154,7 +164,7 @@ export class HealthService {
     }
   }
 
-  private getSummary(): HealthSummary {
+  private getSummary(outbox: HealthSummary["outbox"]): HealthSummary {
     const redisUrl = this.configService.get<string>("REDIS_URL");
     const pubsubRedisUrl =
       this.configService.get<string>("GRAPHQL_SUBSCRIPTIONS_REDIS_URL") ??
@@ -166,7 +176,27 @@ export class HealthService {
       dedicatedPubsubRedis: Boolean(
         pubsubRedisUrl && pubsubRedisUrl !== redisUrl,
       ),
+      outbox,
     };
+  }
+
+  private async getOutboxSummary(): Promise<HealthSummary["outbox"]> {
+    try {
+      return await this.outboxService.getSummary();
+    } catch (error) {
+      this.logger.error(
+        "Failed to read outbox readiness summary",
+        error instanceof Error ? error.stack : undefined,
+        HealthService.name,
+      );
+
+      return {
+        enabled: false,
+        pendingCount: 0,
+        failedCount: 0,
+        oldestPendingAgeMs: null,
+      };
+    }
   }
 }
 

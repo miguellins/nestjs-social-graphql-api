@@ -16,6 +16,7 @@ import { CommentsModule } from "@/comments/comments.module";
 import { FollowsModule } from "@/follows/follows.module";
 import { ReportsModule } from "@/reports/reports.module";
 import { BlocksModule } from "@/blocks/blocks.module";
+import { OutboxModule } from "@/outbox/outbox.module";
 import { LikesModule } from "@/likes/likes.module";
 import { PostsModule } from "@/posts/posts.module";
 import { UsersModule } from "@/users/users.module";
@@ -36,12 +37,6 @@ import { validateEnv } from "@/config/env/env.schema";
 
 @Module({
   imports: [
-    /** Registers the shared structured logger globally for bootstrap and runtime logs */
-    LoggingModule,
-
-    /** Registers request correlation services globally for HTTP and GraphQL flows */
-    RequestContextModule,
-
     /** Loads and exposes environment variables globally */
     ConfigModule.forRoot({
       isGlobal: true,
@@ -79,12 +74,15 @@ import { validateEnv } from "@/config/env/env.schema";
     PostsModule,
     MediaModule,
     LikesModule,
+    OutboxModule,
     BlocksModule,
+    LoggingModule,
     FollowsModule,
     ReportsModule,
     CommentsModule,
     BookmarksModule,
     NotificationsModule,
+    RequestContextModule,
     GraphqlSubscriptionsModule,
   ],
   providers: [
