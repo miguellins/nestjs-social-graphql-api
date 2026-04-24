@@ -165,6 +165,9 @@ export class OutboxService {
     const commentReplyOutboxEnabled =
       this.configService.get<boolean>("OUTBOX_COMMENT_REPLIED_ENABLED") ??
       false;
+    const followRequestOutboxEnabled =
+      this.configService.get<boolean>("OUTBOX_FOLLOW_REQUESTED_ENABLED") ??
+      false;
     const [pendingCount, failedCount, oldestPending] = await Promise.all([
       this.prisma.outboxEvent.count({
         where: { status: OutboxEventStatus.PENDING },
@@ -182,7 +185,10 @@ export class OutboxService {
     ]);
 
     return {
-      enabled: workerEnabled || commentReplyOutboxEnabled,
+      enabled:
+        workerEnabled ||
+        commentReplyOutboxEnabled ||
+        followRequestOutboxEnabled,
       pendingCount,
       failedCount,
       oldestPendingAgeMs: oldestPending

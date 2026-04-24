@@ -56,6 +56,7 @@ export const envSchema = z.object({
   GRAPHQL_COMPLEXITY_MAX_QUERY_NODES: positiveIntFromEnv.default(2_000),
   OUTBOX_ENABLED: booleanFromEnv.default(false),
   OUTBOX_COMMENT_REPLIED_ENABLED: booleanFromEnv.default(false),
+  OUTBOX_FOLLOW_REQUESTED_ENABLED: booleanFromEnv.default(false),
   OUTBOX_POLL_INTERVAL_MS: positiveIntFromEnv.default(1_000),
   OUTBOX_BATCH_SIZE: positiveIntFromEnv.default(20),
   OUTBOX_MAX_ATTEMPTS: positiveIntFromEnv.default(10),

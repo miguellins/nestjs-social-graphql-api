@@ -1,6 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 
+import { FOLLOW_REQUEST_NOTIFICATION_DELIVERY_EVENT } from "@/outbox/events/follow-request-notification-delivery.event";
 import { COMMENT_REPLY_NOTIFICATION_DELIVERY_EVENT } from "@/outbox/events/comment-reply-notification-delivery.event";
 import { OutboxPermanentError } from "@/outbox/outbox.errors";
 import { OutboxService } from "@/outbox/outbox.service";
@@ -107,6 +108,9 @@ export class OutboxProcessorService {
     switch (event.eventType) {
       case COMMENT_REPLY_NOTIFICATION_DELIVERY_EVENT:
         await this.notificationOutboxHandler.handleCommentReplyDelivery(event);
+        return;
+      case FOLLOW_REQUEST_NOTIFICATION_DELIVERY_EVENT:
+        await this.notificationOutboxHandler.handleFollowRequestDelivery(event);
         return;
       default:
         throw new OutboxPermanentError(

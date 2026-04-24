@@ -16,6 +16,7 @@ describe("OutboxProcessorService", () => {
   };
   const notificationOutboxHandlerMock = {
     handleCommentReplyDelivery: jest.fn(),
+    handleFollowRequestDelivery: jest.fn(),
   };
   const configServiceMock = {
     get: jest.fn((key: string) => {
@@ -157,5 +158,44 @@ describe("OutboxProcessorService", () => {
       expect.any(Date),
     );
     expect(outboxServiceMock.markFailed).not.toHaveBeenCalled();
+  });
+
+  it("dispatches follow-request delivery events to the notification handler", async () => {
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        OutboxProcessorService,
+        { provide: OutboxService, useValue: outboxServiceMock },
+        {
+          provide: NotificationOutboxHandler,
+          useValue: notificationOutboxHandlerMock,
+        },
+        { provide: ConfigService, useValue: configServiceMock },
+      ],
+    }).compile();
+    const service = moduleRef.get(OutboxProcessorService);
+
+    outboxServiceMock.claimPendingBatch.mockResolvedValue([
+      {
+        id: 7,
+        eventType: "notification.followRequest.deliver",
+        aggregateType: "notification",
+        aggregateId: 88,
+        payload: { notificationId: 88 },
+        status: OutboxEventStatus.PROCESSING,
+        availableAt: new Date(),
+        attemptCount: 1,
+        processedAt: null,
+        lastError: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ]);
+
+    await service.processNextBatch();
+
+    expect(
+      notificationOutboxHandlerMock.handleFollowRequestDelivery,
+    ).toHaveBeenCalledTimes(1);
+    expect(outboxServiceMock.markProcessed).toHaveBeenCalledWith(7);
   });
 });

@@ -150,6 +150,7 @@ type NotificationDTO {
 
 enum NotificationType {
   USER_FOLLOWED
+  FOLLOW_REQUESTED
   POST_LIKED
   COMMENT_REPLIED
   POST_MENTIONED

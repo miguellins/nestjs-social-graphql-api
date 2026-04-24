@@ -7,6 +7,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 
 import { GRAPHQL_ERROR_CODES } from "@/common/constants/graphql-error-code.constants";
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
@@ -38,20 +39,31 @@ import {
 import { UserPrivacySetting } from "@/users/enums/user-privacy-setting.enum";
 import { AccountState } from "@/users/enums/account-state.enum";
 
+import { FOLLOW_REQUEST_NOTIFICATION_DELIVERY_EVENT } from "@/outbox/events/follow-request-notification-delivery.event";
+import { OutboxService } from "@/outbox/outbox.service";
+
 import { NotificationTriggerService } from "@/notifications/notification-trigger.service";
+import { NotificationsService } from "@/notifications/notifications.service";
 
 import { PrismaService } from "@/prisma/prisma.service";
-import { Prisma } from "@prisma/client";
+import { NotificationType, Prisma } from "@prisma/client";
 
 @Injectable()
 export class FollowsService {
   private readonly logger = new Logger(FollowsService.name);
+  private readonly outboxFollowRequestsEnabled: boolean;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly cacheHelper: CacheHelperService,
     private readonly notificationTrigger: NotificationTriggerService,
-  ) {}
+    private readonly notificationsService: NotificationsService,
+    private readonly outboxService: OutboxService,
+    configService: ConfigService,
+  ) {
+    this.outboxFollowRequestsEnabled =
+      configService.get<boolean>("OUTBOX_FOLLOW_REQUESTED_ENABLED") ?? false;
+  }
 
   async findFollows(params?: {
     after?: string;
@@ -201,6 +213,69 @@ export class FollowsService {
         });
       }
 
+      if (this.outboxFollowRequestsEnabled) {
+        const followRequest = await this.prisma.$transaction(async (tx) => {
+          const createdOrReopenedRequest = await tx.followRequest.upsert({
+            where: {
+              requesterId_targetUserId: {
+                requesterId: followerId,
+                targetUserId: followingId,
+              },
+            },
+            update: {
+              status: FollowRequestStatus.PENDING,
+            },
+            create: {
+              requesterId: followerId,
+              targetUserId: followingId,
+              status: FollowRequestStatus.PENDING,
+            },
+            select: {
+              id: true,
+            },
+          });
+
+          const notification =
+            await this.notificationsService.createNotification(
+              {
+                recipientId: followingId,
+                actorId: followerId,
+                type: NotificationType.FOLLOW_REQUESTED,
+                title: "New follow request",
+                body: `${currentUser.username} requested to follow you`,
+                entityId: createdOrReopenedRequest.id,
+              },
+              tx,
+            );
+
+          if (notification) {
+            await this.outboxService.enqueue(
+              {
+                eventType: FOLLOW_REQUEST_NOTIFICATION_DELIVERY_EVENT,
+                aggregateType: "notification",
+                aggregateId: notification.id,
+                payload: {
+                  notificationId: notification.id,
+                  recipientId: notification.recipientId,
+                  actorId: notification.actorId,
+                  followRequestId: createdOrReopenedRequest.id,
+                  notificationType: NotificationType.FOLLOW_REQUESTED,
+                },
+              },
+              tx,
+            );
+          }
+
+          return createdOrReopenedRequest;
+        });
+
+        return {
+          status: FollowRequestStatus.PENDING,
+          followRequestId: followRequest.id,
+          message: "Follow request sent",
+        };
+      }
+
       const followRequest = await this.prisma.followRequest.upsert({
         where: {
           requesterId_targetUserId: {
@@ -220,6 +295,20 @@ export class FollowsService {
           id: true,
         },
       });
+
+      await runBestEffort(
+        this.logger,
+        "error",
+        `Failed to create follow request notification for user ${followingId}`,
+        async () => {
+          await this.notificationTrigger.notifyFollowRequested({
+            recipientId: followingId,
+            actorId: followerId,
+            actorUsername: currentUser.username,
+            followRequestId: followRequest.id,
+          });
+        },
+      );
 
       return {
         status: FollowRequestStatus.PENDING,

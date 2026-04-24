@@ -622,23 +622,21 @@ model ContentReport {
   postId     Int?
   commentId  Int?
 
-  reason  ReportReason
-  details String?
-  status  ReportStatus @default(OPEN)
+  reason       ReportReason
+  details      String?
+  status       ReportStatus @default(OPEN)
   /**
    * Nullable deduplication key populated only while the report is OPEN.
    * This lets MySQL enforce "one open report per reporter per target"
    * because nullable unique values may repeat only when null.
-   *
    * Migration note:
    * - backfill OPEN rows with the computed key before adding the unique index
    * - keep terminal rows null
-   *
    * The separate "exactly one of postId/commentId" invariant still requires
    * a reviewed MySQL CHECK-style migration because Prisma schema cannot
    * express that cross-column constraint directly.
    */
-  openDedupKey String? @unique
+  openDedupKey String?      @unique
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -827,6 +825,7 @@ model CommentMention {
 
 enum NotificationType {
   USER_FOLLOWED
+  FOLLOW_REQUESTED
   POST_LIKED
   COMMENT_REPLIED
   POST_MENTIONED
@@ -914,18 +913,18 @@ model Notification {
 }
 
 model OutboxEvent {
-  id            Int              @id @default(autoincrement())
+  id            Int               @id @default(autoincrement())
   eventType     String
   aggregateType String
   aggregateId   Int
   payload       Json
   status        OutboxEventStatus @default(PENDING)
-  availableAt   DateTime         @default(now())
-  attemptCount  Int              @default(0)
+  availableAt   DateTime          @default(now())
+  attemptCount  Int               @default(0)
   processedAt   DateTime?
-  lastError     String?          @db.Text
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
+  lastError     String?           @db.Text
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
 
   @@index([status, availableAt, createdAt])
 }

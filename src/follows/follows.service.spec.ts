@@ -5,10 +5,11 @@ import {
   Logger,
   NotFoundException,
 } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 
 import { Test, TestingModule } from "@nestjs/testing";
 
-import { Prisma } from "@prisma/client";
+import { NotificationType, Prisma } from "@prisma/client";
 
 import { ChronologicalOrder } from "@/common/enums/chronological-order.enum";
 
@@ -19,7 +20,9 @@ import { encodeChronoCursor } from "@/common/pagination/chrono-cursor";
 
 import { SafeFollowSelect } from "@/follows/dto/safe-follow.dto";
 
+import { NotificationsService } from "@/notifications/notifications.service";
 import { NotificationTriggerService } from "@/notifications/notification-trigger.service";
+import { OutboxService } from "@/outbox/outbox.service";
 
 import { PrismaService } from "@/prisma/prisma.service";
 import { AccountState } from "@/users/enums/account-state.enum";
@@ -109,8 +112,25 @@ describe("FollowsService", () => {
 
   const notificationTriggerMock: {
     notifyUserFollowed: jest.Mock;
+    notifyFollowRequested: jest.Mock;
   } = {
     notifyUserFollowed: jest.fn(),
+    notifyFollowRequested: jest.fn(),
+  };
+
+  const notificationsServiceMock = {
+    createNotification: jest.fn(),
+  };
+
+  const outboxServiceMock = {
+    enqueue: jest.fn(),
+  };
+
+  const configServiceMock = {
+    get: jest.fn((key: string) => {
+      if (key === "OUTBOX_FOLLOW_REQUESTED_ENABLED") return false;
+      return undefined;
+    }),
   };
 
   beforeEach(async () => {
@@ -134,6 +154,18 @@ describe("FollowsService", () => {
         {
           provide: NotificationTriggerService,
           useValue: notificationTriggerMock,
+        },
+        {
+          provide: NotificationsService,
+          useValue: notificationsServiceMock,
+        },
+        {
+          provide: OutboxService,
+          useValue: outboxServiceMock,
+        },
+        {
+          provide: ConfigService,
+          useValue: configServiceMock,
         },
       ],
     }).compile();
@@ -339,6 +371,9 @@ describe("FollowsService", () => {
         actorUsername: "alice",
         followId: 50,
       });
+      expect(
+        notificationTriggerMock.notifyFollowRequested,
+      ).not.toHaveBeenCalled();
 
       expect(res).toEqual(created);
     });
@@ -812,6 +847,167 @@ describe("FollowsService", () => {
       await expect(service.cancelFollowRequest(22, 1)).rejects.toBeInstanceOf(
         BadRequestException,
       );
+    });
+  });
+
+  describe("follow request notifications", () => {
+    it("creates a direct follow-request notification when the outbox flag is off", async () => {
+      prismaMock.user.findUnique
+        .mockResolvedValueOnce({
+          id: 2,
+          privacySetting: UserPrivacySetting.PRIVATE,
+          accountState: AccountState.ACTIVE,
+        })
+        .mockResolvedValueOnce({
+          id: 1,
+          username: "alice",
+          accountState: AccountState.ACTIVE,
+        });
+      prismaMock.userBlock.findFirst.mockResolvedValue(null);
+      prismaMock.followRequest.upsert.mockResolvedValue({
+        id: 70,
+      });
+
+      const result = await service.followUser(1, 2);
+
+      expect(
+        notificationTriggerMock.notifyFollowRequested,
+      ).toHaveBeenCalledWith({
+        recipientId: 2,
+        actorId: 1,
+        actorUsername: "alice",
+        followRequestId: 70,
+      });
+      expect(notificationTriggerMock.notifyUserFollowed).not.toHaveBeenCalled();
+      expect(result).toEqual({
+        status: "PENDING",
+        followRequestId: 70,
+        message: "Follow request sent",
+      });
+    });
+
+    it("sends a new notification when a rejected request is reopened to pending", async () => {
+      prismaMock.user.findUnique
+        .mockResolvedValueOnce({
+          id: 2,
+          privacySetting: UserPrivacySetting.PRIVATE,
+          accountState: AccountState.ACTIVE,
+        })
+        .mockResolvedValueOnce({
+          id: 1,
+          username: "alice",
+          accountState: AccountState.ACTIVE,
+        });
+      prismaMock.userBlock.findFirst.mockResolvedValue(null);
+      prismaMock.followRequest.findUnique.mockResolvedValue({
+        id: 71,
+        status: "REJECTED",
+      });
+      prismaMock.followRequest.upsert.mockResolvedValue({
+        id: 71,
+      });
+
+      await service.followUser(1, 2);
+
+      expect(
+        notificationTriggerMock.notifyFollowRequested,
+      ).toHaveBeenCalledWith({
+        recipientId: 2,
+        actorId: 1,
+        actorUsername: "alice",
+        followRequestId: 71,
+      });
+    });
+
+    it("persists the notification and outbox row transactionally when the outbox flag is enabled", async () => {
+      configServiceMock.get.mockImplementation((key: string) => {
+        if (key === "OUTBOX_FOLLOW_REQUESTED_ENABLED") return true;
+        return undefined;
+      });
+
+      await moduleRef.close();
+      moduleRef = await Test.createTestingModule({
+        providers: [
+          FollowsService,
+          { provide: PrismaService, useValue: prismaMock },
+          { provide: CacheHelperService, useValue: cacheMock },
+          {
+            provide: NotificationTriggerService,
+            useValue: notificationTriggerMock,
+          },
+          {
+            provide: NotificationsService,
+            useValue: notificationsServiceMock,
+          },
+          {
+            provide: OutboxService,
+            useValue: outboxServiceMock,
+          },
+          {
+            provide: ConfigService,
+            useValue: configServiceMock,
+          },
+        ],
+      }).compile();
+      service = moduleRef.get(FollowsService);
+
+      prismaMock.user.findUnique
+        .mockResolvedValueOnce({
+          id: 2,
+          privacySetting: UserPrivacySetting.PRIVATE,
+          accountState: AccountState.ACTIVE,
+        })
+        .mockResolvedValueOnce({
+          id: 1,
+          username: "alice",
+          accountState: AccountState.ACTIVE,
+        });
+      prismaMock.userBlock.findFirst.mockResolvedValue(null);
+      prismaMock.followRequest.upsert.mockResolvedValue({
+        id: 72,
+      });
+      notificationsServiceMock.createNotification.mockResolvedValue({
+        id: 901,
+        recipientId: 2,
+        actorId: 1,
+      });
+
+      const result = await service.followUser(1, 2);
+
+      expect(notificationsServiceMock.createNotification).toHaveBeenCalledWith(
+        {
+          recipientId: 2,
+          actorId: 1,
+          type: NotificationType.FOLLOW_REQUESTED,
+          title: "New follow request",
+          body: "alice requested to follow you",
+          entityId: 72,
+        },
+        prismaMock,
+      );
+      expect(outboxServiceMock.enqueue).toHaveBeenCalledWith(
+        {
+          eventType: "notification.followRequest.deliver",
+          aggregateType: "notification",
+          aggregateId: 901,
+          payload: {
+            notificationId: 901,
+            recipientId: 2,
+            actorId: 1,
+            followRequestId: 72,
+            notificationType: NotificationType.FOLLOW_REQUESTED,
+          },
+        },
+        prismaMock,
+      );
+      expect(
+        notificationTriggerMock.notifyFollowRequested,
+      ).not.toHaveBeenCalled();
+      expect(result).toEqual({
+        status: "PENDING",
+        followRequestId: 72,
+        message: "Follow request sent",
+      });
     });
   });
 });

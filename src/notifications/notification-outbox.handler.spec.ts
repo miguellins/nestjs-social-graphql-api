@@ -62,4 +62,29 @@ describe("NotificationOutboxHandler", () => {
       } as never),
     ).rejects.toBeInstanceOf(OutboxPermanentError);
   });
+
+  it("publishes one persisted follow-request notification when available", async () => {
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        NotificationOutboxHandler,
+        {
+          provide: NotificationsService,
+          useValue: notificationsServiceMock,
+        },
+      ],
+    }).compile();
+    const handler = moduleRef.get(NotificationOutboxHandler);
+
+    notificationsServiceMock.publishPersistedNotificationIfNeeded.mockResolvedValue(
+      "already-delivered",
+    );
+
+    await expect(
+      handler.handleFollowRequestDelivery({
+        payload: {
+          notificationId: 11,
+        },
+      } as never),
+    ).resolves.toBeUndefined();
+  });
 });

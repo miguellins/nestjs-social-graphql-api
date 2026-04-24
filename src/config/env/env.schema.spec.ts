@@ -48,6 +48,7 @@ describe("validateEnv", () => {
     expect(result.GRAPHQL_COMPLEXITY_WARN_AT).toBe(100);
     expect(result.GRAPHQL_COMPLEXITY_MAX).toBe(500);
     expect(result.GRAPHQL_COMPLEXITY_MAX_QUERY_NODES).toBe(2000);
+    expect(result.OUTBOX_FOLLOW_REQUESTED_ENABLED).toBe(false);
     expect(result.R2_PRESIGNED_URL_TTL_SECONDS).toBe(1800);
     expect(result.MEDIA_IMAGE_MAX_BYTES).toBe(10 * 1024 * 1024);
     expect(result.MEDIA_VIDEO_MAX_BYTES).toBe(100 * 1024 * 1024);

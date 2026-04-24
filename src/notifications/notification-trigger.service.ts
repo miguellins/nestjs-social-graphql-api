@@ -42,6 +42,23 @@ export class NotificationTriggerService {
     });
   }
 
+  // Creates the standard notification for a new private-account follow request
+  async notifyFollowRequested(params: {
+    recipientId: number;
+    actorId: number;
+    actorUsername: string;
+    followRequestId: number;
+  }): Promise<void> {
+    await this.notificationsService.createAndPublishNotification({
+      recipientId: params.recipientId,
+      actorId: params.actorId,
+      type: NotificationType.FOLLOW_REQUESTED,
+      title: "New follow request",
+      body: `${params.actorUsername} requested to follow you`,
+      entityId: params.followRequestId,
+    });
+  }
+
   // Creates the standard notification for a reply to one comment
   async notifyCommentReplied(params: {
     recipientId: number;

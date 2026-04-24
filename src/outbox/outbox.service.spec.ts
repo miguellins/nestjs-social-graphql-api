@@ -27,6 +27,8 @@ describe("OutboxService", () => {
           return true;
         case "OUTBOX_COMMENT_REPLIED_ENABLED":
           return false;
+        case "OUTBOX_FOLLOW_REQUESTED_ENABLED":
+          return false;
         case "OUTBOX_PROCESSED_RETENTION_HOURS":
           return 24;
         case "OUTBOX_FAILED_RETENTION_HOURS":
@@ -192,6 +194,8 @@ describe("OutboxService", () => {
             return false;
           case "OUTBOX_COMMENT_REPLIED_ENABLED":
             return true;
+          case "OUTBOX_FOLLOW_REQUESTED_ENABLED":
+            return false;
           case "OUTBOX_PROCESSED_RETENTION_HOURS":
             return 24;
           case "OUTBOX_FAILED_RETENTION_HOURS":
@@ -207,6 +211,45 @@ describe("OutboxService", () => {
         OutboxService,
         { provide: PrismaService, useValue: prismaMock },
         { provide: ConfigService, useValue: replyOnlyConfigServiceMock },
+      ],
+    }).compile();
+    const service = moduleRef.get(OutboxService);
+
+    const summary = await service.getSummary();
+
+    expect(summary).toEqual({
+      enabled: true,
+      pendingCount: 0,
+      failedCount: 0,
+      oldestPendingAgeMs: null,
+    });
+  });
+
+  it("reports outbox as enabled for readiness when durable follow-request delivery is enabled without the worker", async () => {
+    const followRequestConfigServiceMock = {
+      get: jest.fn((key: string) => {
+        switch (key) {
+          case "OUTBOX_ENABLED":
+            return false;
+          case "OUTBOX_COMMENT_REPLIED_ENABLED":
+            return false;
+          case "OUTBOX_FOLLOW_REQUESTED_ENABLED":
+            return true;
+          case "OUTBOX_PROCESSED_RETENTION_HOURS":
+            return 24;
+          case "OUTBOX_FAILED_RETENTION_HOURS":
+            return 168;
+          default:
+            return undefined;
+        }
+      }),
+    };
+
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        OutboxService,
+        { provide: PrismaService, useValue: prismaMock },
+        { provide: ConfigService, useValue: followRequestConfigServiceMock },
       ],
     }).compile();
     const service = moduleRef.get(OutboxService);
