@@ -36,11 +36,13 @@ import {
   SafeFollowSelect,
 } from "@/follows/dto/safe-follow.dto";
 
+import { FOLLOW_REQUEST_NOTIFICATION_DELIVERY_EVENT } from "@/outbox/events/follow-request-notification-delivery.event";
+import { HOME_FEED_FOLLOW_BACKFILL_EVENT } from "@/outbox/events/home-feed-follow-backfill.event";
+import { HOME_FEED_RELATIONSHIP_HIDE_EVENT } from "@/outbox/events/home-feed-cleanup.event";
+import { OutboxService } from "@/outbox/outbox.service";
+
 import { UserPrivacySetting } from "@/users/enums/user-privacy-setting.enum";
 import { AccountState } from "@/users/enums/account-state.enum";
-
-import { FOLLOW_REQUEST_NOTIFICATION_DELIVERY_EVENT } from "@/outbox/events/follow-request-notification-delivery.event";
-import { OutboxService } from "@/outbox/outbox.service";
 
 import { NotificationTriggerService } from "@/notifications/notification-trigger.service";
 import { NotificationsService } from "@/notifications/notifications.service";
@@ -52,6 +54,8 @@ import { NotificationType, Prisma } from "@prisma/client";
 export class FollowsService {
   private readonly logger = new Logger(FollowsService.name);
   private readonly outboxFollowRequestsEnabled: boolean;
+  private readonly feedProjectionEnqueueEnabled: boolean;
+  private readonly feedProjectionBackfillEnabled: boolean;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -63,6 +67,10 @@ export class FollowsService {
   ) {
     this.outboxFollowRequestsEnabled =
       configService.get<boolean>("OUTBOX_FOLLOW_REQUESTED_ENABLED") ?? false;
+    this.feedProjectionEnqueueEnabled =
+      configService.get<boolean>("FEED_PROJECTION_ENQUEUE_ENABLED") ?? false;
+    this.feedProjectionBackfillEnabled =
+      configService.get<boolean>("FEED_PROJECTION_BACKFILL_ENABLED") ?? false;
   }
 
   async findFollows(params?: {
@@ -390,6 +398,28 @@ export class FollowsService {
       },
     );
 
+    if (
+      this.feedProjectionEnqueueEnabled &&
+      this.feedProjectionBackfillEnabled
+    ) {
+      await runBestEffort(
+        this.logger,
+        "error",
+        `Failed to enqueue home feed backfill after follow ${follow.id}`,
+        async () => {
+          await this.outboxService.enqueue({
+            eventType: HOME_FEED_FOLLOW_BACKFILL_EVENT,
+            aggregateType: "follow",
+            aggregateId: follow.id,
+            payload: {
+              followerId,
+              followingId,
+            },
+          });
+        },
+      );
+    }
+
     return {
       status: FollowRequestStatus.APPROVED,
       followId: follow.id,
@@ -596,6 +626,28 @@ export class FollowsService {
       },
     );
 
+    if (
+      this.feedProjectionEnqueueEnabled &&
+      this.feedProjectionBackfillEnabled
+    ) {
+      await runBestEffort(
+        this.logger,
+        "error",
+        `Failed to enqueue home feed backfill after approving follow request ${requestId}`,
+        async () => {
+          await this.outboxService.enqueue({
+            eventType: HOME_FEED_FOLLOW_BACKFILL_EVENT,
+            aggregateType: "followRequest",
+            aggregateId: requestId,
+            payload: {
+              followerId: existing.requesterId,
+              followingId: currentUserId,
+            },
+          });
+        },
+      );
+    }
+
     return this.toFollowRequest(approved);
   }
 
@@ -766,6 +818,25 @@ export class FollowsService {
         await this.cacheHelper.bumpVersion("v:user:list");
       },
     );
+
+    if (this.feedProjectionEnqueueEnabled) {
+      await runBestEffort(
+        this.logger,
+        "error",
+        `Failed to enqueue home feed relationship hide after deleting follow ${existing.id}`,
+        async () => {
+          await this.outboxService.enqueue({
+            eventType: HOME_FEED_RELATIONSHIP_HIDE_EVENT,
+            aggregateType: "follow",
+            aggregateId: existing.id,
+            payload: {
+              userId: existing.followerId,
+              authorId: existing.followingId,
+            },
+          });
+        },
+      );
+    }
 
     return {
       message: "Follow deleted successfully",

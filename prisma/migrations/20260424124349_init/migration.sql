@@ -252,6 +252,27 @@ CREATE TABLE `OutboxEvent` (
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
+CREATE TABLE `HomeFeedEntry` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `userId` INTEGER NOT NULL,
+    `postId` INTEGER NOT NULL,
+    `postCreatedAt` DATETIME(3) NOT NULL,
+    `postAuthorId` INTEGER NOT NULL,
+    `reason` ENUM('SELF_POST', 'FOLLOWING_POST') NOT NULL,
+    `score` DOUBLE NULL,
+    `hiddenAt` DATETIME(3) NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    INDEX `HomeFeedEntry_userId_postCreatedAt_postId_idx`(`userId`, `postCreatedAt` DESC, `postId` DESC),
+    INDEX `HomeFeedEntry_postId_idx`(`postId`),
+    INDEX `HomeFeedEntry_userId_postAuthorId_idx`(`userId`, `postAuthorId`),
+    INDEX `HomeFeedEntry_hiddenAt_idx`(`hiddenAt`),
+    UNIQUE INDEX `HomeFeedEntry_userId_postId_key`(`userId`, `postId`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
 CREATE TABLE `PasswordResetToken` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `userId` INTEGER NOT NULL,
@@ -433,6 +454,12 @@ ALTER TABLE `Notification` ADD CONSTRAINT `Notification_actorId_fkey` FOREIGN KE
 
 -- AddForeignKey
 ALTER TABLE `Notification` ADD CONSTRAINT `Notification_recipientId_fkey` FOREIGN KEY (`recipientId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `HomeFeedEntry` ADD CONSTRAINT `HomeFeedEntry_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `HomeFeedEntry` ADD CONSTRAINT `HomeFeedEntry_postId_fkey` FOREIGN KEY (`postId`) REFERENCES `Post`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `PasswordResetToken` ADD CONSTRAINT `PasswordResetToken_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;

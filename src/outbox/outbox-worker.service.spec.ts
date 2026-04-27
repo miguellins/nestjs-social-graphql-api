@@ -4,6 +4,7 @@ import { Test } from "@nestjs/testing";
 import { OutboxProcessorService } from "@/outbox/outbox-processor.service";
 import { OutboxService } from "@/outbox/outbox.service";
 import { OutboxWorkerService } from "@/outbox/outbox-worker.service";
+import { HomeFeedProjectionService } from "@/posts/home-feed-projection.service";
 
 describe("OutboxWorkerService", () => {
   const outboxProcessorMock = {
@@ -12,12 +13,16 @@ describe("OutboxWorkerService", () => {
   const outboxServiceMock = {
     purgeExpiredEvents: jest.fn(),
   };
+  const homeFeedProjectionMock = {
+    purgeExpiredEntries: jest.fn(),
+  };
 
   beforeEach(() => {
     jest.useFakeTimers();
     jest.clearAllMocks();
     outboxProcessorMock.processNextBatch.mockResolvedValue(0);
     outboxServiceMock.purgeExpiredEvents.mockResolvedValue(undefined);
+    homeFeedProjectionMock.purgeExpiredEntries.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -44,6 +49,10 @@ describe("OutboxWorkerService", () => {
         { provide: ConfigService, useValue: configServiceMock },
         { provide: OutboxProcessorService, useValue: outboxProcessorMock },
         { provide: OutboxService, useValue: outboxServiceMock },
+        {
+          provide: HomeFeedProjectionService,
+          useValue: homeFeedProjectionMock,
+        },
       ],
     }).compile();
 
@@ -74,6 +83,10 @@ describe("OutboxWorkerService", () => {
         { provide: ConfigService, useValue: configServiceMock },
         { provide: OutboxProcessorService, useValue: outboxProcessorMock },
         { provide: OutboxService, useValue: outboxServiceMock },
+        {
+          provide: HomeFeedProjectionService,
+          useValue: homeFeedProjectionMock,
+        },
       ],
     }).compile();
 
@@ -106,6 +119,10 @@ describe("OutboxWorkerService", () => {
         { provide: ConfigService, useValue: configServiceMock },
         { provide: OutboxProcessorService, useValue: outboxProcessorMock },
         { provide: OutboxService, useValue: outboxServiceMock },
+        {
+          provide: HomeFeedProjectionService,
+          useValue: homeFeedProjectionMock,
+        },
       ],
     }).compile();
 

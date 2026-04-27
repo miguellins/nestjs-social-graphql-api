@@ -70,9 +70,6 @@ export class OutboxService {
         },
         data: {
           status: OutboxEventStatus.PROCESSING,
-          attemptCount: {
-            increment: 1,
-          },
         },
       });
 
@@ -88,6 +85,30 @@ export class OutboxService {
     }
 
     return claimed;
+  }
+
+  /** Increments attemptCount for an already-claimed (PROCESSING) outbox event and returns the updated count. */
+  async bumpAttemptCount(id: number): Promise<number> {
+    const result = await this.prisma.outboxEvent.updateMany({
+      where: {
+        id,
+        status: OutboxEventStatus.PROCESSING,
+      },
+      data: {
+        attemptCount: {
+          increment: 1,
+        },
+      },
+    });
+
+    if (result.count !== 1) {
+      // If the row moved out of PROCESSING, treat as no-op.
+      const row = await this.prisma.outboxEvent.findUnique({ where: { id } });
+      return row?.attemptCount ?? 0;
+    }
+
+    const row = await this.prisma.outboxEvent.findUnique({ where: { id } });
+    return row?.attemptCount ?? 0;
   }
 
   async markProcessed(id: number): Promise<void> {

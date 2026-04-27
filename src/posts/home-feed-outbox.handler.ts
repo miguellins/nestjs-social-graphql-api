@@ -1,0 +1,122 @@
+import { Injectable } from "@nestjs/common";
+
+import type { HomeFeedFollowBackfillPayload } from "@/outbox/events/home-feed-follow-backfill.event";
+import type { HomeFeedUserBootstrapPayload } from "@/outbox/events/home-feed-user-bootstrap.event";
+import { HOME_FEED_FOLLOW_BACKFILL_EVENT } from "@/outbox/events/home-feed-follow-backfill.event";
+import { HOME_FEED_USER_BOOTSTRAP_EVENT } from "@/outbox/events/home-feed-user-bootstrap.event";
+import type { HomeFeedPostFanoutPayload } from "@/outbox/events/home-feed-post-fanout.event";
+import { HOME_FEED_POST_FANOUT_EVENT } from "@/outbox/events/home-feed-post-fanout.event";
+import { OutboxPermanentError } from "@/outbox/outbox.errors";
+import {
+  HOME_FEED_POST_CLEANUP_EVENT,
+  HOME_FEED_RELATIONSHIP_HIDE_EVENT,
+  type HomeFeedRelationshipHidePayload,
+  HomeFeedPostCleanupPayload,
+} from "@/outbox/events/home-feed-cleanup.event";
+
+import { HomeFeedProjectionService } from "@/posts/home-feed-projection.service";
+
+import { HomeFeedEntryReason } from "@prisma/client";
+import type { OutboxEvent } from "@prisma/client";
+
+@Injectable()
+export class HomeFeedOutboxHandler {
+  constructor(private readonly homeFeedProjection: HomeFeedProjectionService) {}
+
+  supports(eventType: string): boolean {
+    return (
+      eventType === HOME_FEED_POST_FANOUT_EVENT ||
+      eventType === HOME_FEED_FOLLOW_BACKFILL_EVENT ||
+      eventType === HOME_FEED_USER_BOOTSTRAP_EVENT ||
+      eventType === HOME_FEED_POST_CLEANUP_EVENT ||
+      eventType === HOME_FEED_RELATIONSHIP_HIDE_EVENT
+    );
+  }
+
+  async handle(event: OutboxEvent): Promise<void> {
+    switch (event.eventType) {
+      case HOME_FEED_POST_FANOUT_EVENT:
+        return this.handlePostFanout(event);
+      case HOME_FEED_FOLLOW_BACKFILL_EVENT:
+        return this.handleFollowBackfill(event);
+      case HOME_FEED_USER_BOOTSTRAP_EVENT:
+        return this.handleUserBootstrap(event);
+      case HOME_FEED_POST_CLEANUP_EVENT:
+        return this.handlePostCleanup(event);
+      case HOME_FEED_RELATIONSHIP_HIDE_EVENT:
+        return this.handleRelationshipHide(event);
+      default:
+        throw new OutboxPermanentError(
+          `Unsupported feed outbox event type ${event.eventType}`,
+        );
+    }
+  }
+
+  private async handlePostFanout(event: OutboxEvent): Promise<void> {
+    const payload = event.payload as unknown as HomeFeedPostFanoutPayload;
+
+    if (!payload?.postId || !payload?.authorId || !payload?.postCreatedAt) {
+      throw new OutboxPermanentError("Invalid post fanout payload");
+    }
+
+    const reason =
+      payload.reason === "SELF_POST"
+        ? HomeFeedEntryReason.SELF_POST
+        : HomeFeedEntryReason.FOLLOWING_POST;
+
+    await this.homeFeedProjection.fanoutPost({
+      postId: payload.postId,
+      authorId: payload.authorId,
+      postCreatedAt: new Date(payload.postCreatedAt),
+      reason,
+    });
+  }
+
+  private async handleFollowBackfill(event: OutboxEvent): Promise<void> {
+    const payload = event.payload as unknown as HomeFeedFollowBackfillPayload;
+
+    if (!payload?.followerId || !payload?.followingId) {
+      throw new OutboxPermanentError("Invalid follow backfill payload");
+    }
+
+    await this.homeFeedProjection.backfillAfterFollow({
+      followerId: payload.followerId,
+      followingId: payload.followingId,
+    });
+  }
+
+  private async handleUserBootstrap(event: OutboxEvent): Promise<void> {
+    const payload = event.payload as unknown as HomeFeedUserBootstrapPayload;
+
+    if (!payload?.userId) {
+      throw new OutboxPermanentError("Invalid user bootstrap payload");
+    }
+
+    await this.homeFeedProjection.bootstrapUserHomeFeed({
+      userId: payload.userId,
+    });
+  }
+
+  private async handlePostCleanup(event: OutboxEvent): Promise<void> {
+    const payload = event.payload as unknown as HomeFeedPostCleanupPayload;
+
+    if (!payload?.postId) {
+      throw new OutboxPermanentError("Invalid post cleanup payload");
+    }
+
+    await this.homeFeedProjection.hardDeleteByPostId(payload.postId);
+  }
+
+  private async handleRelationshipHide(event: OutboxEvent): Promise<void> {
+    const payload = event.payload as unknown as HomeFeedRelationshipHidePayload;
+
+    if (!payload?.userId || !payload?.authorId) {
+      throw new OutboxPermanentError("Invalid relationship hide payload");
+    }
+
+    await this.homeFeedProjection.softHideByUserAndAuthor({
+      userId: payload.userId,
+      authorId: payload.authorId,
+    });
+  }
+}

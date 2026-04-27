@@ -32,6 +32,12 @@ model User {
   posts Post[]
 
   /**
+   * One-to-many relation
+   * A user can have many home feed projection entries
+   */
+  homeFeedEntries HomeFeedEntry[]
+
+  /**
    * 1:N relation
    * One user can create many comments
    */
@@ -255,6 +261,12 @@ model Post {
    * A post can have many moderation actions targeting it
    */
   moderationActions ModerationAction[] @relation("ModerationActionPost")
+
+  /**
+   * One-to-many relation
+   * A post can appear in many home feed projection entries
+   */
+  homeFeedEntries HomeFeedEntry[]
 
   /**
    * Database index on authorId
@@ -839,6 +851,11 @@ enum OutboxEventStatus {
   FAILED
 }
 
+enum HomeFeedEntryReason {
+  SELF_POST
+  FOLLOWING_POST
+}
+
 model Notification {
   id Int @id @default(autoincrement())
 
@@ -927,6 +944,55 @@ model OutboxEvent {
   updatedAt     DateTime          @updatedAt
 
   @@index([status, availableAt, createdAt])
+}
+
+model HomeFeedEntry {
+  id Int @id @default(autoincrement())
+
+  // Feed owner
+  userId Int
+
+  // Post referenced by this feed entry
+  postId Int
+
+  // Denormalized fields used for deterministic paging and cleanup
+  postCreatedAt DateTime
+  postAuthorId  Int
+
+  // Why this entry exists (supports future feed sources)
+  reason HomeFeedEntryReason
+
+  // Reserved for future ranking; v1 stays chronological
+  score Float?
+
+  // Soft hide for reversible relationship-driven removals
+  hiddenAt DateTime?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /**
+   * Relation to User (feed owner)
+   * fields: [userId] - is a foreign key
+   * references: [id] - references User.id
+   * onDelete: Cascade - delete feed entries if user is deleted
+   */
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /**
+   * Relation to Post
+   * fields: [postId] - is a foreign key
+   * references: [id] - references Post.id
+   * onDelete: Cascade - delete feed entries if post is deleted
+   */
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+  @@index([userId, postCreatedAt(sort: Desc), postId(sort: Desc)])
+  @@index([postId])
+  @@index([userId, postAuthorId])
+  @@index([hiddenAt])
 }
 
 model PasswordResetToken {

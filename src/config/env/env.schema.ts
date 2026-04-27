@@ -62,6 +62,45 @@ export const envSchema = z.object({
   OUTBOX_MAX_ATTEMPTS: positiveIntFromEnv.default(10),
   OUTBOX_PROCESSED_RETENTION_HOURS: positiveIntFromEnv.default(24),
   OUTBOX_FAILED_RETENTION_HOURS: positiveIntFromEnv.default(24 * 7),
+  FEED_PROJECTION_ENQUEUE_ENABLED: booleanFromEnv.default(false),
+  FEED_PROJECTION_WORKER_ENABLED: booleanFromEnv.default(false),
+  FEED_PROJECTION_READ_ENABLED: booleanFromEnv.default(false),
+  FEED_PROJECTION_BACKFILL_ENABLED: booleanFromEnv.default(false),
+  FEED_PROJECTION_PURGE_ENABLED: booleanFromEnv.default(false),
+
+  FEED_PROJECTION_RETENTION_DAYS: positiveIntFromEnv.default(90),
+  FEED_PROJECTION_RETENTION_MAX_ITEMS_PER_USER:
+    positiveIntFromEnv.default(10_000),
+  FEED_PROJECTION_PURGE_INTERVAL_MS: positiveIntFromEnv.default(60_000),
+
+  FEED_PROJECTION_FANOUT_BATCH_SIZE: positiveIntFromEnv.default(500),
+  FEED_PROJECTION_FOLLOWER_PAGE_SIZE: positiveIntFromEnv.default(2_000),
+
+  FEED_PROJECTION_SHADOW_COMPARE_ENABLED: booleanFromEnv.default(false),
+  FEED_PROJECTION_SHADOW_COMPARE_DEBUG_ONLY: booleanFromEnv.default(true),
+  FEED_PROJECTION_SHADOW_COMPARE_SAMPLE_RATE: z.coerce
+    .number()
+    .min(0)
+    .max(1)
+    .default(0.005),
+  FEED_PROJECTION_SHADOW_COMPARE_FORCE_USER_ID: z.coerce
+    .number()
+    .int()
+    .positive()
+    .optional(),
+
+  FEED_PROJECTION_READ_COHORT_ENABLED: booleanFromEnv.default(false),
+  FEED_PROJECTION_READ_COHORT_SAMPLE_RATE: z.coerce
+    .number()
+    .min(0)
+    .max(1)
+    .default(0),
+  FEED_PROJECTION_READ_FORCE_USER_ID: z.coerce
+    .number()
+    .int()
+    .positive()
+    .optional(),
+  FEED_PROJECTION_READ_REQUIRE_POPULATED: booleanFromEnv.default(true),
 });
 
 /** Type representing the validated application environment variables. */

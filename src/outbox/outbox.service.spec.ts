@@ -123,7 +123,7 @@ describe("OutboxService", () => {
       payload: { notificationId: 42 },
       status: OutboxEventStatus.PROCESSING,
       availableAt: new Date("2026-04-01T00:00:00.000Z"),
-      attemptCount: 1,
+      attemptCount: 0,
       processedAt: null,
       lastError: null,
       createdAt: new Date("2026-04-01T00:00:00.000Z"),
@@ -143,7 +143,6 @@ describe("OutboxService", () => {
           };
           data: {
             status: OutboxEventStatus;
-            attemptCount: { increment: number };
           };
         },
       ]
@@ -155,9 +154,6 @@ describe("OutboxService", () => {
     expect(firstUpdate?.where.availableAt.lte).toBeInstanceOf(Date);
     expect(firstUpdate?.data).toEqual({
       status: OutboxEventStatus.PROCESSING,
-      attemptCount: {
-        increment: 1,
-      },
     });
   });
 

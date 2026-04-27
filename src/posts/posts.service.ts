@@ -7,6 +7,7 @@ import {
   Logger,
   NotFoundException,
 } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
 import { MessageResponse } from "@/common/types/message-response.type";
@@ -50,12 +51,15 @@ import {
   type GetUserByUsernameCommand,
 } from "@/users/schemas/user-read.schema";
 
-import type { AuthenticatedUser } from "@/auth/authenticated-user.type";
-
 import { UserPrivacySetting } from "@/users/enums/user-privacy-setting.enum";
 import { MODERATION_ROLE_SET } from "@/users/enums/user-role.enum";
 import { AccountState } from "@/users/enums/account-state.enum";
 import { MentionsService } from "@/mentions/mentions.service";
+
+import { HOME_FEED_POST_FANOUT_EVENT } from "@/outbox/events/home-feed-post-fanout.event";
+import { OutboxService } from "@/outbox/outbox.service";
+
+import type { AuthenticatedUser } from "@/auth/authenticated-user.type";
 
 import { PrismaService } from "@/prisma/prisma.service";
 import { Prisma } from "@prisma/client";
@@ -76,13 +80,19 @@ const POST_DETAIL_CACHE_TTL_MS = 60_000;
 @Injectable()
 export class PostsService {
   private readonly logger = new Logger(PostsService.name);
+  private readonly feedProjectionEnqueueEnabled: boolean;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly cacheHelper: CacheHelperService,
     private readonly postReadService: PostReadService,
     private readonly mentionsService: MentionsService,
-  ) {}
+    private readonly outboxService: OutboxService,
+    configService: ConfigService,
+  ) {
+    this.feedProjectionEnqueueEnabled =
+      configService.get<boolean>("FEED_PROJECTION_ENQUEUE_ENABLED") ?? false;
+  }
 
   async myFeed(
     currentUserId: number,
@@ -410,6 +420,27 @@ export class PostsService {
         });
       },
     );
+
+    if (this.feedProjectionEnqueueEnabled) {
+      await runBestEffort(
+        this.logger,
+        "error",
+        `Failed to enqueue home feed fanout for post ${post.id}`,
+        async () => {
+          await this.outboxService.enqueue({
+            eventType: HOME_FEED_POST_FANOUT_EVENT,
+            aggregateType: "post",
+            aggregateId: post.id,
+            payload: {
+              postId: post.id,
+              authorId: currentUserId,
+              postCreatedAt: post.createdAt.toISOString(),
+              reason: "FOLLOWING_POST",
+            },
+          });
+        },
+      );
+    }
 
     return post;
   }

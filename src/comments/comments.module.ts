@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { forwardRef, Module } from "@nestjs/common";
 
 import { CacheHelpersModule } from "@/common/cache/cache-helpers.module";
 
@@ -19,7 +19,7 @@ import { PrismaModule } from "@/prisma/prisma.module";
     PrismaModule,
     CacheHelpersModule,
     NotificationsModule,
-    OutboxModule,
+    forwardRef(() => OutboxModule),
     MentionsModule,
   ],
   providers: [CommentsReadService, CommentsService, CommentsResolver],

@@ -99,18 +99,26 @@ Notes:
 - configures GraphQL code-first schema generation into `src/schema.gql`
 - registers global throttling
 - wires feature modules:
+  - `OpsModule`
   - `AuthModule`
   - `UsersModule`
   - `PostsModule`
   - `MediaModule`
   - `LikesModule`
+  - `OutboxModule`
+  - `BlocksModule`
+  - `LoggingModule`
   - `FollowsModule`
+  - `ReportsModule`
   - `CommentsModule`
+  - `BookmarksModule`
   - `NotificationsModule`
+  - `RequestContextModule`
   - `GraphqlSubscriptionsModule`
 - registers global guards:
   - `GqlThrottlerGuard`
   - `GqlJwtGuard`
+  - `GqlRolesGuard`
 
 ### Shared infrastructure
 The shared/common layer already provides several repository-wide standards:
@@ -227,13 +235,16 @@ Current strengths:
 - `postsByUsername(username, first, after, orderBy)`
 - `postById(id)`
 - `myFeed(first, after, orderBy)`
+- `homeFeed(first, after, orderBy)`
 - `createPost(input)`
 - `updatePost(id, input)`
 - `deletePost(id)`
+- `removePostByModerator(input)`
 
 Current strengths:
 - separate safe list/detail DTOs
-- `PostReadService` for detail reads, feed reads, and view-count refresh handling
+- `PostReadService` for detail reads and view-count refresh handling
+- `FeedReadService` for `homeFeed` reads and optional projection rollout
 - explicit cache versioning and detail invalidation
 - ownership checks in the service layer
 - cursor-based pagination for post lists and feed reads
@@ -243,12 +254,15 @@ Current strengths:
 - `createComment(input)`
 - `updateComment(commentId, input)`
 - `deleteComment(commentId)`
+- `removeCommentByModerator(input)`
 
 Current strengths:
 - comment count updates are kept transactionally consistent
 - ownership checks live in the service
 - post detail cache invalidation is handled after writes
 - cursor-based pagination for post comment reads
+- one-level replies use bounded inline reply projection
+- reply notifications can use durable outbox delivery
 
 ### Likes
 - `likes(first, after, orderBy, postId, userId)`
@@ -323,6 +337,7 @@ Current strengths:
 - separate trigger, persistence, and delivery helpers
 - authenticated subscription filtering by subscriber id
 - cursor-based notification pagination
+- comment-reply and follow-request notification delivery can run through the outbox worker
 
 ### Media
 - `requestPostMediaUpload(input)`
@@ -353,11 +368,13 @@ This is already stronger than in-memory pubsub and is designed for multi-instanc
 - `users`
 - `userById`
 - `userByUsername`
+- `mySessions`
 - `myPrivacySettings`
 - `posts`
 - `postsByUsername`
 - `postById`
 - `myFeed`
+- `homeFeed`
 - `commentsByPost`
 - `likes`
 - `likeById`
@@ -371,11 +388,15 @@ This is already stronger than in-memory pubsub and is designed for multi-instanc
 - `unreadNotificationsCount`
 - `myMedia`
 - `mediaSignedViewUrl`
+- `myBookmarks`
 
 ### Mutations
 - `login`
 - `refreshSession`
 - `logout`
+- `logoutCurrentSession`
+- `revokeSession`
+- `revokeOtherSessions`
 - `requestPasswordReset`
 - `resetPassword`
 - `requestEmailVerification`
@@ -389,9 +410,11 @@ This is already stronger than in-memory pubsub and is designed for multi-instanc
 - `createPost`
 - `updatePost`
 - `deletePost`
+- `removePostByModerator`
 - `createComment`
 - `updateComment`
 - `deleteComment`
+- `removeCommentByModerator`
 - `createLike`
 - `deleteLike`
 - `followUser`
@@ -410,6 +433,8 @@ This is already stronger than in-memory pubsub and is designed for multi-instanc
 - `requestPostMediaUpload`
 - `completePostMediaUpload`
 - `attachMediaToPost`
+- `bookmarkPost`
+- `removeBookmark`
 
 ### Subscriptions
 - `notificationReceived`
@@ -431,7 +456,7 @@ This is already stronger than in-memory pubsub and is designed for multi-instanc
 - Redis-backed subscription transport
 
 ## Environment Variables
-Main required values:
+Common configured values:
 ```env
 PORT=3000
 DATABASE_URL=mysql://root:root@localhost:3307/mydb
@@ -452,6 +477,24 @@ R2_PUBLIC_BASE_URL=https://cdn.example.com
 R2_PRESIGNED_URL_TTL_SECONDS=1800
 MEDIA_IMAGE_MAX_BYTES=10485760
 MEDIA_VIDEO_MAX_BYTES=104857600
+GRAPHQL_COMPLEXITY_ENFORCE=false
+GRAPHQL_COMPLEXITY_LOG=true
+GRAPHQL_COMPLEXITY_WARN_AT=100
+GRAPHQL_COMPLEXITY_MAX=500
+GRAPHQL_COMPLEXITY_MAX_QUERY_NODES=2000
+OUTBOX_ENABLED=false
+OUTBOX_COMMENT_REPLIED_ENABLED=false
+OUTBOX_FOLLOW_REQUESTED_ENABLED=false
+OUTBOX_POLL_INTERVAL_MS=1000
+OUTBOX_BATCH_SIZE=20
+OUTBOX_MAX_ATTEMPTS=10
+OUTBOX_PROCESSED_RETENTION_HOURS=24
+OUTBOX_FAILED_RETENTION_HOURS=168
+FEED_PROJECTION_ENQUEUE_ENABLED=false
+FEED_PROJECTION_WORKER_ENABLED=false
+FEED_PROJECTION_READ_ENABLED=false
+FEED_PROJECTION_BACKFILL_ENABLED=false
+FEED_PROJECTION_PURGE_ENABLED=false
 ```
 
 The authoritative validation source is `src/config/env/env.schema.ts`.
@@ -474,50 +517,37 @@ npx prisma migrate dev
 npm run start:dev
 ```
 
-5. Open GraphQL Playground:
+5. Open the GraphQL endpoint:
 
 - `http://localhost:3000/graphql`
 
 ## Docker Setup
-This project includes containers for:
-- `app`
-- `mysql`
-- `redis`
-
-### Build and run
-```bash
-docker compose up --build -d
-```
-
-### Logs
-```bash
-docker compose logs -f app
-```
-
-### Stop
-```bash
-docker compose down
-```
-
-To also remove DB/cache volumes:
-```bash
-docker compose down -v
-```
+No Docker Compose or Dockerfile is currently present in this repository.
+Run MySQL and Redis separately, or add reviewed container configuration in a
+future infrastructure change.
 
 ## Available Scripts
 - `npm run build` -> builds Nest app and resolves path aliases
 - `npm run start` -> runs compiled app
+- `npm run start:worker` -> runs the compiled outbox worker entrypoint
 - `npm run start:dev` -> dev mode
+- `npm run start:worker:dev` -> dev worker mode
 - `npm run start:debug` -> debug/watch mode
 - `npm run lint` -> lint
 - `npm run format` -> Prettier format
 - `npm test` -> unit tests
+- `npm run test:watch` -> unit tests in watch mode
+- `npm run test:cov` -> unit tests with coverage
+- `npm run test:debug` -> unit tests under the Node inspector
 
 ## Project Structure
 ```text
 src/
   auth/            # login + password reset
   blocks/          # user block workflows
+  bootstrap/       # app bootstrap helpers
+  cache/           # cache module configuration
+  bookmarks/       # private saved-post workflows
   comments/        # comment CRUD + post comment reads
   common/          # guards, decorators, constants, filters, args, helpers
   config/          # env schema and config helpers
@@ -526,6 +556,8 @@ src/
   likes/           # like workflows + counters
   media/           # media upload orchestration and storage integration
   notifications/   # notification persistence + delivery
+  ops/             # HTTP liveness/readiness endpoints
+  outbox/          # durable background event processing
   posts/           # post CRUD, feed, detail reads, media attachment integration
   prisma/          # Prisma service/module
   reports/         # content reports + moderation review
@@ -546,26 +578,26 @@ prisma/
 - Feature-private helpers where complexity justifies them
 - Best-effort side effects after the write path commits
 - Redis-backed subscriptions instead of in-memory pubsub
+- Durable outbox processing for selected notification and feed-projection work
 
 ## Current Limitations / Next Priorities
 This codebase is already coherent and production-minded, but it is still intentionally smaller than a real social platform. The main current gaps are:
 
-- Feed design is still simple
-  - `myFeed` is a bounded relational query, not a scalable feed system
+- Feed design is still early
+  - `myFeed` remains a bounded relational query
+  - `homeFeed` has an optional persisted projection, but not ranking or recommendations
 - Moderation is still V1-only
   - no audit log
   - no moderator dashboard UI
-  - no suspension workflow
   - no auto-moderation
 - Product realism is still limited
-  - no privacy controls
   - no mute system
-  - no bookmarks
-  - no mentions / hashtags
+  - no hashtags
   - no richer profile domain
-  - no session/device management
+  - session/device management is present but still basic
 - Operational maturity is still limited
-  - no health checks, metrics, tracing, request correlation, queues, outbox, or workers yet
+  - health checks, request correlation, structured logging, outbox, and worker paths exist
+  - metrics, tracing, dashboards, and deeper worker diagnostics are still missing
 
 Current strengths worth preserving:
 
@@ -574,13 +606,16 @@ Current strengths worth preserving:
   - deterministic chronological ordering
   - `items + pageInfo` response shape
 - The current feed stays simple but is now placed more cleanly
-  - `PostReadService` owns the authenticated feed read path
+  - `PostReadService` owns post detail/read helpers
+  - `FeedReadService` owns `homeFeed` and projection selection
 - Internal module boundaries are better than before
   - `PostReadService`
+  - `FeedReadService`
   - `MediaQueryService`
   - `MediaPolicyService`
   - `NotificationTriggerService`
   - `NotificationDeliveryService`
+  - `HomeFeedProjectionService`
 
 The strongest next technical platform improvements are:
 - defining a more realistic feed strategy

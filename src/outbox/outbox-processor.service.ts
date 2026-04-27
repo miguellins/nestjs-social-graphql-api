@@ -3,10 +3,19 @@ import { ConfigService } from "@nestjs/config";
 
 import { FOLLOW_REQUEST_NOTIFICATION_DELIVERY_EVENT } from "@/outbox/events/follow-request-notification-delivery.event";
 import { COMMENT_REPLY_NOTIFICATION_DELIVERY_EVENT } from "@/outbox/events/comment-reply-notification-delivery.event";
+import { HOME_FEED_FOLLOW_BACKFILL_EVENT } from "@/outbox/events/home-feed-follow-backfill.event";
+import { HOME_FEED_USER_BOOTSTRAP_EVENT } from "@/outbox/events/home-feed-user-bootstrap.event";
+import { HOME_FEED_POST_FANOUT_EVENT } from "@/outbox/events/home-feed-post-fanout.event";
 import { OutboxPermanentError } from "@/outbox/outbox.errors";
 import { OutboxService } from "@/outbox/outbox.service";
+import {
+  HOME_FEED_POST_CLEANUP_EVENT,
+  HOME_FEED_RELATIONSHIP_HIDE_EVENT,
+} from "@/outbox/events/home-feed-cleanup.event";
 
 import { NotificationOutboxHandler } from "@/notifications/notification-outbox.handler";
+
+import { HomeFeedOutboxHandler } from "@/posts/home-feed-outbox.handler";
 
 import type { OutboxEvent } from "@prisma/client";
 
@@ -16,14 +25,18 @@ export class OutboxProcessorService {
   private readonly logger = new Logger(OutboxProcessorService.name);
   private readonly batchSize: number;
   private readonly maxAttempts: number;
+  private readonly feedProjectionWorkerEnabled: boolean;
 
   constructor(
     private readonly outboxService: OutboxService,
     private readonly notificationOutboxHandler: NotificationOutboxHandler,
+    private readonly homeFeedOutboxHandler: HomeFeedOutboxHandler,
     configService: ConfigService,
   ) {
     this.batchSize = configService.get<number>("OUTBOX_BATCH_SIZE") ?? 20;
     this.maxAttempts = configService.get<number>("OUTBOX_MAX_ATTEMPTS") ?? 10;
+    this.feedProjectionWorkerEnabled =
+      configService.get<boolean>("FEED_PROJECTION_WORKER_ENABLED") ?? false;
   }
 
   async processNextBatch(): Promise<number> {
@@ -38,6 +51,7 @@ export class OutboxProcessorService {
 
   private async processOne(event: OutboxEvent): Promise<void> {
     const startedAt = Date.now();
+    const attemptCount = await this.outboxService.bumpAttemptCount(event.id);
 
     try {
       await this.dispatch(event);
@@ -45,7 +59,7 @@ export class OutboxProcessorService {
       this.logger.log("Outbox event processed", {
         eventType: event.eventType,
         eventId: event.id,
-        attemptCount: event.attemptCount,
+        attemptCount,
         aggregateType: event.aggregateType,
         aggregateId: event.aggregateId,
         latencyMs: Date.now() - startedAt,
@@ -63,7 +77,7 @@ export class OutboxProcessorService {
           {
             eventType: event.eventType,
             eventId: event.id,
-            attemptCount: event.attemptCount,
+            attemptCount,
             aggregateType: event.aggregateType,
             aggregateId: event.aggregateId,
           },
@@ -71,7 +85,7 @@ export class OutboxProcessorService {
         return;
       }
 
-      if (event.attemptCount >= this.maxAttempts) {
+      if (attemptCount >= this.maxAttempts) {
         await this.outboxService.markFailed(event.id, message);
         this.logger.error(
           "Outbox event exhausted retries",
@@ -80,7 +94,7 @@ export class OutboxProcessorService {
           {
             eventType: event.eventType,
             eventId: event.id,
-            attemptCount: event.attemptCount,
+            attemptCount,
             aggregateType: event.aggregateType,
             aggregateId: event.aggregateId,
           },
@@ -89,14 +103,14 @@ export class OutboxProcessorService {
       }
 
       const availableAt = new Date(
-        Date.now() + calculateRetryDelayMs(event.attemptCount),
+        Date.now() + calculateRetryDelayMs(attemptCount),
       );
 
       await this.outboxService.rescheduleRetry(event.id, message, availableAt);
       this.logger.warn("Outbox event scheduled for retry", {
         eventType: event.eventType,
         eventId: event.id,
-        attemptCount: event.attemptCount,
+        attemptCount,
         aggregateType: event.aggregateType,
         aggregateId: event.aggregateId,
         retryAt: availableAt.toISOString(),
@@ -111,6 +125,22 @@ export class OutboxProcessorService {
         return;
       case FOLLOW_REQUEST_NOTIFICATION_DELIVERY_EVENT:
         await this.notificationOutboxHandler.handleFollowRequestDelivery(event);
+        return;
+      case HOME_FEED_POST_FANOUT_EVENT:
+      case HOME_FEED_FOLLOW_BACKFILL_EVENT:
+      case HOME_FEED_USER_BOOTSTRAP_EVENT:
+      case HOME_FEED_POST_CLEANUP_EVENT:
+      case HOME_FEED_RELATIONSHIP_HIDE_EVENT:
+        if (!this.feedProjectionWorkerEnabled) {
+          // Do not burn retries when the worker is intentionally disabled.
+          await this.outboxService.rescheduleRetry(
+            event.id,
+            "Feed projection worker disabled",
+            new Date(Date.now() + 60_000),
+          );
+          return;
+        }
+        await this.homeFeedOutboxHandler.handle(event);
         return;
       default:
         throw new OutboxPermanentError(

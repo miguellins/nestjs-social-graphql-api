@@ -1,5 +1,6 @@
 import { ForbiddenException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
+import { ConfigService } from "@nestjs/config";
 
 import { encodeChronoCursor } from "@/common/pagination/chrono-cursor";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
@@ -12,6 +13,9 @@ import { PostReadService } from "@/posts/post-read.service";
 import { MediaReadProjectionService } from "@/media/media-read-projection.service";
 import { R2StorageService } from "@/media/storage/r2-storage.service";
 
+import { OutboxService } from "@/outbox/outbox.service";
+import { HOME_FEED_USER_BOOTSTRAP_EVENT } from "@/outbox/events/home-feed-user-bootstrap.event";
+
 import { PrismaService } from "@/prisma/prisma.service";
 import { AccountState } from "@/users/enums/account-state.enum";
 
@@ -22,6 +26,10 @@ describe("FeedReadService", () => {
   const prismaMock = {
     post: {
       findMany: jest.fn(),
+    },
+    homeFeedEntry: {
+      findMany: jest.fn(),
+      count: jest.fn(),
     },
     user: {
       findUnique: jest.fn(),
@@ -35,6 +43,14 @@ describe("FeedReadService", () => {
   const r2StorageMock = {
     getPublicUrl: jest.fn(),
   };
+
+  const outboxServiceMock = {
+    enqueue: jest.fn(),
+  };
+
+  const makeConfigServiceMock = (overrides?: Record<string, unknown>) => ({
+    get: jest.fn((key: string) => overrides?.[key]),
+  });
 
   const makeFeedRow = (id: number) => ({
     id,
@@ -92,6 +108,20 @@ describe("FeedReadService", () => {
         { provide: PrismaService, useValue: prismaMock },
         { provide: PostReadService, useValue: postReadServiceMock },
         { provide: R2StorageService, useValue: r2StorageMock },
+        { provide: OutboxService, useValue: outboxServiceMock },
+        {
+          provide: ConfigService,
+          useValue: makeConfigServiceMock({
+            FEED_PROJECTION_READ_ENABLED: false,
+            FEED_PROJECTION_SHADOW_COMPARE_ENABLED: false,
+            FEED_PROJECTION_SHADOW_COMPARE_DEBUG_ONLY: true,
+            FEED_PROJECTION_SHADOW_COMPARE_SAMPLE_RATE: 0,
+            FEED_PROJECTION_ENQUEUE_ENABLED: false,
+            FEED_PROJECTION_READ_COHORT_ENABLED: false,
+            FEED_PROJECTION_READ_COHORT_SAMPLE_RATE: 0,
+            FEED_PROJECTION_READ_REQUIRE_POPULATED: true,
+          }),
+        },
       ],
     }).compile();
 
@@ -184,6 +214,131 @@ describe("FeedReadService", () => {
     );
     expect(result.pageInfo.hasNextPage).toBe(true);
     expect(result.pageInfo.endCursor).toEqual(expect.any(String));
+  });
+
+  it("reads home feed from projection when enabled", async () => {
+    await moduleRef?.close();
+
+    const configServiceMock = makeConfigServiceMock({
+      FEED_PROJECTION_READ_ENABLED: true,
+      FEED_PROJECTION_SHADOW_COMPARE_ENABLED: false,
+      FEED_PROJECTION_SHADOW_COMPARE_DEBUG_ONLY: true,
+      FEED_PROJECTION_SHADOW_COMPARE_SAMPLE_RATE: 0,
+      FEED_PROJECTION_ENQUEUE_ENABLED: false,
+      FEED_PROJECTION_READ_COHORT_ENABLED: false,
+      FEED_PROJECTION_READ_COHORT_SAMPLE_RATE: 0,
+      FEED_PROJECTION_READ_REQUIRE_POPULATED: true,
+    });
+
+    moduleRef = await Test.createTestingModule({
+      providers: [
+        FeedReadService,
+        MediaReadProjectionService,
+        { provide: PrismaService, useValue: prismaMock },
+        { provide: PostReadService, useValue: postReadServiceMock },
+        { provide: R2StorageService, useValue: r2StorageMock },
+        { provide: OutboxService, useValue: outboxServiceMock },
+        { provide: ConfigService, useValue: configServiceMock },
+      ],
+    }).compile();
+
+    service = moduleRef.get(FeedReadService);
+
+    prismaMock.homeFeedEntry.count.mockResolvedValue(1);
+    prismaMock.homeFeedEntry.findMany.mockResolvedValue([
+      { postId: 3, postCreatedAt: new Date("2026-04-03T00:00:00.000Z") },
+      { postId: 2, postCreatedAt: new Date("2026-04-02T00:00:00.000Z") },
+    ]);
+    prismaMock.post.findMany.mockResolvedValue([
+      makeFeedRow(3),
+      makeFeedRow(2),
+    ]);
+
+    const result = await service.getHomeFeed(7, { first: 1 });
+
+    expect(prismaMock.homeFeedEntry.findMany).toHaveBeenCalledWith({
+      take: 2,
+      where: { userId: 7, hiddenAt: null },
+      orderBy: [{ postCreatedAt: "desc" }, { postId: "desc" }],
+      select: { postId: true, postCreatedAt: true },
+    });
+    expect(prismaMock.post.findMany).toHaveBeenCalledWith({
+      where: {
+        AND: [
+          { id: { in: [3] } },
+          { removedAt: null },
+          {
+            author: {
+              accountState: AccountState.ACTIVE,
+            },
+          },
+        ],
+      },
+      select: {
+        ...HomeFeedItemSelect,
+        likes: {
+          ...HomeFeedItemSelect.likes,
+          where: {
+            userId: 7,
+          },
+        },
+        bookmarks: {
+          ...HomeFeedItemSelect.bookmarks,
+          where: {
+            userId: 7,
+          },
+        },
+      },
+    });
+    expect(result.items[0]?.id).toBe(3);
+  });
+
+  it("falls back to legacy and enqueues bootstrap when cohort read requires populated projection", async () => {
+    await moduleRef?.close();
+
+    const configServiceMock = makeConfigServiceMock({
+      FEED_PROJECTION_READ_ENABLED: false,
+      FEED_PROJECTION_READ_COHORT_ENABLED: true,
+      FEED_PROJECTION_READ_COHORT_SAMPLE_RATE: 1,
+      FEED_PROJECTION_READ_REQUIRE_POPULATED: true,
+      FEED_PROJECTION_ENQUEUE_ENABLED: true,
+      FEED_PROJECTION_SHADOW_COMPARE_ENABLED: false,
+      FEED_PROJECTION_SHADOW_COMPARE_DEBUG_ONLY: true,
+      FEED_PROJECTION_SHADOW_COMPARE_SAMPLE_RATE: 0,
+    });
+
+    moduleRef = await Test.createTestingModule({
+      providers: [
+        FeedReadService,
+        MediaReadProjectionService,
+        { provide: PrismaService, useValue: prismaMock },
+        { provide: PostReadService, useValue: postReadServiceMock },
+        { provide: R2StorageService, useValue: r2StorageMock },
+        { provide: OutboxService, useValue: outboxServiceMock },
+        { provide: ConfigService, useValue: configServiceMock },
+      ],
+    }).compile();
+
+    service = moduleRef.get(FeedReadService);
+
+    prismaMock.homeFeedEntry.count.mockResolvedValue(0);
+    prismaMock.post.findMany.mockResolvedValue([
+      makeFeedRow(3),
+      makeFeedRow(2),
+    ]);
+
+    await service.getHomeFeed(7, { first: 1 });
+
+    // Cohort enabled, but projection empty → should serve legacy and enqueue bootstrap.
+    expect(prismaMock.post.findMany).toHaveBeenCalled();
+    expect(outboxServiceMock.enqueue).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: HOME_FEED_USER_BOOTSTRAP_EVENT,
+        aggregateType: "user",
+        aggregateId: 7,
+        payload: { userId: 7 },
+      }),
+    );
   });
 
   it("adds cursor and block filters and clamps take", async () => {

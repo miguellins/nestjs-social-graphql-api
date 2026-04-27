@@ -3,6 +3,7 @@ import { Test } from "@nestjs/testing";
 import { OutboxEventStatus } from "@prisma/client";
 
 import { NotificationOutboxHandler } from "@/notifications/notification-outbox.handler";
+import { HomeFeedOutboxHandler } from "@/posts/home-feed-outbox.handler";
 import { OutboxPermanentError } from "@/outbox/outbox.errors";
 import { OutboxProcessorService } from "@/outbox/outbox-processor.service";
 import { OutboxService } from "@/outbox/outbox.service";
@@ -10,6 +11,7 @@ import { OutboxService } from "@/outbox/outbox.service";
 describe("OutboxProcessorService", () => {
   const outboxServiceMock = {
     claimPendingBatch: jest.fn(),
+    bumpAttemptCount: jest.fn(),
     markFailed: jest.fn(),
     markProcessed: jest.fn(),
     rescheduleRetry: jest.fn(),
@@ -18,6 +20,9 @@ describe("OutboxProcessorService", () => {
     handleCommentReplyDelivery: jest.fn(),
     handleFollowRequestDelivery: jest.fn(),
   };
+  const homeFeedOutboxHandlerMock = {
+    handle: jest.fn(),
+  };
   const configServiceMock = {
     get: jest.fn((key: string) => {
       switch (key) {
@@ -25,6 +30,8 @@ describe("OutboxProcessorService", () => {
           return 20;
         case "OUTBOX_MAX_ATTEMPTS":
           return 3;
+        case "FEED_PROJECTION_WORKER_ENABLED":
+          return true;
         default:
           return undefined;
       }
@@ -34,6 +41,7 @@ describe("OutboxProcessorService", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     outboxServiceMock.claimPendingBatch.mockResolvedValue([]);
+    outboxServiceMock.bumpAttemptCount.mockResolvedValue(1);
   });
 
   it("marks events processed after successful handler execution", async () => {
@@ -44,6 +52,10 @@ describe("OutboxProcessorService", () => {
         {
           provide: NotificationOutboxHandler,
           useValue: notificationOutboxHandlerMock,
+        },
+        {
+          provide: HomeFeedOutboxHandler,
+          useValue: homeFeedOutboxHandlerMock,
         },
         { provide: ConfigService, useValue: configServiceMock },
       ],
@@ -85,6 +97,10 @@ describe("OutboxProcessorService", () => {
           provide: NotificationOutboxHandler,
           useValue: notificationOutboxHandlerMock,
         },
+        {
+          provide: HomeFeedOutboxHandler,
+          useValue: homeFeedOutboxHandlerMock,
+        },
         { provide: ConfigService, useValue: configServiceMock },
       ],
     }).compile();
@@ -124,6 +140,10 @@ describe("OutboxProcessorService", () => {
         {
           provide: NotificationOutboxHandler,
           useValue: notificationOutboxHandlerMock,
+        },
+        {
+          provide: HomeFeedOutboxHandler,
+          useValue: homeFeedOutboxHandlerMock,
         },
         { provide: ConfigService, useValue: configServiceMock },
       ],
@@ -169,6 +189,10 @@ describe("OutboxProcessorService", () => {
           provide: NotificationOutboxHandler,
           useValue: notificationOutboxHandlerMock,
         },
+        {
+          provide: HomeFeedOutboxHandler,
+          useValue: homeFeedOutboxHandlerMock,
+        },
         { provide: ConfigService, useValue: configServiceMock },
       ],
     }).compile();
@@ -197,5 +221,46 @@ describe("OutboxProcessorService", () => {
       notificationOutboxHandlerMock.handleFollowRequestDelivery,
     ).toHaveBeenCalledTimes(1);
     expect(outboxServiceMock.markProcessed).toHaveBeenCalledWith(7);
+  });
+
+  it("dispatches home-feed events to the feed outbox handler", async () => {
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        OutboxProcessorService,
+        { provide: OutboxService, useValue: outboxServiceMock },
+        {
+          provide: NotificationOutboxHandler,
+          useValue: notificationOutboxHandlerMock,
+        },
+        {
+          provide: HomeFeedOutboxHandler,
+          useValue: homeFeedOutboxHandlerMock,
+        },
+        { provide: ConfigService, useValue: configServiceMock },
+      ],
+    }).compile();
+    const service = moduleRef.get(OutboxProcessorService);
+
+    outboxServiceMock.claimPendingBatch.mockResolvedValue([
+      {
+        id: 9,
+        eventType: "feed.home.post.fanout",
+        aggregateType: "post",
+        aggregateId: 123,
+        payload: { postId: 123 },
+        status: OutboxEventStatus.PROCESSING,
+        availableAt: new Date(),
+        attemptCount: 1,
+        processedAt: null,
+        lastError: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ]);
+
+    await service.processNextBatch();
+
+    expect(homeFeedOutboxHandlerMock.handle).toHaveBeenCalledTimes(1);
+    expect(outboxServiceMock.markProcessed).toHaveBeenCalledWith(9);
   });
 });
