@@ -134,6 +134,19 @@ CREATE TABLE `UserBlock` (
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
+CREATE TABLE `Mute` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `muterId` INTEGER NOT NULL,
+    `mutedUserId` INTEGER NOT NULL,
+
+    INDEX `Mute_muterId_createdAt_id_idx`(`muterId`, `createdAt` DESC, `id` DESC),
+    INDEX `Mute_mutedUserId_idx`(`mutedUserId`),
+    UNIQUE INDEX `Mute_muterId_mutedUserId_key`(`muterId`, `mutedUserId`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
 CREATE TABLE `ContentReport` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `reporterId` INTEGER NOT NULL,
@@ -415,6 +428,12 @@ ALTER TABLE `UserBlock` ADD CONSTRAINT `UserBlock_blockerId_fkey` FOREIGN KEY (`
 
 -- AddForeignKey
 ALTER TABLE `UserBlock` ADD CONSTRAINT `UserBlock_blockedId_fkey` FOREIGN KEY (`blockedId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `Mute` ADD CONSTRAINT `Mute_muterId_fkey` FOREIGN KEY (`muterId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `Mute` ADD CONSTRAINT `Mute_mutedUserId_fkey` FOREIGN KEY (`mutedUserId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `ContentReport` ADD CONSTRAINT `ContentReport_reporterId_fkey` FOREIGN KEY (`reporterId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;

@@ -8,6 +8,7 @@ import { R2StorageService } from "@/media/storage/r2-storage.service";
 import { PrismaService } from "@/prisma/prisma.service";
 import { PostReadService } from "@/posts/post-read.service";
 import { SafePostDetailSelect } from "@/posts/dto/safe-post-detail.dto";
+import { MutesService } from "@/mutes/mutes.service";
 
 describe("PostReadService", () => {
   let service: PostReadService;
@@ -30,9 +31,14 @@ describe("PostReadService", () => {
     getPublicUrl: jest.fn(),
   };
 
+  const mutesServiceMock = {
+    getMutedUserIds: jest.fn(),
+  };
+
   beforeEach(async () => {
     jest.clearAllMocks();
     prismaMock.userBlock.findMany.mockResolvedValue([]);
+    mutesServiceMock.getMutedUserIds.mockResolvedValue([]);
     commentsReadServiceMock.listThreadedCommentsForPost.mockResolvedValue([
       {
         id: 30,
@@ -61,6 +67,7 @@ describe("PostReadService", () => {
         MediaReadProjectionService,
         { provide: PrismaService, useValue: prismaMock },
         { provide: CommentsReadService, useValue: commentsReadServiceMock },
+        { provide: MutesService, useValue: mutesServiceMock },
         { provide: R2StorageService, useValue: r2StorageMock },
       ],
     }).compile();

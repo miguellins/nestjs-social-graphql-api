@@ -98,6 +98,18 @@ model User {
 
   /**
    * 1:N relation
+   * Mute relationships created by this user
+   */
+  mutesInitiated Mute[] @relation("MuteMuter")
+
+  /**
+   * 1:N relation
+   * Mute relationships targeting this user
+   */
+  mutesReceived Mute[] @relation("MuteMuted")
+
+  /**
+   * 1:N relation
    * Content reports submitted by this user
    */
   reportsSubmitted ContentReport[]
@@ -601,6 +613,37 @@ model UserBlock {
   @@unique([blockerId, blockedId])
   @@index([blockerId, createdAt(sort: Desc), id(sort: Desc)])
   @@index([blockedId])
+}
+
+model Mute {
+  id Int @id @default(autoincrement())
+
+  // Timestamp
+  createdAt DateTime @default(now())
+
+  // Id of the user creating the mute
+  muterId Int
+
+  /**
+   * Relation to User (the muter)
+   * "MuteMuter" is the relation name
+   * needed because User is referenced twice
+   */
+  muter User @relation("MuteMuter", fields: [muterId], references: [id], onDelete: Cascade)
+
+  // Id of the muted user
+  mutedUserId Int
+
+  /**
+   * Relation to User (the muted user)
+   * "MuteMuted" is the relation name
+   * needed because User is referenced twice
+   */
+  mutedUser User @relation("MuteMuted", fields: [mutedUserId], references: [id], onDelete: Cascade)
+
+  @@unique([muterId, mutedUserId])
+  @@index([muterId, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([mutedUserId])
 }
 
 enum ReportReason {

@@ -14,6 +14,7 @@ import { NotificationReadStatus } from "@/notifications/enums/notification-read-
 import { NotificationSelect } from "@/notifications/dto/safe-notification.dto";
 
 import { PrismaService } from "@/prisma/prisma.service";
+import { MutesService } from "@/mutes/mutes.service";
 
 import { NotificationsService } from "./notifications.service";
 
@@ -41,6 +42,11 @@ describe("NotificationsService", () => {
     >(),
   };
 
+  const mutesServiceMock = {
+    isMuted: jest.fn(),
+    getMutedUserIds: jest.fn(),
+  };
+
   const mockNotification = {
     id: 1,
     type: NotificationType.USER_FOLLOWED,
@@ -60,6 +66,8 @@ describe("NotificationsService", () => {
     notificationDeliveryMock.publishNotificationReceived.mockResolvedValue(
       undefined,
     );
+    mutesServiceMock.isMuted.mockResolvedValue(false);
+    mutesServiceMock.getMutedUserIds.mockResolvedValue([]);
 
     moduleRef = await Test.createTestingModule({
       providers: [
@@ -71,6 +79,10 @@ describe("NotificationsService", () => {
         {
           provide: NotificationDeliveryService,
           useValue: notificationDeliveryMock,
+        },
+        {
+          provide: MutesService,
+          useValue: mutesServiceMock,
         },
       ],
     }).compile();
@@ -221,6 +233,26 @@ describe("NotificationsService", () => {
       ).not.toHaveBeenCalled();
     });
 
+    it("should not persist or publish notifications for muted actors", async () => {
+      prismaMock.userBlock.findFirst.mockResolvedValue(null);
+      mutesServiceMock.isMuted.mockResolvedValue(true);
+
+      const result = await service.createAndPublishNotification({
+        recipientId: 1,
+        actorId: 2,
+        type: NotificationType.USER_FOLLOWED,
+        title: "New follower",
+        body: "john started following you",
+        entityId: 10,
+      });
+
+      expect(result).toBeNull();
+      expect(prismaMock.notification.create).not.toHaveBeenCalled();
+      expect(
+        notificationDeliveryMock.publishNotificationReceived,
+      ).not.toHaveBeenCalled();
+    });
+
     it("creates and publishes post mention notifications", async () => {
       const mentionNotification = {
         ...mockNotification,
@@ -330,6 +362,31 @@ describe("NotificationsService", () => {
       expect(updateArgs?.data.realtimeDeliveredAt).toBeInstanceOf(Date);
     });
 
+    it("suppresses realtime delivery for muted actors and marks it already delivered", async () => {
+      prismaMock.notification.findUnique = jest.fn().mockResolvedValue({
+        ...mockNotification,
+        realtimeDeliveredAt: null,
+      });
+      prismaMock.notification.updateMany.mockResolvedValue({ count: 1 });
+      mutesServiceMock.isMuted.mockResolvedValue(true);
+
+      const result = await service.publishPersistedNotificationIfNeeded(1);
+
+      expect(result).toBe("already-delivered");
+      expect(
+        notificationDeliveryMock.publishNotificationReceived,
+      ).not.toHaveBeenCalled();
+      expect(prismaMock.notification.updateMany).toHaveBeenCalledWith({
+        where: {
+          id: 1,
+          realtimeDeliveredAt: null,
+        },
+        data: {
+          realtimeDeliveredAt: expect.any(Date) as Date,
+        },
+      });
+    });
+
     it("returns already-delivered when realtime delivery was recorded before", async () => {
       prismaMock.notification.findUnique = jest.fn().mockResolvedValue({
         ...mockNotification,
@@ -375,6 +432,23 @@ describe("NotificationsService", () => {
       expect(result.items).toEqual([mockNotification]);
       expect(result.pageInfo.hasNextPage).toBe(false);
       expect(result.pageInfo.endCursor).toEqual(expect.any(String));
+    });
+
+    it("filters out notifications from muted actors", async () => {
+      prismaMock.notification.findMany.mockResolvedValue([mockNotification]);
+      mutesServiceMock.getMutedUserIds.mockResolvedValue([2, 3]);
+
+      await service.findMyNotifications(1, { first: 5 });
+
+      expect(prismaMock.notification.findMany).toHaveBeenCalledWith({
+        where: {
+          recipientId: 1,
+          actorId: { notIn: [2, 3] },
+        },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take: 6,
+        select: NotificationSelect,
+      });
     });
 
     it("should use provided first when within max limit", async () => {

@@ -4,6 +4,7 @@ import { CacheHelpersModule } from "@/common/cache/cache-helpers.module";
 import { MentionsModule } from "@/mentions/mentions.module";
 import { CommentsModule } from "@/comments/comments.module";
 import { MediaModule } from "@/media/media.module";
+import { MutesModule } from "@/mutes/mutes.module";
 
 import { HomeFeedProjectionService } from "@/posts/home-feed-projection.service";
 import { HomeFeedOutboxHandler } from "@/posts/home-feed-outbox.handler";
@@ -19,6 +20,7 @@ import { PrismaModule } from "@/prisma/prisma.module";
     PrismaModule,
     CacheHelpersModule,
     MediaModule,
+    MutesModule,
     forwardRef(() => CommentsModule),
     MentionsModule,
   ],

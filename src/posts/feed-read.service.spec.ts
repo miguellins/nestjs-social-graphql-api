@@ -9,6 +9,7 @@ import { ChronologicalOrder } from "@/common/enums/chronological-order.enum";
 import { FeedReadService } from "@/posts/feed-read.service";
 import { HomeFeedItemSelect } from "@/posts/dto/home-feed-item.dto";
 import { PostReadService } from "@/posts/post-read.service";
+import { MutesService } from "@/mutes/mutes.service";
 
 import { MediaReadProjectionService } from "@/media/media-read-projection.service";
 import { R2StorageService } from "@/media/storage/r2-storage.service";
@@ -38,6 +39,10 @@ describe("FeedReadService", () => {
 
   const postReadServiceMock = {
     getBlockedAuthorIds: jest.fn(),
+  };
+
+  const mutesServiceMock = {
+    getMutedUserIds: jest.fn(),
   };
 
   const r2StorageMock = {
@@ -97,6 +102,7 @@ describe("FeedReadService", () => {
       accountState: AccountState.ACTIVE,
     });
     postReadServiceMock.getBlockedAuthorIds.mockResolvedValue([]);
+    mutesServiceMock.getMutedUserIds.mockResolvedValue([]);
     r2StorageMock.getPublicUrl.mockImplementation(
       (objectKey: string) => `https://media.example.com/${objectKey}`,
     );
@@ -107,6 +113,7 @@ describe("FeedReadService", () => {
         MediaReadProjectionService,
         { provide: PrismaService, useValue: prismaMock },
         { provide: PostReadService, useValue: postReadServiceMock },
+        { provide: MutesService, useValue: mutesServiceMock },
         { provide: R2StorageService, useValue: r2StorageMock },
         { provide: OutboxService, useValue: outboxServiceMock },
         {
@@ -236,6 +243,7 @@ describe("FeedReadService", () => {
         MediaReadProjectionService,
         { provide: PrismaService, useValue: prismaMock },
         { provide: PostReadService, useValue: postReadServiceMock },
+        { provide: MutesService, useValue: mutesServiceMock },
         { provide: R2StorageService, useValue: r2StorageMock },
         { provide: OutboxService, useValue: outboxServiceMock },
         { provide: ConfigService, useValue: configServiceMock },
@@ -258,7 +266,7 @@ describe("FeedReadService", () => {
 
     expect(prismaMock.homeFeedEntry.findMany).toHaveBeenCalledWith({
       take: 2,
-      where: { userId: 7, hiddenAt: null },
+      where: { AND: [{ userId: 7 }, { hiddenAt: null }] },
       orderBy: [{ postCreatedAt: "desc" }, { postId: "desc" }],
       select: { postId: true, postCreatedAt: true },
     });
@@ -313,6 +321,7 @@ describe("FeedReadService", () => {
         MediaReadProjectionService,
         { provide: PrismaService, useValue: prismaMock },
         { provide: PostReadService, useValue: postReadServiceMock },
+        { provide: MutesService, useValue: mutesServiceMock },
         { provide: R2StorageService, useValue: r2StorageMock },
         { provide: OutboxService, useValue: outboxServiceMock },
         { provide: ConfigService, useValue: configServiceMock },

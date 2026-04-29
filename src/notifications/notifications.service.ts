@@ -29,6 +29,8 @@ import {
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { PrismaService } from "@/prisma/prisma.service";
 
+import { MutesService } from "@/mutes/mutes.service";
+
 type PaginationParams = {
   after?: string;
   first?: number;
@@ -44,6 +46,7 @@ export class NotificationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationDelivery: NotificationDeliveryService,
+    private readonly mutesService: MutesService,
   ) {}
 
   // Persists the notification first, then treats realtime delivery as best-effort follow-up work
@@ -98,6 +101,10 @@ export class NotificationsService {
 
     if (blockRelationship) return null;
 
+    if (await this.mutesService.isMuted(data.recipientId, data.actorId)) {
+      return null;
+    }
+
     return client.notification.create({
       data,
 
@@ -118,6 +125,26 @@ export class NotificationsService {
 
     if (!notification) return "missing";
     if (notification.realtimeDeliveredAt) return "already-delivered";
+
+    if (
+      await this.mutesService.isMuted(
+        notification.recipientId,
+        notification.actorId,
+      )
+    ) {
+      // Avoid repeated outbox retries for suppressed notifications.
+      await this.prisma.notification.updateMany({
+        where: {
+          id: notificationId,
+          realtimeDeliveredAt: null,
+        },
+        data: {
+          realtimeDeliveredAt: new Date(),
+        },
+      });
+
+      return "already-delivered";
+    }
 
     await this.notificationDelivery.publishNotificationReceived(notification);
 
@@ -144,6 +171,7 @@ export class NotificationsService {
     const orderby = params?.orderBy ?? ChronologicalOrder.NEWEST;
     const cursor = params?.after ? decodeChronoCursor(params.after) : undefined;
     const cursorFilter = buildChronologicalCursorFilter(cursor, orderby);
+    const mutedActorIds = await this.mutesService.getMutedUserIds(userId);
 
     const readFilter =
       status === NotificationReadStatus.READ
@@ -159,6 +187,9 @@ export class NotificationsService {
               {
                 recipientId: userId,
                 ...readFilter,
+                ...(mutedActorIds.length > 0
+                  ? { actorId: { notIn: mutedActorIds } }
+                  : {}),
               },
               cursorFilter,
             ],
@@ -166,6 +197,9 @@ export class NotificationsService {
         : {
             recipientId: userId,
             ...readFilter,
+            ...(mutedActorIds.length > 0
+              ? { actorId: { notIn: mutedActorIds } }
+              : {}),
           },
       orderBy: [
         { createdAt: toSortDirection(orderby) },

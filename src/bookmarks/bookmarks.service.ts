@@ -26,6 +26,7 @@ import {
 import { BookmarkSelect, type BookmarkDTO } from "@/bookmarks/dto/bookmark.dto";
 
 import { PostReadService } from "@/posts/post-read.service";
+import { MutesService } from "@/mutes/mutes.service";
 
 import { AccountState } from "@/users/enums/account-state.enum";
 
@@ -48,6 +49,7 @@ export class BookmarksService {
     private readonly prisma: PrismaService,
     private readonly cacheHelper: CacheHelperService,
     private readonly postReadService: PostReadService,
+    private readonly mutesService: MutesService,
   ) {}
 
   async bookmarkPost(
@@ -218,6 +220,7 @@ export class BookmarksService {
   ): Promise<Prisma.PostWhereInput> {
     const blockedAuthorIds =
       await this.postReadService.getBlockedAuthorIds(viewerId);
+    const mutedAuthorIds = await this.mutesService.getMutedUserIds(viewerId);
     const filters: Prisma.PostWhereInput[] = [
       {
         removedAt: null,
@@ -240,6 +243,14 @@ export class BookmarksService {
       filters.push({
         authorId: {
           notIn: blockedAuthorIds,
+        },
+      });
+    }
+
+    if (mutedAuthorIds.length > 0) {
+      filters.push({
+        authorId: {
+          notIn: mutedAuthorIds,
         },
       });
     }

@@ -11,6 +11,7 @@ import { ChronologicalOrder } from "@/common/enums/chronological-order.enum";
 import { encodeChronoCursor } from "@/common/pagination/chrono-cursor";
 
 import { PostReadService } from "@/posts/post-read.service";
+import { MutesService } from "@/mutes/mutes.service";
 
 import { PrismaService } from "@/prisma/prisma.service";
 
@@ -47,6 +48,10 @@ describe("BookmarksService", () => {
     buildViewerVisibilityFilters: jest.fn(),
   };
 
+  const mutesServiceMock = {
+    getMutedUserIds: jest.fn(),
+  };
+
   beforeEach(async () => {
     jest.resetAllMocks();
 
@@ -54,6 +59,7 @@ describe("BookmarksService", () => {
       accountState: AccountState.ACTIVE,
     });
     postReadServiceMock.getBlockedAuthorIds.mockResolvedValue([]);
+    mutesServiceMock.getMutedUserIds.mockResolvedValue([]);
     postReadServiceMock.buildViewerVisibilityFilters.mockReturnValue([
       {
         OR: [
@@ -77,6 +83,7 @@ describe("BookmarksService", () => {
         { provide: PrismaService, useValue: prismaMock },
         { provide: CacheHelperService, useValue: cacheMock },
         { provide: PostReadService, useValue: postReadServiceMock },
+        { provide: MutesService, useValue: mutesServiceMock },
       ],
     }).compile();
 

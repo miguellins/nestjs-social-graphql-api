@@ -29,6 +29,8 @@ import { MediaReadProjectionService } from "@/media/media-read-projection.servic
 
 import { CommentsReadService } from "@/comments/comments-read.service";
 
+import { MutesService } from "@/mutes/mutes.service";
+
 import { PrismaService } from "@/prisma/prisma.service";
 
 import type { Prisma } from "@prisma/client";
@@ -45,6 +47,7 @@ export class PostReadService {
     private readonly prisma: PrismaService,
     private readonly mediaReadProjection: MediaReadProjectionService,
     private readonly commentsReadService: CommentsReadService,
+    private readonly mutesService: MutesService,
   ) {}
 
   // Returns one detailed post view with bounded likes and comments
@@ -62,6 +65,9 @@ export class PostReadService {
     const blockedAuthorIds = viewerId
       ? await this.getBlockedAuthorIds(viewerId)
       : [];
+    const mutedAuthorIds = viewerId
+      ? await this.mutesService.getMutedUserIds(viewerId)
+      : [];
 
     const post = await this.prisma.post.findFirst({
       where: {
@@ -77,6 +83,9 @@ export class PostReadService {
           },
           ...(blockedAuthorIds.length > 0
             ? [{ authorId: { notIn: blockedAuthorIds } }]
+            : []),
+          ...(mutedAuthorIds.length > 0
+            ? [{ authorId: { notIn: mutedAuthorIds } }]
             : []),
           ...this.buildViewerVisibilityFilters(viewerId),
         ],
@@ -129,6 +138,8 @@ export class PostReadService {
     const blockedAuthorIds = relatedBlocks.map((block) =>
       block.blockerId === currentUserId ? block.blockedId : block.blockerId,
     );
+    const mutedAuthorIds =
+      await this.mutesService.getMutedUserIds(currentUserId);
 
     const rows = await this.prisma.post.findMany({
       where: {
@@ -158,6 +169,9 @@ export class PostReadService {
           },
           ...(blockedAuthorIds.length > 0
             ? [{ authorId: { notIn: blockedAuthorIds } }]
+            : []),
+          ...(mutedAuthorIds.length > 0
+            ? [{ authorId: { notIn: mutedAuthorIds } }]
             : []),
           ...(cursorFilter ? [cursorFilter] : []),
         ],

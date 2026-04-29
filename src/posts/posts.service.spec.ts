@@ -5,6 +5,7 @@ import {
 } from "@nestjs/common";
 
 import { Test, TestingModule } from "@nestjs/testing";
+import { ConfigService } from "@nestjs/config";
 
 import { Prisma } from "@prisma/client";
 
@@ -32,8 +33,10 @@ import { PostReadService } from "@/posts/post-read.service";
 import { PrismaService } from "@/prisma/prisma.service";
 import { AccountState } from "@/users/enums/account-state.enum";
 import { UserPrivacySetting } from "@/users/enums/user-privacy-setting.enum";
+import { MutesService } from "@/mutes/mutes.service";
 
 import { PostsService } from "./posts.service";
+import { OutboxService } from "@/outbox/outbox.service";
 
 describe("PostsService", () => {
   let service: PostsService;
@@ -136,6 +139,22 @@ describe("PostsService", () => {
     syncPostMentions: jest.fn(),
   };
 
+  const outboxServiceMock = {
+    enqueue: jest.fn(),
+  };
+
+  const configServiceMock = {
+    get: jest.fn((key: string) => {
+      if (key === "FEED_PROJECTION_ENQUEUE_ENABLED") return false;
+      return undefined;
+    }),
+  };
+
+  const mutesServiceMock = {
+    getMutedUserIds: jest.fn(),
+    isMuted: jest.fn(),
+  };
+
   beforeEach(async () => {
     jest.clearAllMocks();
     mem.clear();
@@ -151,6 +170,8 @@ describe("PostsService", () => {
     commentsReadServiceMock.listThreadedCommentsForPost.mockResolvedValue([]);
     mentionsServiceMock.validatePostContentMentions.mockReturnValue(undefined);
     mentionsServiceMock.syncPostMentions.mockResolvedValue(undefined);
+    mutesServiceMock.getMutedUserIds.mockResolvedValue([]);
+    mutesServiceMock.isMuted.mockResolvedValue(false);
 
     cacheMock.get.mockImplementation((key: string) =>
       Promise.resolve(mem.get(key)),
@@ -183,6 +204,9 @@ describe("PostsService", () => {
         { provide: R2StorageService, useValue: r2StorageMock },
         { provide: CommentsReadService, useValue: commentsReadServiceMock },
         { provide: MentionsService, useValue: mentionsServiceMock },
+        { provide: MutesService, useValue: mutesServiceMock },
+        { provide: OutboxService, useValue: outboxServiceMock },
+        { provide: ConfigService, useValue: configServiceMock },
       ],
     }).compile();
 

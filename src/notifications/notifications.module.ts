@@ -6,7 +6,10 @@ import { NotificationOutboxHandler } from "@/notifications/notification-outbox.h
 import { NotificationsResolver } from "@/notifications/notifications.resolver";
 import { NotificationsService } from "@/notifications/notifications.service";
 
+import { MutesModule } from "@/mutes/mutes.module";
+
 @Module({
+  imports: [MutesModule],
   providers: [
     NotificationDeliveryService,
     NotificationOutboxHandler,

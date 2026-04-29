@@ -27,6 +27,8 @@ import {
 import { UserPrivacySetting } from "@/users/enums/user-privacy-setting.enum";
 import { AccountState } from "@/users/enums/account-state.enum";
 
+import { MutesService } from "@/mutes/mutes.service";
+
 import { PrismaService } from "@/prisma/prisma.service";
 
 type FindCommentsByPostParams = {
@@ -51,7 +53,10 @@ const INLINE_REPLIES_LIMIT = 3;
 
 @Injectable()
 export class CommentsReadService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mutesService: MutesService,
+  ) {}
 
   async findCommentsByPost({
     after,
@@ -70,6 +75,10 @@ export class CommentsReadService {
     const orderby = orderBy ?? ChronologicalOrder.NEWEST;
     const cursor = after ? decodeChronoCursor(after) : undefined;
     const cursorFilter = buildChronologicalCursorFilter(cursor, orderby);
+    const mutedAuthorIds =
+      viewerId !== undefined
+        ? await this.mutesService.getMutedUserIds(viewerId)
+        : [];
 
     const rows = await this.prisma.comment.findMany({
       take: normalizedTake + 1,
@@ -80,6 +89,9 @@ export class CommentsReadService {
                 postId,
                 parentCommentId: null,
                 removedAt: null,
+                ...(mutedAuthorIds.length > 0
+                  ? { authorId: { notIn: mutedAuthorIds } }
+                  : {}),
               },
               cursorFilter,
             ],
@@ -88,6 +100,9 @@ export class CommentsReadService {
             postId,
             parentCommentId: null,
             removedAt: null,
+            ...(mutedAuthorIds.length > 0
+              ? { authorId: { notIn: mutedAuthorIds } }
+              : {}),
           },
       orderBy: [
         { createdAt: toSortDirection(orderby) },
@@ -99,7 +114,7 @@ export class CommentsReadService {
     const page = buildCursorPage(rows, normalizedTake);
 
     return {
-      items: await this.attachReplies(page.items),
+      items: await this.attachReplies(page.items, mutedAuthorIds),
       pageInfo: page.pageInfo,
     };
   }
@@ -111,6 +126,10 @@ export class CommentsReadService {
     orderBy: ChronologicalOrder = ChronologicalOrder.NEWEST,
   ): Promise<SafeCommentDTO[]> {
     await this.getReadablePostOrThrow(postId, viewerId);
+    const mutedAuthorIds =
+      viewerId !== undefined && viewerId !== null
+        ? await this.mutesService.getMutedUserIds(viewerId)
+        : [];
 
     const rows = await this.prisma.comment.findMany({
       take,
@@ -118,6 +137,9 @@ export class CommentsReadService {
         postId,
         parentCommentId: null,
         removedAt: null,
+        ...(mutedAuthorIds.length > 0
+          ? { authorId: { notIn: mutedAuthorIds } }
+          : {}),
       },
       orderBy: [
         { createdAt: toSortDirection(orderBy) },
@@ -126,7 +148,7 @@ export class CommentsReadService {
       select: SafeCommentSelect,
     });
 
-    return this.attachReplies(rows);
+    return this.attachReplies(rows, mutedAuthorIds);
   }
 
   async getReadablePostOrThrow(
@@ -163,8 +185,10 @@ export class CommentsReadService {
     return post;
   }
 
+  /** Attaches bounded inline replies to each root comment while preserving reply counts. */
   private async attachReplies(
     parents: SafeCommentRecord[],
+    mutedAuthorIds: number[],
   ): Promise<SafeCommentDTO[]> {
     if (parents.length === 0) {
       return [];
@@ -177,6 +201,9 @@ export class CommentsReadService {
           in: parentIds,
         },
         removedAt: null,
+        ...(mutedAuthorIds.length > 0
+          ? { authorId: { notIn: mutedAuthorIds } }
+          : {}),
       },
       orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       select: SafeCommentSelect,
@@ -205,10 +232,12 @@ export class CommentsReadService {
     });
   }
 
+  /** Projects a full safe comment record into the nested reply DTO shape. */
   private toReplyDTO(reply: SafeCommentRecord): SafeCommentReplyDTO {
     return reply;
   }
 
+  /** Ensures the current viewer account exists and can perform comment reads. */
   private async assertActiveCurrentUserById(
     currentUserId: number,
   ): Promise<void> {
@@ -238,6 +267,7 @@ export class CommentsReadService {
     }
   }
 
+  /** Checks whether the viewer can read a post's comment surface. */
   private async canViewerReadPostContent(
     viewerId: number | undefined | null,
     post: {
@@ -272,6 +302,10 @@ export class CommentsReadService {
     });
 
     if (blockRelationship) {
+      return false;
+    }
+
+    if (await this.mutesService.isMuted(viewerId, post.authorId)) {
       return false;
     }
 

@@ -17,6 +17,7 @@ import { FollowsModule } from "@/follows/follows.module";
 import { ReportsModule } from "@/reports/reports.module";
 import { BlocksModule } from "@/blocks/blocks.module";
 import { OutboxModule } from "@/outbox/outbox.module";
+import { MutesModule } from "@/mutes/mutes.module";
 import { LikesModule } from "@/likes/likes.module";
 import { PostsModule } from "@/posts/posts.module";
 import { UsersModule } from "@/users/users.module";
@@ -70,6 +71,7 @@ import { validateEnv } from "@/config/env/env.schema";
     /** Application Modules */
     OpsModule,
     AuthModule,
+    MutesModule,
     UsersModule,
     PostsModule,
     MediaModule,

@@ -24,13 +24,15 @@ import {
   HomeFeedItemSelect,
 } from "@/posts/dto/home-feed-item.dto";
 
-import { AccountState } from "@/users/enums/account-state.enum";
-
-import { MediaReadProjectionService } from "@/media/media-read-projection.service";
-
 import { HOME_FEED_USER_BOOTSTRAP_EVENT } from "@/outbox/events/home-feed-user-bootstrap.event";
 import { HOME_FEED_POST_CLEANUP_EVENT } from "@/outbox/events/home-feed-cleanup.event";
 import { OutboxService } from "@/outbox/outbox.service";
+
+import { MediaReadProjectionService } from "@/media/media-read-projection.service";
+
+import { AccountState } from "@/users/enums/account-state.enum";
+
+import { MutesService } from "@/mutes/mutes.service";
 
 import { PrismaService } from "@/prisma/prisma.service";
 import { Prisma } from "@prisma/client";
@@ -83,6 +85,7 @@ export class FeedReadService {
     private readonly prisma: PrismaService,
     private readonly mediaReadProjection: MediaReadProjectionService,
     private readonly postReadService: PostReadService,
+    private readonly mutesService: MutesService,
     private readonly outboxService: OutboxService,
     configService: ConfigService,
   ) {
@@ -116,6 +119,7 @@ export class FeedReadService {
       true;
   }
 
+  /** Decides whether the current request should read from the projected feed. */
   private async shouldUseProjectionRead(
     currentUserId: number,
   ): Promise<boolean> {
@@ -138,6 +142,7 @@ export class FeedReadService {
     return this.isProjectionPopulatedOrBootstrapped(currentUserId);
   }
 
+  /** Checks projection readiness and queues a bootstrap when required. */
   private async isProjectionPopulatedOrBootstrapped(
     currentUserId: number,
   ): Promise<boolean> {
@@ -154,6 +159,7 @@ export class FeedReadService {
     return false;
   }
 
+  /** Queues best-effort projected-feed bootstrap work for one user. */
   private bestEffortEnqueueHomeFeedBootstrap(currentUserId: number): void {
     if (!this.feedProjectionEnqueueEnabled) return;
 
@@ -172,6 +178,7 @@ export class FeedReadService {
     );
   }
 
+  /** Reads the home feed directly from posts and follow relationships. */
   private async getHomeFeedFanoutOnRead(
     currentUserId: number,
     params?: HomeFeedParams,
@@ -196,6 +203,8 @@ export class FeedReadService {
       : undefined;
     const blockedAuthorIds =
       await this.postReadService.getBlockedAuthorIds(currentUserId);
+    const mutedAuthorIds =
+      await this.mutesService.getMutedUserIds(currentUserId);
 
     const filters: Prisma.PostWhereInput[] = [
       {
@@ -228,6 +237,14 @@ export class FeedReadService {
       filters.push({
         authorId: {
           notIn: blockedAuthorIds,
+        },
+      });
+    }
+
+    if (mutedAuthorIds.length > 0) {
+      filters.push({
+        authorId: {
+          notIn: mutedAuthorIds,
         },
       });
     }
@@ -270,6 +287,7 @@ export class FeedReadService {
     };
   }
 
+  /** Reads the home feed from persisted projection entries and hydrates posts. */
   private async getHomeFeedFromProjection(
     currentUserId: number,
     params?: HomeFeedParams,
@@ -294,11 +312,31 @@ export class FeedReadService {
           }
       : undefined;
 
+    const mutedAuthorIds =
+      await this.mutesService.getMutedUserIds(currentUserId);
+
     const entries = await this.prisma.homeFeedEntry.findMany({
       take: take + 1,
       where: cursorFilter
-        ? { AND: [{ userId: currentUserId }, { hiddenAt: null }, cursorFilter] }
-        : { userId: currentUserId, hiddenAt: null },
+        ? {
+            AND: [
+              { userId: currentUserId },
+              { hiddenAt: null },
+              ...(mutedAuthorIds.length > 0
+                ? [{ postAuthorId: { notIn: mutedAuthorIds } }]
+                : []),
+              cursorFilter,
+            ],
+          }
+        : {
+            AND: [
+              { userId: currentUserId },
+              { hiddenAt: null },
+              ...(mutedAuthorIds.length > 0
+                ? [{ postAuthorId: { notIn: mutedAuthorIds } }]
+                : []),
+            ],
+          },
       orderBy: [
         { postCreatedAt: toSortDirection(orderBy) },
         { postId: toSortDirection(orderBy) },
@@ -340,6 +378,10 @@ export class FeedReadService {
 
     if (blockedAuthorIds.length > 0) {
       filters.push({ authorId: { notIn: blockedAuthorIds } });
+    }
+
+    if (mutedAuthorIds.length > 0) {
+      filters.push({ authorId: { notIn: mutedAuthorIds } });
     }
 
     const rows = await this.prisma.post.findMany({
@@ -386,6 +428,7 @@ export class FeedReadService {
     };
   }
 
+  /** Decides whether to compare projected feed results against the legacy path. */
   private shouldShadowCompare(currentUserId: number): boolean {
     if (!this.shadowCompareEnabled) return false;
     if (
@@ -398,6 +441,7 @@ export class FeedReadService {
     return Math.random() < this.shadowCompareSampleRate;
   }
 
+  /** Logs mismatches between projected and legacy home-feed results. */
   private async shadowCompareHomeFeed(
     currentUserId: number,
     params: HomeFeedParams | undefined,
@@ -425,6 +469,7 @@ export class FeedReadService {
     }
   }
 
+  /** Queues best-effort cleanup for projection rows whose posts no longer hydrate. */
   private bestEffortCleanupMissingProjectionRows(postIds: number[]): void {
     if (!this.feedProjectionEnqueueEnabled) return;
 

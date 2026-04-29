@@ -1,4 +1,4 @@
-27/04
+28/04
 
 # MODULE REVIEW
 
@@ -15,13 +15,13 @@ Weakness: `users.service.ts` is still large and multi-responsibility, and the us
 
 
 # Posts / Home Feed: 98/100
-Strength: privacy-aware visibility, block-aware reads, moderation-aware removal, cache discipline, media-aware projection, comment integration, and the split between `PostsService`, `PostReadService`, and `FeedReadService` is cleaner and more defensible. `CommentsReadService` remains the source for threaded comments in post detail reads. The home feed is now materially stronger because it has both the legacy fanout-on-read path and an optional persisted `HomeFeedEntry` projection driven by outbox events, with cohort rollout, forced-user rollout, bootstrap, shadow compare, cleanup, and retention controls.
+Strength: privacy-aware visibility, block-aware and mute-aware reads, moderation-aware removal, cache discipline, media-aware projection, comment integration, and the split between `PostsService`, `PostReadService`, and `FeedReadService` is cleaner and more defensible. `CommentsReadService` remains the source for threaded comments in post detail reads. The home feed is now materially stronger because it has both the legacy fanout-on-read path and an optional persisted `HomeFeedEntry` projection driven by outbox events, with cohort rollout, forced-user rollout, bootstrap, shadow compare, cleanup, retention controls, and muted-author filtering.
 
 Weakness: `posts.service.ts` is still one of the biggest pressure points in the repo, and the home feed remains an early chronological social-graph feed. The new projection is a credible scalability step, but it is not yet a richer ranking, recommendation, explainability, or fully event-platform-backed feed subsystem.
 
 
 # Comments: 98/100
-Strength: one-level threading is implemented cleanly with `parentCommentId`, `CommentsReadService`, bounded inline replies, reply-aware counters, reply notifications, and a non-recursive GraphQL contract through `CommentReply`. The delete-path counter fix remains meaningful, and the comment write path is stronger because reply notifications can be persisted transactionally with a durable outbox event when enabled. Mention syncing, block-aware suppression, self-reply suppression, and outbox-backed reply delivery make the module product-realistic and operationally safer.
+Strength: one-level threading is implemented cleanly with `parentCommentId`, `CommentsReadService`, bounded inline replies, reply-aware counters, reply notifications, and a non-recursive GraphQL contract through `CommentReply`. The delete-path counter fix remains meaningful, and the comment write path is stronger because reply notifications can be persisted transactionally with a durable outbox event when enabled. Mention syncing, block-aware and mute-aware suppression, self-reply suppression, and outbox-backed reply delivery make the module product-realistic and operationally safer.
 
 Weakness: `comments.service.ts` is still a broad coordinator for writes, moderation, counters, cache invalidation, mention syncing, and notification orchestration, and comment threads still stop at a practical v1 shape rather than deeper thread navigation or reply pagination.
 
@@ -41,7 +41,13 @@ Weakness: `follows.service.ts` is still quite large, `deleteFollow` semantics re
 # Blocks: 93/100
 Strength: a clear trust-and-safety baseline with block creation, unblock flow, bidirectional follow cleanup, follow-request cleanup, sensible cache invalidation, and downstream impact on visibility-sensitive reads such as feed, bookmarks, comments, and notifications. The block list also has proper bounded pagination.
 
-Weakness: it is still a minimal safety feature without mute, restrict, hidden interactions, or broader relationship-preference controls.
+Weakness: it is still a compact safety feature without restrict, hidden interactions, richer preference controls, or broader abuse workflow integration.
+
+
+# Mutes: 91/100
+Strength: the new mutes module adds a lighter-weight relationship preference separate from blocking, with `muteUser`, `unmuteUser`, `myMutedUsers`, and `isMuted` GraphQL operations behind `MUTES_ENABLED`. It uses explicit Prisma access, duplicate-safe mute creation, bounded cursor pagination, per-user cache versioning, and service tests. The feature is already integrated into posts, home feed projection reads, post detail reads, comments, bookmarks, and notifications so muted actors are filtered or suppressed consistently across the main read and delivery surfaces.
+
+Weakness: the feature is intentionally narrow and flag-gated. It has no expiration, reason/category, bulk management, audit trail, notification preference UI, or product-level controls for muting specific content types rather than whole users. Cache invalidation is still simple, and there is no operations documentation for the module yet.
 
 
 # Reports: 95/100
@@ -51,7 +57,7 @@ Weakness: `reports.service.ts` still combines intake and review concerns, and th
 
 
 # Notifications: 97/100
-Strength: durable persistence before publish, self-notification suppression, block-aware suppression, explicit trigger/delivery separation, `COMMENT_REPLIED` support, unread count, mark-as-read flows, and working realtime delivery through `notificationReceived` give this module solid product footing. It is materially stronger because reply and follow-request notifications can be persisted first and then delivered through the outbox-backed worker path instead of relying only on immediate best-effort publish. Mention-driven notifications and reply flows make it meaningfully more complete than a simple in-app alert list.
+Strength: durable persistence before publish, self-notification suppression, block-aware and mute-aware suppression, explicit trigger/delivery separation, `COMMENT_REPLIED` support, unread count, mark-as-read flows, muted-actor filtering in notification lists, and working realtime delivery through `notificationReceived` give this module solid product footing. It is materially stronger because reply and follow-request notifications can be persisted first and then delivered through the outbox-backed worker path instead of relying only on immediate best-effort publish. Mention-driven notifications and reply flows make it meaningfully more complete than a simple in-app alert list.
 
 Weakness: notification coverage is still relatively narrow overall, with a limited event set and no user preferences, digesting, channel routing, delivery history beyond the current realtime-delivered marker, or broader multi-channel delivery strategy.
 
@@ -81,7 +87,7 @@ Weakness: the feature is still scoped to mention parsing/sync/notify flows rathe
 
 
 # Bookmarks: 91/100
-Strength: viewer-aware bookmark visibility, per-user versioned cache invalidation, active-account enforcement, and reuse of `PostReadService` visibility rules keep the feature consistent with the rest of the platform.
+Strength: viewer-aware and mute-aware bookmark visibility, per-user versioned cache invalidation, active-account enforcement, and reuse of `PostReadService` visibility rules keep the feature consistent with the rest of the platform.
 
 Weakness: it is still a compact utility feature with no richer organization, tagging, collections, or bookmark-specific product depth.
 
@@ -105,7 +111,7 @@ Weakness: invalidation correctness still depends heavily on service discipline a
 
 
 # Config / Environment: 97/100
-Strength: environment validation is fail-fast and typed through Zod, including auth secrets, Redis, R2, GraphQL complexity, outbox controls, and the full home-feed projection rollout surface. Boolean and numeric parsing is explicit, and defaults are documented in code through the schema.
+Strength: environment validation is fail-fast and typed through Zod, including auth secrets, Redis, R2, GraphQL complexity, outbox controls, mutes rollout, and the full home-feed projection rollout surface. Boolean and numeric parsing is explicit, and defaults are documented in code through the schema.
 
 Weakness: the schema is strong, but configuration is still one large flat namespace. As operational surfaces grow, grouped configuration objects or module-local config factories may improve ownership and reduce the cognitive load of global env review.
 
@@ -123,7 +129,7 @@ Weakness: cache invalidation correctness still depends heavily on service discip
 
 
 # Prisma Schema/Data Layer: 98/100
-Strength: the schema supports roles, privacy, account states, refresh sessions, email verification, password reset, follow requests, moderation actions, notifications, media, blocks, mentions, one-level threaded comments, durable outbox events, and now persisted home-feed entries. `HomeFeedEntry` has the right v1 shape for deterministic chronological reads, duplicate protection, relationship hiding, post cleanup, and retention work, with indexes aligned to feed reads and cleanup patterns. Recent work improved correctness through follow-request transition safety, comment counter consistency, media attachment ordering, session index alignment, stronger report dedup handling, persisted outbox-backed notification delivery, and projected home-feed fanout.
+Strength: the schema supports roles, privacy, account states, refresh sessions, email verification, password reset, follow requests, moderation actions, notifications, media, blocks, mutes, mentions, one-level threaded comments, durable outbox events, and now persisted home-feed entries. `HomeFeedEntry` has the right v1 shape for deterministic chronological reads, duplicate protection, relationship hiding, post cleanup, and retention work, with indexes aligned to feed reads and cleanup patterns. Recent work improved correctness through follow-request transition safety, comment counter consistency, media attachment ordering, session index alignment, stronger report dedup handling, persisted outbox-backed notification delivery, projected home-feed fanout, and indexed mute relationships.
 
 Weakness: the `ContentReport` "exactly one of postId/commentId" invariant still needs a reviewed MySQL migration/constraint to be fully database-enforced, and the domain model is still incomplete for a fuller social platform, especially around richer preferences, discovery, recommendation/feed ranking, and advanced moderation relationships.
 

@@ -61,6 +61,8 @@ import { OutboxService } from "@/outbox/outbox.service";
 
 import type { AuthenticatedUser } from "@/auth/authenticated-user.type";
 
+import { MutesService } from "@/mutes/mutes.service";
+
 import { PrismaService } from "@/prisma/prisma.service";
 import { Prisma } from "@prisma/client";
 
@@ -86,6 +88,7 @@ export class PostsService {
     private readonly prisma: PrismaService,
     private readonly cacheHelper: CacheHelperService,
     private readonly postReadService: PostReadService,
+    private readonly mutesService: MutesService,
     private readonly mentionsService: MentionsService,
     private readonly outboxService: OutboxService,
     configService: ConfigService,
@@ -121,6 +124,7 @@ export class PostsService {
       const blockedAuthorIds = await this.postReadService.getBlockedAuthorIds(
         viewer.id,
       );
+      const mutedAuthorIds = await this.mutesService.getMutedUserIds(viewer.id);
       const filters: Prisma.PostWhereInput[] = [
         {
           removedAt: null,
@@ -139,6 +143,14 @@ export class PostsService {
         filters.push({
           authorId: {
             notIn: blockedAuthorIds,
+          },
+        });
+      }
+
+      if (mutedAuthorIds.length > 0) {
+        filters.push({
+          authorId: {
+            notIn: mutedAuthorIds,
           },
         });
       }
@@ -875,6 +887,10 @@ export class PostsService {
     });
 
     if (blockRelationship) {
+      return false;
+    }
+
+    if (await this.mutesService.isMuted(viewerId, author.id)) {
       return false;
     }
 

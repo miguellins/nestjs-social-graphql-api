@@ -10,6 +10,7 @@ import { encodeChronoCursor } from "@/common/pagination/chrono-cursor";
 
 import { PrismaService } from "@/prisma/prisma.service";
 import { SafeCommentSelect } from "@/comments/dto/safe-comment.dto";
+import { MutesService } from "@/mutes/mutes.service";
 
 import { AccountState } from "@/users/enums/account-state.enum";
 import { UserPrivacySetting } from "@/users/enums/user-privacy-setting.enum";
@@ -57,6 +58,11 @@ describe("CommentsReadService", () => {
     },
   };
 
+  const mutesServiceMock = {
+    getMutedUserIds: jest.fn(),
+    isMuted: jest.fn(),
+  };
+
   beforeEach(async () => {
     jest.clearAllMocks();
     prismaMock.user.findUnique.mockResolvedValue({
@@ -73,11 +79,14 @@ describe("CommentsReadService", () => {
     });
     prismaMock.userBlock.findFirst.mockResolvedValue(null);
     prismaMock.follow.findUnique.mockResolvedValue({ id: 1 });
+    mutesServiceMock.getMutedUserIds.mockResolvedValue([]);
+    mutesServiceMock.isMuted.mockResolvedValue(false);
 
     moduleRef = await Test.createTestingModule({
       providers: [
         CommentsReadService,
         { provide: PrismaService, useValue: prismaMock },
+        { provide: MutesService, useValue: mutesServiceMock },
       ],
     }).compile();
 
@@ -290,5 +299,32 @@ describe("CommentsReadService", () => {
     ).rejects.toBeInstanceOf(NotFoundException);
 
     expect(prismaMock.comment.findMany).not.toHaveBeenCalled();
+  });
+
+  it("filters out muted comment authors in list reads", async () => {
+    mutesServiceMock.getMutedUserIds.mockResolvedValue([20]);
+    prismaMock.comment.findMany.mockResolvedValueOnce([
+      makeComment(30),
+      makeComment(10),
+    ]);
+    prismaMock.comment.findMany.mockResolvedValueOnce([]);
+
+    await service.findCommentsByPost({
+      postId: 1,
+      first: 2,
+      viewerId: 99,
+    });
+
+    expect(prismaMock.comment.findMany).toHaveBeenNthCalledWith(1, {
+      take: 3,
+      where: {
+        postId: 1,
+        parentCommentId: null,
+        removedAt: null,
+        authorId: { notIn: [20] },
+      },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      select: SafeCommentSelect,
+    });
   });
 });

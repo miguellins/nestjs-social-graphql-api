@@ -166,6 +166,30 @@ type NotificationPage {
   pageInfo: PageInfo!
 }
 
+"""Cursor-paginated page of users muted by the current user."""
+type MutedUserPage {
+  """Items returned for the current page."""
+  items: [SafeUser!]!
+
+  """Cursor navigation metadata for the current page."""
+  pageInfo: PageInfo!
+}
+
+"""Represents one directional mute relationship edge."""
+type MuteEdgeDTO {
+  """Unique identifier of the mute edge."""
+  id: Int!
+
+  """User id of the muter (the viewer who muted someone)."""
+  muterId: Int!
+
+  """User id of the muted user."""
+  mutedUserId: Int!
+
+  """When this mute edge was created."""
+  createdAt: DateTime!
+}
+
 """Minimal public user representation for nested fields"""
 type SafeUserPreview implements PublicUserIdentity {
   id: ID!
@@ -1054,6 +1078,19 @@ type AuthPayload {
 
 type Query {
   mySessions: [SessionInfo!]!
+  myMutedUsers(
+    """Maximum number of items to return (1-${PAGINATION.MAX_TAKE})."""
+    first: Int
+
+    """
+    Cursor for the last item from the previous page. Reuse it only with the same filter and ordering inputs.
+    """
+    after: String
+
+    """Controls chronological ordering for paged list results."""
+    orderBy: ChronologicalOrder
+  ): MutedUserPage!
+  isMuted(userId: Int!): Boolean!
   users(
     """Maximum number of items to return (1-${PAGINATION.MAX_TAKE})."""
     first: Int
@@ -1298,6 +1335,8 @@ type Mutation {
   verifyEmail(input: VerifyEmailInput!): MessageResponse!
   refreshSession(input: RefreshSessionInput!): AuthPayload!
   logout(input: LogoutInput!): MessageResponse!
+  muteUser(input: MuteUserInput!): MuteEdgeDTO!
+  unmuteUser(input: UnmuteUserInput!): Boolean!
   createUser(input: CreateUserInput!): CreatedUser!
   updateMe(input: UpdateUserInput!): SafeUser!
   updateMyPrivacySetting(input: UpdateMyPrivacySettingInput!): MyPrivacySettings!
@@ -1372,6 +1411,16 @@ input RefreshSessionInput {
 input LogoutInput {
   """Raw refresh token for the session that should be revoked."""
   refreshToken: String!
+}
+
+input MuteUserInput {
+  """Identifier of the user to mute."""
+  userId: Int!
+}
+
+input UnmuteUserInput {
+  """Identifier of the user to unmute."""
+  userId: Int!
 }
 
 input CreateUserInput {

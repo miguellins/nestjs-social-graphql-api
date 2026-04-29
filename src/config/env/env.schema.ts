@@ -101,6 +101,8 @@ export const envSchema = z.object({
     .positive()
     .optional(),
   FEED_PROJECTION_READ_REQUIRE_POPULATED: booleanFromEnv.default(true),
+
+  MUTES_ENABLED: booleanFromEnv.default(false),
 });
 
 /** Type representing the validated application environment variables. */
