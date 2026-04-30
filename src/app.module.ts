@@ -15,6 +15,7 @@ import { BookmarksModule } from "@/bookmarks/bookmarks.module";
 import { CommentsModule } from "@/comments/comments.module";
 import { FollowsModule } from "@/follows/follows.module";
 import { ReportsModule } from "@/reports/reports.module";
+import { MetricsModule } from "@/metrics/metrics.module";
 import { BlocksModule } from "@/blocks/blocks.module";
 import { OutboxModule } from "@/outbox/outbox.module";
 import { MutesModule } from "@/mutes/mutes.module";
@@ -79,6 +80,7 @@ import { validateEnv } from "@/config/env/env.schema";
     OutboxModule,
     BlocksModule,
     LoggingModule,
+    MetricsModule,
     FollowsModule,
     ReportsModule,
     CommentsModule,

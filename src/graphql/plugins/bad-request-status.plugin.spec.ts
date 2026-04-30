@@ -22,7 +22,7 @@ describe("bad-request-status.plugin", () => {
       response: {
         http: {
           status: 500,
-          headers: new Map(),
+          headers: new Map() as never,
         },
         body: {
           kind: "single",
@@ -62,7 +62,7 @@ describe("bad-request-status.plugin", () => {
       response: {
         http: {
           status: 500,
-          headers: new Map(),
+          headers: new Map() as never,
         },
         body: {
           kind: "single",
@@ -102,7 +102,7 @@ describe("bad-request-status.plugin", () => {
       response: {
         http: {
           status: 500,
-          headers: new Map(),
+          headers: new Map() as never,
         },
         body: {
           kind: "single",
@@ -142,7 +142,7 @@ describe("bad-request-status.plugin", () => {
       response: {
         http: {
           status: 400,
-          headers: new Map(),
+          headers: new Map() as never,
         },
         body: {
           kind: "single",

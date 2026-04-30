@@ -16,3 +16,12 @@ export type OutboxSummary = {
   oldestPendingAgeMs: number | null;
   pendingCount: number;
 };
+
+/** Snapshot used to export low-cardinality outbox backlog metrics. */
+export type OutboxMetricsSnapshot = {
+  failedCount: number;
+  oldestPendingAgeSeconds: number;
+  oldestProcessingAgeSeconds: number;
+  pendingCount: number;
+  processingCount: number;
+};

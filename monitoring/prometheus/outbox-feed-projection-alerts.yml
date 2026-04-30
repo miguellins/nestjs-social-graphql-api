@@ -1,0 +1,62 @@
+groups:
+  - name: outbox-feed-projection-observability
+    rules:
+      - alert: OutboxOldestPendingAgeHigh
+        expr: outbox_oldest_pending_age_seconds{process="worker"} > 900
+        for: 10m
+        labels:
+          severity: warning
+          component: outbox
+        annotations:
+          summary: Oldest pending outbox event is older than 15 minutes.
+          description: The worker may be underprovisioned, stopped, or unable to process new pending events.
+
+      - alert: OutboxFailedEventsPresent
+        expr: outbox_failed_count{process="worker"} > 0
+        for: 5m
+        labels:
+          severity: warning
+          component: outbox
+        annotations:
+          summary: Failed outbox events are present.
+          description: Inspect failed rows before requeueing or deleting them.
+
+      - alert: OutboxProcessingStuck
+        expr: outbox_processing_count{process="worker"} > 0 and outbox_oldest_processing_age_seconds{process="worker"} > 600
+        for: 10m
+        labels:
+          severity: warning
+          component: outbox
+        annotations:
+          summary: Outbox events appear stuck in processing.
+          description: Processing rows have remained active for more than 10 minutes.
+
+      - alert: OutboxWorkerTickErrors
+        expr: rate(outbox_worker_tick_errors_total{process="worker"}[5m]) > 0
+        for: 10m
+        labels:
+          severity: warning
+          component: outbox
+        annotations:
+          summary: Outbox worker tick errors are occurring.
+          description: Check worker logs for sanitized tick failure details.
+
+      - alert: OutboxMetricsRefreshFailing
+        expr: rate(metrics_db_refresh_errors_total{process="worker",component="outbox"}[5m]) > 0
+        for: 10m
+        labels:
+          severity: warning
+          component: outbox
+        annotations:
+          summary: DB-backed outbox metrics refresh is failing.
+          description: Backlog gauges may be stale until the worker can refresh DB metrics again.
+
+      - alert: HomeFeedShadowCompareMismatchElevated
+        expr: (rate(home_feed_shadow_compare_mismatch_total{process="api"}[15m]) / clamp_min(rate(home_feed_shadow_compare_total{process="api"}[15m]), 1)) > 0.05 and rate(home_feed_shadow_compare_total{process="api"}[15m]) > 0
+        for: 15m
+        labels:
+          severity: warning
+          component: home-feed-projection
+        annotations:
+          summary: Home feed projection shadow compare mismatch rate is elevated.
+          description: Projection reads are diverging from legacy reads above the initial warning threshold.

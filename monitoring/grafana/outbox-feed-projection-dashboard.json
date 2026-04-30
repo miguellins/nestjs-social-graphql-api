@@ -1,0 +1,287 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "outbox_pending_count{process=\"worker\"}",
+          "legendFormat": "pending",
+          "refId": "A"
+        },
+        {
+          "expr": "outbox_failed_count{process=\"worker\"}",
+          "legendFormat": "failed",
+          "refId": "B"
+        },
+        {
+          "expr": "outbox_processing_count{process=\"worker\"}",
+          "legendFormat": "processing",
+          "refId": "C"
+        }
+      ],
+      "title": "Outbox Backlog",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 0
+      },
+      "id": 2,
+      "targets": [
+        {
+          "expr": "outbox_oldest_pending_age_seconds{process=\"worker\"}",
+          "legendFormat": "oldest pending",
+          "refId": "A"
+        },
+        {
+          "expr": "outbox_oldest_processing_age_seconds{process=\"worker\"}",
+          "legendFormat": "oldest processing",
+          "refId": "B"
+        }
+      ],
+      "title": "Outbox Lag",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 0
+      },
+      "id": 3,
+      "targets": [
+        {
+          "expr": "sum by (outcome) (rate(outbox_events_total{process=\"worker\"}[5m]))",
+          "legendFormat": "{{outcome}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Outbox Event Outcomes",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "id": 4,
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.5, sum by (le, event_type) (rate(outbox_event_processing_seconds_bucket{process=\"worker\"}[5m])))",
+          "legendFormat": "p50 {{event_type}}",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, event_type) (rate(outbox_event_processing_seconds_bucket{process=\"worker\"}[5m])))",
+          "legendFormat": "p95 {{event_type}}",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (le, event_type) (rate(outbox_event_processing_seconds_bucket{process=\"worker\"}[5m])))",
+          "legendFormat": "p99 {{event_type}}",
+          "refId": "C"
+        }
+      ],
+      "title": "Outbox Processing Latency",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "id": 5,
+      "targets": [
+        {
+          "expr": "rate(feed_projection_purge_runs_total{process=\"worker\"}[5m])",
+          "legendFormat": "purge runs",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(feed_projection_purge_errors_total{process=\"worker\"}[5m])",
+          "legendFormat": "purge errors",
+          "refId": "B"
+        },
+        {
+          "expr": "sum by (event_type) (rate(outbox_events_total{process=\"worker\",event_type=~\"feed\\\\.home\\\\..+\"}[5m]))",
+          "legendFormat": "{{event_type}}",
+          "refId": "C"
+        }
+      ],
+      "title": "Feed Projection Maintenance",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "id": 6,
+      "targets": [
+        {
+          "expr": "rate(home_feed_shadow_compare_mismatch_total{process=\"api\"}[15m]) / clamp_min(rate(home_feed_shadow_compare_total{process=\"api\"}[15m]), 1)",
+          "legendFormat": "mismatch ratio",
+          "refId": "A"
+        }
+      ],
+      "title": "Home Feed Shadow Compare Mismatch",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      },
+      "id": 7,
+      "targets": [
+        {
+          "expr": "sum by (outcome) (rate(home_feed_projection_cleanup_enqueue_total{process=\"api\"}[5m]))",
+          "legendFormat": "{{outcome}}",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(metrics_db_refresh_errors_total{process=\"worker\",component=\"outbox\"}[5m])",
+          "legendFormat": "DB refresh errors",
+          "refId": "B"
+        }
+      ],
+      "title": "Read Path Hygiene",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["outbox", "home-feed", "projection"],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "hide": 0,
+        "includeAll": false,
+        "label": "Prometheus",
+        "multi": false,
+        "name": "DS_PROMETHEUS",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "",
+        "type": "datasource"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timezone": "browser",
+  "title": "Outbox + Home Feed Projection",
+  "uid": "outbox-feed-projection",
+  "version": 1,
+  "weekStart": ""
+}

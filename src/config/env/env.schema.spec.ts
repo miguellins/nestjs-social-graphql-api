@@ -48,6 +48,10 @@ describe("validateEnv", () => {
     expect(result.GRAPHQL_COMPLEXITY_WARN_AT).toBe(100);
     expect(result.GRAPHQL_COMPLEXITY_MAX).toBe(500);
     expect(result.GRAPHQL_COMPLEXITY_MAX_QUERY_NODES).toBe(2000);
+    expect(result.METRICS_ENABLED).toBe(false);
+    expect(result.METRICS_HOST).toBe("127.0.0.1");
+    expect(result.METRICS_PORT).toBe(9090);
+    expect(result.METRICS_DB_REFRESH_INTERVAL_MS).toBe(15_000);
     expect(result.OUTBOX_FOLLOW_REQUESTED_ENABLED).toBe(false);
     expect(result.FEED_PROJECTION_ENQUEUE_ENABLED).toBe(false);
     expect(result.FEED_PROJECTION_WORKER_ENABLED).toBe(false);

@@ -182,6 +182,37 @@ describe("OutboxService", () => {
     expect(summary.oldestPendingAgeMs).toEqual(expect.any(Number));
   });
 
+  it("reports outbox backlog metrics snapshot", async () => {
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        OutboxService,
+        { provide: PrismaService, useValue: prismaMock },
+        { provide: ConfigService, useValue: configServiceMock },
+      ],
+    }).compile();
+    const service = moduleRef.get(OutboxService);
+
+    prismaMock.outboxEvent.count
+      .mockResolvedValueOnce(4)
+      .mockResolvedValueOnce(2)
+      .mockResolvedValueOnce(1);
+    prismaMock.outboxEvent.findFirst
+      .mockResolvedValueOnce({
+        availableAt: new Date(Date.now() - 5_000),
+      })
+      .mockResolvedValueOnce({
+        updatedAt: new Date(Date.now() - 10_000),
+      });
+
+    const snapshot = await service.getMetricsSnapshot();
+
+    expect(snapshot.pendingCount).toBe(4);
+    expect(snapshot.failedCount).toBe(2);
+    expect(snapshot.processingCount).toBe(1);
+    expect(snapshot.oldestPendingAgeSeconds).toEqual(expect.any(Number));
+    expect(snapshot.oldestProcessingAgeSeconds).toEqual(expect.any(Number));
+  });
+
   it("reports outbox as enabled for readiness when durable comment replies are enabled without the worker", async () => {
     const replyOnlyConfigServiceMock = {
       get: jest.fn((key: string) => {

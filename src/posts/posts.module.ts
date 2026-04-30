@@ -3,6 +3,7 @@ import { forwardRef, Module } from "@nestjs/common";
 import { CacheHelpersModule } from "@/common/cache/cache-helpers.module";
 import { MentionsModule } from "@/mentions/mentions.module";
 import { CommentsModule } from "@/comments/comments.module";
+import { MetricsModule } from "@/metrics/metrics.module";
 import { MediaModule } from "@/media/media.module";
 import { MutesModule } from "@/mutes/mutes.module";
 
@@ -21,6 +22,7 @@ import { PrismaModule } from "@/prisma/prisma.module";
     CacheHelpersModule,
     MediaModule,
     MutesModule,
+    MetricsModule,
     forwardRef(() => CommentsModule),
     MentionsModule,
   ],

@@ -3,6 +3,7 @@ import { Injectable } from "@nestjs/common";
 
 import type {
   EnqueueOutboxEventInput,
+  OutboxMetricsSnapshot,
   OutboxSummary,
 } from "@/outbox/outbox.types";
 
@@ -215,6 +216,58 @@ export class OutboxService {
       oldestPendingAgeMs: oldestPending
         ? Math.max(0, Date.now() - oldestPending.availableAt.getTime())
         : null,
+    };
+  }
+
+  async getMetricsSnapshot(): Promise<OutboxMetricsSnapshot> {
+    const [
+      pendingCount,
+      failedCount,
+      processingCount,
+      oldestPending,
+      oldestProcessing,
+    ] = await Promise.all([
+      this.prisma.outboxEvent.count({
+        where: { status: OutboxEventStatus.PENDING },
+      }),
+      this.prisma.outboxEvent.count({
+        where: { status: OutboxEventStatus.FAILED },
+      }),
+      this.prisma.outboxEvent.count({
+        where: { status: OutboxEventStatus.PROCESSING },
+      }),
+      this.prisma.outboxEvent.findFirst({
+        where: { status: OutboxEventStatus.PENDING },
+        orderBy: [{ availableAt: "asc" }, { createdAt: "asc" }, { id: "asc" }],
+        select: {
+          availableAt: true,
+        },
+      }),
+      this.prisma.outboxEvent.findFirst({
+        where: { status: OutboxEventStatus.PROCESSING },
+        orderBy: [{ updatedAt: "asc" }, { id: "asc" }],
+        select: {
+          updatedAt: true,
+        },
+      }),
+    ]);
+
+    return {
+      pendingCount,
+      failedCount,
+      processingCount,
+      oldestPendingAgeSeconds: oldestPending
+        ? Math.max(
+            0,
+            (Date.now() - oldestPending.availableAt.getTime()) / 1_000,
+          )
+        : 0,
+      oldestProcessingAgeSeconds: oldestProcessing
+        ? Math.max(
+            0,
+            (Date.now() - oldestProcessing.updatedAt.getTime()) / 1_000,
+          )
+        : 0,
     };
   }
 }

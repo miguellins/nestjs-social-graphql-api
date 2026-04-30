@@ -127,7 +127,7 @@ describe("FollowsService", () => {
   };
 
   const configServiceMock = {
-    get: jest.fn((key: string) => {
+    get: jest.fn<boolean | undefined, [string]>((key: string) => {
       if (key === "OUTBOX_FOLLOW_REQUESTED_ENABLED") return false;
       return undefined;
     }),

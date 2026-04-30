@@ -13,6 +13,11 @@ import {
   HOME_FEED_RELATIONSHIP_HIDE_EVENT,
 } from "@/outbox/events/home-feed-cleanup.event";
 
+import {
+  MetricsRegistryService,
+  type OutboxEventOutcome,
+} from "@/metrics/metrics-registry.service";
+
 import { NotificationOutboxHandler } from "@/notifications/notification-outbox.handler";
 
 import { HomeFeedOutboxHandler } from "@/posts/home-feed-outbox.handler";
@@ -31,6 +36,7 @@ export class OutboxProcessorService {
     private readonly outboxService: OutboxService,
     private readonly notificationOutboxHandler: NotificationOutboxHandler,
     private readonly homeFeedOutboxHandler: HomeFeedOutboxHandler,
+    private readonly metricsRegistry: MetricsRegistryService,
     configService: ConfigService,
   ) {
     this.batchSize = configService.get<number>("OUTBOX_BATCH_SIZE") ?? 20;
@@ -41,6 +47,7 @@ export class OutboxProcessorService {
 
   async processNextBatch(): Promise<number> {
     const events = await this.outboxService.claimPendingBatch(this.batchSize);
+    this.metricsRegistry.recordOutboxBatchClaimed(events.length);
 
     for (const event of events) {
       await this.processOne(event);
@@ -52,10 +59,18 @@ export class OutboxProcessorService {
   private async processOne(event: OutboxEvent): Promise<void> {
     const startedAt = Date.now();
     const attemptCount = await this.outboxService.bumpAttemptCount(event.id);
+    let outcome: OutboxEventOutcome | undefined;
 
     try {
-      await this.dispatch(event);
+      const dispatchOutcome = await this.dispatch(event);
+
+      if (dispatchOutcome === "retry_scheduled") {
+        outcome = "retry_scheduled";
+        return;
+      }
+
       await this.outboxService.markProcessed(event.id);
+      outcome = "processed";
       this.logger.log("Outbox event processed", {
         eventType: event.eventType,
         eventId: event.id,
@@ -70,6 +85,7 @@ export class OutboxProcessorService {
 
       if (error instanceof OutboxPermanentError) {
         await this.outboxService.markFailed(event.id, message);
+        outcome = "failed_permanent";
         this.logger.error(
           "Outbox event failed permanently",
           stack,
@@ -87,6 +103,7 @@ export class OutboxProcessorService {
 
       if (attemptCount >= this.maxAttempts) {
         await this.outboxService.markFailed(event.id, message);
+        outcome = "failed_exhausted";
         this.logger.error(
           "Outbox event exhausted retries",
           stack,
@@ -107,6 +124,7 @@ export class OutboxProcessorService {
       );
 
       await this.outboxService.rescheduleRetry(event.id, message, availableAt);
+      outcome = "retry_scheduled";
       this.logger.warn("Outbox event scheduled for retry", {
         eventType: event.eventType,
         eventId: event.id,
@@ -115,17 +133,27 @@ export class OutboxProcessorService {
         aggregateId: event.aggregateId,
         retryAt: availableAt.toISOString(),
       });
+    } finally {
+      if (outcome) {
+        this.metricsRegistry.recordOutboxEventProcessed(
+          event.eventType,
+          outcome,
+          (Date.now() - startedAt) / 1_000,
+        );
+      }
     }
   }
 
-  private async dispatch(event: OutboxEvent): Promise<void> {
+  private async dispatch(
+    event: OutboxEvent,
+  ): Promise<"processed" | "retry_scheduled"> {
     switch (event.eventType) {
       case COMMENT_REPLY_NOTIFICATION_DELIVERY_EVENT:
         await this.notificationOutboxHandler.handleCommentReplyDelivery(event);
-        return;
+        return "processed";
       case FOLLOW_REQUEST_NOTIFICATION_DELIVERY_EVENT:
         await this.notificationOutboxHandler.handleFollowRequestDelivery(event);
-        return;
+        return "processed";
       case HOME_FEED_POST_FANOUT_EVENT:
       case HOME_FEED_FOLLOW_BACKFILL_EVENT:
       case HOME_FEED_USER_BOOTSTRAP_EVENT:
@@ -138,10 +166,10 @@ export class OutboxProcessorService {
             "Feed projection worker disabled",
             new Date(Date.now() + 60_000),
           );
-          return;
+          return "retry_scheduled";
         }
         await this.homeFeedOutboxHandler.handle(event);
-        return;
+        return "processed";
       default:
         throw new OutboxPermanentError(
           `Unsupported outbox event type ${event.eventType}`,

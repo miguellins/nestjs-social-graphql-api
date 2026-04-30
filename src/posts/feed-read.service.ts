@@ -30,6 +30,8 @@ import { OutboxService } from "@/outbox/outbox.service";
 
 import { MediaReadProjectionService } from "@/media/media-read-projection.service";
 
+import { MetricsRegistryService } from "@/metrics/metrics-registry.service";
+
 import { AccountState } from "@/users/enums/account-state.enum";
 
 import { MutesService } from "@/mutes/mutes.service";
@@ -87,6 +89,7 @@ export class FeedReadService {
     private readonly postReadService: PostReadService,
     private readonly mutesService: MutesService,
     private readonly outboxService: OutboxService,
+    private readonly metricsRegistry: MetricsRegistryService,
     configService: ConfigService,
   ) {
     this.projectionReadEnabled =
@@ -447,6 +450,7 @@ export class FeedReadService {
     params: HomeFeedParams | undefined,
     projection: CursorPageResult<HomeFeedItemDTO>,
   ): Promise<void> {
+    this.metricsRegistry.incrementHomeFeedShadowCompare();
     const legacy = await this.getHomeFeedFanoutOnRead(currentUserId, params);
 
     const legacyIds = legacy.items.map((item) => item.id);
@@ -458,6 +462,7 @@ export class FeedReadService {
       legacyIds.every((id, idx) => projectionIds[idx] === id);
 
     if (!same) {
+      this.metricsRegistry.incrementHomeFeedShadowCompareMismatch();
       // Keep payload minimal; ids only.
       this.logger.warn("homeFeed shadow compare mismatch", {
         currentUserId,
@@ -471,7 +476,12 @@ export class FeedReadService {
 
   /** Queues best-effort cleanup for projection rows whose posts no longer hydrate. */
   private bestEffortCleanupMissingProjectionRows(postIds: number[]): void {
-    if (!this.feedProjectionEnqueueEnabled) return;
+    if (!this.feedProjectionEnqueueEnabled) {
+      this.metricsRegistry.incrementHomeFeedProjectionCleanupEnqueue(
+        "skipped_disabled",
+      );
+      return;
+    }
 
     void runBestEffort(
       this.logger,
@@ -479,12 +489,22 @@ export class FeedReadService {
       `Failed to enqueue home feed cleanup for missing posts`,
       async () => {
         for (const postId of postIds) {
-          await this.outboxService.enqueue({
-            eventType: HOME_FEED_POST_CLEANUP_EVENT,
-            aggregateType: "post",
-            aggregateId: postId,
-            payload: { postId },
-          });
+          try {
+            await this.outboxService.enqueue({
+              eventType: HOME_FEED_POST_CLEANUP_EVENT,
+              aggregateType: "post",
+              aggregateId: postId,
+              payload: { postId },
+            });
+            this.metricsRegistry.incrementHomeFeedProjectionCleanupEnqueue(
+              "enqueued",
+            );
+          } catch (error) {
+            this.metricsRegistry.incrementHomeFeedProjectionCleanupEnqueue(
+              "failed",
+            );
+            throw error;
+          }
         }
       },
     );

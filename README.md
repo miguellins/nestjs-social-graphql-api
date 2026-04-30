@@ -482,6 +482,10 @@ GRAPHQL_COMPLEXITY_LOG=true
 GRAPHQL_COMPLEXITY_WARN_AT=100
 GRAPHQL_COMPLEXITY_MAX=500
 GRAPHQL_COMPLEXITY_MAX_QUERY_NODES=2000
+METRICS_ENABLED=false
+METRICS_HOST=127.0.0.1
+METRICS_PORT=9090
+METRICS_DB_REFRESH_INTERVAL_MS=15000
 OUTBOX_ENABLED=false
 OUTBOX_COMMENT_REPLIED_ENABLED=false
 OUTBOX_FOLLOW_REQUESTED_ENABLED=false
@@ -498,6 +502,64 @@ FEED_PROJECTION_PURGE_ENABLED=false
 ```
 
 The authoritative validation source is `src/config/env/env.schema.ts`.
+
+When `METRICS_ENABLED=true`, each process exposes Prometheus metrics on a
+dedicated internal HTTP server at `http://METRICS_HOST:METRICS_PORT/metrics`.
+Run the API and worker with different metrics ports if they are colocated on
+the same host.
+
+## Metrics Endpoint
+`MetricsModule` provides a Prometheus-compatible metrics endpoint for the API
+and outbox worker processes. The endpoint is intended for internal scraping
+only and is not exposed through the GraphQL or Nest HTTP route tree.
+
+Enable it per process with:
+```env
+METRICS_ENABLED=true
+METRICS_HOST=127.0.0.1
+METRICS_PORT=9090
+METRICS_DB_REFRESH_INTERVAL_MS=15000
+```
+
+Scrape each process independently:
+```text
+http://METRICS_HOST:METRICS_PORT/metrics
+```
+
+If the API and worker run on the same host, use different ports, such as
+`9090` for the API and `9091` for the worker. Keep `METRICS_HOST` bound to a
+private interface, loopback address, or cluster-internal address.
+
+The v1 metrics surface focuses on outbox and home-feed projection health:
+- `outbox_worker_ticks_total{process="worker"}`
+- `outbox_worker_tick_errors_total{process="worker"}`
+- `outbox_events_total{process="worker",event_type,outcome}`
+- `outbox_event_processing_seconds{process="worker",event_type}`
+- `outbox_batch_size{process="worker"}`
+- `outbox_pending_count{process="worker"}`
+- `outbox_failed_count{process="worker"}`
+- `outbox_processing_count{process="worker"}`
+- `outbox_oldest_pending_age_seconds{process="worker"}`
+- `outbox_oldest_processing_age_seconds{process="worker"}`
+- `metrics_db_last_refresh_timestamp_seconds{process="worker",component="outbox"}`
+- `metrics_db_refresh_errors_total{process="worker",component="outbox"}`
+- `feed_projection_purge_runs_total{process="worker"}`
+- `feed_projection_purge_errors_total{process="worker"}`
+- `feed_projection_purge_seconds{process="worker"}`
+- `home_feed_shadow_compare_total{process="api"}`
+- `home_feed_shadow_compare_mismatch_total{process="api"}`
+- `home_feed_projection_cleanup_enqueue_total{process="api",outcome}`
+
+If `/metrics` is not reachable, confirm `METRICS_ENABLED=true`, verify the
+configured host and port, check for port collisions between colocated
+processes, and confirm the scraper can reach the private bind address. If
+backlog gauges look stale, check `metrics_db_refresh_errors_total`,
+`metrics_db_last_refresh_timestamp_seconds`, worker database connectivity, and
+sanitized worker logs.
+
+Do not add user ids, event ids, aggregate ids, or raw error messages as metric
+labels. Do not fail readiness only because backlog metrics are high; alert on
+metrics instead.
 
 ## Local Setup
 1. Install dependencies:
@@ -564,6 +626,9 @@ src/
   users/           # user CRUD + cache helpers
 prisma/
   schema.prisma
+monitoring/
+  prometheus/      # alert rules for operational metrics
+  grafana/         # dashboard JSON exports
 ```
 
 ## Design Choices Summary
@@ -597,7 +662,8 @@ This codebase is already coherent and production-minded, but it is still intenti
   - session/device management is present but still basic
 - Operational maturity is still limited
   - health checks, request correlation, structured logging, outbox, and worker paths exist
-  - metrics, tracing, dashboards, and deeper worker diagnostics are still missing
+  - metrics and initial dashboards now cover outbox/feed projection health
+  - tracing and broader diagnostics are still missing
 
 Current strengths worth preserving:
 

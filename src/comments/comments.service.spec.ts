@@ -92,7 +92,7 @@ describe("CommentsService", () => {
     enqueue: jest.fn(),
   };
   const configServiceMock = {
-    get: jest.fn((key: string) => {
+    get: jest.fn<boolean | undefined, [string]>((key: string) => {
       if (key === "OUTBOX_COMMENT_REPLIED_ENABLED") return false;
       return undefined;
     }),

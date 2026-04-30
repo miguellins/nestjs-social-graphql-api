@@ -1,4 +1,4 @@
-28/04
+29/04
 
 # MODULE REVIEW
 
@@ -63,9 +63,9 @@ Weakness: notification coverage is still relatively narrow overall, with a limit
 
 
 # Outbox: 97/100
-Strength: the outbox module now gives the project a real durable async backbone for post-commit follow-up work. `OutboxService`, `OutboxProcessorService`, and `OutboxWorkerService` form a credible implementation with persisted rows, claim-and-process semantics, retry scheduling, permanent-failure handling, retention cleanup, and readiness visibility through `/health/ready`. The surface is no longer single-purpose: it handles comment reply notification delivery, follow-request notification delivery, and home-feed projection events for post fanout, follow backfill, user bootstrap, post cleanup, and relationship hiding. The processor also avoids burning retries when the feed projection worker is intentionally disabled.
+Strength: the outbox module now gives the project a real durable async backbone for post-commit follow-up work. `OutboxService`, `OutboxProcessorService`, and `OutboxWorkerService` form a credible implementation with persisted rows, claim-and-process semantics, retry scheduling, permanent-failure handling, retention cleanup, readiness visibility through `/health/ready`, and Prometheus metrics for worker ticks, errors, event outcomes, processing latency, batch size, backlog state, purge health, and DB refresh failures. The surface is no longer single-purpose: it handles comment reply notification delivery, follow-request notification delivery, and home-feed projection events for post fanout, follow backfill, user bootstrap, post cleanup, and relationship hiding. The processor also avoids burning retries when the feed projection worker is intentionally disabled.
 
-Weakness: the module is still compact and uses an explicit dispatcher rather than a broader event-handler registry or job taxonomy. Worker deployment concerns, event observability, queue lag analytics, and richer operational controls will matter more as more domains move onto the outbox.
+Weakness: the module is still compact and uses an explicit dispatcher rather than a broader event-handler registry or job taxonomy. The new metrics provide useful v1 visibility, but worker deployment concerns, richer operational controls, and a more generalized queue platform model will matter more as more domains move onto the outbox.
 
 
 # GraphQL Subscriptions: 97/100
@@ -93,9 +93,15 @@ Weakness: it is still a compact utility feature with no richer organization, tag
 
 
 # Ops / Health: 95/100
-Strength: the project has real liveness/readiness endpoints through `HealthController` and `HealthService`, dependency-aware readiness checks for DB/cache/pubsub, boot-complete tracking, outbox backlog summary, and direct test coverage for the operational wiring. Readiness now reflects the async processing surface through pending/failed outbox counts and oldest pending age.
+Strength: the project has real liveness/readiness endpoints through `HealthController` and `HealthService`, dependency-aware readiness checks for DB/cache/pubsub, boot-complete tracking, outbox backlog summary, and direct test coverage for the operational wiring. Readiness now reflects the async processing surface through pending/failed outbox counts and oldest pending age, while metrics provide a more scrape-friendly view of outbox/feed projection health.
 
-Weakness: the layer is still not production-complete. There is no metrics/tracing posture, no SLO-oriented monitoring stack, no richer queue lag dashboard, and no deeper worker-health or failure analytics beyond the current readiness summary.
+Weakness: the layer is still not production-complete. Metrics now exist for the outbox/feed projection slice, but there is still no tracing posture, broader SLO-oriented monitoring stack, or deeper worker-health and failure analytics across the full application.
+
+
+# Metrics: 95/100
+Strength: `MetricsModule`, `MetricsRegistryService`, and `MetricsServerService` add a real Prometheus-compatible metrics surface behind `METRICS_ENABLED`, with a dedicated internal `/metrics` server per process, typed env configuration, stable low-cardinality metric names, and direct tests for disabled/enabled endpoint behavior and emitted series. The metrics surface covers outbox worker ticks/errors, event outcomes, batch sizes, processing latency, feed projection purge health, DB-backed backlog gauges, shadow compare counters, cleanup enqueue outcomes, and refresh failures. Prometheus alert rules, a Grafana dashboard, and the outbox backlog runbook make the new telemetry operational rather than only code-level instrumentation.
+
+Weakness: the module is intentionally v1 and focused on outbox/feed projection health. It does not yet include a broader metrics taxonomy across all modules, request/GraphQL latency metrics, cache hit/miss metrics, Prisma query timing, tracing correlation, or production deployment manifests for scrape targets and network policy.
 
 
 # Request Context / Logging: 96/100
@@ -111,9 +117,15 @@ Weakness: invalidation correctness still depends heavily on service discipline a
 
 
 # Config / Environment: 97/100
-Strength: environment validation is fail-fast and typed through Zod, including auth secrets, Redis, R2, GraphQL complexity, outbox controls, mutes rollout, and the full home-feed projection rollout surface. Boolean and numeric parsing is explicit, and defaults are documented in code through the schema.
+Strength: environment validation is fail-fast and typed through Zod, including auth secrets, Redis, R2, GraphQL complexity, outbox controls, metrics controls, mutes rollout, and the full home-feed projection rollout surface. Boolean and numeric parsing is explicit, and defaults are documented in code through the schema.
 
 Weakness: the schema is strong, but configuration is still one large flat namespace. As operational surfaces grow, grouped configuration objects or module-local config factories may improve ownership and reduce the cognitive load of global env review.
+
+
+# App Module: 95/100
+Strength: `AppModule` wires the platform coherently, with global environment validation, Redis-backed cache configuration, GraphQL setup, throttling, auth/roles/throttle guards, request context, logging, subscriptions, ops, outbox, metrics, and all feature modules registered in one predictable composition root. The module keeps application-level concerns centralized while leaving business behavior inside feature services.
+
+Weakness: the composition root is still conventional NestJS wiring rather than a richer runtime capability layer. As deployment profiles grow, this area may need clearer module grouping, startup capability reporting, or environment-specific import boundaries to keep global wiring easy to audit.
 
 
 # Bootstrap / Security Setup: 94/100
@@ -125,7 +137,13 @@ Weakness: this layer is mostly conventional NestJS infrastructure. It does not y
 # Shared/Common: 98/100
 Strength: strong shared infrastructure for pagination, caching helpers, validation, auth guards, GraphQL error shaping, throttling, password security, request context, structured logging, and `runBestEffort` patterns gives the codebase a disciplined backbone. The common layer supports both request/GraphQL flows and the outbox-enabled runtime without forcing feature modules into ad hoc infrastructure code.
 
-Weakness: cache invalidation correctness still depends heavily on service discipline rather than stronger centralized enforcement, and the shared observability baseline still stops short of metrics, tracing, and broader operational instrumentation.
+Weakness: cache invalidation correctness still depends heavily on service discipline rather than stronger centralized enforcement, and the shared observability baseline still stops short of tracing and broader cross-module operational instrumentation. Current metrics are valuable but focused on outbox/feed projection behavior.
+
+
+# Prisma Module: 94/100
+Strength: `PrismaModule` is a small global provider module that exposes one shared `PrismaService` across the application, which keeps feature modules from creating ad hoc Prisma clients or accidental extra connection pools. `PrismaService` owns lifecycle connection and disconnect behavior through Nest module hooks and stays intentionally thin.
+
+Weakness: the module is infrastructure-minimal. It does not add query instrumentation, transaction helpers, connection health metadata, or Prisma middleware for cross-cutting concerns such as timing, audit hooks, or safer logging.
 
 
 # Prisma Schema/Data Layer: 98/100
@@ -146,7 +164,7 @@ Strength: shared chronological cursor pagination with deterministic ordering, sh
 Weakness: there are still a few older or feature-specific patterns around the shared model, so pagination is not perfectly uniform everywhere.
 
 
-# Operational / Observability Layer: 95/100
-Strength: this area is materially stronger than the earlier project state. The project has liveness/readiness endpoints, dependency-aware readiness checks for DB/cache/pubsub, structured application logging, request/correlation IDs, boot-complete tracking, direct test coverage for the operational wiring, and a durable async processing surface through the outbox module with backlog visibility exposed in readiness. Home-feed projection purge and worker gating give the background-processing story a more realistic operational shape.
+# Operational / Observability Layer: 97/100
+Strength: this area is materially stronger than the earlier project state. The project has liveness/readiness endpoints, dependency-aware readiness checks for DB/cache/pubsub, structured application logging, request/correlation IDs, boot-complete tracking, direct test coverage for the operational wiring, a dedicated Prometheus-compatible metrics server, and a durable async processing surface through the outbox module with backlog visibility exposed in readiness and metrics. Home-feed projection purge, worker gating, shadow compare metrics, cleanup enqueue metrics, Prometheus alert rules, a Grafana dashboard, and an outbox backlog runbook give the background-processing story a more realistic operational shape.
 
-Weakness: despite the improvement, the layer is still not production-complete. There is still no metrics/tracing posture, no richer SLO-oriented monitoring stack, no broad job taxonomy beyond the current outbox cases, and no deep diagnostics for queue lag, worker health, projection freshness, or failure analytics. Relative to the maturity of the product/backend logic, metrics/tracing and broader background-processing coverage are now the main remaining ops gaps.
+Weakness: despite the improvement, the layer is still not production-complete. Metrics are now real but scoped mostly to outbox/feed projection behavior, and there is still no distributed tracing posture, broad request/cache/Prisma metrics, richer SLO ownership model, broad job taxonomy beyond the current outbox cases, or production deployment manifests for scrape target/network policy wiring. Relative to the maturity of the product/backend logic, tracing and broader cross-module instrumentation are now the main remaining ops gaps.

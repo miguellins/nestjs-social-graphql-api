@@ -11,6 +11,8 @@ import { OutboxService } from "@/outbox/outbox.service";
 
 import { HomeFeedProjectionService } from "@/posts/home-feed-projection.service";
 
+import { MetricsRegistryService } from "@/metrics/metrics-registry.service";
+
 /** Runs the configured polling loop that processes durable outbox events. */
 @Injectable()
 export class OutboxWorkerService implements OnModuleDestroy, OnModuleInit {
@@ -20,16 +22,19 @@ export class OutboxWorkerService implements OnModuleDestroy, OnModuleInit {
   private readonly feedProjectionWorkerEnabled: boolean;
   private readonly feedProjectionPurgeEnabled: boolean;
   private readonly feedProjectionPurgeIntervalMs: number;
+  private readonly metricsDbRefreshIntervalMs: number;
   private timer: NodeJS.Timeout | null = null;
   private isRunning = false;
   private isShuttingDown = false;
   private lastFeedProjectionPurgeAtMs = 0;
+  private lastMetricsDbRefreshAtMs = 0;
 
   constructor(
     configService: ConfigService,
     private readonly outboxProcessor: OutboxProcessorService,
     private readonly outboxService: OutboxService,
     private readonly homeFeedProjection: HomeFeedProjectionService,
+    private readonly metricsRegistry: MetricsRegistryService,
   ) {
     this.enabled = configService.get<boolean>("OUTBOX_ENABLED") ?? false;
     this.pollIntervalMs =
@@ -40,6 +45,8 @@ export class OutboxWorkerService implements OnModuleDestroy, OnModuleInit {
       configService.get<boolean>("FEED_PROJECTION_PURGE_ENABLED") ?? false;
     this.feedProjectionPurgeIntervalMs =
       configService.get<number>("FEED_PROJECTION_PURGE_INTERVAL_MS") ?? 60_000;
+    this.metricsDbRefreshIntervalMs =
+      configService.get<number>("METRICS_DB_REFRESH_INTERVAL_MS") ?? 15_000;
   }
 
   onModuleInit(): void {
@@ -71,6 +78,7 @@ export class OutboxWorkerService implements OnModuleDestroy, OnModuleInit {
     }
 
     this.isRunning = true;
+    this.metricsRegistry.incrementOutboxWorkerTick();
 
     try {
       const processedCount = await this.outboxProcessor.processNextBatch();
@@ -88,9 +96,34 @@ export class OutboxWorkerService implements OnModuleDestroy, OnModuleInit {
         error instanceof Error ? error.stack : undefined,
         OutboxWorkerService.name,
       );
+      this.metricsRegistry.incrementOutboxWorkerTickError();
     } finally {
+      await this.maybeRefreshOutboxMetrics();
       this.isRunning = false;
       this.scheduleNextTick(this.pollIntervalMs);
+    }
+  }
+
+  private async maybeRefreshOutboxMetrics(): Promise<void> {
+    const now = Date.now();
+    if (
+      this.lastMetricsDbRefreshAtMs > 0 &&
+      now - this.lastMetricsDbRefreshAtMs < this.metricsDbRefreshIntervalMs
+    ) {
+      return;
+    }
+
+    try {
+      const metrics = await this.outboxService.getMetricsSnapshot();
+      this.metricsRegistry.setOutboxBacklogMetrics(metrics);
+      this.lastMetricsDbRefreshAtMs = now;
+    } catch (error) {
+      this.metricsRegistry.incrementOutboxMetricsRefreshError();
+      this.logger.error(
+        "Failed to refresh outbox metrics",
+        error instanceof Error ? error.stack : undefined,
+        OutboxWorkerService.name,
+      );
     }
   }
 
@@ -108,10 +141,15 @@ export class OutboxWorkerService implements OnModuleDestroy, OnModuleInit {
     }
 
     this.lastFeedProjectionPurgeAtMs = now;
+    const startedAt = Date.now();
 
     try {
       await this.homeFeedProjection.purgeExpiredEntries();
+      this.metricsRegistry.recordFeedProjectionPurge(
+        (Date.now() - startedAt) / 1_000,
+      );
     } catch (error) {
+      this.metricsRegistry.incrementFeedProjectionPurgeError();
       this.logger.error(
         "Home feed projection purge failed",
         error instanceof Error ? error.stack : undefined,
