@@ -617,6 +617,9 @@ src/
   graphql/         # GraphQL config, middleware, fields, subscriptions
   likes/           # like workflows + counters
   media/           # media upload orchestration and storage integration
+  mentions/        # mention parsing and mention workflows
+  metrics/         # Prometheus-compatible metrics exposure
+  mutes/           # user mute workflows
   notifications/   # notification persistence + delivery
   ops/             # HTTP liveness/readiness endpoints
   outbox/          # durable background event processing
@@ -626,9 +629,15 @@ src/
   users/           # user CRUD + cache helpers
 prisma/
   schema.prisma
+docs/
+  plans/           # implementation plans and operational design notes
+  reviews/         # project and module review documents
+  runbooks/        # operational response guides
+http/              # checked-in HTTP request examples
 monitoring/
   prometheus/      # alert rules for operational metrics
   grafana/         # dashboard JSON exports
+scripts/           # repository maintenance scripts
 ```
 
 ## Design Choices Summary
