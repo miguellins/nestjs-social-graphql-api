@@ -19,6 +19,9 @@ import {
   type CursorPageResult,
 } from "@/common/pagination/cursor-pagination";
 
+import { HOME_FEED_RELATIONSHIP_HIDE_EVENT } from "@/outbox/events/home-feed-cleanup.event";
+import { OutboxService } from "@/outbox/outbox.service";
+
 import { SafeUserSelect, type SafeUserDTO } from "@/users/dto/safe-user.dto";
 
 import { PrismaService } from "@/prisma/prisma.service";
@@ -44,6 +47,7 @@ export class MutesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cacheHelper: CacheHelperService,
+    private readonly outboxService: OutboxService,
     configService: ConfigService,
   ) {
     this.mutesEnabled = configService.get<boolean>("MUTES_ENABLED") ?? false;
@@ -77,6 +81,7 @@ export class MutesService {
     }
 
     let edge: MuteEdgeDTO;
+    let created = false;
 
     try {
       edge = await this.prisma.mute.create({
@@ -91,6 +96,7 @@ export class MutesService {
           createdAt: true,
         },
       });
+      created = true;
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError) {
         if (err.code === "P2002") {
@@ -136,6 +142,25 @@ export class MutesService {
         await this.cacheHelper.bumpVersion(`v:user:${muterId}:bookmarks:list`);
       },
     );
+
+    if (created) {
+      void runBestEffort(
+        this.logger,
+        "error",
+        `Failed to enqueue home feed relationship hide for user ${muterId} -> author ${mutedUserId}`,
+        async () => {
+          await this.outboxService.enqueue({
+            eventType: HOME_FEED_RELATIONSHIP_HIDE_EVENT,
+            aggregateType: "user",
+            aggregateId: muterId,
+            payload: {
+              userId: muterId,
+              authorId: mutedUserId,
+            },
+          });
+        },
+      );
+    }
 
     return edge;
   }

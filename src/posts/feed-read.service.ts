@@ -45,6 +45,12 @@ type HomeFeedParams = {
   orderBy?: ChronologicalOrder;
 };
 
+type ProjectionReadResult = CursorPageResult<HomeFeedItemDTO> & {
+  fallbackReason?: ProjectionFallbackReason;
+};
+
+type ProjectionFallbackReason = "missing_hydration_gap" | "read_error";
+
 @Injectable()
 export class FeedReadService {
   private readonly logger = new Logger(FeedReadService.name);
@@ -58,6 +64,7 @@ export class FeedReadService {
   private readonly projectionReadCohortSampleRate: number;
   private readonly projectionReadForceUserId: number | undefined;
   private readonly projectionReadRequirePopulated: boolean;
+  private readonly projectionUnsafeMissingRatio: number;
 
   /** Returns the authenticated user's home feed with bounded chronological pagination. */
   async getHomeFeed(
@@ -71,10 +78,14 @@ export class FeedReadService {
       return this.getHomeFeedFanoutOnRead(currentUserId, params);
     }
 
-    const projectionResult = await this.getHomeFeedFromProjection(
+    const projectionResult = await this.safeGetHomeFeedFromProjection(
       currentUserId,
       params,
     );
+
+    if (projectionResult.fallbackReason) {
+      return this.getHomeFeedFanoutOnRead(currentUserId, params);
+    }
 
     if (this.shouldShadowCompare(currentUserId)) {
       void this.shadowCompareHomeFeed(currentUserId, params, projectionResult);
@@ -120,6 +131,29 @@ export class FeedReadService {
     this.projectionReadRequirePopulated =
       configService.get<boolean>("FEED_PROJECTION_READ_REQUIRE_POPULATED") ??
       true;
+    this.projectionUnsafeMissingRatio =
+      configService.get<number>("FEED_PROJECTION_UNSAFE_MISSING_RATIO") ?? 0.5;
+  }
+
+  /** Reads from projection and converts unsafe failures into legacy fallback. */
+  private async safeGetHomeFeedFromProjection(
+    currentUserId: number,
+    params?: HomeFeedParams,
+  ): Promise<ProjectionReadResult> {
+    try {
+      return await this.getHomeFeedFromProjection(currentUserId, params);
+    } catch (error) {
+      this.logger.error(
+        "homeFeed projection read failed; falling back to legacy",
+        error instanceof Error ? error.stack : undefined,
+        FeedReadService.name,
+      );
+      return {
+        items: [],
+        pageInfo: { endCursor: null, hasNextPage: false },
+        fallbackReason: "read_error",
+      };
+    }
   }
 
   /** Decides whether the current request should read from the projected feed. */
@@ -294,7 +328,7 @@ export class FeedReadService {
   private async getHomeFeedFromProjection(
     currentUserId: number,
     params?: HomeFeedParams,
-  ): Promise<CursorPageResult<HomeFeedItemDTO>> {
+  ): Promise<ProjectionReadResult> {
     const take = normalizeCursorTake(params?.first);
     const orderBy = params?.orderBy ?? ChronologicalOrder.NEWEST;
     const cursor = params?.after ? decodeChronoCursor(params.after) : undefined;
@@ -425,10 +459,36 @@ export class FeedReadService {
       this.bestEffortCleanupMissingProjectionRows(missingPostIds);
     }
 
+    if (this.isUnsafeHydrationGap(postIds.length, ordered.length)) {
+      this.logger.warn("homeFeed projection hydration gap triggered fallback", {
+        currentUserId,
+        requestedPostIds: postIds.length,
+        hydratedPosts: ordered.length,
+        missingPosts: missingPostIds.length,
+      });
+      return {
+        items: [],
+        pageInfo: page.pageInfo,
+        fallbackReason: "missing_hydration_gap",
+      };
+    }
+
     return {
       items: ordered,
       pageInfo: page.pageInfo,
     };
+  }
+
+  /** Treats high projection hydration gaps as unsafe for cursor correctness. */
+  private isUnsafeHydrationGap(
+    entryCount: number,
+    hydratedCount: number,
+  ): boolean {
+    if (entryCount === 0) return false;
+    if (hydratedCount === 0) return true;
+
+    const missingRatio = (entryCount - hydratedCount) / entryCount;
+    return missingRatio >= this.projectionUnsafeMissingRatio;
   }
 
   /** Decides whether to compare projected feed results against the legacy path. */

@@ -10,6 +10,8 @@ import { Prisma } from "@prisma/client";
 import { encodeChronoCursor } from "@/common/pagination/chrono-cursor";
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
 import { SafeUserSelect } from "@/users/dto/safe-user.dto";
+import { HOME_FEED_RELATIONSHIP_HIDE_EVENT } from "@/outbox/events/home-feed-cleanup.event";
+import { OutboxService } from "@/outbox/outbox.service";
 import { PrismaService } from "@/prisma/prisma.service";
 
 import { MutesService } from "./mutes.service";
@@ -32,6 +34,10 @@ describe("MutesService", () => {
 
   const cacheMock = {
     bumpVersion: jest.fn(),
+  };
+
+  const outboxMock = {
+    enqueue: jest.fn(),
   };
 
   const configMock = {
@@ -66,6 +72,7 @@ describe("MutesService", () => {
         MutesService,
         { provide: PrismaService, useValue: prismaMock },
         { provide: CacheHelperService, useValue: cacheMock },
+        { provide: OutboxService, useValue: outboxMock },
         { provide: ConfigService, useValue: configMock },
       ],
     }).compile();
@@ -97,6 +104,7 @@ describe("MutesService", () => {
 
     it("creates a mute edge and returns it", async () => {
       prismaMock.user.findUnique.mockResolvedValue({ id: 2 });
+      outboxMock.enqueue.mockResolvedValue({ id: 20 });
       prismaMock.mute.create.mockResolvedValue({
         id: 10,
         muterId: 1,
@@ -110,6 +118,43 @@ describe("MutesService", () => {
         mutedUserId: 2,
         createdAt: new Date("2026-04-01T00:00:00.000Z"),
       });
+      await flushBestEffort();
+
+      expect(outboxMock.enqueue).toHaveBeenCalledWith({
+        eventType: HOME_FEED_RELATIONSHIP_HIDE_EVENT,
+        aggregateType: "user",
+        aggregateId: 1,
+        payload: {
+          userId: 1,
+          authorId: 2,
+        },
+      });
+    });
+
+    it("does not enqueue relationship hide when mute already exists", async () => {
+      prismaMock.user.findUnique.mockResolvedValue({ id: 3 });
+      prismaMock.mute.create.mockRejectedValueOnce(
+        new Prisma.PrismaClientKnownRequestError("duplicate", {
+          code: "P2002",
+          clientVersion: "test",
+        }),
+      );
+      prismaMock.mute.findUnique.mockResolvedValue({
+        id: 11,
+        muterId: 1,
+        mutedUserId: 3,
+        createdAt: new Date("2026-04-01T00:00:00.000Z"),
+      });
+
+      await expect(service.muteUser(1, 3)).resolves.toEqual({
+        id: 11,
+        muterId: 1,
+        mutedUserId: 3,
+        createdAt: new Date("2026-04-01T00:00:00.000Z"),
+      });
+      await flushBestEffort();
+
+      expect(outboxMock.enqueue).not.toHaveBeenCalled();
     });
 
     it("treats unique constraint violations as idempotent success", async () => {
@@ -204,3 +249,8 @@ describe("MutesService", () => {
     });
   });
 });
+
+async function flushBestEffort(): Promise<void> {
+  await Promise.resolve();
+  await Promise.resolve();
+}

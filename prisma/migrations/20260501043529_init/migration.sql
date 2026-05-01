@@ -278,8 +278,10 @@ CREATE TABLE `HomeFeedEntry` (
     `updatedAt` DATETIME(3) NOT NULL,
 
     INDEX `HomeFeedEntry_userId_postCreatedAt_postId_idx`(`userId`, `postCreatedAt` DESC, `postId` DESC),
+    INDEX `HomeFeedEntry_userId_hiddenAt_postCreatedAt_postId_idx`(`userId`, `hiddenAt`, `postCreatedAt` DESC, `postId` DESC),
     INDEX `HomeFeedEntry_postId_idx`(`postId`),
     INDEX `HomeFeedEntry_userId_postAuthorId_idx`(`userId`, `postAuthorId`),
+    INDEX `HomeFeedEntry_userId_postAuthorId_hiddenAt_idx`(`userId`, `postAuthorId`, `hiddenAt`),
     INDEX `HomeFeedEntry_hiddenAt_idx`(`hiddenAt`),
     UNIQUE INDEX `HomeFeedEntry_userId_postId_key`(`userId`, `postId`),
     PRIMARY KEY (`id`)

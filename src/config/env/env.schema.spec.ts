@@ -71,6 +71,7 @@ describe("validateEnv", () => {
     expect(result.FEED_PROJECTION_READ_COHORT_SAMPLE_RATE).toBe(0);
     expect(result.FEED_PROJECTION_READ_FORCE_USER_ID).toBeUndefined();
     expect(result.FEED_PROJECTION_READ_REQUIRE_POPULATED).toBe(true);
+    expect(result.FEED_PROJECTION_UNSAFE_MISSING_RATIO).toBe(0.5);
     expect(result.R2_PRESIGNED_URL_TTL_SECONDS).toBe(1800);
     expect(result.MEDIA_IMAGE_MAX_BYTES).toBe(10 * 1024 * 1024);
     expect(result.MEDIA_VIDEO_MAX_BYTES).toBe(100 * 1024 * 1024);

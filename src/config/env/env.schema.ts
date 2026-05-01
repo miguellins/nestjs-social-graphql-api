@@ -105,6 +105,11 @@ export const envSchema = z.object({
     .positive()
     .optional(),
   FEED_PROJECTION_READ_REQUIRE_POPULATED: booleanFromEnv.default(true),
+  FEED_PROJECTION_UNSAFE_MISSING_RATIO: z.coerce
+    .number()
+    .min(0)
+    .max(1)
+    .default(0.5),
 
   MUTES_ENABLED: booleanFromEnv.default(false),
 });

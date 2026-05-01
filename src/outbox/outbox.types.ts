@@ -13,6 +13,17 @@ export type EnqueueOutboxEventInput = {
 export type OutboxSummary = {
   enabled: boolean;
   failedCount: number;
+  feedProjection: {
+    backfillEnabled: boolean;
+    enabled: boolean;
+    enqueueEnabled: boolean;
+    failedCount: number;
+    oldestPendingAgeMs: number | null;
+    pendingCount: number;
+    purgeEnabled: boolean;
+    readEnabled: boolean;
+    workerEnabled: boolean;
+  };
   oldestPendingAgeMs: number | null;
   pendingCount: number;
 };

@@ -28,6 +28,17 @@ describe("HealthService", () => {
       pendingCount: 0,
       failedCount: 0,
       oldestPendingAgeMs: null,
+      feedProjection: {
+        enabled: false,
+        enqueueEnabled: false,
+        workerEnabled: false,
+        readEnabled: false,
+        backfillEnabled: false,
+        purgeEnabled: false,
+        pendingCount: 0,
+        failedCount: 0,
+        oldestPendingAgeMs: null,
+      },
     }),
   } as unknown as OutboxService;
   const configServiceMock = {
@@ -119,6 +130,17 @@ describe("HealthService", () => {
           pendingCount: 0,
           failedCount: 0,
           oldestPendingAgeMs: null,
+          feedProjection: {
+            enabled: false,
+            enqueueEnabled: false,
+            workerEnabled: false,
+            readEnabled: false,
+            backfillEnabled: false,
+            purgeEnabled: false,
+            pendingCount: 0,
+            failedCount: 0,
+            oldestPendingAgeMs: null,
+          },
         },
       },
     });
@@ -171,6 +193,17 @@ describe("HealthService", () => {
         pendingCount: 0,
         failedCount: 0,
         oldestPendingAgeMs: null,
+        feedProjection: {
+          enabled: false,
+          enqueueEnabled: false,
+          workerEnabled: false,
+          readEnabled: false,
+          backfillEnabled: false,
+          purgeEnabled: false,
+          pendingCount: 0,
+          failedCount: 0,
+          oldestPendingAgeMs: null,
+        },
       },
     });
   });

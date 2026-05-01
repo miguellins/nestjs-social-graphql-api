@@ -1033,8 +1033,10 @@ model HomeFeedEntry {
 
   @@unique([userId, postId])
   @@index([userId, postCreatedAt(sort: Desc), postId(sort: Desc)])
+  @@index([userId, hiddenAt, postCreatedAt(sort: Desc), postId(sort: Desc)])
   @@index([postId])
   @@index([userId, postAuthorId])
+  @@index([userId, postAuthorId, hiddenAt])
   @@index([hiddenAt])
 }
 

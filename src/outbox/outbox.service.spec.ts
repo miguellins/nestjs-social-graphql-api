@@ -170,7 +170,7 @@ describe("OutboxService", () => {
     prismaMock.outboxEvent.count
       .mockResolvedValueOnce(4)
       .mockResolvedValueOnce(2);
-    prismaMock.outboxEvent.findFirst.mockResolvedValue({
+    prismaMock.outboxEvent.findFirst.mockResolvedValueOnce({
       availableAt: new Date(Date.now() - 5000),
     });
 
@@ -180,6 +180,12 @@ describe("OutboxService", () => {
     expect(summary.pendingCount).toBe(4);
     expect(summary.failedCount).toBe(2);
     expect(summary.oldestPendingAgeMs).toEqual(expect.any(Number));
+    expect(summary.feedProjection).toMatchObject({
+      enabled: false,
+      pendingCount: 0,
+      failedCount: 0,
+      oldestPendingAgeMs: null,
+    });
   });
 
   it("reports outbox backlog metrics snapshot", async () => {
@@ -249,6 +255,17 @@ describe("OutboxService", () => {
       pendingCount: 0,
       failedCount: 0,
       oldestPendingAgeMs: null,
+      feedProjection: {
+        enabled: false,
+        enqueueEnabled: false,
+        workerEnabled: false,
+        readEnabled: false,
+        backfillEnabled: false,
+        purgeEnabled: false,
+        pendingCount: 0,
+        failedCount: 0,
+        oldestPendingAgeMs: null,
+      },
     });
   });
 
@@ -288,6 +305,76 @@ describe("OutboxService", () => {
       pendingCount: 0,
       failedCount: 0,
       oldestPendingAgeMs: null,
+      feedProjection: {
+        enabled: false,
+        enqueueEnabled: false,
+        workerEnabled: false,
+        readEnabled: false,
+        backfillEnabled: false,
+        purgeEnabled: false,
+        pendingCount: 0,
+        failedCount: 0,
+        oldestPendingAgeMs: null,
+      },
+    });
+  });
+
+  it("reports feed projection outbox state for readiness", async () => {
+    const feedProjectionConfigServiceMock = {
+      get: jest.fn((key: string) => {
+        switch (key) {
+          case "OUTBOX_ENABLED":
+          case "OUTBOX_COMMENT_REPLIED_ENABLED":
+          case "OUTBOX_FOLLOW_REQUESTED_ENABLED":
+            return false;
+          case "FEED_PROJECTION_ENQUEUE_ENABLED":
+          case "FEED_PROJECTION_WORKER_ENABLED":
+          case "FEED_PROJECTION_READ_ENABLED":
+            return true;
+          case "FEED_PROJECTION_BACKFILL_ENABLED":
+          case "FEED_PROJECTION_PURGE_ENABLED":
+            return false;
+          default:
+            return undefined;
+        }
+      }),
+    };
+
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        OutboxService,
+        { provide: PrismaService, useValue: prismaMock },
+        { provide: ConfigService, useValue: feedProjectionConfigServiceMock },
+      ],
+    }).compile();
+    const service = moduleRef.get(OutboxService);
+
+    prismaMock.outboxEvent.count
+      .mockResolvedValueOnce(8)
+      .mockResolvedValueOnce(1)
+      .mockResolvedValueOnce(3)
+      .mockResolvedValueOnce(1);
+    prismaMock.outboxEvent.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        availableAt: new Date(Date.now() - 2_000),
+      });
+
+    const summary = await service.getSummary();
+
+    expect(summary.enabled).toBe(true);
+    expect(summary.feedProjection.oldestPendingAgeMs).toEqual(
+      expect.any(Number),
+    );
+    expect(summary.feedProjection).toMatchObject({
+      enabled: true,
+      enqueueEnabled: true,
+      workerEnabled: true,
+      readEnabled: true,
+      backfillEnabled: false,
+      purgeEnabled: false,
+      pendingCount: 3,
+      failedCount: 1,
     });
   });
 });

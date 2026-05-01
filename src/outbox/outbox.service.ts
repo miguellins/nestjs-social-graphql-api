@@ -1,11 +1,18 @@
 import { ConfigService } from "@nestjs/config";
 import { Injectable } from "@nestjs/common";
 
+import { HOME_FEED_FOLLOW_BACKFILL_EVENT } from "@/outbox/events/home-feed-follow-backfill.event";
+import { HOME_FEED_POST_FANOUT_EVENT } from "@/outbox/events/home-feed-post-fanout.event";
+import { HOME_FEED_USER_BOOTSTRAP_EVENT } from "@/outbox/events/home-feed-user-bootstrap.event";
 import type {
   EnqueueOutboxEventInput,
   OutboxMetricsSnapshot,
   OutboxSummary,
 } from "@/outbox/outbox.types";
+import {
+  HOME_FEED_POST_CLEANUP_EVENT,
+  HOME_FEED_RELATIONSHIP_HIDE_EVENT,
+} from "@/outbox/events/home-feed-cleanup.event";
 
 import { PrismaService } from "@/prisma/prisma.service";
 import {
@@ -17,6 +24,13 @@ import {
 type OutboxWriteClient = Pick<PrismaClient, "outboxEvent">;
 
 const OUTBOX_CLAIM_CANDIDATE_MULTIPLIER = 3;
+const HOME_FEED_EVENT_TYPES = [
+  HOME_FEED_POST_FANOUT_EVENT,
+  HOME_FEED_FOLLOW_BACKFILL_EVENT,
+  HOME_FEED_USER_BOOTSTRAP_EVENT,
+  HOME_FEED_POST_CLEANUP_EVENT,
+  HOME_FEED_RELATIONSHIP_HIDE_EVENT,
+];
 
 /** Persists, claims, and tracks durable outbox rows used by background workers. */
 @Injectable()
@@ -190,7 +204,15 @@ export class OutboxService {
     const followRequestOutboxEnabled =
       this.configService.get<boolean>("OUTBOX_FOLLOW_REQUESTED_ENABLED") ??
       false;
-    const [pendingCount, failedCount, oldestPending] = await Promise.all([
+    const feedProjection = this.getFeedProjectionSummaryFlags();
+    const [
+      pendingCount,
+      failedCount,
+      oldestPending,
+      feedPendingCount,
+      feedFailedCount,
+      feedOldestPending,
+    ] = await Promise.all([
       this.prisma.outboxEvent.count({
         where: { status: OutboxEventStatus.PENDING },
       }),
@@ -204,18 +226,87 @@ export class OutboxService {
           availableAt: true,
         },
       }),
+      this.prisma.outboxEvent.count({
+        where: {
+          status: OutboxEventStatus.PENDING,
+          eventType: { in: HOME_FEED_EVENT_TYPES },
+        },
+      }),
+      this.prisma.outboxEvent.count({
+        where: {
+          status: OutboxEventStatus.FAILED,
+          eventType: { in: HOME_FEED_EVENT_TYPES },
+        },
+      }),
+      this.prisma.outboxEvent.findFirst({
+        where: {
+          status: OutboxEventStatus.PENDING,
+          eventType: { in: HOME_FEED_EVENT_TYPES },
+        },
+        orderBy: [{ availableAt: "asc" }, { createdAt: "asc" }, { id: "asc" }],
+        select: {
+          availableAt: true,
+        },
+      }),
     ]);
 
     return {
       enabled:
         workerEnabled ||
         commentReplyOutboxEnabled ||
-        followRequestOutboxEnabled,
+        followRequestOutboxEnabled ||
+        feedProjection.enabled,
       pendingCount,
       failedCount,
       oldestPendingAgeMs: oldestPending
         ? Math.max(0, Date.now() - oldestPending.availableAt.getTime())
         : null,
+      feedProjection: {
+        ...feedProjection,
+        pendingCount: feedPendingCount,
+        failedCount: feedFailedCount,
+        oldestPendingAgeMs: feedOldestPending
+          ? Math.max(0, Date.now() - feedOldestPending.availableAt.getTime())
+          : null,
+      },
+    };
+  }
+
+  private getFeedProjectionSummaryFlags(): Pick<
+    OutboxSummary["feedProjection"],
+    | "backfillEnabled"
+    | "enabled"
+    | "enqueueEnabled"
+    | "purgeEnabled"
+    | "readEnabled"
+    | "workerEnabled"
+  > {
+    const enqueueEnabled =
+      this.configService.get<boolean>("FEED_PROJECTION_ENQUEUE_ENABLED") ??
+      false;
+    const workerEnabled =
+      this.configService.get<boolean>("FEED_PROJECTION_WORKER_ENABLED") ??
+      false;
+    const readEnabled =
+      this.configService.get<boolean>("FEED_PROJECTION_READ_ENABLED") ?? false;
+    const backfillEnabled =
+      this.configService.get<boolean>("FEED_PROJECTION_BACKFILL_ENABLED") ??
+      false;
+    const purgeEnabled =
+      this.configService.get<boolean>("FEED_PROJECTION_PURGE_ENABLED") ?? false;
+
+    return {
+      enabled:
+        enqueueEnabled ||
+        workerEnabled ||
+        readEnabled ||
+        backfillEnabled ||
+        purgeEnabled,
+      enqueueEnabled,
+      workerEnabled,
+      readEnabled,
+      backfillEnabled,
+      purgeEnabled,
     };
   }
 

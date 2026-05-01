@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 
 import type { HomeFeedFollowBackfillPayload } from "@/outbox/events/home-feed-follow-backfill.event";
 import type { HomeFeedUserBootstrapPayload } from "@/outbox/events/home-feed-user-bootstrap.event";
@@ -21,6 +21,8 @@ import type { OutboxEvent } from "@prisma/client";
 
 @Injectable()
 export class HomeFeedOutboxHandler {
+  private readonly logger = new Logger(HomeFeedOutboxHandler.name);
+
   constructor(private readonly homeFeedProjection: HomeFeedProjectionService) {}
 
   supports(eventType: string): boolean {
@@ -58,6 +60,12 @@ export class HomeFeedOutboxHandler {
     if (!payload?.postId || !payload?.authorId || !payload?.postCreatedAt) {
       throw new OutboxPermanentError("Invalid post fanout payload");
     }
+    this.warnUnknownPayloadKeys(event, payload, [
+      "postId",
+      "authorId",
+      "postCreatedAt",
+      "reason",
+    ]);
 
     const reason =
       payload.reason === "SELF_POST"
@@ -78,6 +86,7 @@ export class HomeFeedOutboxHandler {
     if (!payload?.followerId || !payload?.followingId) {
       throw new OutboxPermanentError("Invalid follow backfill payload");
     }
+    this.warnUnknownPayloadKeys(event, payload, ["followerId", "followingId"]);
 
     await this.homeFeedProjection.backfillAfterFollow({
       followerId: payload.followerId,
@@ -91,6 +100,7 @@ export class HomeFeedOutboxHandler {
     if (!payload?.userId) {
       throw new OutboxPermanentError("Invalid user bootstrap payload");
     }
+    this.warnUnknownPayloadKeys(event, payload, ["userId"]);
 
     await this.homeFeedProjection.bootstrapUserHomeFeed({
       userId: payload.userId,
@@ -103,6 +113,7 @@ export class HomeFeedOutboxHandler {
     if (!payload?.postId) {
       throw new OutboxPermanentError("Invalid post cleanup payload");
     }
+    this.warnUnknownPayloadKeys(event, payload, ["postId"]);
 
     await this.homeFeedProjection.hardDeleteByPostId(payload.postId);
   }
@@ -113,10 +124,34 @@ export class HomeFeedOutboxHandler {
     if (!payload?.userId || !payload?.authorId) {
       throw new OutboxPermanentError("Invalid relationship hide payload");
     }
+    this.warnUnknownPayloadKeys(event, payload, ["userId", "authorId"]);
 
     await this.homeFeedProjection.softHideByUserAndAuthor({
       userId: payload.userId,
       authorId: payload.authorId,
     });
   }
+
+  private warnUnknownPayloadKeys(
+    event: OutboxEvent,
+    payload: unknown,
+    allowedKeys: string[],
+  ): void {
+    if (!isRecord(payload)) return;
+
+    const unknownKeys = Object.keys(payload).filter(
+      (key) => !allowedKeys.includes(key),
+    );
+    if (unknownKeys.length === 0) return;
+
+    this.logger.warn("Ignoring unknown home feed outbox payload fields", {
+      eventId: event.id,
+      eventType: event.eventType,
+      unknownKeys,
+    });
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

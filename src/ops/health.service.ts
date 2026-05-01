@@ -29,6 +29,17 @@ type HealthSummary = {
   outbox: {
     enabled: boolean;
     failedCount: number;
+    feedProjection: {
+      backfillEnabled: boolean;
+      enabled: boolean;
+      enqueueEnabled: boolean;
+      failedCount: number;
+      oldestPendingAgeMs: number | null;
+      pendingCount: number;
+      purgeEnabled: boolean;
+      readEnabled: boolean;
+      workerEnabled: boolean;
+    };
     oldestPendingAgeMs: number | null;
     pendingCount: number;
   };
@@ -195,6 +206,17 @@ export class HealthService {
         pendingCount: 0,
         failedCount: 0,
         oldestPendingAgeMs: null,
+        feedProjection: {
+          enabled: false,
+          enqueueEnabled: false,
+          workerEnabled: false,
+          readEnabled: false,
+          backfillEnabled: false,
+          purgeEnabled: false,
+          pendingCount: 0,
+          failedCount: 0,
+          oldestPendingAgeMs: null,
+        },
       };
     }
   }

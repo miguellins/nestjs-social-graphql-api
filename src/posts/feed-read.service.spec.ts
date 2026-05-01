@@ -444,6 +444,94 @@ describe("FeedReadService", () => {
     ).toHaveBeenCalledWith("failed");
   });
 
+  it("falls back to legacy when projection hydration gap is unsafe", async () => {
+    await moduleRef?.close();
+
+    const configServiceMock = makeConfigServiceMock({
+      FEED_PROJECTION_READ_ENABLED: true,
+      FEED_PROJECTION_SHADOW_COMPARE_ENABLED: false,
+      FEED_PROJECTION_SHADOW_COMPARE_DEBUG_ONLY: true,
+      FEED_PROJECTION_SHADOW_COMPARE_SAMPLE_RATE: 0,
+      FEED_PROJECTION_ENQUEUE_ENABLED: false,
+      FEED_PROJECTION_READ_COHORT_ENABLED: false,
+      FEED_PROJECTION_READ_COHORT_SAMPLE_RATE: 0,
+      FEED_PROJECTION_READ_REQUIRE_POPULATED: true,
+      FEED_PROJECTION_UNSAFE_MISSING_RATIO: 0.5,
+    });
+
+    moduleRef = await Test.createTestingModule({
+      providers: [
+        FeedReadService,
+        MediaReadProjectionService,
+        { provide: PrismaService, useValue: prismaMock },
+        { provide: PostReadService, useValue: postReadServiceMock },
+        { provide: MutesService, useValue: mutesServiceMock },
+        { provide: R2StorageService, useValue: r2StorageMock },
+        { provide: OutboxService, useValue: outboxServiceMock },
+        { provide: MetricsRegistryService, useValue: metricsRegistryMock },
+        { provide: ConfigService, useValue: configServiceMock },
+      ],
+    }).compile();
+
+    service = moduleRef.get(FeedReadService);
+
+    prismaMock.homeFeedEntry.count.mockResolvedValue(1);
+    prismaMock.homeFeedEntry.findMany.mockResolvedValue([
+      { postId: 3, postCreatedAt: new Date("2026-04-03T00:00:00.000Z") },
+      { postId: 2, postCreatedAt: new Date("2026-04-02T00:00:00.000Z") },
+    ]);
+    prismaMock.post.findMany
+      .mockResolvedValueOnce([makeFeedRow(3)])
+      .mockResolvedValueOnce([makeFeedRow(9)]);
+
+    const result = await service.getHomeFeed(7, { first: 2 });
+
+    expect(result.items.map((item) => item.id)).toEqual([9]);
+    expect(prismaMock.post.findMany).toHaveBeenCalledTimes(2);
+    expect(
+      metricsRegistryMock.incrementHomeFeedProjectionCleanupEnqueue,
+    ).toHaveBeenCalledWith("skipped_disabled");
+  });
+
+  it("falls back to legacy when projection read fails", async () => {
+    await moduleRef?.close();
+
+    const configServiceMock = makeConfigServiceMock({
+      FEED_PROJECTION_READ_ENABLED: true,
+      FEED_PROJECTION_SHADOW_COMPARE_ENABLED: false,
+      FEED_PROJECTION_SHADOW_COMPARE_DEBUG_ONLY: true,
+      FEED_PROJECTION_SHADOW_COMPARE_SAMPLE_RATE: 0,
+      FEED_PROJECTION_ENQUEUE_ENABLED: false,
+      FEED_PROJECTION_READ_COHORT_ENABLED: false,
+      FEED_PROJECTION_READ_COHORT_SAMPLE_RATE: 0,
+      FEED_PROJECTION_READ_REQUIRE_POPULATED: true,
+    });
+
+    moduleRef = await Test.createTestingModule({
+      providers: [
+        FeedReadService,
+        MediaReadProjectionService,
+        { provide: PrismaService, useValue: prismaMock },
+        { provide: PostReadService, useValue: postReadServiceMock },
+        { provide: MutesService, useValue: mutesServiceMock },
+        { provide: R2StorageService, useValue: r2StorageMock },
+        { provide: OutboxService, useValue: outboxServiceMock },
+        { provide: MetricsRegistryService, useValue: metricsRegistryMock },
+        { provide: ConfigService, useValue: configServiceMock },
+      ],
+    }).compile();
+
+    service = moduleRef.get(FeedReadService);
+
+    prismaMock.homeFeedEntry.count.mockResolvedValue(1);
+    prismaMock.homeFeedEntry.findMany.mockRejectedValue(new Error("db down"));
+    prismaMock.post.findMany.mockResolvedValue([makeFeedRow(4)]);
+
+    const result = await service.getHomeFeed(7, { first: 1 });
+
+    expect(result.items.map((item) => item.id)).toEqual([4]);
+  });
+
   it("records shadow compare totals and mismatches when shadow compare runs", async () => {
     await moduleRef?.close();
 
