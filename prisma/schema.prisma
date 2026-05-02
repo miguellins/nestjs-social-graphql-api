@@ -127,6 +127,12 @@ model User {
   receivedNotifications Notification[] @relation("NotificationRecipient")
 
   /**
+   * 1:1 relation
+   * Notification preferences for this user
+   */
+  notificationPreference NotificationPreference?
+
+  /**
    * 1:N relation
    * Password reset tokens issued for this user
    */
@@ -970,6 +976,27 @@ model Notification {
    * Improves unread/read-filtered notification pagination with deterministic tie-breaking.
    */
   @@index([recipientId, isRead, createdAt(sort: Desc), id(sort: Desc)])
+}
+
+model NotificationPreference {
+  id Int @id @default(autoincrement())
+
+  userId Int @unique
+
+  replyNotificationsEnabled         Boolean @default(true)
+  followRequestNotificationsEnabled Boolean @default(true)
+  mentionNotificationsEnabled       Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /**
+   * Relation to User
+   * fields: [userId] - is a foreign key
+   * references: [id] - references User.id
+   * onDelete: Cascade - delete preferences if the user is deleted
+   */
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model OutboxEvent {

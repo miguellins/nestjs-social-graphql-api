@@ -15,6 +15,7 @@ import {
   type CursorPageResult,
 } from "@/common/pagination/cursor-pagination";
 
+import { NotificationPreferencesService } from "@/notifications/notification-preferences.service";
 import { NotificationReadStatus } from "@/notifications/enums/notification-read-status.enum";
 import { NotificationDeliveryService } from "@/notifications/notification-delivery.service";
 import {
@@ -46,10 +47,11 @@ export class NotificationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationDelivery: NotificationDeliveryService,
+    private readonly notificationPreferences: NotificationPreferencesService,
     private readonly mutesService: MutesService,
   ) {}
 
-  // Persists the notification first, then treats realtime delivery as best-effort follow-up work
+  /** Persists the notification first, then treats realtime delivery as best-effort follow-up work. */
   async createAndPublishNotification(
     input: CreateNotificationInput,
   ): Promise<SafeNotificationDTO | null> {
@@ -105,6 +107,14 @@ export class NotificationsService {
       return null;
     }
 
+    const preferenceEnabled =
+      await this.notificationPreferences.isNotificationTypeEnabled(
+        data.recipientId,
+        data.type,
+      );
+
+    if (!preferenceEnabled) return null;
+
     return client.notification.create({
       data,
 
@@ -132,16 +142,19 @@ export class NotificationsService {
         notification.actorId,
       )
     ) {
-      // Avoid repeated outbox retries for suppressed notifications.
-      await this.prisma.notification.updateMany({
-        where: {
-          id: notificationId,
-          realtimeDeliveredAt: null,
-        },
-        data: {
-          realtimeDeliveredAt: new Date(),
-        },
-      });
+      await this.markRealtimeDelivered(notificationId);
+
+      return "already-delivered";
+    }
+
+    const preferenceEnabled =
+      await this.notificationPreferences.isNotificationTypeEnabled(
+        notification.recipientId,
+        notification.type,
+      );
+
+    if (!preferenceEnabled) {
+      await this.markRealtimeDelivered(notificationId);
 
       return "already-delivered";
     }
@@ -161,7 +174,7 @@ export class NotificationsService {
     return "delivered";
   }
 
-  // Lists notifications for the current user with optional status filtering
+  /** Lists notifications for the current user with optional status filtering. */
   async findMyNotifications(
     userId: number,
     params?: PaginationParams,
@@ -212,7 +225,7 @@ export class NotificationsService {
     return buildCursorPage(rows, limit);
   }
 
-  // Returns the unread notification count for a user
+  /** Returns the unread notification count for a user. */
   async getUnreadCount(userId: number): Promise<number> {
     return this.prisma.notification.count({
       where: {
@@ -222,7 +235,7 @@ export class NotificationsService {
     });
   }
 
-  // Marks a single notification as read for the current user
+  /** Marks a single notification as read for the current user. */
   async markAsRead(
     notificationId: number,
     userId: number,
@@ -244,7 +257,7 @@ export class NotificationsService {
     };
   }
 
-  // Marks all unread notifications as read for the current user
+  /** Marks all unread notifications as read for the current user. */
   async markAllAsRead(userId: number): Promise<MessageResponse> {
     await this.prisma.notification.updateMany({
       where: {
@@ -260,12 +273,24 @@ export class NotificationsService {
     };
   }
 
-  // Private Helper
-  // Builds the update payload used when marking notifications as read
+  /** Builds the update payload used when marking notifications as read. */
   private buildReadUpdateData() {
     return {
       isRead: true,
       readAt: new Date(),
     };
+  }
+
+  /** Marks realtime delivery as complete to avoid repeated outbox retries. */
+  private async markRealtimeDelivered(notificationId: number): Promise<void> {
+    await this.prisma.notification.updateMany({
+      where: {
+        id: notificationId,
+        realtimeDeliveredAt: null,
+      },
+      data: {
+        realtimeDeliveredAt: new Date(),
+      },
+    });
   }
 }

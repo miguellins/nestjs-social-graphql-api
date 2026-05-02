@@ -13,7 +13,10 @@ import { CurrentUser } from "@/common/decorators/current-user.decorator";
 import { THROTTLE_LIMITS } from "@/common/constants/throttle.constants";
 import { MessageResponse } from "@/common/types/message-response.type";
 
+import { UpdateNotificationPreferencesInput } from "@/notifications/dto/update-notification-preferences.input";
+import { NotificationPreferencesService } from "@/notifications/notification-preferences.service";
 import { buildNotificationReceivedTrigger } from "@/notifications/notification-delivery.service";
+import { NotificationPreferences } from "@/notifications/models/notification-preferences.model";
 import { FindNotificationsArgs } from "@/notifications/args/find-notifications.args";
 import { NotificationPage } from "@/notifications/models/notification-page.model";
 import { NotificationsService } from "@/notifications/notifications.service";
@@ -69,6 +72,7 @@ function isSubscriptionContextUserCarrier(
 export class NotificationsResolver {
   constructor(
     private readonly notificationsService: NotificationsService,
+    private readonly notificationPreferences: NotificationPreferencesService,
     private readonly graphqlPubSub: GraphqlPubSubService,
   ) {}
 
@@ -91,6 +95,25 @@ export class NotificationsResolver {
     @CurrentUser() user: { id: number },
   ): Promise<number> {
     return this.notificationsService.getUnreadCount(user.id);
+  }
+
+  @Throttle({ default: THROTTLE_LIMITS.READ })
+  @Query(() => NotificationPreferences, { name: "myNotificationPreferences" })
+  async myNotificationPreferences(
+    @CurrentUser() user: { id: number },
+  ): Promise<NotificationPreferences> {
+    return this.notificationPreferences.getMyPreferences(user.id);
+  }
+
+  @Throttle({ default: THROTTLE_LIMITS.MUTATION })
+  @Mutation(() => NotificationPreferences, {
+    name: "updateNotificationPreferences",
+  })
+  async updateNotificationPreferences(
+    @CurrentUser() user: { id: number },
+    @Args("input") input: UpdateNotificationPreferencesInput,
+  ): Promise<NotificationPreferences> {
+    return this.notificationPreferences.updateMyPreferences(user.id, input);
   }
 
   @Throttle({ default: THROTTLE_LIMITS.MUTATION })

@@ -10,6 +10,18 @@ type MessageResponse {
   message: String!
 }
 
+"""User-level notification preference toggles."""
+type NotificationPreferences {
+  """Whether comment-reply notifications are enabled."""
+  replyNotificationsEnabled: Boolean!
+
+  """Whether follow-request notifications are enabled."""
+  followRequestNotificationsEnabled: Boolean!
+
+  """Whether post and comment mention notifications are enabled."""
+  mentionNotificationsEnabled: Boolean!
+}
+
 """
 Shared cursor-pagination metadata returned alongside paged list results.
 """
@@ -1210,6 +1222,7 @@ type Query {
     status: NotificationReadStatus
   ): NotificationPage!
   unreadNotificationsCount: Int!
+  myNotificationPreferences: NotificationPreferences!
   likes(
     """Maximum number of items to return (1-${PAGINATION.MAX_TAKE})."""
     first: Int
@@ -1354,6 +1367,7 @@ type Mutation {
   updateComment(commentId: Int!, input: UpdateCommentInput!): Comment!
   deleteComment(commentId: Int!): MessageResponse!
   removeCommentByModerator(input: RemoveCommentByModeratorInput!): MessageResponse!
+  updateNotificationPreferences(input: UpdateNotificationPreferencesInput!): NotificationPreferences!
   markNotificationAsRead(notificationId: Int!): MessageResponse!
   markAllNotificationsAsRead: MessageResponse!
   createLike(postId: Int!): LikeListItem!
@@ -1549,6 +1563,20 @@ input RemoveCommentByModeratorInput {
 
   """Optional reviewed report linked to the removal action."""
   reportId: Int
+}
+
+"""
+GraphQL input for partially updating the current user's notification preferences.
+"""
+input UpdateNotificationPreferencesInput {
+  """Whether comment-reply notifications are enabled."""
+  replyNotificationsEnabled: Boolean
+
+  """Whether follow-request notifications are enabled."""
+  followRequestNotificationsEnabled: Boolean
+
+  """Whether post and comment mention notifications are enabled."""
+  mentionNotificationsEnabled: Boolean
 }
 
 input BlockUserInput {

@@ -8,6 +8,7 @@ import { ChronologicalOrder } from "@/common/enums/chronological-order.enum";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
 import { encodeChronoCursor } from "@/common/pagination/chrono-cursor";
 import { NotificationDeliveryService } from "@/notifications/notification-delivery.service";
+import { NotificationPreferencesService } from "@/notifications/notification-preferences.service";
 
 import { NotificationReadStatus } from "@/notifications/enums/notification-read-status.enum";
 
@@ -47,6 +48,10 @@ describe("NotificationsService", () => {
     getMutedUserIds: jest.fn(),
   };
 
+  const notificationPreferencesMock = {
+    isNotificationTypeEnabled: jest.fn(),
+  };
+
   const mockNotification = {
     id: 1,
     type: NotificationType.USER_FOLLOWED,
@@ -68,6 +73,9 @@ describe("NotificationsService", () => {
     );
     mutesServiceMock.isMuted.mockResolvedValue(false);
     mutesServiceMock.getMutedUserIds.mockResolvedValue([]);
+    notificationPreferencesMock.isNotificationTypeEnabled.mockResolvedValue(
+      true,
+    );
 
     moduleRef = await Test.createTestingModule({
       providers: [
@@ -79,6 +87,10 @@ describe("NotificationsService", () => {
         {
           provide: NotificationDeliveryService,
           useValue: notificationDeliveryMock,
+        },
+        {
+          provide: NotificationPreferencesService,
+          useValue: notificationPreferencesMock,
         },
         {
           provide: MutesService,
@@ -253,6 +265,87 @@ describe("NotificationsService", () => {
       ).not.toHaveBeenCalled();
     });
 
+    it("suppresses reply notifications when reply preferences are disabled", async () => {
+      prismaMock.userBlock.findFirst.mockResolvedValue(null);
+      notificationPreferencesMock.isNotificationTypeEnabled.mockResolvedValue(
+        false,
+      );
+
+      const result = await service.createAndPublishNotification({
+        recipientId: 1,
+        actorId: 2,
+        type: NotificationType.COMMENT_REPLIED,
+        title: "New reply",
+        body: "john replied to your comment",
+        entityId: 10,
+      });
+
+      expect(result).toBeNull();
+      expect(
+        notificationPreferencesMock.isNotificationTypeEnabled,
+      ).toHaveBeenCalledWith(1, NotificationType.COMMENT_REPLIED);
+      expect(prismaMock.notification.create).not.toHaveBeenCalled();
+      expect(
+        notificationDeliveryMock.publishNotificationReceived,
+      ).not.toHaveBeenCalled();
+    });
+
+    it("suppresses follow-request notifications when follow-request preferences are disabled", async () => {
+      prismaMock.userBlock.findFirst.mockResolvedValue(null);
+      notificationPreferencesMock.isNotificationTypeEnabled.mockResolvedValue(
+        false,
+      );
+
+      const result = await service.createAndPublishNotification({
+        recipientId: 1,
+        actorId: 2,
+        type: NotificationType.FOLLOW_REQUESTED,
+        title: "New follow request",
+        body: "john requested to follow you",
+        entityId: 10,
+      });
+
+      expect(result).toBeNull();
+      expect(
+        notificationPreferencesMock.isNotificationTypeEnabled,
+      ).toHaveBeenCalledWith(1, NotificationType.FOLLOW_REQUESTED);
+      expect(prismaMock.notification.create).not.toHaveBeenCalled();
+      expect(
+        notificationDeliveryMock.publishNotificationReceived,
+      ).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      NotificationType.POST_MENTIONED,
+      NotificationType.COMMENT_MENTIONED,
+    ])(
+      "suppresses %s notifications when mention preferences are disabled",
+      async (type) => {
+        prismaMock.userBlock.findFirst.mockResolvedValue(null);
+        notificationPreferencesMock.isNotificationTypeEnabled.mockResolvedValue(
+          false,
+        );
+
+        const result = await service.createAndPublishNotification({
+          recipientId: 1,
+          actorId: 2,
+          type,
+          title: "Mentioned",
+          body: "john mentioned you",
+          entityId: 10,
+        });
+
+        expect(result).toBeNull();
+        expect(
+          notificationPreferencesMock.isNotificationTypeEnabled,
+        ).toHaveBeenCalledWith(1, type);
+        expect(prismaMock.notification.create).not.toHaveBeenCalled();
+        expect(
+          notificationDeliveryMock.publishNotificationReceived,
+        ).not.toHaveBeenCalled();
+      },
+    );
+
     it("creates and publishes post mention notifications", async () => {
       const mentionNotification = {
         ...mockNotification,
@@ -387,6 +480,37 @@ describe("NotificationsService", () => {
       });
     });
 
+    it("suppresses realtime delivery when preferences are disabled and marks it already delivered", async () => {
+      prismaMock.notification.findUnique = jest.fn().mockResolvedValue({
+        ...mockNotification,
+        type: NotificationType.COMMENT_REPLIED,
+        realtimeDeliveredAt: null,
+      });
+      prismaMock.notification.updateMany.mockResolvedValue({ count: 1 });
+      notificationPreferencesMock.isNotificationTypeEnabled.mockResolvedValue(
+        false,
+      );
+
+      const result = await service.publishPersistedNotificationIfNeeded(1);
+
+      expect(result).toBe("already-delivered");
+      expect(
+        notificationDeliveryMock.publishNotificationReceived,
+      ).not.toHaveBeenCalled();
+      expect(
+        notificationPreferencesMock.isNotificationTypeEnabled,
+      ).toHaveBeenCalledWith(1, NotificationType.COMMENT_REPLIED);
+      expect(prismaMock.notification.updateMany).toHaveBeenCalledWith({
+        where: {
+          id: 1,
+          realtimeDeliveredAt: null,
+        },
+        data: {
+          realtimeDeliveredAt: expect.any(Date) as Date,
+        },
+      });
+    });
+
     it("returns already-delivered when realtime delivery was recorded before", async () => {
       prismaMock.notification.findUnique = jest.fn().mockResolvedValue({
         ...mockNotification,
@@ -449,6 +573,20 @@ describe("NotificationsService", () => {
         take: 6,
         select: NotificationSelect,
       });
+    });
+
+    it("does not apply notification preferences to already persisted notification reads", async () => {
+      prismaMock.notification.findMany.mockResolvedValue([mockNotification]);
+      notificationPreferencesMock.isNotificationTypeEnabled.mockResolvedValue(
+        false,
+      );
+
+      const result = await service.findMyNotifications(1, { first: 5 });
+
+      expect(result.items).toEqual([mockNotification]);
+      expect(
+        notificationPreferencesMock.isNotificationTypeEnabled,
+      ).not.toHaveBeenCalled();
     });
 
     it("should use provided first when within max limit", async () => {
