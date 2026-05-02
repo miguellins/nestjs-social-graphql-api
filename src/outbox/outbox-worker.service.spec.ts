@@ -85,12 +85,54 @@ describe("OutboxWorkerService", () => {
     ).not.toHaveBeenCalled();
   });
 
+  it("does not start polling in the API process even when outbox is enabled", async () => {
+    const configServiceMock = {
+      get: jest.fn((key: string) => {
+        switch (key) {
+          case "OUTBOX_ENABLED":
+            return true;
+          case "OUTBOX_PROCESS_ROLE":
+            return "api";
+          case "OUTBOX_POLL_INTERVAL_MS":
+            return 1_000;
+          default:
+            return undefined;
+        }
+      }),
+    };
+
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        OutboxWorkerService,
+        { provide: ConfigService, useValue: configServiceMock },
+        { provide: OutboxProcessorService, useValue: outboxProcessorMock },
+        { provide: OutboxService, useValue: outboxServiceMock },
+        { provide: MetricsRegistryService, useValue: metricsRegistryMock },
+        {
+          provide: HomeFeedProjectionService,
+          useValue: homeFeedProjectionMock,
+        },
+      ],
+    }).compile();
+
+    moduleRef.get(OutboxWorkerService).onModuleInit();
+    await jest.runOnlyPendingTimersAsync();
+
+    expect(outboxProcessorMock.processNextBatch).not.toHaveBeenCalled();
+    expect(outboxServiceMock.purgeExpiredEvents).not.toHaveBeenCalled();
+    expect(
+      metricsRegistryMock.incrementOutboxWorkerTick,
+    ).not.toHaveBeenCalled();
+  });
+
   it("processes one batch and purges expired rows when enabled", async () => {
     const configServiceMock = {
       get: jest.fn((key: string) => {
         switch (key) {
           case "OUTBOX_ENABLED":
             return true;
+          case "OUTBOX_PROCESS_ROLE":
+            return "worker";
           case "OUTBOX_POLL_INTERVAL_MS":
             return 1_000;
           default:
@@ -138,6 +180,8 @@ describe("OutboxWorkerService", () => {
         switch (key) {
           case "OUTBOX_ENABLED":
             return true;
+          case "OUTBOX_PROCESS_ROLE":
+            return "worker";
           case "OUTBOX_POLL_INTERVAL_MS":
             return 1_000;
           default:
@@ -176,6 +220,8 @@ describe("OutboxWorkerService", () => {
         switch (key) {
           case "OUTBOX_ENABLED":
             return true;
+          case "OUTBOX_PROCESS_ROLE":
+            return "worker";
           case "OUTBOX_POLL_INTERVAL_MS":
             return 1_000;
           default:
@@ -219,6 +265,8 @@ describe("OutboxWorkerService", () => {
         switch (key) {
           case "OUTBOX_ENABLED":
             return true;
+          case "OUTBOX_PROCESS_ROLE":
+            return "worker";
           case "OUTBOX_POLL_INTERVAL_MS":
             return 1_000;
           default:
@@ -260,6 +308,8 @@ describe("OutboxWorkerService", () => {
         switch (key) {
           case "OUTBOX_ENABLED":
             return true;
+          case "OUTBOX_PROCESS_ROLE":
+            return "worker";
           case "OUTBOX_POLL_INTERVAL_MS":
             return 1_000;
           case "METRICS_DB_REFRESH_INTERVAL_MS":
@@ -302,6 +352,8 @@ describe("OutboxWorkerService", () => {
         switch (key) {
           case "OUTBOX_ENABLED":
             return true;
+          case "OUTBOX_PROCESS_ROLE":
+            return "worker";
           case "OUTBOX_POLL_INTERVAL_MS":
             return 1_000;
           case "FEED_PROJECTION_WORKER_ENABLED":

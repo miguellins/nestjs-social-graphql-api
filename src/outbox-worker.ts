@@ -5,6 +5,8 @@ import { AppLoggerService } from "@/common/logging/app-logger.service";
 
 import { AppModule } from "@/app.module";
 
+process.env.OUTBOX_PROCESS_ROLE = "worker";
+
 /** Bootstraps a dedicated application context that only runs background workers. */
 async function bootstrapWorker() {
   const app = await NestFactory.createApplicationContext(AppModule, {

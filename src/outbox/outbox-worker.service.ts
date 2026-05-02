@@ -36,7 +36,12 @@ export class OutboxWorkerService implements OnModuleDestroy, OnModuleInit {
     private readonly homeFeedProjection: HomeFeedProjectionService,
     private readonly metricsRegistry: MetricsRegistryService,
   ) {
-    this.enabled = configService.get<boolean>("OUTBOX_ENABLED") ?? false;
+    const processRole =
+      configService.get<string>("OUTBOX_PROCESS_ROLE") ?? "api";
+
+    this.enabled =
+      processRole === "worker" &&
+      (configService.get<boolean>("OUTBOX_ENABLED") ?? false);
     this.pollIntervalMs =
       configService.get<number>("OUTBOX_POLL_INTERVAL_MS") ?? 1_000;
     this.feedProjectionWorkerEnabled =

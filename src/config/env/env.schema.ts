@@ -59,6 +59,7 @@ export const envSchema = z.object({
   METRICS_PORT: positiveIntFromEnv.default(9090),
   METRICS_DB_REFRESH_INTERVAL_MS: positiveIntFromEnv.default(15_000),
   OUTBOX_ENABLED: booleanFromEnv.default(false),
+  OUTBOX_PROCESS_ROLE: z.enum(["api", "worker"]).default("api"),
   OUTBOX_COMMENT_REPLIED_ENABLED: booleanFromEnv.default(false),
   OUTBOX_FOLLOW_REQUESTED_ENABLED: booleanFromEnv.default(false),
   OUTBOX_POLL_INTERVAL_MS: positiveIntFromEnv.default(1_000),
