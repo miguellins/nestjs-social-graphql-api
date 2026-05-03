@@ -1,18 +1,17 @@
 import { ConfigService } from "@nestjs/config";
 import { Injectable } from "@nestjs/common";
 
-import { HOME_FEED_FOLLOW_BACKFILL_EVENT } from "@/outbox/events/home-feed-follow-backfill.event";
-import { HOME_FEED_POST_FANOUT_EVENT } from "@/outbox/events/home-feed-post-fanout.event";
-import { HOME_FEED_USER_BOOTSTRAP_EVENT } from "@/outbox/events/home-feed-user-bootstrap.event";
 import type {
   EnqueueOutboxEventInput,
+  OutboxEventTypeSummary,
   OutboxMetricsSnapshot,
   OutboxSummary,
 } from "@/outbox/outbox.types";
 import {
-  HOME_FEED_POST_CLEANUP_EVENT,
-  HOME_FEED_RELATIONSHIP_HIDE_EVENT,
-} from "@/outbox/events/home-feed-cleanup.event";
+  HOME_FEED_EVENT_TYPES,
+  KNOWN_OUTBOX_EVENT_TYPES,
+  UNKNOWN_OUTBOX_EVENT_TYPE,
+} from "@/outbox/events/known-outbox-event-types";
 
 import { PrismaService } from "@/prisma/prisma.service";
 import {
@@ -23,14 +22,26 @@ import {
 
 type OutboxWriteClient = Pick<PrismaClient, "outboxEvent">;
 
+type OutboxStatusCountGroup = {
+  eventType: string;
+  _count: {
+    _all: number;
+  };
+};
+
+type OutboxPendingAgeGroup = OutboxStatusCountGroup & {
+  _min: {
+    availableAt: Date | null;
+  };
+};
+
+type OutboxProcessingAgeGroup = OutboxStatusCountGroup & {
+  _min: {
+    updatedAt: Date | null;
+  };
+};
+
 const OUTBOX_CLAIM_CANDIDATE_MULTIPLIER = 3;
-const HOME_FEED_EVENT_TYPES = [
-  HOME_FEED_POST_FANOUT_EVENT,
-  HOME_FEED_FOLLOW_BACKFILL_EVENT,
-  HOME_FEED_USER_BOOTSTRAP_EVENT,
-  HOME_FEED_POST_CLEANUP_EVENT,
-  HOME_FEED_RELATIONSHIP_HIDE_EVENT,
-];
 
 /** Persists, claims, and tracks durable outbox rows used by background workers. */
 @Injectable()
@@ -212,6 +223,7 @@ export class OutboxService {
       feedPendingCount,
       feedFailedCount,
       feedOldestPending,
+      byEventType,
     ] = await Promise.all([
       this.prisma.outboxEvent.count({
         where: { status: OutboxEventStatus.PENDING },
@@ -229,25 +241,26 @@ export class OutboxService {
       this.prisma.outboxEvent.count({
         where: {
           status: OutboxEventStatus.PENDING,
-          eventType: { in: HOME_FEED_EVENT_TYPES },
+          eventType: { in: [...HOME_FEED_EVENT_TYPES] },
         },
       }),
       this.prisma.outboxEvent.count({
         where: {
           status: OutboxEventStatus.FAILED,
-          eventType: { in: HOME_FEED_EVENT_TYPES },
+          eventType: { in: [...HOME_FEED_EVENT_TYPES] },
         },
       }),
       this.prisma.outboxEvent.findFirst({
         where: {
           status: OutboxEventStatus.PENDING,
-          eventType: { in: HOME_FEED_EVENT_TYPES },
+          eventType: { in: [...HOME_FEED_EVENT_TYPES] },
         },
         orderBy: [{ availableAt: "asc" }, { createdAt: "asc" }, { id: "asc" }],
         select: {
           availableAt: true,
         },
       }),
+      this.getEventTypeSummary(),
     ]);
 
     return {
@@ -258,6 +271,7 @@ export class OutboxService {
         feedProjection.enabled,
       pendingCount,
       failedCount,
+      byEventType,
       oldestPendingAgeMs: oldestPending
         ? Math.max(0, Date.now() - oldestPending.availableAt.getTime())
         : null,
@@ -272,6 +286,127 @@ export class OutboxService {
     };
   }
 
+  /** Builds the event-type-aware outbox summary from grouped durable row state. */
+  private async getEventTypeSummary(): Promise<
+    Record<string, OutboxEventTypeSummary>
+  > {
+    const [pendingGroups, failedGroups, processingGroups] = await Promise.all([
+      this.prisma.outboxEvent.groupBy({
+        by: ["eventType"],
+        where: { status: OutboxEventStatus.PENDING },
+        _count: { _all: true },
+        _min: { availableAt: true },
+      }),
+      this.prisma.outboxEvent.groupBy({
+        by: ["eventType"],
+        where: { status: OutboxEventStatus.FAILED },
+        _count: { _all: true },
+      }),
+      this.prisma.outboxEvent.groupBy({
+        by: ["eventType"],
+        where: { status: OutboxEventStatus.PROCESSING },
+        _count: { _all: true },
+        _min: { updatedAt: true },
+      }),
+    ]);
+    const summary = this.buildEmptyEventTypeSummary();
+    const now = Date.now();
+
+    this.mergePendingEventTypeGroups(
+      summary,
+      pendingGroups as OutboxPendingAgeGroup[],
+      now,
+    );
+    this.mergeFailedEventTypeGroups(
+      summary,
+      failedGroups as OutboxStatusCountGroup[],
+    );
+    this.mergeProcessingEventTypeGroups(
+      summary,
+      processingGroups as OutboxProcessingAgeGroup[],
+      now,
+    );
+
+    return summary;
+  }
+
+  /** Builds the complete known event-type summary map with zeroed counters. */
+  private buildEmptyEventTypeSummary(): Record<string, OutboxEventTypeSummary> {
+    return Object.fromEntries(
+      [...KNOWN_OUTBOX_EVENT_TYPES, UNKNOWN_OUTBOX_EVENT_TYPE].map(
+        (eventType) => [
+          eventType,
+          {
+            pendingCount: 0,
+            failedCount: 0,
+            processingCount: 0,
+            oldestPendingAgeMs: null,
+            oldestProcessingAgeMs: null,
+          },
+        ],
+      ),
+    );
+  }
+
+  /** Merges pending event-type count and oldest-available age groups into the summary. */
+  private mergePendingEventTypeGroups(
+    summary: Record<string, OutboxEventTypeSummary>,
+    groups: OutboxPendingAgeGroup[],
+    now: number,
+  ): void {
+    for (const group of groups) {
+      const bucket = this.getEventTypeBucket(summary, group.eventType);
+
+      bucket.pendingCount += group._count._all;
+      bucket.oldestPendingAgeMs = minNullableNumber(
+        bucket.oldestPendingAgeMs,
+        group._min.availableAt
+          ? Math.max(0, now - group._min.availableAt.getTime())
+          : null,
+      );
+    }
+  }
+
+  /** Merges failed event-type count groups into the summary. */
+  private mergeFailedEventTypeGroups(
+    summary: Record<string, OutboxEventTypeSummary>,
+    groups: OutboxStatusCountGroup[],
+  ): void {
+    for (const group of groups) {
+      const bucket = this.getEventTypeBucket(summary, group.eventType);
+
+      bucket.failedCount += group._count._all;
+    }
+  }
+
+  /** Merges processing event-type count and oldest-updated age groups into the summary. */
+  private mergeProcessingEventTypeGroups(
+    summary: Record<string, OutboxEventTypeSummary>,
+    groups: OutboxProcessingAgeGroup[],
+    now: number,
+  ): void {
+    for (const group of groups) {
+      const bucket = this.getEventTypeBucket(summary, group.eventType);
+
+      bucket.processingCount += group._count._all;
+      bucket.oldestProcessingAgeMs = minNullableNumber(
+        bucket.oldestProcessingAgeMs,
+        group._min.updatedAt
+          ? Math.max(0, now - group._min.updatedAt.getTime())
+          : null,
+      );
+    }
+  }
+
+  /** Resolves an event-type summary bucket, falling back to the unknown rollup. */
+  private getEventTypeBucket(
+    summary: Record<string, OutboxEventTypeSummary>,
+    eventType: string,
+  ): OutboxEventTypeSummary {
+    return summary[eventType] ?? summary[UNKNOWN_OUTBOX_EVENT_TYPE]!;
+  }
+
+  /** Reads feed-projection rollout flags for the outbox readiness summary. */
   private getFeedProjectionSummaryFlags(): Pick<
     OutboxSummary["feedProjection"],
     | "backfillEnabled"
@@ -361,4 +496,15 @@ export class OutboxService {
         : 0,
     };
   }
+}
+
+/** Returns the lower non-null number while preserving null when both values are null. */
+function minNullableNumber(
+  current: number | null,
+  next: number | null,
+): number | null {
+  if (next === null) return current;
+  if (current === null) return next;
+
+  return Math.min(current, next);
 }

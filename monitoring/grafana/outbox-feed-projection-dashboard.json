@@ -253,6 +253,62 @@
       ],
       "title": "Read Path Hygiene",
       "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 24
+      },
+      "id": 8,
+      "targets": [
+        {
+          "expr": "sum by (event_type, outcome) (rate(outbox_events_total{process=\"worker\"}[5m]))",
+          "legendFormat": "{{event_type}} {{outcome}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Outbox Outcomes by Event Type",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 24
+      },
+      "id": 9,
+      "options": {
+        "code": {
+          "language": "plaintext",
+          "showLineNumbers": false,
+          "showMiniMap": false
+        },
+        "content": "Per-event-type pending/failed/processing backlog is exposed in GET /health/ready at summary.outbox.byEventType. Readiness is report-only for backlog; alerts handle thresholds.",
+        "mode": "markdown"
+      },
+      "title": "Event-Type Backlog Source",
+      "type": "text"
     }
   ],
   "refresh": "30s",

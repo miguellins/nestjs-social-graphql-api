@@ -9,8 +9,18 @@ export type EnqueueOutboxEventInput = {
   availableAt?: Date;
 };
 
+/** Summarizes durable outbox state for one event-type readiness bucket. */
+export type OutboxEventTypeSummary = {
+  failedCount: number;
+  oldestPendingAgeMs: number | null;
+  oldestProcessingAgeMs: number | null;
+  pendingCount: number;
+  processingCount: number;
+};
+
 /** Summarizes current outbox backlog and worker visibility for ops checks. */
 export type OutboxSummary = {
+  byEventType: Record<string, OutboxEventTypeSummary>;
   enabled: boolean;
   failedCount: number;
   feedProjection: {

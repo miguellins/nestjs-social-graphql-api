@@ -29,6 +29,16 @@ type HealthSummary = {
   outbox: {
     enabled: boolean;
     failedCount: number;
+    byEventType: Record<
+      string,
+      {
+        failedCount: number;
+        oldestPendingAgeMs: number | null;
+        oldestProcessingAgeMs: number | null;
+        pendingCount: number;
+        processingCount: number;
+      }
+    >;
     feedProjection: {
       backfillEnabled: boolean;
       enabled: boolean;
@@ -205,6 +215,7 @@ export class HealthService {
         enabled: false,
         pendingCount: 0,
         failedCount: 0,
+        byEventType: {},
         oldestPendingAgeMs: null,
         feedProjection: {
           enabled: false,

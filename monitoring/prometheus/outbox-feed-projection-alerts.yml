@@ -60,3 +60,23 @@ groups:
         annotations:
           summary: Home feed projection shadow compare mismatch rate is elevated.
           description: Projection reads are diverging from legacy reads above the initial warning threshold.
+
+      - alert: HomeFeedProjectionOutboxFailures
+        expr: sum by (event_type) (rate(outbox_events_total{process="worker",event_type=~"feed\\.home\\..+",outcome=~"failed_exhausted|failed_permanent"}[5m])) > 0
+        for: 5m
+        labels:
+          severity: warning
+          component: home-feed-projection
+        annotations:
+          summary: Home feed projection outbox events are failing.
+          description: Inspect failed feed projection rows by eventType and compare with /health/ready summary.outbox.byEventType.
+
+      - alert: UnknownOutboxEventTypeHandled
+        expr: sum by (event_type, outcome) (rate(outbox_events_total{process="worker",event_type!~"feed\\.home\\..+|notification\\.commentReply\\.deliver|notification\\.followRequest\\.deliver"}[5m])) > 0
+        for: 5m
+        labels:
+          severity: critical
+          component: outbox
+        annotations:
+          summary: Unknown outbox event type reached the worker.
+          description: Check the /health/ready summary.outbox.byEventType.unknown bucket and confirm whether an unsupported producer was deployed.

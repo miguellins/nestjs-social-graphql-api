@@ -14,6 +14,7 @@ describe("OutboxService", () => {
       findFirst: jest.fn(),
       findMany: jest.fn(),
       findUnique: jest.fn(),
+      groupBy: jest.fn(),
       update: jest.fn(),
       updateMany: jest.fn(),
     },
@@ -43,6 +44,7 @@ describe("OutboxService", () => {
     jest.clearAllMocks();
     prismaMock.outboxEvent.count.mockResolvedValue(0);
     prismaMock.outboxEvent.findFirst.mockResolvedValue(null);
+    prismaMock.outboxEvent.groupBy.mockResolvedValue([]);
   });
 
   it("enqueues one outbox event row", async () => {
@@ -186,6 +188,113 @@ describe("OutboxService", () => {
       failedCount: 0,
       oldestPendingAgeMs: null,
     });
+    expect(summary.byEventType).toMatchObject({
+      "feed.home.post.fanout": {
+        pendingCount: 0,
+        failedCount: 0,
+        processingCount: 0,
+        oldestPendingAgeMs: null,
+        oldestProcessingAgeMs: null,
+      },
+      "notification.commentReply.deliver": {
+        pendingCount: 0,
+        failedCount: 0,
+        processingCount: 0,
+        oldestPendingAgeMs: null,
+        oldestProcessingAgeMs: null,
+      },
+      unknown: {
+        pendingCount: 0,
+        failedCount: 0,
+        processingCount: 0,
+        oldestPendingAgeMs: null,
+        oldestProcessingAgeMs: null,
+      },
+    });
+  });
+
+  it("reports event-type-aware outbox summary buckets", async () => {
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        OutboxService,
+        { provide: PrismaService, useValue: prismaMock },
+        { provide: ConfigService, useValue: configServiceMock },
+      ],
+    }).compile();
+    const service = moduleRef.get(OutboxService);
+
+    prismaMock.outboxEvent.groupBy
+      .mockResolvedValueOnce([
+        {
+          eventType: "feed.home.post.fanout",
+          _count: { _all: 3 },
+          _min: { availableAt: new Date(Date.now() - 5_000) },
+        },
+        {
+          eventType: "custom.unexpected",
+          _count: { _all: 2 },
+          _min: { availableAt: new Date(Date.now() - 10_000) },
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          eventType: "notification.commentReply.deliver",
+          _count: { _all: 1 },
+        },
+        {
+          eventType: "custom.unexpected",
+          _count: { _all: 4 },
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          eventType: "feed.home.follow.backfill",
+          _count: { _all: 1 },
+          _min: { updatedAt: new Date(Date.now() - 7_000) },
+        },
+        {
+          eventType: "another.unexpected",
+          _count: { _all: 6 },
+          _min: { updatedAt: new Date(Date.now() - 12_000) },
+        },
+      ]);
+
+    const summary = await service.getSummary();
+
+    const fanoutSummary = summary.byEventType["feed.home.post.fanout"];
+    const backfillSummary = summary.byEventType["feed.home.follow.backfill"];
+    const commentReplySummary =
+      summary.byEventType["notification.commentReply.deliver"];
+    const unknownSummary = summary.byEventType.unknown;
+
+    expect(fanoutSummary).toMatchObject({
+      pendingCount: 3,
+      failedCount: 0,
+      processingCount: 0,
+      oldestProcessingAgeMs: null,
+    });
+    expect(typeof fanoutSummary?.oldestPendingAgeMs).toBe("number");
+    expect(backfillSummary).toMatchObject({
+      pendingCount: 0,
+      failedCount: 0,
+      processingCount: 1,
+      oldestPendingAgeMs: null,
+    });
+    expect(typeof backfillSummary?.oldestProcessingAgeMs).toBe("number");
+    expect(commentReplySummary).toMatchObject({
+      pendingCount: 0,
+      failedCount: 1,
+      processingCount: 0,
+      oldestPendingAgeMs: null,
+      oldestProcessingAgeMs: null,
+    });
+    expect(unknownSummary).toMatchObject({
+      pendingCount: 2,
+      failedCount: 4,
+      processingCount: 6,
+    });
+    expect(typeof unknownSummary?.oldestPendingAgeMs).toBe("number");
+    expect(typeof unknownSummary?.oldestProcessingAgeMs).toBe("number");
   });
 
   it("reports outbox backlog metrics snapshot", async () => {
@@ -250,7 +359,16 @@ describe("OutboxService", () => {
 
     const summary = await service.getSummary();
 
-    expect(summary).toEqual({
+    const { byEventType, ...summaryWithoutEventTypes } = summary;
+
+    expect(byEventType).toMatchObject({
+      unknown: {
+        pendingCount: 0,
+        failedCount: 0,
+        processingCount: 0,
+      },
+    });
+    expect(summaryWithoutEventTypes).toEqual({
       enabled: true,
       pendingCount: 0,
       failedCount: 0,
@@ -300,7 +418,16 @@ describe("OutboxService", () => {
 
     const summary = await service.getSummary();
 
-    expect(summary).toEqual({
+    const { byEventType, ...summaryWithoutEventTypes } = summary;
+
+    expect(byEventType).toMatchObject({
+      unknown: {
+        pendingCount: 0,
+        failedCount: 0,
+        processingCount: 0,
+      },
+    });
+    expect(summaryWithoutEventTypes).toEqual({
       enabled: true,
       pendingCount: 0,
       failedCount: 0,

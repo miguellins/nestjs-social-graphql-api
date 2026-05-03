@@ -152,3 +152,28 @@ currently over the configured limit.
   events.
 - Projection delivery is best-effort after source writes; the database write path
   remains the source of truth.
+- Use `GET /health/ready` → `summary.outbox.byEventType` to inspect pending,
+  failed, and processing counts for each `feed.home.*` event type.
+- Readiness remains report-only for outbox backlog; alerts and runbook checks
+  decide whether feed projection backlog requires action.
+- See `docs/runbooks/outbox-backlog.md` for event-type backlog interpretation
+  and incident response.
+
+## Rollout checklist
+
+1. Enable `FEED_PROJECTION_ENQUEUE_ENABLED=true` and
+   `FEED_PROJECTION_WORKER_ENABLED=true` so projection rows can populate and
+   drain before read rollout.
+2. Optionally enable `FEED_PROJECTION_BACKFILL_ENABLED=true` to backfill recent
+   posts after follow transitions.
+3. Optionally enable `FEED_PROJECTION_PURGE_ENABLED=true` once projection table
+   growth needs retention cleanup.
+4. Enable `FEED_PROJECTION_SHADOW_COMPARE_ENABLED=true` with a low sample rate
+   and watch mismatch metrics plus `summary.outbox.byEventType`.
+5. Start read rollout with `FEED_PROJECTION_READ_COHORT_ENABLED=true` and a low
+   `FEED_PROJECTION_READ_COHORT_SAMPLE_RATE`.
+6. Move to `FEED_PROJECTION_READ_ENABLED=true` only after backlog, failures, and
+   shadow mismatches stay within the expected baseline.
+7. During incidents, set `FEED_PROJECTION_READ_ENABLED=false` to fall back to
+   legacy reads. Keep enqueue and worker enabled when possible so projection can
+   catch up.

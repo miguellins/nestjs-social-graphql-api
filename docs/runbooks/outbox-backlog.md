@@ -42,6 +42,39 @@ If `metrics_db_refresh_errors_total{process="worker",component="outbox"}` is
 increasing, backlog gauges may be stale. Check application logs for the
 sanitized refresh error and verify database connectivity.
 
+## Interpret backlog by eventType
+
+Use `GET /health/ready` for the per-event-type backlog view:
+
+- `summary.outbox.byEventType.<eventType>.pendingCount`
+- `summary.outbox.byEventType.<eventType>.failedCount`
+- `summary.outbox.byEventType.<eventType>.processingCount`
+- `summary.outbox.byEventType.<eventType>.oldestPendingAgeMs`
+- `summary.outbox.byEventType.<eventType>.oldestProcessingAgeMs`
+
+Readiness is report-only for outbox backlog. Pending, failed, or processing
+outbox rows do not make `/health/ready` return `status: "error"` while DB,
+cache, and pubsub dependencies are healthy. Use alerts and the summary fields
+to decide whether operator action is required.
+
+Known feed projection event types:
+
+- `feed.home.post.fanout`
+- `feed.home.follow.backfill`
+- `feed.home.user.bootstrap`
+- `feed.home.post.cleanup`
+- `feed.home.relationship.hide`
+
+Known notification delivery event types:
+
+- `notification.commentReply.deliver`
+- `notification.followRequest.deliver`
+
+The `unknown` bucket rolls up pending, failed, or processing rows whose
+`eventType` is not in the known allowlist. Treat non-zero `unknown` counts as an
+uncontrolled producer or unsupported event-type deployment issue until proven
+otherwise.
+
 ## Handle failed events
 
 - Inspect failed rows by `eventType`, `aggregateType`, `aggregateId`,
@@ -65,3 +98,5 @@ sanitized refresh error and verify database connectivity.
 
 If `FEED_PROJECTION_WORKER_ENABLED=false`, feed projection events are
 rescheduled as `retry_scheduled` and should not be treated as handler failures.
+This creates intentional backlog for `feed.home.*` rows, visible in
+`summary.outbox.byEventType` and `outbox_events_total{outcome="retry_scheduled"}`.

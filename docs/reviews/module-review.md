@@ -1,4 +1,4 @@
-29/04
+02/05
 
 # MODULE REVIEW
 
@@ -56,10 +56,10 @@ Strength: report intake, moderation review queues, status transitions, and schem
 Weakness: `reports.service.ts` still combines intake and review concerns, and the "exactly one target" report invariant still needs a reviewed MySQL migration/constraint to be fully enforced at the database level rather than partially protected in application logic plus schema shape.
 
 
-# Notifications: 97/100
-Strength: durable persistence before publish, self-notification suppression, block-aware and mute-aware suppression, explicit trigger/delivery separation, `COMMENT_REPLIED` support, unread count, mark-as-read flows, muted-actor filtering in notification lists, and working realtime delivery through `notificationReceived` give this module solid product footing. It is materially stronger because reply and follow-request notifications can be persisted first and then delivered through the outbox-backed worker path instead of relying only on immediate best-effort publish. Mention-driven notifications and reply flows make it meaningfully more complete than a simple in-app alert list.
+# Notifications: 98/100
+Strength: durable persistence before publish, self-notification suppression, block-aware and mute-aware suppression, explicit trigger/delivery separation, `COMMENT_REPLIED` support, unread count, mark-as-read flows, muted-actor filtering in notification lists, notification preference read/update operations, and working realtime delivery through `notificationReceived` give this module solid product footing. It is materially stronger because reply and follow-request notifications can be persisted first and then delivered through the outbox-backed worker path instead of relying only on immediate best-effort publish. Mention-driven notifications, reply flows, and persisted per-user toggles for reply, follow-request, and mention notifications make it meaningfully more complete than a simple in-app alert list.
 
-Weakness: notification coverage is still relatively narrow overall, with a limited event set and no user preferences, digesting, channel routing, delivery history beyond the current realtime-delivered marker, or broader multi-channel delivery strategy.
+Weakness: notification coverage is still relatively narrow overall, with a limited event set, coarse-grained preference categories, no digesting, no channel routing, limited delivery history beyond the current realtime-delivered marker, and no broader multi-channel delivery strategy.
 
 
 # Outbox: 97/100
@@ -147,7 +147,7 @@ Weakness: the module is infrastructure-minimal. It does not add query instrument
 
 
 # Prisma Schema/Data Layer: 98/100
-Strength: the schema supports roles, privacy, account states, refresh sessions, email verification, password reset, follow requests, moderation actions, notifications, media, blocks, mutes, mentions, one-level threaded comments, durable outbox events, and now persisted home-feed entries. `HomeFeedEntry` has the right v1 shape for deterministic chronological reads, duplicate protection, relationship hiding, post cleanup, and retention work, with indexes aligned to feed reads and cleanup patterns. Recent work improved correctness through follow-request transition safety, comment counter consistency, media attachment ordering, session index alignment, stronger report dedup handling, persisted outbox-backed notification delivery, projected home-feed fanout, and indexed mute relationships.
+Strength: the schema supports roles, privacy, account states, refresh sessions, email verification, password reset, follow requests, moderation actions, notifications, notification preferences, media, blocks, mutes, mentions, one-level threaded comments, durable outbox events, and now persisted home-feed entries. `HomeFeedEntry` has the right v1 shape for deterministic chronological reads, duplicate protection, relationship hiding, post cleanup, and retention work, with indexes aligned to feed reads and cleanup patterns. Recent work improved correctness through follow-request transition safety, comment counter consistency, media attachment ordering, session index alignment, stronger report dedup handling, persisted outbox-backed notification delivery, projected home-feed fanout, and indexed mute relationships.
 
 Weakness: the `ContentReport` "exactly one of postId/commentId" invariant still needs a reviewed MySQL migration/constraint to be fully database-enforced, and the domain model is still incomplete for a fuller social platform, especially around richer preferences, discovery, recommendation/feed ranking, and advanced moderation relationships.
 

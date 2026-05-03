@@ -27,6 +27,7 @@ describe("HealthService", () => {
       enabled: false,
       pendingCount: 0,
       failedCount: 0,
+      byEventType: {},
       oldestPendingAgeMs: null,
       feedProjection: {
         enabled: false,
@@ -129,6 +130,7 @@ describe("HealthService", () => {
           enabled: false,
           pendingCount: 0,
           failedCount: 0,
+          byEventType: {},
           oldestPendingAgeMs: null,
           feedProjection: {
             enabled: false,
@@ -192,6 +194,7 @@ describe("HealthService", () => {
         enabled: false,
         pendingCount: 0,
         failedCount: 0,
+        byEventType: {},
         oldestPendingAgeMs: null,
         feedProjection: {
           enabled: false,
