@@ -13,6 +13,22 @@ export type HomeFeedCleanupEnqueueOutcome =
   | "failed"
   | "skipped_disabled";
 
+export type HomeFeedProjectionFallbackReason =
+  | "missing_hydration_gap"
+  | "read_error";
+
+export type HomeFeedReadSource = "legacy" | "projection";
+
+export type HomeFeedShadowMismatchCategory =
+  | "has_next_page"
+  | "membership"
+  | "order";
+
+export type HomeFeedProjectionReconciliationOutcome =
+  | "error"
+  | "match"
+  | "mismatch";
+
 export type OutboxBacklogMetrics = {
   failedCount: number;
   oldestPendingAgeSeconds: number;
@@ -39,9 +55,19 @@ export class MetricsRegistryService {
   private readonly feedProjectionPurgeErrorsTotal: Counter<"process">;
   private readonly feedProjectionPurgeSeconds: Histogram<"process">;
   private readonly homeFeedShadowCompareTotal: Counter<"process">;
+  private readonly homeFeedShadowCompareMismatchByCategoryTotal: Counter<
+    "category" | "process"
+  >;
   private readonly homeFeedShadowCompareMismatchTotal: Counter<"process">;
   private readonly homeFeedProjectionCleanupEnqueueTotal: Counter<
     "outcome" | "process"
+  >;
+  private readonly homeFeedProjectionFallbackTotal: Counter<
+    "process" | "reason"
+  >;
+  private readonly homeFeedReadSourceTotal: Counter<"process" | "source">;
+  private readonly homeFeedProjectionReconciliationTotal: Counter<
+    "category" | "outcome" | "process"
   >;
   private readonly outboxPendingCount: Gauge<"process">;
   private readonly outboxFailedCount: Gauge<"process">;
@@ -123,10 +149,34 @@ export class MetricsRegistryService {
       labelNames: ["process"],
       registers: [this.registry],
     });
+    this.homeFeedShadowCompareMismatchByCategoryTotal = new Counter({
+      name: "home_feed_shadow_compare_mismatch_by_category_total",
+      help: "Total home feed shadow comparison mismatches by category.",
+      labelNames: ["process", "category"],
+      registers: [this.registry],
+    });
     this.homeFeedProjectionCleanupEnqueueTotal = new Counter({
       name: "home_feed_projection_cleanup_enqueue_total",
       help: "Total home feed projection cleanup enqueue attempts by outcome.",
       labelNames: ["process", "outcome"],
+      registers: [this.registry],
+    });
+    this.homeFeedProjectionFallbackTotal = new Counter({
+      name: "home_feed_projection_fallback_total",
+      help: "Total home feed projection read fallbacks by reason.",
+      labelNames: ["process", "reason"],
+      registers: [this.registry],
+    });
+    this.homeFeedReadSourceTotal = new Counter({
+      name: "home_feed_read_source_total",
+      help: "Total home feed reads by served source.",
+      labelNames: ["process", "source"],
+      registers: [this.registry],
+    });
+    this.homeFeedProjectionReconciliationTotal = new Counter({
+      name: "home_feed_projection_reconciliation_total",
+      help: "Total observe-only home feed projection reconciliation outcomes.",
+      labelNames: ["process", "outcome", "category"],
       registers: [this.registry],
     });
     this.outboxPendingCount = new Gauge({
@@ -233,6 +283,15 @@ export class MetricsRegistryService {
     this.homeFeedShadowCompareMismatchTotal.inc({ process: "api" });
   }
 
+  incrementHomeFeedShadowCompareMismatchByCategory(
+    category: HomeFeedShadowMismatchCategory,
+  ): void {
+    this.homeFeedShadowCompareMismatchByCategoryTotal.inc({
+      process: "api",
+      category,
+    });
+  }
+
   incrementHomeFeedProjectionCleanupEnqueue(
     outcome: HomeFeedCleanupEnqueueOutcome,
   ): void {
@@ -240,6 +299,39 @@ export class MetricsRegistryService {
       process: "api",
       outcome,
     });
+  }
+
+  incrementHomeFeedProjectionFallback(
+    reason: HomeFeedProjectionFallbackReason,
+  ): void {
+    this.homeFeedProjectionFallbackTotal.inc({
+      process: "api",
+      reason,
+    });
+  }
+
+  incrementHomeFeedReadSource(source: HomeFeedReadSource): void {
+    this.homeFeedReadSourceTotal.inc({
+      process: "api",
+      source,
+    });
+  }
+
+  recordHomeFeedProjectionReconciliation(
+    outcome: HomeFeedProjectionReconciliationOutcome,
+    category: HomeFeedShadowMismatchCategory | "none",
+    count = 1,
+  ): void {
+    if (count <= 0) return;
+
+    this.homeFeedProjectionReconciliationTotal.inc(
+      {
+        process: "worker",
+        outcome,
+        category,
+      },
+      count,
+    );
   }
 
   setOutboxBacklogMetrics(metrics: OutboxBacklogMetrics): void {

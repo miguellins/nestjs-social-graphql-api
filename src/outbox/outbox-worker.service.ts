@@ -13,6 +13,10 @@ import { HomeFeedProjectionService } from "@/posts/home-feed-projection.service"
 
 import { MetricsRegistryService } from "@/metrics/metrics-registry.service";
 
+const FEED_PROJECTION_RECONCILIATION_INTERVAL_MS = 10 * 60 * 1_000;
+const FEED_PROJECTION_RECONCILIATION_SAMPLE_SIZE = 25;
+const FEED_PROJECTION_RECONCILIATION_PAGE_SIZE = 100;
+
 /** Runs the configured polling loop that processes durable outbox events. */
 @Injectable()
 export class OutboxWorkerService implements OnModuleDestroy, OnModuleInit {
@@ -27,6 +31,7 @@ export class OutboxWorkerService implements OnModuleDestroy, OnModuleInit {
   private isRunning = false;
   private isShuttingDown = false;
   private lastFeedProjectionPurgeAtMs = 0;
+  private lastFeedProjectionReconciliationAtMs = 0;
   private lastMetricsDbRefreshAtMs = 0;
 
   constructor(
@@ -89,6 +94,7 @@ export class OutboxWorkerService implements OnModuleDestroy, OnModuleInit {
       const processedCount = await this.outboxProcessor.processNextBatch();
       await this.outboxService.purgeExpiredEvents();
       await this.maybePurgeHomeFeedProjection();
+      await this.maybeReconcileHomeFeedProjection();
 
       if (processedCount > 0) {
         this.logger.log("Outbox worker processed batch", {
@@ -157,6 +163,60 @@ export class OutboxWorkerService implements OnModuleDestroy, OnModuleInit {
       this.metricsRegistry.incrementFeedProjectionPurgeError();
       this.logger.error(
         "Home feed projection purge failed",
+        error instanceof Error ? error.stack : undefined,
+        OutboxWorkerService.name,
+      );
+    }
+  }
+
+  private async maybeReconcileHomeFeedProjection(): Promise<void> {
+    if (!this.feedProjectionWorkerEnabled) return;
+
+    const now = Date.now();
+    if (
+      this.lastFeedProjectionReconciliationAtMs > 0 &&
+      now - this.lastFeedProjectionReconciliationAtMs <
+        FEED_PROJECTION_RECONCILIATION_INTERVAL_MS
+    ) {
+      return;
+    }
+
+    this.lastFeedProjectionReconciliationAtMs = now;
+
+    try {
+      const result = await this.homeFeedProjection.reconcileSampledUsers({
+        sampleSize: FEED_PROJECTION_RECONCILIATION_SAMPLE_SIZE,
+        pageSize: FEED_PROJECTION_RECONCILIATION_PAGE_SIZE,
+      });
+
+      this.metricsRegistry.recordHomeFeedProjectionReconciliation(
+        "match",
+        "none",
+        result.matched,
+      );
+
+      const mismatchCounts = new Map<string, number>();
+      for (const mismatch of result.mismatches) {
+        mismatchCounts.set(
+          mismatch.category,
+          (mismatchCounts.get(mismatch.category) ?? 0) + 1,
+        );
+      }
+
+      for (const [category, count] of mismatchCounts) {
+        this.metricsRegistry.recordHomeFeedProjectionReconciliation(
+          "mismatch",
+          category as (typeof result.mismatches)[number]["category"],
+          count,
+        );
+      }
+    } catch (error) {
+      this.metricsRegistry.recordHomeFeedProjectionReconciliation(
+        "error",
+        "none",
+      );
+      this.logger.error(
+        "Home feed projection reconciliation failed",
         error instanceof Error ? error.stack : undefined,
         OutboxWorkerService.name,
       );

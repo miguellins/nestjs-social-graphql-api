@@ -61,6 +61,46 @@ groups:
           summary: Home feed projection shadow compare mismatch rate is elevated.
           description: Projection reads are diverging from legacy reads above the initial warning threshold.
 
+      - alert: HomeFeedShadowCompareCursorMismatch
+        expr: sum by (category) (rate(home_feed_shadow_compare_mismatch_by_category_total{process="api",category=~"order|has_next_page"}[5m])) > 0
+        for: 10m
+        labels:
+          severity: critical
+          component: home-feed-projection
+        annotations:
+          summary: Home feed projection cursor semantics mismatch detected.
+          description: Order or hasNextPage mismatches are rollout-blocking. Disable projection reads first and investigate the logged minimal diff context.
+
+      - alert: HomeFeedShadowCompareMembershipMismatchElevated
+        expr: (rate(home_feed_shadow_compare_mismatch_by_category_total{process="api",category="membership"}[15m]) / clamp_min(rate(home_feed_shadow_compare_total{process="api"}[15m]), 1)) > 0.005 and rate(home_feed_shadow_compare_total{process="api"}[15m]) > 0
+        for: 15m
+        labels:
+          severity: warning
+          component: home-feed-projection
+        annotations:
+          summary: Home feed projection membership mismatch rate is elevated.
+          description: Membership drift exceeded the rollout gate. Check projection lag, cleanup events, and reconciliation mismatch logs.
+
+      - alert: HomeFeedProjectionFallbackRateElevated
+        expr: (sum(rate(home_feed_projection_fallback_total{process="api"}[15m])) / clamp_min(sum(rate(home_feed_read_source_total{process="api",source="projection"}[15m])) + sum(rate(home_feed_projection_fallback_total{process="api"}[15m])), 1)) > 0.002
+        for: 30m
+        labels:
+          severity: warning
+          component: home-feed-projection
+        annotations:
+          summary: Home feed projection fallback rate is above the rollout gate.
+          description: Projection read attempts are falling back to legacy too often. Break down by fallback reason before increasing rollout percentage.
+
+      - alert: HomeFeedProjectionReconciliationMismatch
+        expr: sum by (category) (rate(home_feed_projection_reconciliation_total{process="worker",outcome="mismatch"}[30m])) > 0
+        for: 30m
+        labels:
+          severity: warning
+          component: home-feed-projection
+        annotations:
+          summary: Home feed projection reconciliation found mismatches.
+          description: The observe-only worker reconciliation loop found projection drift. Use category labels and worker logs for first divergent index and counts.
+
       - alert: HomeFeedProjectionOutboxFailures
         expr: sum by (event_type) (rate(outbox_events_total{process="worker",event_type=~"feed\\.home\\..+",outcome=~"failed_exhausted|failed_permanent"}[5m])) > 0
         for: 5m

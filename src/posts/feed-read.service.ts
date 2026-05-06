@@ -30,7 +30,10 @@ import { OutboxService } from "@/outbox/outbox.service";
 
 import { MediaReadProjectionService } from "@/media/media-read-projection.service";
 
-import { MetricsRegistryService } from "@/metrics/metrics-registry.service";
+import {
+  MetricsRegistryService,
+  type HomeFeedShadowMismatchCategory,
+} from "@/metrics/metrics-registry.service";
 
 import { AccountState } from "@/users/enums/account-state.enum";
 
@@ -50,6 +53,11 @@ type ProjectionReadResult = CursorPageResult<HomeFeedItemDTO> & {
 };
 
 type ProjectionFallbackReason = "missing_hydration_gap" | "read_error";
+
+type ShadowCompareMismatch = {
+  category: HomeFeedShadowMismatchCategory;
+  firstDivergentIndex: number | null;
+};
 
 @Injectable()
 export class FeedReadService {
@@ -75,7 +83,9 @@ export class FeedReadService {
 
     const useProjection = await this.shouldUseProjectionRead(currentUserId);
     if (!useProjection) {
-      return this.getHomeFeedFanoutOnRead(currentUserId, params);
+      const legacy = await this.getHomeFeedFanoutOnRead(currentUserId, params);
+      this.metricsRegistry.incrementHomeFeedReadSource("legacy");
+      return legacy;
     }
 
     const projectionResult = await this.safeGetHomeFeedFromProjection(
@@ -84,13 +94,19 @@ export class FeedReadService {
     );
 
     if (projectionResult.fallbackReason) {
-      return this.getHomeFeedFanoutOnRead(currentUserId, params);
+      this.metricsRegistry.incrementHomeFeedProjectionFallback(
+        projectionResult.fallbackReason,
+      );
+      const legacy = await this.getHomeFeedFanoutOnRead(currentUserId, params);
+      this.metricsRegistry.incrementHomeFeedReadSource("legacy");
+      return legacy;
     }
 
     if (this.shouldShadowCompare(currentUserId)) {
       void this.shadowCompareHomeFeed(currentUserId, params, projectionResult);
     }
 
+    this.metricsRegistry.incrementHomeFeedReadSource("projection");
     return projectionResult;
   }
 
@@ -174,7 +190,14 @@ export class FeedReadService {
     if (!this.projectionReadCohortEnabled) return false;
     if (this.projectionReadCohortSampleRate <= 0) return false;
 
-    if (Math.random() >= this.projectionReadCohortSampleRate) return false;
+    if (
+      !isUserInDeterministicCohort(
+        currentUserId,
+        this.projectionReadCohortSampleRate,
+      )
+    ) {
+      return false;
+    }
 
     return this.isProjectionPopulatedOrBootstrapped(currentUserId);
   }
@@ -515,17 +538,25 @@ export class FeedReadService {
 
     const legacyIds = legacy.items.map((item) => item.id);
     const projectionIds = projection.items.map((item) => item.id);
+    const mismatch = getShadowCompareMismatch({
+      legacyIds,
+      projectionIds,
+      legacyHasNextPage: legacy.pageInfo.hasNextPage,
+      projectionHasNextPage: projection.pageInfo.hasNextPage,
+    });
 
-    const same =
-      legacy.pageInfo.hasNextPage === projection.pageInfo.hasNextPage &&
-      legacyIds.length === projectionIds.length &&
-      legacyIds.every((id, idx) => projectionIds[idx] === id);
-
-    if (!same) {
+    if (mismatch) {
       this.metricsRegistry.incrementHomeFeedShadowCompareMismatch();
+      this.metricsRegistry.incrementHomeFeedShadowCompareMismatchByCategory(
+        mismatch.category,
+      );
       // Keep payload minimal; ids only.
       this.logger.warn("homeFeed shadow compare mismatch", {
         currentUserId,
+        category: mismatch.category,
+        firstDivergentIndex: mismatch.firstDivergentIndex,
+        legacyCount: legacyIds.length,
+        projectionCount: projectionIds.length,
         legacyIds,
         projectionIds,
         legacyHasNextPage: legacy.pageInfo.hasNextPage,
@@ -593,4 +624,89 @@ export class FeedReadService {
       throw new NotFoundException("Current user not found");
     }
   }
+}
+
+function getShadowCompareMismatch(params: {
+  legacyIds: number[];
+  projectionIds: number[];
+  legacyHasNextPage: boolean;
+  projectionHasNextPage: boolean;
+}): ShadowCompareMismatch | null {
+  const firstDivergentIndex = getFirstDivergentIndex(
+    params.legacyIds,
+    params.projectionIds,
+  );
+
+  if (params.legacyHasNextPage !== params.projectionHasNextPage) {
+    return {
+      category: "has_next_page",
+      firstDivergentIndex,
+    };
+  }
+
+  if (!hasSameMembership(params.legacyIds, params.projectionIds)) {
+    return {
+      category: "membership",
+      firstDivergentIndex,
+    };
+  }
+
+  if (firstDivergentIndex !== null) {
+    return {
+      category: "order",
+      firstDivergentIndex,
+    };
+  }
+
+  return null;
+}
+
+function getFirstDivergentIndex(
+  left: number[],
+  right: number[],
+): number | null {
+  const maxLength = Math.max(left.length, right.length);
+
+  for (let index = 0; index < maxLength; index += 1) {
+    if (left[index] !== right[index]) return index;
+  }
+
+  return null;
+}
+
+function hasSameMembership(left: number[], right: number[]): boolean {
+  if (left.length !== right.length) return false;
+
+  const remaining = new Map<number, number>();
+
+  for (const id of left) {
+    remaining.set(id, (remaining.get(id) ?? 0) + 1);
+  }
+
+  for (const id of right) {
+    const count = remaining.get(id);
+    if (!count) return false;
+    if (count === 1) {
+      remaining.delete(id);
+    } else {
+      remaining.set(id, count - 1);
+    }
+  }
+
+  return remaining.size === 0;
+}
+
+function isUserInDeterministicCohort(
+  userId: number,
+  sampleRate: number,
+): boolean {
+  if (sampleRate >= 1) return true;
+  if (sampleRate <= 0) return false;
+
+  const threshold = Math.floor(10_000 * sampleRate);
+  return positiveModulo(userId, 10_000) < threshold;
+}
+
+function positiveModulo(value: number, divisor: number): number {
+  return ((value % divisor) + divisor) % divisor;
 }

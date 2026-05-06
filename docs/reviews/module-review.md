@@ -1,4 +1,4 @@
-02/05
+03/05
 
 # MODULE REVIEW
 
@@ -62,10 +62,10 @@ Strength: durable persistence before publish, self-notification suppression, blo
 Weakness: notification coverage is still relatively narrow overall, with a limited event set, coarse-grained preference categories, no digesting, no channel routing, limited delivery history beyond the current realtime-delivered marker, and no broader multi-channel delivery strategy.
 
 
-# Outbox: 97/100
-Strength: the outbox module now gives the project a real durable async backbone for post-commit follow-up work. `OutboxService`, `OutboxProcessorService`, and `OutboxWorkerService` form a credible implementation with persisted rows, claim-and-process semantics, retry scheduling, permanent-failure handling, retention cleanup, readiness visibility through `/health/ready`, and Prometheus metrics for worker ticks, errors, event outcomes, processing latency, batch size, backlog state, purge health, and DB refresh failures. The surface is no longer single-purpose: it handles comment reply notification delivery, follow-request notification delivery, and home-feed projection events for post fanout, follow backfill, user bootstrap, post cleanup, and relationship hiding from follow and mute transitions. The processor also avoids burning retries when the feed projection worker is intentionally disabled.
+# Outbox: 98/100
+Strength: the outbox module now gives the project a real durable async backbone for post-commit follow-up work. `OutboxService`, `OutboxProcessorService`, and `OutboxWorkerService` form a credible implementation with persisted rows, claim-and-process semantics, retry scheduling, permanent-failure handling, retention cleanup, event-type-aware readiness visibility through `/health/ready`, and Prometheus metrics for worker ticks, errors, event outcomes, processing latency, batch size, backlog state, purge health, and DB refresh failures. The readiness summary now reports all known event types plus an `unknown` rollup with pending, failed, processing, oldest pending, and oldest processing state while keeping backlog report-only. The surface is no longer single-purpose: it handles comment reply notification delivery, follow-request notification delivery, and home-feed projection events for post fanout, follow backfill, user bootstrap, post cleanup, and relationship hiding from follow and mute transitions. The processor also avoids burning retries when the feed projection worker is intentionally disabled.
 
-Weakness: the module is still compact and uses an explicit dispatcher rather than a broader event-handler registry or job taxonomy. The new metrics provide useful v1 visibility, but worker deployment concerns, richer operational controls, and a more generalized queue platform model will matter more as more domains move onto the outbox.
+Weakness: the module is still compact and uses an explicit dispatcher rather than a broader event-handler registry or job taxonomy. The new event-type readiness and metrics provide useful v1 visibility, but worker deployment concerns, richer operational controls, and a more generalized queue platform model will matter more as more domains move onto the outbox.
 
 
 # GraphQL Subscriptions: 97/100
@@ -92,14 +92,14 @@ Strength: viewer-aware and mute-aware bookmark visibility, per-user versioned ca
 Weakness: it is still a compact utility feature with no richer organization, tagging, collections, or bookmark-specific product depth.
 
 
-# Ops / Health: 95/100
-Strength: the project has real liveness/readiness endpoints through `HealthController` and `HealthService`, dependency-aware readiness checks for DB/cache/pubsub, boot-complete tracking, outbox backlog summary, and direct test coverage for the operational wiring. Readiness now reflects the async processing surface through pending/failed outbox counts and oldest pending age, while metrics provide a more scrape-friendly view of outbox/feed projection health.
+# Ops / Health: 96/100
+Strength: the project has real liveness/readiness endpoints through `HealthController` and `HealthService`, dependency-aware readiness checks for DB/cache/pubsub, boot-complete tracking, report-only outbox backlog summary, and direct test coverage for the operational wiring. Readiness now reflects the async processing surface through aggregate outbox counters plus event-type-aware buckets for known producers and an `unknown` rollup, while metrics provide a more scrape-friendly view of outbox/feed projection health. Liveness remains cheap and uncoupled from database, cache, pubsub, or outbox state.
 
-Weakness: the layer is still not production-complete. Metrics now exist for the outbox/feed projection slice, but there is still no tracing posture, broader SLO-oriented monitoring stack, or deeper worker-health and failure analytics across the full application.
+Weakness: the layer is still not production-complete. Metrics and readiness now cover the outbox/feed projection slice more clearly, but there is still no tracing posture, broader SLO-oriented monitoring stack, or deeper worker-health and failure analytics across the full application.
 
 
 # Metrics: 95/100
-Strength: `MetricsModule`, `MetricsRegistryService`, and `MetricsServerService` add a real Prometheus-compatible metrics surface behind `METRICS_ENABLED`, with a dedicated internal `/metrics` server per process, typed env configuration, stable low-cardinality metric names, and direct tests for disabled/enabled endpoint behavior and emitted series. The metrics surface covers outbox worker ticks/errors, event outcomes, batch sizes, processing latency, feed projection purge health, DB-backed backlog gauges, shadow compare counters, cleanup enqueue outcomes, and refresh failures. Prometheus alert rules, a Grafana dashboard, and the outbox backlog runbook make the new telemetry operational rather than only code-level instrumentation.
+Strength: `MetricsModule`, `MetricsRegistryService`, and `MetricsServerService` add a real Prometheus-compatible metrics surface behind `METRICS_ENABLED`, with a dedicated internal `/metrics` server per process, typed env configuration, stable low-cardinality metric names, and direct tests for disabled/enabled endpoint behavior and emitted series. The metrics surface covers outbox worker ticks/errors, event outcomes, batch sizes, processing latency, feed projection purge health, DB-backed backlog gauges, shadow compare counters, cleanup enqueue outcomes, and refresh failures. Prometheus alert rules, a Grafana dashboard, and the outbox backlog runbook now align with event-type-aware readiness reporting, including guidance for unknown outbox producers.
 
 Weakness: the module is intentionally v1 and focused on outbox/feed projection health. It does not yet include a broader metrics taxonomy across all modules, request/GraphQL latency metrics, cache hit/miss metrics, Prisma query timing, tracing correlation, or production deployment manifests for scrape targets and network policy.
 
@@ -165,6 +165,6 @@ Weakness: there are still a few older or feature-specific patterns around the sh
 
 
 # Operational / Observability Layer: 97/100
-Strength: this area is materially stronger than the earlier project state. The project has liveness/readiness endpoints, dependency-aware readiness checks for DB/cache/pubsub, structured application logging, request/correlation IDs, boot-complete tracking, direct test coverage for the operational wiring, a dedicated Prometheus-compatible metrics server, and a durable async processing surface through the outbox module with backlog visibility exposed in readiness and metrics. Home-feed projection purge, worker gating, shadow compare metrics, cleanup enqueue metrics, Prometheus alert rules, a Grafana dashboard, and an outbox backlog runbook give the background-processing story a more realistic operational shape.
+Strength: this area is materially stronger than the earlier project state. The project has liveness/readiness endpoints, dependency-aware readiness checks for DB/cache/pubsub, structured application logging, request/correlation IDs, boot-complete tracking, direct test coverage for the operational wiring, a dedicated Prometheus-compatible metrics server, and a durable async processing surface through the outbox module with aggregate and event-type-aware backlog visibility exposed in readiness and metrics. Home-feed projection purge, worker gating, shadow compare metrics, cleanup enqueue metrics, Prometheus alert rules, a Grafana dashboard, and an outbox backlog runbook give the background-processing story a more realistic operational shape.
 
 Weakness: despite the improvement, the layer is still not production-complete. Metrics are now real but scoped mostly to outbox/feed projection behavior, and there is still no distributed tracing posture, broad request/cache/Prisma metrics, richer SLO ownership model, broad job taxonomy beyond the current outbox cases, or production deployment manifests for scrape target/network policy wiring. Relative to the maturity of the product/backend logic, tracing and broader cross-module instrumentation are now the main remaining ops gaps.

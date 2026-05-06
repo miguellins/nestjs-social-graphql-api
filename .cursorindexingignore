@@ -1,0 +1,16 @@
+node_modules/
+dist/
+coverage/
+.next/
+.cache/
+tmp/
+logs/
+*.log
+
+# generated / heavy
+schema.gql
+generated/
+build/
+
+# optional: prevents migration files from polluting search/index context
+prisma/migrations/

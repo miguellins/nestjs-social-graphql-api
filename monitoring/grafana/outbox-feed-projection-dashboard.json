@@ -309,6 +309,123 @@
       },
       "title": "Event-Type Backlog Source",
       "type": "text"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 32
+      },
+      "id": 10,
+      "targets": [
+        {
+          "expr": "sum by (source) (rate(home_feed_read_source_total{process=\"api\"}[5m]))",
+          "legendFormat": "{{source}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Home Feed Read Source",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 32
+      },
+      "id": 11,
+      "targets": [
+        {
+          "expr": "sum by (reason) (rate(home_feed_projection_fallback_total{process=\"api\"}[15m])) / clamp_min(sum(rate(home_feed_read_source_total{process=\"api\",source=\"projection\"}[15m])) + sum(rate(home_feed_projection_fallback_total{process=\"api\"}[15m])), 1)",
+          "legendFormat": "{{reason}} ratio",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(home_feed_projection_fallback_total{process=\"api\"}[15m])) / clamp_min(sum(rate(home_feed_read_source_total{process=\"api\",source=\"projection\"}[15m])) + sum(rate(home_feed_projection_fallback_total{process=\"api\"}[15m])), 1)",
+          "legendFormat": "fallback ratio",
+          "refId": "B"
+        }
+      ],
+      "title": "Projection Fallbacks",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 40
+      },
+      "id": 12,
+      "targets": [
+        {
+          "expr": "sum by (category) (rate(home_feed_shadow_compare_mismatch_by_category_total{process=\"api\"}[15m]))",
+          "legendFormat": "{{category}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Shadow Mismatch Categories",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 40
+      },
+      "id": 13,
+      "targets": [
+        {
+          "expr": "sum by (outcome, category) (rate(home_feed_projection_reconciliation_total{process=\"worker\"}[30m]))",
+          "legendFormat": "{{outcome}} {{category}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Projection Reconciliation",
+      "type": "timeseries"
     }
   ],
   "refresh": "30s",

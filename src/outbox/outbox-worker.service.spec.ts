@@ -18,6 +18,7 @@ describe("OutboxWorkerService", () => {
   };
   const homeFeedProjectionMock = {
     purgeExpiredEntries: jest.fn(),
+    reconcileSampledUsers: jest.fn(),
   };
   const metricsRegistryMock = {
     incrementFeedProjectionPurgeError: jest.fn(),
@@ -25,6 +26,7 @@ describe("OutboxWorkerService", () => {
     incrementOutboxWorkerTickError: jest.fn(),
     incrementOutboxMetricsRefreshError: jest.fn(),
     recordFeedProjectionPurge: jest.fn(),
+    recordHomeFeedProjectionReconciliation: jest.fn(),
     setOutboxBacklogMetrics: jest.fn(),
   };
 
@@ -41,6 +43,11 @@ describe("OutboxWorkerService", () => {
     });
     outboxServiceMock.purgeExpiredEvents.mockResolvedValue(undefined);
     homeFeedProjectionMock.purgeExpiredEntries.mockResolvedValue(undefined);
+    homeFeedProjectionMock.reconcileSampledUsers.mockResolvedValue({
+      matched: 0,
+      mismatches: [],
+      usersChecked: 0,
+    });
   });
 
   afterEach(() => {
@@ -398,5 +405,121 @@ describe("OutboxWorkerService", () => {
     expect(
       metricsRegistryMock.incrementFeedProjectionPurgeError,
     ).toHaveBeenCalledTimes(1);
+  });
+
+  it("runs observe-only feed projection reconciliation on the worker interval", async () => {
+    const configServiceMock = {
+      get: jest.fn((key: string) => {
+        switch (key) {
+          case "OUTBOX_ENABLED":
+            return true;
+          case "OUTBOX_PROCESS_ROLE":
+            return "worker";
+          case "OUTBOX_POLL_INTERVAL_MS":
+            return 1_000;
+          case "FEED_PROJECTION_WORKER_ENABLED":
+            return true;
+          default:
+            return undefined;
+        }
+      }),
+    };
+
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        OutboxWorkerService,
+        { provide: ConfigService, useValue: configServiceMock },
+        { provide: OutboxProcessorService, useValue: outboxProcessorMock },
+        { provide: OutboxService, useValue: outboxServiceMock },
+        { provide: MetricsRegistryService, useValue: metricsRegistryMock },
+        {
+          provide: HomeFeedProjectionService,
+          useValue: homeFeedProjectionMock,
+        },
+      ],
+    }).compile();
+
+    homeFeedProjectionMock.reconcileSampledUsers.mockResolvedValue({
+      matched: 1,
+      mismatches: [
+        {
+          category: "order",
+          firstDivergentIndex: 0,
+          legacyCount: 2,
+          legacyHasNextPage: false,
+          legacyIds: [2, 1],
+          projectionCount: 2,
+          projectionHasNextPage: false,
+          projectionIds: [1, 2],
+          userId: 1,
+        },
+      ],
+      usersChecked: 2,
+    });
+
+    moduleRef.get(OutboxWorkerService).onModuleInit();
+    await jest.runOnlyPendingTimersAsync();
+    await jest.advanceTimersByTimeAsync(1_000);
+
+    expect(homeFeedProjectionMock.reconcileSampledUsers).toHaveBeenCalledTimes(
+      1,
+    );
+    expect(homeFeedProjectionMock.reconcileSampledUsers).toHaveBeenCalledWith({
+      pageSize: 100,
+      sampleSize: 25,
+    });
+    expect(
+      metricsRegistryMock.recordHomeFeedProjectionReconciliation,
+    ).toHaveBeenCalledWith("match", "none", 1);
+    expect(
+      metricsRegistryMock.recordHomeFeedProjectionReconciliation,
+    ).toHaveBeenCalledWith("mismatch", "order", 1);
+  });
+
+  it("records reconciliation errors without failing the worker tick", async () => {
+    const configServiceMock = {
+      get: jest.fn((key: string) => {
+        switch (key) {
+          case "OUTBOX_ENABLED":
+            return true;
+          case "OUTBOX_PROCESS_ROLE":
+            return "worker";
+          case "OUTBOX_POLL_INTERVAL_MS":
+            return 1_000;
+          case "FEED_PROJECTION_WORKER_ENABLED":
+            return true;
+          default:
+            return undefined;
+        }
+      }),
+    };
+
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        OutboxWorkerService,
+        { provide: ConfigService, useValue: configServiceMock },
+        { provide: OutboxProcessorService, useValue: outboxProcessorMock },
+        { provide: OutboxService, useValue: outboxServiceMock },
+        { provide: MetricsRegistryService, useValue: metricsRegistryMock },
+        {
+          provide: HomeFeedProjectionService,
+          useValue: homeFeedProjectionMock,
+        },
+      ],
+    }).compile();
+
+    homeFeedProjectionMock.reconcileSampledUsers.mockRejectedValue(
+      new Error("db down"),
+    );
+
+    moduleRef.get(OutboxWorkerService).onModuleInit();
+    await jest.runOnlyPendingTimersAsync();
+
+    expect(
+      metricsRegistryMock.recordHomeFeedProjectionReconciliation,
+    ).toHaveBeenCalledWith("error", "none");
+    expect(
+      metricsRegistryMock.incrementOutboxWorkerTickError,
+    ).not.toHaveBeenCalled();
   });
 });

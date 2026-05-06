@@ -56,7 +56,10 @@ describe("FeedReadService", () => {
   };
   const metricsRegistryMock = {
     incrementHomeFeedProjectionCleanupEnqueue: jest.fn(),
+    incrementHomeFeedProjectionFallback: jest.fn(),
+    incrementHomeFeedReadSource: jest.fn(),
     incrementHomeFeedShadowCompare: jest.fn(),
+    incrementHomeFeedShadowCompareMismatchByCategory: jest.fn(),
     incrementHomeFeedShadowCompareMismatch: jest.fn(),
   };
 
@@ -230,6 +233,9 @@ describe("FeedReadService", () => {
     );
     expect(result.pageInfo.hasNextPage).toBe(true);
     expect(result.pageInfo.endCursor).toEqual(expect.any(String));
+    expect(
+      metricsRegistryMock.incrementHomeFeedReadSource,
+    ).toHaveBeenCalledWith("legacy");
   });
 
   it("reads home feed from projection when enabled", async () => {
@@ -309,6 +315,9 @@ describe("FeedReadService", () => {
       },
     });
     expect(result.items[0]?.id).toBe(3);
+    expect(
+      metricsRegistryMock.incrementHomeFeedReadSource,
+    ).toHaveBeenCalledWith("projection");
   });
 
   it("records skipped cleanup enqueue when projection rows do not hydrate and enqueueing is disabled", async () => {
@@ -489,6 +498,12 @@ describe("FeedReadService", () => {
     expect(result.items.map((item) => item.id)).toEqual([9]);
     expect(prismaMock.post.findMany).toHaveBeenCalledTimes(2);
     expect(
+      metricsRegistryMock.incrementHomeFeedProjectionFallback,
+    ).toHaveBeenCalledWith("missing_hydration_gap");
+    expect(
+      metricsRegistryMock.incrementHomeFeedReadSource,
+    ).toHaveBeenCalledWith("legacy");
+    expect(
       metricsRegistryMock.incrementHomeFeedProjectionCleanupEnqueue,
     ).toHaveBeenCalledWith("skipped_disabled");
   });
@@ -530,6 +545,12 @@ describe("FeedReadService", () => {
     const result = await service.getHomeFeed(7, { first: 1 });
 
     expect(result.items.map((item) => item.id)).toEqual([4]);
+    expect(
+      metricsRegistryMock.incrementHomeFeedProjectionFallback,
+    ).toHaveBeenCalledWith("read_error");
+    expect(
+      metricsRegistryMock.incrementHomeFeedReadSource,
+    ).toHaveBeenCalledWith("legacy");
   });
 
   it("records shadow compare totals and mismatches when shadow compare runs", async () => {
@@ -579,6 +600,103 @@ describe("FeedReadService", () => {
     expect(
       metricsRegistryMock.incrementHomeFeedShadowCompareMismatch,
     ).toHaveBeenCalled();
+    expect(
+      metricsRegistryMock.incrementHomeFeedShadowCompareMismatchByCategory,
+    ).toHaveBeenCalledWith("membership");
+  });
+
+  it("records order mismatch category when projected ids have the same membership in a different order", async () => {
+    await moduleRef?.close();
+
+    const configServiceMock = makeConfigServiceMock({
+      FEED_PROJECTION_READ_ENABLED: true,
+      FEED_PROJECTION_SHADOW_COMPARE_ENABLED: true,
+      FEED_PROJECTION_SHADOW_COMPARE_DEBUG_ONLY: false,
+      FEED_PROJECTION_SHADOW_COMPARE_SAMPLE_RATE: 1,
+      FEED_PROJECTION_ENQUEUE_ENABLED: false,
+      FEED_PROJECTION_READ_COHORT_ENABLED: false,
+      FEED_PROJECTION_READ_COHORT_SAMPLE_RATE: 0,
+      FEED_PROJECTION_READ_REQUIRE_POPULATED: true,
+    });
+
+    moduleRef = await Test.createTestingModule({
+      providers: [
+        FeedReadService,
+        MediaReadProjectionService,
+        { provide: PrismaService, useValue: prismaMock },
+        { provide: PostReadService, useValue: postReadServiceMock },
+        { provide: MutesService, useValue: mutesServiceMock },
+        { provide: R2StorageService, useValue: r2StorageMock },
+        { provide: OutboxService, useValue: outboxServiceMock },
+        { provide: MetricsRegistryService, useValue: metricsRegistryMock },
+        { provide: ConfigService, useValue: configServiceMock },
+      ],
+    }).compile();
+
+    service = moduleRef.get(FeedReadService);
+
+    prismaMock.homeFeedEntry.count.mockResolvedValue(1);
+    prismaMock.homeFeedEntry.findMany.mockResolvedValue([
+      { postId: 3, postCreatedAt: new Date("2026-04-03T00:00:00.000Z") },
+      { postId: 2, postCreatedAt: new Date("2026-04-02T00:00:00.000Z") },
+    ]);
+    prismaMock.post.findMany
+      .mockResolvedValueOnce([makeFeedRow(3), makeFeedRow(2)])
+      .mockResolvedValueOnce([makeFeedRow(2), makeFeedRow(3)]);
+
+    await service.getHomeFeed(7, { first: 2 });
+    await waitForBestEffortWork();
+
+    expect(
+      metricsRegistryMock.incrementHomeFeedShadowCompareMismatchByCategory,
+    ).toHaveBeenCalledWith("order");
+  });
+
+  it("records hasNextPage mismatch category separately from membership and order", async () => {
+    await moduleRef?.close();
+
+    const configServiceMock = makeConfigServiceMock({
+      FEED_PROJECTION_READ_ENABLED: true,
+      FEED_PROJECTION_SHADOW_COMPARE_ENABLED: true,
+      FEED_PROJECTION_SHADOW_COMPARE_DEBUG_ONLY: false,
+      FEED_PROJECTION_SHADOW_COMPARE_SAMPLE_RATE: 1,
+      FEED_PROJECTION_ENQUEUE_ENABLED: false,
+      FEED_PROJECTION_READ_COHORT_ENABLED: false,
+      FEED_PROJECTION_READ_COHORT_SAMPLE_RATE: 0,
+      FEED_PROJECTION_READ_REQUIRE_POPULATED: true,
+    });
+
+    moduleRef = await Test.createTestingModule({
+      providers: [
+        FeedReadService,
+        MediaReadProjectionService,
+        { provide: PrismaService, useValue: prismaMock },
+        { provide: PostReadService, useValue: postReadServiceMock },
+        { provide: MutesService, useValue: mutesServiceMock },
+        { provide: R2StorageService, useValue: r2StorageMock },
+        { provide: OutboxService, useValue: outboxServiceMock },
+        { provide: MetricsRegistryService, useValue: metricsRegistryMock },
+        { provide: ConfigService, useValue: configServiceMock },
+      ],
+    }).compile();
+
+    service = moduleRef.get(FeedReadService);
+
+    prismaMock.homeFeedEntry.count.mockResolvedValue(1);
+    prismaMock.homeFeedEntry.findMany.mockResolvedValue([
+      { postId: 3, postCreatedAt: new Date("2026-04-03T00:00:00.000Z") },
+      { postId: 2, postCreatedAt: new Date("2026-04-02T00:00:00.000Z") },
+    ]);
+    prismaMock.post.findMany
+      .mockResolvedValueOnce([makeFeedRow(3)])
+      .mockResolvedValueOnce([makeFeedRow(3)]);
+
+    await service.getHomeFeed(7, { first: 1 });
+    await waitForBestEffortWork();
+
+    expect(
+      metricsRegistryMock.incrementHomeFeedShadowCompareMismatchByCategory,
+    ).toHaveBeenCalledWith("has_next_page");
   });
 
   it("falls back to legacy and enqueues bootstrap when cohort read requires populated projection", async () => {
@@ -629,6 +747,57 @@ describe("FeedReadService", () => {
         payload: { userId: 7 },
       }),
     );
+    expect(
+      metricsRegistryMock.incrementHomeFeedReadSource,
+    ).toHaveBeenCalledWith("legacy");
+  });
+
+  it("uses deterministic projection-read cohort assignment by user id", async () => {
+    await moduleRef?.close();
+
+    const configServiceMock = makeConfigServiceMock({
+      FEED_PROJECTION_READ_ENABLED: false,
+      FEED_PROJECTION_READ_COHORT_ENABLED: true,
+      FEED_PROJECTION_READ_COHORT_SAMPLE_RATE: 0.0002,
+      FEED_PROJECTION_READ_REQUIRE_POPULATED: true,
+      FEED_PROJECTION_ENQUEUE_ENABLED: false,
+      FEED_PROJECTION_SHADOW_COMPARE_ENABLED: false,
+      FEED_PROJECTION_SHADOW_COMPARE_DEBUG_ONLY: true,
+      FEED_PROJECTION_SHADOW_COMPARE_SAMPLE_RATE: 0,
+    });
+
+    moduleRef = await Test.createTestingModule({
+      providers: [
+        FeedReadService,
+        MediaReadProjectionService,
+        { provide: PrismaService, useValue: prismaMock },
+        { provide: PostReadService, useValue: postReadServiceMock },
+        { provide: MutesService, useValue: mutesServiceMock },
+        { provide: R2StorageService, useValue: r2StorageMock },
+        { provide: OutboxService, useValue: outboxServiceMock },
+        { provide: MetricsRegistryService, useValue: metricsRegistryMock },
+        { provide: ConfigService, useValue: configServiceMock },
+      ],
+    }).compile();
+
+    service = moduleRef.get(FeedReadService);
+
+    prismaMock.homeFeedEntry.count.mockResolvedValue(1);
+    prismaMock.homeFeedEntry.findMany.mockResolvedValue([
+      { postId: 3, postCreatedAt: new Date("2026-04-03T00:00:00.000Z") },
+    ]);
+    prismaMock.post.findMany.mockResolvedValue([makeFeedRow(3)]);
+
+    await service.getHomeFeed(1, { first: 1 });
+    await service.getHomeFeed(2, { first: 1 });
+
+    expect(prismaMock.homeFeedEntry.findMany).toHaveBeenCalledTimes(1);
+    expect(
+      metricsRegistryMock.incrementHomeFeedReadSource,
+    ).toHaveBeenCalledWith("projection");
+    expect(
+      metricsRegistryMock.incrementHomeFeedReadSource,
+    ).toHaveBeenCalledWith("legacy");
   });
 
   it("adds cursor and block filters and clamps take", async () => {

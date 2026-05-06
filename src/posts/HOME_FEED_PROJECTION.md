@@ -148,6 +148,9 @@ currently over the configured limit.
 - Enable enqueueing before enabling projection reads so rows can be populated.
 - Use shadow compare before broad read rollout to detect ordering or membership
   differences.
+- Use `home_feed_shadow_compare_mismatch_by_category_total`,
+  `home_feed_projection_fallback_total`, `home_feed_read_source_total`, and
+  `home_feed_projection_reconciliation_total` as the rollout gate metrics.
 - Run a worker with `FEED_PROJECTION_WORKER_ENABLED=true` to drain projection
   events.
 - Projection delivery is best-effort after source writes; the database write path
@@ -177,3 +180,7 @@ currently over the configured limit.
 7. During incidents, set `FEED_PROJECTION_READ_ENABLED=false` to fall back to
    legacy reads. Keep enqueue and worker enabled when possible so projection can
    catch up.
+
+Phased go/no-go thresholds and stability windows live in `docs/plans/feed-projection-rollout.md`.
+
+Step-by-step operator worksheets (phases, PromQL gates, baselines, purge, deprecation log) live in `docs/runbooks/feed-projection-rollout-operations.md`.
