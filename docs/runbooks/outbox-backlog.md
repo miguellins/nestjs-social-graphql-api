@@ -97,6 +97,12 @@ Known notification delivery event types:
 
 The `unknown` bucket rolls up pending, failed, or processing rows whose `eventType` is not in the known allowlist. Treat non-zero `unknown` counts as an uncontrolled producer or unsupported event-type deployment issue until proven otherwise.
 
+## Register durable handlers
+
+Durable outbox processing is routed through the handler registry in `src/outbox`. A handler declares the event types it supports through `OutboxDurableEventHandler.eventTypes` and implements `handle(...)`; use `preDispatch(...)` only for handler-owned gating such as intentionally rescheduling feed projection rows while `FEED_PROJECTION_WORKER_ENABLED=false`.
+
+When adding a durable event type, register the handler through `OUTBOX_EVENT_HANDLERS`, add the event type to the readiness allowlist only when it should have its own `/health/ready` bucket, and keep retry/permanent-failure behavior inside the handler by throwing normal errors or `OutboxPermanentError` as appropriate.
+
 ## Handle failed events
 
 - Inspect failed rows by `eventType`, `aggregateType`, `aggregateId`, `attemptCount`, and sanitized `lastError`.

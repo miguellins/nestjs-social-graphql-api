@@ -1,26 +1,15 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 
-import { FOLLOW_REQUEST_NOTIFICATION_DELIVERY_EVENT } from "@/outbox/events/follow-request-notification-delivery.event";
-import { COMMENT_REPLY_NOTIFICATION_DELIVERY_EVENT } from "@/outbox/events/comment-reply-notification-delivery.event";
-import { HOME_FEED_FOLLOW_BACKFILL_EVENT } from "@/outbox/events/home-feed-follow-backfill.event";
-import { HOME_FEED_USER_BOOTSTRAP_EVENT } from "@/outbox/events/home-feed-user-bootstrap.event";
-import { HOME_FEED_POST_FANOUT_EVENT } from "@/outbox/events/home-feed-post-fanout.event";
+import { OutboxHandlerRegistryService } from "@/outbox/outbox-handler-registry.service";
+import type { OutboxDispatchOutcome } from "@/outbox/outbox-handler.types";
 import { OutboxPermanentError } from "@/outbox/outbox.errors";
 import { OutboxService } from "@/outbox/outbox.service";
-import {
-  HOME_FEED_POST_CLEANUP_EVENT,
-  HOME_FEED_RELATIONSHIP_HIDE_EVENT,
-} from "@/outbox/events/home-feed-cleanup.event";
 
 import {
   MetricsRegistryService,
   type OutboxEventOutcome,
 } from "@/metrics/metrics-registry.service";
-
-import { NotificationOutboxHandler } from "@/notifications/notification-outbox.handler";
-
-import { HomeFeedOutboxHandler } from "@/posts/home-feed-outbox.handler";
 
 import type { OutboxEvent } from "@prisma/client";
 
@@ -30,21 +19,18 @@ export class OutboxProcessorService {
   private readonly logger = new Logger(OutboxProcessorService.name);
   private readonly batchSize: number;
   private readonly maxAttempts: number;
-  private readonly feedProjectionWorkerEnabled: boolean;
 
   constructor(
     private readonly outboxService: OutboxService,
-    private readonly notificationOutboxHandler: NotificationOutboxHandler,
-    private readonly homeFeedOutboxHandler: HomeFeedOutboxHandler,
+    private readonly handlerRegistry: OutboxHandlerRegistryService,
     private readonly metricsRegistry: MetricsRegistryService,
     configService: ConfigService,
   ) {
     this.batchSize = configService.get<number>("OUTBOX_BATCH_SIZE") ?? 20;
     this.maxAttempts = configService.get<number>("OUTBOX_MAX_ATTEMPTS") ?? 10;
-    this.feedProjectionWorkerEnabled =
-      configService.get<boolean>("FEED_PROJECTION_WORKER_ENABLED") ?? false;
   }
 
+  /** Claims the next batch of available outbox events and processes each row. */
   async processNextBatch(): Promise<number> {
     const events = await this.outboxService.claimPendingBatch(this.batchSize);
     this.metricsRegistry.recordOutboxBatchClaimed(events.length);
@@ -56,6 +42,7 @@ export class OutboxProcessorService {
     return events.length;
   }
 
+  /** Applies dispatch, retry, failure, and metrics handling for one outbox row. */
   private async processOne(event: OutboxEvent): Promise<void> {
     const startedAt = Date.now();
     const attemptCount = await this.outboxService.bumpAttemptCount(event.id);
@@ -144,37 +131,24 @@ export class OutboxProcessorService {
     }
   }
 
-  private async dispatch(
-    event: OutboxEvent,
-  ): Promise<"processed" | "retry_scheduled"> {
-    switch (event.eventType) {
-      case COMMENT_REPLY_NOTIFICATION_DELIVERY_EVENT:
-        await this.notificationOutboxHandler.handleCommentReplyDelivery(event);
-        return "processed";
-      case FOLLOW_REQUEST_NOTIFICATION_DELIVERY_EVENT:
-        await this.notificationOutboxHandler.handleFollowRequestDelivery(event);
-        return "processed";
-      case HOME_FEED_POST_FANOUT_EVENT:
-      case HOME_FEED_FOLLOW_BACKFILL_EVENT:
-      case HOME_FEED_USER_BOOTSTRAP_EVENT:
-      case HOME_FEED_POST_CLEANUP_EVENT:
-      case HOME_FEED_RELATIONSHIP_HIDE_EVENT:
-        if (!this.feedProjectionWorkerEnabled) {
-          // Do not burn retries when the worker is intentionally disabled.
-          await this.outboxService.rescheduleRetry(
-            event.id,
-            "Feed projection worker disabled",
-            new Date(Date.now() + 60_000),
-          );
-          return "retry_scheduled";
-        }
-        await this.homeFeedOutboxHandler.handle(event);
-        return "processed";
-      default:
-        throw new OutboxPermanentError(
-          `Unsupported outbox event type ${event.eventType}`,
-        );
+  /** Dispatches an outbox row to its registered durable event handler. */
+  private async dispatch(event: OutboxEvent): Promise<OutboxDispatchOutcome> {
+    const handler = this.handlerRegistry.getHandlerOrUndefined(event.eventType);
+
+    if (!handler) {
+      throw new OutboxPermanentError(
+        `Unsupported outbox event type ${event.eventType}`,
+      );
     }
+
+    const preDispatchOutcome = await handler.preDispatch?.(event);
+    if (preDispatchOutcome === "retry_scheduled") {
+      return "retry_scheduled";
+    }
+
+    await handler.handle(event);
+
+    return "processed";
   }
 }
 

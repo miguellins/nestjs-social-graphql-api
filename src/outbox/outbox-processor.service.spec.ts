@@ -1,14 +1,14 @@
 import { ConfigService } from "@nestjs/config";
 import { Test } from "@nestjs/testing";
-import { OutboxEventStatus } from "@prisma/client";
 
-import { NotificationOutboxHandler } from "@/notifications/notification-outbox.handler";
-import { HomeFeedOutboxHandler } from "@/posts/home-feed-outbox.handler";
 import { OutboxPermanentError } from "@/outbox/outbox.errors";
+import { OutboxHandlerRegistryService } from "@/outbox/outbox-handler-registry.service";
 import { OutboxProcessorService } from "@/outbox/outbox-processor.service";
 import { OutboxService } from "@/outbox/outbox.service";
 
 import { MetricsRegistryService } from "@/metrics/metrics-registry.service";
+
+import { OutboxEventStatus, type OutboxEvent } from "@prisma/client";
 
 describe("OutboxProcessorService", () => {
   const outboxServiceMock = {
@@ -18,12 +18,13 @@ describe("OutboxProcessorService", () => {
     markProcessed: jest.fn(),
     rescheduleRetry: jest.fn(),
   };
-  const notificationOutboxHandlerMock = {
-    handleCommentReplyDelivery: jest.fn(),
-    handleFollowRequestDelivery: jest.fn(),
-  };
-  const homeFeedOutboxHandlerMock = {
+  const handlerMock = {
+    eventTypes: ["notification.commentReply.deliver"],
     handle: jest.fn(),
+    preDispatch: jest.fn(),
+  };
+  const handlerRegistryMock = {
+    getHandlerOrUndefined: jest.fn(),
   };
   const metricsRegistryMock = {
     recordOutboxBatchClaimed: jest.fn(),
@@ -36,8 +37,6 @@ describe("OutboxProcessorService", () => {
           return 20;
         case "OUTBOX_MAX_ATTEMPTS":
           return 3;
-        case "FEED_PROJECTION_WORKER_ENABLED":
-          return true;
         default:
           return undefined;
       }
@@ -48,6 +47,9 @@ describe("OutboxProcessorService", () => {
     jest.clearAllMocks();
     outboxServiceMock.claimPendingBatch.mockResolvedValue([]);
     outboxServiceMock.bumpAttemptCount.mockResolvedValue(1);
+    handlerRegistryMock.getHandlerOrUndefined.mockReturnValue(handlerMock);
+    handlerMock.handle.mockResolvedValue(undefined);
+    handlerMock.preDispatch.mockResolvedValue("continue");
   });
 
   it("marks events processed after successful handler execution", async () => {
@@ -56,12 +58,8 @@ describe("OutboxProcessorService", () => {
         OutboxProcessorService,
         { provide: OutboxService, useValue: outboxServiceMock },
         {
-          provide: NotificationOutboxHandler,
-          useValue: notificationOutboxHandlerMock,
-        },
-        {
-          provide: HomeFeedOutboxHandler,
-          useValue: homeFeedOutboxHandlerMock,
+          provide: OutboxHandlerRegistryService,
+          useValue: handlerRegistryMock,
         },
         { provide: MetricsRegistryService, useValue: metricsRegistryMock },
         { provide: ConfigService, useValue: configServiceMock },
@@ -89,9 +87,10 @@ describe("OutboxProcessorService", () => {
     const result = await service.processNextBatch();
 
     expect(result).toBe(1);
-    expect(
-      notificationOutboxHandlerMock.handleCommentReplyDelivery,
-    ).toHaveBeenCalledTimes(1);
+    expect(handlerRegistryMock.getHandlerOrUndefined).toHaveBeenCalledWith(
+      "notification.commentReply.deliver",
+    );
+    expect(handlerMock.handle).toHaveBeenCalledTimes(1);
     expect(outboxServiceMock.markProcessed).toHaveBeenCalledWith(1);
     expect(metricsRegistryMock.recordOutboxBatchClaimed).toHaveBeenCalledWith(
       1,
@@ -109,12 +108,8 @@ describe("OutboxProcessorService", () => {
         OutboxProcessorService,
         { provide: OutboxService, useValue: outboxServiceMock },
         {
-          provide: NotificationOutboxHandler,
-          useValue: notificationOutboxHandlerMock,
-        },
-        {
-          provide: HomeFeedOutboxHandler,
-          useValue: homeFeedOutboxHandlerMock,
+          provide: OutboxHandlerRegistryService,
+          useValue: handlerRegistryMock,
         },
         { provide: MetricsRegistryService, useValue: metricsRegistryMock },
         { provide: ConfigService, useValue: configServiceMock },
@@ -138,9 +133,7 @@ describe("OutboxProcessorService", () => {
         updatedAt: new Date(),
       },
     ]);
-    notificationOutboxHandlerMock.handleCommentReplyDelivery.mockRejectedValue(
-      new OutboxPermanentError("missing"),
-    );
+    handlerMock.handle.mockRejectedValue(new OutboxPermanentError("missing"));
 
     await service.processNextBatch();
 
@@ -159,12 +152,8 @@ describe("OutboxProcessorService", () => {
         OutboxProcessorService,
         { provide: OutboxService, useValue: outboxServiceMock },
         {
-          provide: NotificationOutboxHandler,
-          useValue: notificationOutboxHandlerMock,
-        },
-        {
-          provide: HomeFeedOutboxHandler,
-          useValue: homeFeedOutboxHandlerMock,
+          provide: OutboxHandlerRegistryService,
+          useValue: handlerRegistryMock,
         },
         { provide: MetricsRegistryService, useValue: metricsRegistryMock },
         { provide: ConfigService, useValue: configServiceMock },
@@ -188,9 +177,7 @@ describe("OutboxProcessorService", () => {
         updatedAt: new Date(),
       },
     ]);
-    notificationOutboxHandlerMock.handleCommentReplyDelivery.mockRejectedValue(
-      new Error("redis down"),
-    );
+    handlerMock.handle.mockRejectedValue(new Error("redis down"));
 
     await service.processNextBatch();
 
@@ -207,18 +194,14 @@ describe("OutboxProcessorService", () => {
     );
   });
 
-  it("dispatches follow-request delivery events to the notification handler", async () => {
+  it("dispatches follow-request delivery events through the registered handler", async () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
         OutboxProcessorService,
         { provide: OutboxService, useValue: outboxServiceMock },
         {
-          provide: NotificationOutboxHandler,
-          useValue: notificationOutboxHandlerMock,
-        },
-        {
-          provide: HomeFeedOutboxHandler,
-          useValue: homeFeedOutboxHandlerMock,
+          provide: OutboxHandlerRegistryService,
+          useValue: handlerRegistryMock,
         },
         { provide: MetricsRegistryService, useValue: metricsRegistryMock },
         { provide: ConfigService, useValue: configServiceMock },
@@ -245,24 +228,21 @@ describe("OutboxProcessorService", () => {
 
     await service.processNextBatch();
 
-    expect(
-      notificationOutboxHandlerMock.handleFollowRequestDelivery,
-    ).toHaveBeenCalledTimes(1);
+    expect(handlerRegistryMock.getHandlerOrUndefined).toHaveBeenCalledWith(
+      "notification.followRequest.deliver",
+    );
+    expect(handlerMock.handle).toHaveBeenCalledTimes(1);
     expect(outboxServiceMock.markProcessed).toHaveBeenCalledWith(7);
   });
 
-  it("dispatches home-feed events to the feed outbox handler", async () => {
+  it("dispatches home-feed events through the registered handler", async () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
         OutboxProcessorService,
         { provide: OutboxService, useValue: outboxServiceMock },
         {
-          provide: NotificationOutboxHandler,
-          useValue: notificationOutboxHandlerMock,
-        },
-        {
-          provide: HomeFeedOutboxHandler,
-          useValue: homeFeedOutboxHandlerMock,
+          provide: OutboxHandlerRegistryService,
+          useValue: handlerRegistryMock,
         },
         { provide: MetricsRegistryService, useValue: metricsRegistryMock },
         { provide: ConfigService, useValue: configServiceMock },
@@ -289,7 +269,10 @@ describe("OutboxProcessorService", () => {
 
     await service.processNextBatch();
 
-    expect(homeFeedOutboxHandlerMock.handle).toHaveBeenCalledTimes(1);
+    expect(handlerRegistryMock.getHandlerOrUndefined).toHaveBeenCalledWith(
+      "feed.home.post.fanout",
+    );
+    expect(handlerMock.handle).toHaveBeenCalledTimes(1);
     expect(outboxServiceMock.markProcessed).toHaveBeenCalledWith(9);
   });
 
@@ -299,12 +282,8 @@ describe("OutboxProcessorService", () => {
         OutboxProcessorService,
         { provide: OutboxService, useValue: outboxServiceMock },
         {
-          provide: NotificationOutboxHandler,
-          useValue: notificationOutboxHandlerMock,
-        },
-        {
-          provide: HomeFeedOutboxHandler,
-          useValue: homeFeedOutboxHandlerMock,
+          provide: OutboxHandlerRegistryService,
+          useValue: handlerRegistryMock,
         },
         { provide: MetricsRegistryService, useValue: metricsRegistryMock },
         { provide: ConfigService, useValue: configServiceMock },
@@ -329,9 +308,7 @@ describe("OutboxProcessorService", () => {
         updatedAt: new Date(),
       },
     ]);
-    notificationOutboxHandlerMock.handleCommentReplyDelivery.mockRejectedValue(
-      new Error("redis down"),
-    );
+    handlerMock.handle.mockRejectedValue(new Error("redis down"));
 
     await service.processNextBatch();
 
@@ -345,37 +322,28 @@ describe("OutboxProcessorService", () => {
   });
 
   it("records disabled feed projection events as retry scheduled", async () => {
-    const feedDisabledConfigServiceMock = {
-      get: jest.fn((key: string) => {
-        switch (key) {
-          case "OUTBOX_BATCH_SIZE":
-            return 20;
-          case "OUTBOX_MAX_ATTEMPTS":
-            return 3;
-          case "FEED_PROJECTION_WORKER_ENABLED":
-            return false;
-          default:
-            return undefined;
-        }
-      }),
-    };
     const moduleRef = await Test.createTestingModule({
       providers: [
         OutboxProcessorService,
         { provide: OutboxService, useValue: outboxServiceMock },
         {
-          provide: NotificationOutboxHandler,
-          useValue: notificationOutboxHandlerMock,
-        },
-        {
-          provide: HomeFeedOutboxHandler,
-          useValue: homeFeedOutboxHandlerMock,
+          provide: OutboxHandlerRegistryService,
+          useValue: handlerRegistryMock,
         },
         { provide: MetricsRegistryService, useValue: metricsRegistryMock },
-        { provide: ConfigService, useValue: feedDisabledConfigServiceMock },
+        { provide: ConfigService, useValue: configServiceMock },
       ],
     }).compile();
     const service = moduleRef.get(OutboxProcessorService);
+    handlerMock.preDispatch.mockImplementation(async (event: OutboxEvent) => {
+      await outboxServiceMock.rescheduleRetry(
+        event.id,
+        "Feed projection worker disabled",
+        new Date(Date.now() + 60_000),
+      );
+
+      return "retry_scheduled";
+    });
 
     outboxServiceMock.claimPendingBatch.mockResolvedValue([
       {
@@ -396,7 +364,7 @@ describe("OutboxProcessorService", () => {
 
     await service.processNextBatch();
 
-    expect(homeFeedOutboxHandlerMock.handle).not.toHaveBeenCalled();
+    expect(handlerMock.handle).not.toHaveBeenCalled();
     expect(outboxServiceMock.rescheduleRetry).toHaveBeenCalledWith(
       9,
       "Feed projection worker disabled",
@@ -408,5 +376,47 @@ describe("OutboxProcessorService", () => {
       "retry_scheduled",
       expect.any(Number),
     );
+  });
+
+  it("marks unsupported event types as permanent failures", async () => {
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        OutboxProcessorService,
+        { provide: OutboxService, useValue: outboxServiceMock },
+        {
+          provide: OutboxHandlerRegistryService,
+          useValue: handlerRegistryMock,
+        },
+        { provide: MetricsRegistryService, useValue: metricsRegistryMock },
+        { provide: ConfigService, useValue: configServiceMock },
+      ],
+    }).compile();
+    const service = moduleRef.get(OutboxProcessorService);
+    handlerRegistryMock.getHandlerOrUndefined.mockReturnValue(undefined);
+
+    outboxServiceMock.claimPendingBatch.mockResolvedValue([
+      {
+        id: 11,
+        eventType: "unknown.event",
+        aggregateType: "unknown",
+        aggregateId: 123,
+        payload: {},
+        status: OutboxEventStatus.PROCESSING,
+        availableAt: new Date(),
+        attemptCount: 1,
+        processedAt: null,
+        lastError: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ]);
+
+    await service.processNextBatch();
+
+    expect(outboxServiceMock.markFailed).toHaveBeenCalledWith(
+      11,
+      "Unsupported outbox event type unknown.event",
+    );
+    expect(outboxServiceMock.rescheduleRetry).not.toHaveBeenCalled();
   });
 });
