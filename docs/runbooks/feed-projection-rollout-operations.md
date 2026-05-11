@@ -151,6 +151,7 @@ Suggested local progression:
 2. [ ] Use `FEED_PROJECTION_SHADOW_COMPARE_FORCE_USER_ID=<viewerUserId>` for a known local user.
 3. [ ] If needed, use `FEED_PROJECTION_READ_FORCE_USER_ID=<viewerUserId>` so the test user exercises projection reads.
 4. [ ] Run the feed query multiple times after creating, following, unfollowing, hiding, or cleaning up relevant data.
+5. [ ] Confirm shadow mismatch logs contain hashed identifiers only.
 
 **Local Phase 1 gates:**
 
@@ -174,6 +175,8 @@ Use a simulated local ramp instead:
 
 | Step | Local setting | Expected result | Evidence |
 | --- | --- | --- | --- |
+| Allow list | `FEED_PROJECTION_READ_ALLOW_USER_IDS=<viewerUserId>` | Only targeted users read from projection when populated | |
+| Deny list | `FEED_PROJECTION_READ_DENY_USER_IDS=<viewerUserId>` | Targeted users stay on legacy reads even when force/cohort/global gates are enabled | |
 | Forced user | `FEED_PROJECTION_READ_FORCE_USER_ID=<viewerUserId>` | Only the chosen user reads from projection | |
 | Small cohort simulation | `FEED_PROJECTION_READ_COHORT_ENABLED=true`, low sample rate | Some deterministic users read from projection if enough seeded users exist | |
 | Full local cohort | `FEED_PROJECTION_READ_COHORT_SAMPLE_RATE=1.0` | Eligible local users read from projection | |
@@ -183,6 +186,7 @@ Use a simulated local ramp instead:
 - [ ] Projection read source is observed for the expected local user(s).
 - [ ] Legacy read source still works when projection is disabled.
 - [ ] Fallback to legacy works when projection read fails or cannot hydrate enough rows.
+- [ ] `home_feed_projection_read_lag_seconds` remains within the local freshness expectation.
 - [ ] Order and `hasNextPage` remain correct in manual tests.
 - [ ] No unexpected `feed.home.*` failures are present.
 

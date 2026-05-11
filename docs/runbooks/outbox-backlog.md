@@ -118,6 +118,9 @@ When adding a durable event type, register the handler through `OUTBOX_EVENT_HAN
 - `FEED_PROJECTION_ENQUEUE_ENABLED`: controls enqueueing home-feed projection events from write/read flows.
 - `FEED_PROJECTION_WORKER_ENABLED`: controls whether the worker processes home-feed projection events.
 - `FEED_PROJECTION_PURGE_ENABLED`: controls periodic projected-feed retention cleanup.
+- `FEED_PROJECTION_READ_ALLOW_USER_IDS`: allows targeted projection reads for internal/local verification users.
+- `FEED_PROJECTION_READ_DENY_USER_IDS`: forces targeted users back to legacy reads even if broader gates are enabled.
+- `FEED_PROJECTION_FALLBACK_ENABLED`: keeps projection read failures on the legacy read path during rollout.
 
 If `FEED_PROJECTION_WORKER_ENABLED=false`, feed projection events are rescheduled as `retry_scheduled` and should not be treated as handler failures. This creates intentional backlog for `feed.home.*` rows, visible in `summary.outbox.byEventType` and `outbox_events_total{outcome="retry_scheduled"}`.
 

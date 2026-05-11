@@ -25,6 +25,7 @@ export class HomeFeedOutboxHandler {
 
   constructor(private readonly homeFeedProjection: HomeFeedProjectionService) {}
 
+  /** Reports whether this handler owns the outbox event type. */
   supports(eventType: string): boolean {
     return (
       eventType === HOME_FEED_POST_FANOUT_EVENT ||
@@ -35,6 +36,7 @@ export class HomeFeedOutboxHandler {
     );
   }
 
+  /** Dispatches one validated home-feed projection event to projection work. */
   async handle(event: OutboxEvent): Promise<void> {
     switch (event.eventType) {
       case HOME_FEED_POST_FANOUT_EVENT:
@@ -54,6 +56,7 @@ export class HomeFeedOutboxHandler {
     }
   }
 
+  /** Validates and handles post fanout events. */
   private async handlePostFanout(event: OutboxEvent): Promise<void> {
     const payload = event.payload as unknown as HomeFeedPostFanoutPayload;
 
@@ -67,6 +70,11 @@ export class HomeFeedOutboxHandler {
       "reason",
     ]);
 
+    const postCreatedAt = new Date(payload.postCreatedAt);
+    if (Number.isNaN(postCreatedAt.getTime())) {
+      throw new OutboxPermanentError("Invalid post fanout timestamp");
+    }
+
     const reason =
       payload.reason === "SELF_POST"
         ? HomeFeedEntryReason.SELF_POST
@@ -75,11 +83,12 @@ export class HomeFeedOutboxHandler {
     await this.homeFeedProjection.fanoutPost({
       postId: payload.postId,
       authorId: payload.authorId,
-      postCreatedAt: new Date(payload.postCreatedAt),
+      postCreatedAt,
       reason,
     });
   }
 
+  /** Validates and handles follow backfill events. */
   private async handleFollowBackfill(event: OutboxEvent): Promise<void> {
     const payload = event.payload as unknown as HomeFeedFollowBackfillPayload;
 
@@ -94,6 +103,7 @@ export class HomeFeedOutboxHandler {
     });
   }
 
+  /** Validates and handles user bootstrap events. */
   private async handleUserBootstrap(event: OutboxEvent): Promise<void> {
     const payload = event.payload as unknown as HomeFeedUserBootstrapPayload;
 
@@ -107,6 +117,7 @@ export class HomeFeedOutboxHandler {
     });
   }
 
+  /** Validates and handles post cleanup events. */
   private async handlePostCleanup(event: OutboxEvent): Promise<void> {
     const payload = event.payload as unknown as HomeFeedPostCleanupPayload;
 
@@ -118,6 +129,7 @@ export class HomeFeedOutboxHandler {
     await this.homeFeedProjection.hardDeleteByPostId(payload.postId);
   }
 
+  /** Validates and handles relationship hide events. */
   private async handleRelationshipHide(event: OutboxEvent): Promise<void> {
     const payload = event.payload as unknown as HomeFeedRelationshipHidePayload;
 
@@ -132,6 +144,7 @@ export class HomeFeedOutboxHandler {
     });
   }
 
+  /** Logs unexpected payload fields without failing otherwise valid events. */
   private warnUnknownPayloadKeys(
     event: OutboxEvent,
     payload: unknown,

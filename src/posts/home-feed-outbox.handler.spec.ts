@@ -1,7 +1,8 @@
 import { Logger } from "@nestjs/common";
-import { OutboxEventStatus } from "@prisma/client";
+import { HomeFeedEntryReason, OutboxEventStatus } from "@prisma/client";
 
 import { HOME_FEED_USER_BOOTSTRAP_EVENT } from "@/outbox/events/home-feed-user-bootstrap.event";
+import { HOME_FEED_POST_FANOUT_EVENT } from "@/outbox/events/home-feed-post-fanout.event";
 import { HOME_FEED_RELATIONSHIP_HIDE_EVENT } from "@/outbox/events/home-feed-cleanup.event";
 import { OutboxPermanentError } from "@/outbox/outbox.errors";
 import { HomeFeedOutboxHandler } from "@/posts/home-feed-outbox.handler";
@@ -82,6 +83,48 @@ describe("HomeFeedOutboxHandler", () => {
     ).toEqual({
       userId: 1,
       authorId: 3,
+    });
+  });
+
+  it("rejects invalid post fanout timestamps as permanent errors", async () => {
+    const handler = new HomeFeedOutboxHandler(homeFeedProjectionMock);
+
+    await expect(
+      handler.handle(
+        makeOutboxEvent({
+          eventType: HOME_FEED_POST_FANOUT_EVENT,
+          payload: {
+            postId: 10,
+            authorId: 3,
+            postCreatedAt: "not-a-date",
+          },
+        }),
+      ),
+    ).rejects.toBeInstanceOf(OutboxPermanentError);
+
+    expect(homeFeedProjectionMock.fanoutPost.mock.calls).toHaveLength(0);
+  });
+
+  it("dispatches valid post fanout timestamps to projection work", async () => {
+    const handler = new HomeFeedOutboxHandler(homeFeedProjectionMock);
+
+    await handler.handle(
+      makeOutboxEvent({
+        eventType: HOME_FEED_POST_FANOUT_EVENT,
+        payload: {
+          postId: 10,
+          authorId: 3,
+          postCreatedAt: "2026-04-10T00:00:00.000Z",
+          reason: "SELF_POST",
+        },
+      }),
+    );
+
+    expect(homeFeedProjectionMock.fanoutPost.mock.calls[0]?.[0]).toEqual({
+      postId: 10,
+      authorId: 3,
+      postCreatedAt: new Date("2026-04-10T00:00:00.000Z"),
+      reason: HomeFeedEntryReason.SELF_POST,
     });
   });
 });

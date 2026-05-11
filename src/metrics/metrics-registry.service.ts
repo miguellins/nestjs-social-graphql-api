@@ -69,6 +69,7 @@ export class MetricsRegistryService {
   private readonly homeFeedProjectionReconciliationTotal: Counter<
     "category" | "outcome" | "process"
   >;
+  private readonly homeFeedProjectionReadLagSeconds: Gauge<"process">;
   private readonly outboxPendingCount: Gauge<"process">;
   private readonly outboxFailedCount: Gauge<"process">;
   private readonly outboxProcessingCount: Gauge<"process">;
@@ -177,6 +178,12 @@ export class MetricsRegistryService {
       name: "home_feed_projection_reconciliation_total",
       help: "Total observe-only home feed projection reconciliation outcomes.",
       labelNames: ["process", "outcome", "category"],
+      registers: [this.registry],
+    });
+    this.homeFeedProjectionReadLagSeconds = new Gauge({
+      name: "home_feed_projection_read_lag_seconds",
+      help: "Observed age in seconds of the newest entry returned by projection reads.",
+      labelNames: ["process"],
       registers: [this.registry],
     });
     this.outboxPendingCount = new Gauge({
@@ -332,6 +339,12 @@ export class MetricsRegistryService {
       },
       count,
     );
+  }
+
+  recordHomeFeedProjectionReadLag(lagSeconds: number): void {
+    if (!Number.isFinite(lagSeconds) || lagSeconds < 0) return;
+
+    this.homeFeedProjectionReadLagSeconds.set({ process: "api" }, lagSeconds);
   }
 
   setOutboxBacklogMetrics(metrics: OutboxBacklogMetrics): void {

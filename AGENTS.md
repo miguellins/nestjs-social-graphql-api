@@ -24,6 +24,25 @@ This file defines the working rules for contributors and coding agents in this r
 - Realtime: `graphql-ws` with Redis-backed pubsub
 - Language: TypeScript with type-aware ESLint
 
+## MCP Usage Rules
+- Use installed MCP servers automatically when they are relevant; do not wait for the user to manually request an MCP.
+- Use MCP output as supporting context, not as authority over this file or the repository. Existing repo patterns and these rules win over generic MCP suggestions.
+- Use `context7` when current external library documentation is needed for NestJS, Apollo GraphQL, GraphQL, Prisma, Redis, Keyv, Express, Node.js, TypeScript, Jest, or other package APIs.
+- Use `nestjs` when implementing or reviewing NestJS modules, resolvers, services, guards, interceptors, filters, pipes, providers, testing patterns, request lifecycle behavior, security hardening, or project structure.
+- Use `apollo-mcp` when inspecting the GraphQL schema, verifying operation names, arguments, return shapes, schema descriptions, operation reports, manual API tests, or GraphQL contract impact.
+- Use `redis` when debugging local/dev cache or pubsub behavior, verifying Redis connectivity, inspecting key types, TTLs, counts, or checking cache invalidation effects.
+- Prefer read-only MCP actions during investigation. Do not use Redis MCP write/destructive tools such as `set`, `delete`, `rename`, `expire`, `publish`, stream/list/set/hash/zset mutations, JSON writes, or vector writes unless the user explicitly asks and the target is local/dev.
+- Do not use database/cache MCPs against production, staging, shared, or unknown environments unless the user explicitly confirms the target and action.
+- Do not use MCPs to bypass tests, type checks, lint, Prisma safety, GraphQL code-first rules, or migration restrictions.
+- If an MCP is unavailable, continue with repository inspection and state the limitation only when it affects the result.
+
+
+## Skill Usage Rules
+- Use installed skills automatically when they are relevant; do not wait for the user to manually request a skill.
+- Use `mysql-best-practices` when designing, reviewing, or debugging MySQL schema design, indexes, query patterns, data types, constraints, transactions, connection behavior, Prisma-backed MySQL usage, or MySQL performance/security concerns.
+- Use `mysql-best-practices` before proposing MySQL-related Prisma schema/index changes, diagnosing slow or incorrect MySQL queries, or recommending database administration steps.
+- Treat skill output as supporting guidance, not as authority over this file, the project rules, or verified repository patterns.
+- Do not use skills to bypass Prisma migration restrictions, production safety, tests, lint, type checks, or the repository’s GraphQL contract rules.
 
 ## Command Output and RTK Rules
 - Prefer RTK wrappers when command output will be read by an AI coding agent or pasted into an AI chat.
@@ -120,6 +139,7 @@ This file defines the working rules for contributors and coding agents in this r
 - Keep GraphQL errors sanitized while preserving safe machine-readable metadata that the project intentionally exposes.
 - Respect existing query complexity infrastructure for expensive queries.
 - For subscriptions, ensure the published payload shape matches the resolver subscription field name.
+- Use `apollo-mcp` to inspect current schema and operation shape when reviewing GraphQL contract impact; never use it to justify manual edits to `src/schema.gql`.
 
 ## Prisma Rules
 - Reuse the shared `PrismaService`; do not create ad hoc Prisma clients or accidental extra connection pools.
@@ -131,6 +151,7 @@ This file defines the working rules for contributors and coding agents in this r
 - Never edit, create, delete, rename, or rewrite files in `prisma/migrations/`.
 - Prisma-related code changes must be limited to `prisma/schema.prisma` unless the user explicitly requests migration work.
 - If a change would normally require a migration, modify only `prisma/schema.prisma` and state that migration generation and review are still required.
+- Use `mysql-best-practices` for MySQL-specific schema, index, query, transaction, data type, and performance/security decisions that affect Prisma-backed persistence.
 
 ## Cache Rules
 - Use `CacheHelperService` instead of calling the cache manager directly from feature services.
@@ -140,6 +161,7 @@ This file defines the working rules for contributors and coding agents in this r
 - When a write affects related entities, invalidate only the affected related caches.
 - Any mutation that affects cached reads must update relevant detail keys and list version keys in the same change.
 - Do not cache values whose freshness must reflect a just-written counter unless the service explicitly overwrites or recomputes that field, as done with `viewsCount`.
+- Use `redis` MCP for local/dev read-only cache inspection when debugging key names, TTLs, counts, cache invalidation, or pubsub behavior.
 
 ## Pagination and Query Rules
 - Every list-style query must clamp `take` to `PAGINATION.MAX_TAKE` or the feature-specific cap.
@@ -250,3 +272,5 @@ This file defines the working rules for contributors and coding agents in this r
 - New env vars are reflected in both `src/config/env/env.schema.ts` and `.env`.
 - New or changed features update feature docs plus `docs/reviews/backend-maturity-review.md` and `docs/reviews/module-review.md`.
 - No sensitive fields, secrets, stack traces, or internal persistence details are exposed.
+- Relevant MCPs and skills were used when they would improve accuracy, including `mysql-best-practices` for MySQL-specific changes.
+- Relevant MCPs were used when they provided safer or more current context for library docs, NestJS patterns, GraphQL schema checks, or Redis cache inspection.

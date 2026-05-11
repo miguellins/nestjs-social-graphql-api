@@ -77,4 +77,92 @@ describe("HomeFeedProjectionService", () => {
       }),
     ]);
   });
+
+  it("restores soft-hidden projected rows during follow backfill", async () => {
+    prismaMock.post.findMany.mockResolvedValue([
+      {
+        id: 11,
+        authorId: 2,
+        createdAt: new Date("2026-04-11T00:00:00.000Z"),
+      },
+    ]);
+    prismaMock.homeFeedEntry.createMany.mockResolvedValue({ count: 0 });
+    prismaMock.homeFeedEntry.updateMany.mockResolvedValue({ count: 1 });
+
+    const result = await service.backfillAfterFollow({
+      followerId: 1,
+      followingId: 2,
+      now: new Date("2026-05-01T00:00:00.000Z"),
+    });
+
+    expect(result).toEqual({ candidates: 1, inserted: 0, restored: 1 });
+    expect(prismaMock.homeFeedEntry.updateMany).toHaveBeenCalledWith({
+      where: {
+        userId: 1,
+        postId: { in: [11] },
+        hiddenAt: { not: null },
+      },
+      data: {
+        hiddenAt: null,
+      },
+    });
+  });
+
+  it("restores soft-hidden projected rows during user bootstrap", async () => {
+    prismaMock.follow.findMany.mockResolvedValue([{ followingId: 2 }]);
+    prismaMock.post.findMany.mockResolvedValue([
+      {
+        id: 12,
+        authorId: 2,
+        createdAt: new Date("2026-04-12T00:00:00.000Z"),
+      },
+    ]);
+    prismaMock.homeFeedEntry.createMany.mockResolvedValue({ count: 0 });
+    prismaMock.homeFeedEntry.updateMany.mockResolvedValue({ count: 1 });
+
+    const result = await service.bootstrapUserHomeFeed({ userId: 1 });
+
+    expect(result).toEqual({ candidates: 1, inserted: 0, restored: 1 });
+    expect(prismaMock.homeFeedEntry.updateMany).toHaveBeenCalledWith({
+      where: {
+        userId: 1,
+        postId: { in: [12] },
+        hiddenAt: { not: null },
+      },
+      data: {
+        hiddenAt: null,
+      },
+    });
+  });
+
+  it("uses configured post limits for backfill and bootstrap work", async () => {
+    configServiceMock.get.mockImplementation((key: string) => {
+      if (key === "FEED_PROJECTION_BACKFILL_POST_LIMIT") return 50;
+      if (key === "FEED_PROJECTION_BOOTSTRAP_POST_LIMIT") return 75;
+      if (key === "MUTES_ENABLED") return false;
+      return undefined;
+    });
+    service = new HomeFeedProjectionService(
+      prismaMock as unknown as PrismaService,
+      configServiceMock as unknown as ConfigService,
+    );
+    prismaMock.post.findMany.mockResolvedValue([]);
+    prismaMock.follow.findMany.mockResolvedValue([{ followingId: 2 }]);
+
+    await service.backfillAfterFollow({
+      followerId: 1,
+      followingId: 2,
+      now: new Date("2026-05-01T00:00:00.000Z"),
+    });
+    await service.bootstrapUserHomeFeed({ userId: 1 });
+
+    expect(prismaMock.post.findMany).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ take: 50 }),
+    );
+    expect(prismaMock.post.findMany).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ take: 75 }),
+    );
+  });
 });

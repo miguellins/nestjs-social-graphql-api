@@ -75,7 +75,8 @@ delivery is safe.
 ## Read behavior
 
 Projection reads are controlled by configuration. A rollout can target all users,
-a sampled cohort, or one forced user id.
+a sampled cohort, explicit allow-listed users, or one forced user id. The deny
+list wins over every other read gate and is the fastest per-user rollback path.
 
 If `FEED_PROJECTION_READ_REQUIRE_POPULATED` is true and a user's projection is
 empty, the service enqueues `feed.home.user.bootstrap` best-effort and falls
@@ -90,6 +91,25 @@ Projection reads still filter:
 
 If a projection row points to a post that can no longer be returned, the read
 path enqueues cleanup best-effort.
+
+Projection read failures fall back to the legacy path when
+`FEED_PROJECTION_FALLBACK_ENABLED=true`. Keep this enabled during rollout unless
+you are deliberately testing projection failure behavior in development.
+
+## Shadow comparison
+
+Shadow comparison compares projection results with the legacy path and records
+mismatch totals by category:
+
+- `membership`
+  projected and legacy pages contain different post sets.
+- `order`
+  projected and legacy pages contain the same post ids in a different order.
+- `has_next_page`
+  projected and legacy cursor continuation differs.
+
+Mismatch logs use hashed user and post identifiers plus aggregate counts. Do not
+add raw user ids, post ids, or feed payloads to shadow-compare diagnostics.
 
 ## Retention and cleanup
 
@@ -137,8 +157,15 @@ currently over the configured limit.
   enables sampled projection reads.
 - `FEED_PROJECTION_READ_COHORT_SAMPLE_RATE`
   controls sampled projection-read rollout.
+- `FEED_PROJECTION_READ_ALLOW_USER_IDS`
+  comma-separated user ids that should read from projection when populated.
+- `FEED_PROJECTION_READ_DENY_USER_IDS`
+  comma-separated user ids that must stay on legacy reads; this overrides all
+  projection-read gates.
 - `FEED_PROJECTION_READ_FORCE_USER_ID`
   forces projection reads for one user.
+- `FEED_PROJECTION_FALLBACK_ENABLED`
+  controls automatic projection-to-legacy fallback on projection read failures.
 - `FEED_PROJECTION_READ_REQUIRE_POPULATED`
   requires at least one visible projection row before serving projection reads.
 
@@ -149,7 +176,8 @@ currently over the configured limit.
 - Use shadow compare before broad read rollout to detect ordering or membership
   differences.
 - Use `home_feed_shadow_compare_mismatch_by_category_total`,
-  `home_feed_projection_fallback_total`, `home_feed_read_source_total`, and
+  `home_feed_projection_fallback_total`, `home_feed_read_source_total`,
+  `home_feed_projection_read_lag_seconds`, and
   `home_feed_projection_reconciliation_total` as the rollout gate metrics.
 - Run a worker with `FEED_PROJECTION_WORKER_ENABLED=true` to drain projection
   events.
@@ -173,13 +201,15 @@ currently over the configured limit.
    growth needs retention cleanup.
 4. Enable `FEED_PROJECTION_SHADOW_COMPARE_ENABLED=true` with a low sample rate
    and watch mismatch metrics plus `summary.outbox.byEventType`.
-5. Start read rollout with `FEED_PROJECTION_READ_COHORT_ENABLED=true` and a low
+5. Start read rollout with `FEED_PROJECTION_READ_ALLOW_USER_IDS` for internal
+   users, then `FEED_PROJECTION_READ_COHORT_ENABLED=true` and a low
    `FEED_PROJECTION_READ_COHORT_SAMPLE_RATE`.
 6. Move to `FEED_PROJECTION_READ_ENABLED=true` only after backlog, failures, and
    shadow mismatches stay within the expected baseline.
-7. During incidents, set `FEED_PROJECTION_READ_ENABLED=false` to fall back to
-   legacy reads. Keep enqueue and worker enabled when possible so projection can
-   catch up.
+7. During incidents, set `FEED_PROJECTION_READ_ENABLED=false` or add affected
+   users to `FEED_PROJECTION_READ_DENY_USER_IDS` to fall back to legacy reads.
+   Keep `FEED_PROJECTION_FALLBACK_ENABLED=true`, enqueue, and worker enabled
+   when possible so projection can catch up.
 
 Phased go/no-go thresholds and stability windows live in `docs/plans/feed-projection-rollout.md`.
 

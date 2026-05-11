@@ -80,6 +80,8 @@ export const envSchema = z.object({
 
   FEED_PROJECTION_FANOUT_BATCH_SIZE: positiveIntFromEnv.default(500),
   FEED_PROJECTION_FOLLOWER_PAGE_SIZE: positiveIntFromEnv.default(2_000),
+  FEED_PROJECTION_BACKFILL_POST_LIMIT: positiveIntFromEnv.default(200),
+  FEED_PROJECTION_BOOTSTRAP_POST_LIMIT: positiveIntFromEnv.default(200),
 
   FEED_PROJECTION_SHADOW_COMPARE_ENABLED: booleanFromEnv.default(false),
   FEED_PROJECTION_SHADOW_COMPARE_DEBUG_ONLY: booleanFromEnv.default(true),
@@ -100,11 +102,14 @@ export const envSchema = z.object({
     .min(0)
     .max(1)
     .default(0),
+  FEED_PROJECTION_READ_ALLOW_USER_IDS: z.string().trim().default(""),
+  FEED_PROJECTION_READ_DENY_USER_IDS: z.string().trim().default(""),
   FEED_PROJECTION_READ_FORCE_USER_ID: z.coerce
     .number()
     .int()
     .positive()
     .optional(),
+  FEED_PROJECTION_FALLBACK_ENABLED: booleanFromEnv.default(true),
   FEED_PROJECTION_READ_REQUIRE_POPULATED: booleanFromEnv.default(true),
   FEED_PROJECTION_UNSAFE_MISSING_RATIO: z.coerce
     .number()

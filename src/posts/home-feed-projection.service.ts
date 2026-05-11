@@ -9,6 +9,8 @@ import { HomeFeedEntryReason, type Prisma } from "@prisma/client";
 
 import { AccountState } from "@/users/enums/account-state.enum";
 
+import { createHash } from "crypto";
+
 const DEFAULT_RECONCILIATION_SAMPLE_SIZE = 25;
 const DEFAULT_RECONCILIATION_PAGE_SIZE = 100;
 
@@ -39,11 +41,19 @@ export type HomeFeedProjectionReconciliationResult = {
   usersChecked: number;
 };
 
+export type HomeFeedProjectionWriteResult = {
+  candidates: number;
+  inserted: number;
+  restored: number;
+};
+
 @Injectable()
 export class HomeFeedProjectionService {
   private readonly logger = new Logger(HomeFeedProjectionService.name);
 
   private readonly fanoutBatchSize: number;
+  private readonly backfillPostLimit: number;
+  private readonly bootstrapPostLimit: number;
   private readonly followerPageSize: number;
   private readonly mutesEnabled: boolean;
   private readonly retentionDays: number;
@@ -55,6 +65,10 @@ export class HomeFeedProjectionService {
   ) {
     this.fanoutBatchSize =
       configService.get<number>("FEED_PROJECTION_FANOUT_BATCH_SIZE") ?? 500;
+    this.backfillPostLimit =
+      configService.get<number>("FEED_PROJECTION_BACKFILL_POST_LIMIT") ?? 200;
+    this.bootstrapPostLimit =
+      configService.get<number>("FEED_PROJECTION_BOOTSTRAP_POST_LIMIT") ?? 200;
     this.followerPageSize =
       configService.get<number>("FEED_PROJECTION_FOLLOWER_PAGE_SIZE") ?? 2_000;
     this.mutesEnabled = configService.get<boolean>("MUTES_ENABLED") ?? false;
@@ -66,6 +80,7 @@ export class HomeFeedProjectionService {
       ) ?? 10_000;
   }
 
+  /** Fans one post out to the author and followers using duplicate-safe inserts. */
   async fanoutPost(params: {
     postId: number;
     authorId: number;
@@ -150,11 +165,12 @@ export class HomeFeedProjectionService {
     });
   }
 
+  /** Backfills recent posts after a follow transition and restores soft-hidden duplicates. */
   async backfillAfterFollow(params: {
     followerId: number;
     followingId: number;
     now?: Date;
-  }): Promise<void> {
+  }): Promise<HomeFeedProjectionWriteResult> {
     const now = params.now ?? new Date();
     const cutoff = new Date(
       now.getTime() - this.retentionDays * 24 * 60 * 60_000,
@@ -169,11 +185,13 @@ export class HomeFeedProjectionService {
         author: { accountState: "ACTIVE" },
       },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      take: Math.min(200, this.retentionMaxItemsPerUser),
+      take: Math.min(this.backfillPostLimit, this.retentionMaxItemsPerUser),
       select: { id: true, createdAt: true, authorId: true },
     });
 
-    if (posts.length === 0) return;
+    if (posts.length === 0) {
+      return { candidates: 0, inserted: 0, restored: 0 };
+    }
 
     const result = await this.prisma.homeFeedEntry.createMany({
       data: posts.map((post) => ({
@@ -187,16 +205,26 @@ export class HomeFeedProjectionService {
       })),
       skipDuplicates: true,
     });
+    const restored = await this.restoreVisibleEntries({
+      postIds: posts.map((post) => post.id),
+      userId: params.followerId,
+    });
 
     this.logger.log("Home feed backfill completed", {
       followerId: params.followerId,
       followingId: params.followingId,
       candidates: posts.length,
       inserted: result.count,
+      restored,
     });
+
+    return { candidates: posts.length, inserted: result.count, restored };
   }
 
-  async bootstrapUserHomeFeed(params: { userId: number }): Promise<void> {
+  /** Rebuilds one user's projected home feed from current follow relationships. */
+  async bootstrapUserHomeFeed(params: {
+    userId: number;
+  }): Promise<HomeFeedProjectionWriteResult> {
     const now = new Date();
     const cutoff = new Date(
       now.getTime() - this.retentionDays * 24 * 60 * 60_000,
@@ -208,7 +236,9 @@ export class HomeFeedProjectionService {
     });
 
     const followingIds = following.map((row) => row.followingId);
-    if (followingIds.length === 0) return;
+    if (followingIds.length === 0) {
+      return { candidates: 0, inserted: 0, restored: 0 };
+    }
 
     const posts = await this.prisma.post.findMany({
       where: {
@@ -218,11 +248,13 @@ export class HomeFeedProjectionService {
         author: { accountState: "ACTIVE" },
       },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      take: 200,
+      take: Math.min(this.bootstrapPostLimit, this.retentionMaxItemsPerUser),
       select: { id: true, createdAt: true, authorId: true },
     });
 
-    if (posts.length === 0) return;
+    if (posts.length === 0) {
+      return { candidates: 0, inserted: 0, restored: 0 };
+    }
 
     const result = await this.prisma.homeFeedEntry.createMany({
       data: posts.map((post) => ({
@@ -236,15 +268,23 @@ export class HomeFeedProjectionService {
       })),
       skipDuplicates: true,
     });
+    const restored = await this.restoreVisibleEntries({
+      postIds: posts.map((post) => post.id),
+      userId: params.userId,
+    });
 
     this.logger.log("Home feed bootstrap completed", {
       userId: params.userId,
       followingCount: followingIds.length,
       candidates: posts.length,
       inserted: result.count,
+      restored,
     });
+
+    return { candidates: posts.length, inserted: result.count, restored };
   }
 
+  /** Deletes every projected feed row for one post after removal or hydration failure. */
   async hardDeleteByPostId(postId: number): Promise<void> {
     const result = await this.prisma.homeFeedEntry.deleteMany({
       where: { postId },
@@ -256,6 +296,7 @@ export class HomeFeedProjectionService {
     });
   }
 
+  /** Soft-hides projected rows for a user-author relationship without deleting history. */
   async softHideByUserAndAuthor(params: {
     userId: number;
     authorId: number;
@@ -276,6 +317,7 @@ export class HomeFeedProjectionService {
     });
   }
 
+  /** Purges projected entries beyond the configured retention windows. */
   async purgeExpiredEntries(): Promise<void> {
     const now = new Date();
     const cutoff = new Date(
@@ -300,6 +342,7 @@ export class HomeFeedProjectionService {
     });
   }
 
+  /** Compares sampled projected feeds against legacy reads for rollout validation. */
   async reconcileSampledUsers(params?: {
     pageSize?: number;
     sampleSize?: number;
@@ -343,7 +386,17 @@ export class HomeFeedProjectionService {
       };
 
       mismatches.push(entry);
-      this.logger.warn("homeFeed projection reconciliation mismatch", entry);
+      this.logger.warn("homeFeed projection reconciliation mismatch", {
+        category: entry.category,
+        firstDivergentIndex: entry.firstDivergentIndex,
+        legacyCount: entry.legacyCount,
+        legacyHasNextPage: entry.legacyHasNextPage,
+        legacyIdHashes: hashNumbers(entry.legacyIds),
+        projectionCount: entry.projectionCount,
+        projectionHasNextPage: entry.projectionHasNextPage,
+        projectionIdHashes: hashNumbers(entry.projectionIds),
+        userHash: hashNumber(entry.userId),
+      });
     }
 
     const result = {
@@ -361,6 +414,7 @@ export class HomeFeedProjectionService {
     return result;
   }
 
+  /** Picks projected users first, then active users, for bounded reconciliation. */
   private async getReconciliationUserIds(
     sampleSize: number,
   ): Promise<number[]> {
@@ -401,6 +455,7 @@ export class HomeFeedProjectionService {
     return [...userIds];
   }
 
+  /** Builds the legacy chronological feed snapshot for reconciliation. */
   private async getLegacyFeedSnapshot(
     userId: number,
     pageSize: number,
@@ -454,6 +509,7 @@ export class HomeFeedProjectionService {
     };
   }
 
+  /** Builds the projected chronological feed snapshot for reconciliation. */
   private async getProjectionFeedSnapshot(
     userId: number,
     pageSize: number,
@@ -516,6 +572,7 @@ export class HomeFeedProjectionService {
     };
   }
 
+  /** Returns authors blocked in either direction for projection visibility checks. */
   private async getBlockedAuthorIds(userId: number): Promise<number[]> {
     const relatedBlocks = await this.prisma.userBlock.findMany({
       where: {
@@ -532,6 +589,7 @@ export class HomeFeedProjectionService {
     );
   }
 
+  /** Returns authors muted by the viewer when mutes are enabled. */
   private async getMutedAuthorIds(userId: number): Promise<number[]> {
     if (!this.mutesEnabled) return [];
 
@@ -543,6 +601,28 @@ export class HomeFeedProjectionService {
     return rows.map((row) => row.mutedUserId);
   }
 
+  /** Restores existing soft-hidden projected entries included in rebuild/backfill input. */
+  private async restoreVisibleEntries(params: {
+    postIds: number[];
+    userId: number;
+  }): Promise<number> {
+    if (params.postIds.length === 0) return 0;
+
+    const result = await this.prisma.homeFeedEntry.updateMany({
+      where: {
+        userId: params.userId,
+        postId: { in: params.postIds },
+        hiddenAt: { not: null },
+      },
+      data: {
+        hiddenAt: null,
+      },
+    });
+
+    return result.count;
+  }
+
+  /** Deletes the oldest projected rows for users currently above the entry cap. */
   private async purgeOverCapPerUser(): Promise<{
     deleted: number;
     usersCapped: number;
@@ -673,4 +753,12 @@ function hasSameMembership(left: number[], right: number[]): boolean {
 function clampPositiveInt(value: number, max: number): number {
   if (!Number.isFinite(value)) return max;
   return Math.max(0, Math.min(Math.floor(value), max));
+}
+
+function hashNumbers(values: number[]): string[] {
+  return values.map((value) => hashNumber(value));
+}
+
+function hashNumber(value: number): string {
+  return createHash("sha256").update(String(value)).digest("hex").slice(0, 16);
 }

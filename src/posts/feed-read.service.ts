@@ -29,7 +29,6 @@ import { HOME_FEED_POST_CLEANUP_EVENT } from "@/outbox/events/home-feed-cleanup.
 import { OutboxService } from "@/outbox/outbox.service";
 
 import { MediaReadProjectionService } from "@/media/media-read-projection.service";
-
 import {
   MetricsRegistryService,
   type HomeFeedShadowMismatchCategory,
@@ -41,6 +40,8 @@ import { MutesService } from "@/mutes/mutes.service";
 
 import { PrismaService } from "@/prisma/prisma.service";
 import { Prisma } from "@prisma/client";
+
+import { createHash } from "crypto";
 
 type HomeFeedParams = {
   after?: string;
@@ -70,7 +71,10 @@ export class FeedReadService {
   private readonly feedProjectionEnqueueEnabled: boolean;
   private readonly projectionReadCohortEnabled: boolean;
   private readonly projectionReadCohortSampleRate: number;
+  private readonly projectionReadAllowUserIds: Set<number>;
+  private readonly projectionReadDenyUserIds: Set<number>;
   private readonly projectionReadForceUserId: number | undefined;
+  private readonly projectionFallbackEnabled: boolean;
   private readonly projectionReadRequirePopulated: boolean;
   private readonly projectionUnsafeMissingRatio: number;
 
@@ -97,6 +101,8 @@ export class FeedReadService {
       this.metricsRegistry.incrementHomeFeedProjectionFallback(
         projectionResult.fallbackReason,
       );
+      if (!this.projectionFallbackEnabled) return projectionResult;
+
       const legacy = await this.getHomeFeedFanoutOnRead(currentUserId, params);
       this.metricsRegistry.incrementHomeFeedReadSource("legacy");
       return legacy;
@@ -141,9 +147,17 @@ export class FeedReadService {
       false;
     this.projectionReadCohortSampleRate =
       configService.get<number>("FEED_PROJECTION_READ_COHORT_SAMPLE_RATE") ?? 0;
+    this.projectionReadAllowUserIds = parsePositiveIntSet(
+      configService.get<string>("FEED_PROJECTION_READ_ALLOW_USER_IDS"),
+    );
+    this.projectionReadDenyUserIds = parsePositiveIntSet(
+      configService.get<string>("FEED_PROJECTION_READ_DENY_USER_IDS"),
+    );
     this.projectionReadForceUserId = configService.get<number>(
       "FEED_PROJECTION_READ_FORCE_USER_ID",
     );
+    this.projectionFallbackEnabled =
+      configService.get<boolean>("FEED_PROJECTION_FALLBACK_ENABLED") ?? true;
     this.projectionReadRequirePopulated =
       configService.get<boolean>("FEED_PROJECTION_READ_REQUIRE_POPULATED") ??
       true;
@@ -176,6 +190,12 @@ export class FeedReadService {
   private async shouldUseProjectionRead(
     currentUserId: number,
   ): Promise<boolean> {
+    if (this.projectionReadDenyUserIds.has(currentUserId)) return false;
+
+    if (this.projectionReadAllowUserIds.has(currentUserId)) {
+      return this.isProjectionPopulatedOrBootstrapped(currentUserId);
+    }
+
     if (
       this.projectionReadForceUserId !== undefined &&
       currentUserId === this.projectionReadForceUserId
@@ -416,6 +436,13 @@ export class FeedReadService {
     );
 
     const postIds = page.items.map((row) => row.id);
+    const newestProjectedAt = page.items[0]?.createdAt;
+    if (newestProjectedAt) {
+      this.metricsRegistry.recordHomeFeedProjectionReadLag(
+        Math.max(0, (Date.now() - newestProjectedAt.getTime()) / 1_000),
+      );
+    }
+
     if (postIds.length === 0) {
       return {
         items: [],
@@ -550,15 +577,15 @@ export class FeedReadService {
       this.metricsRegistry.incrementHomeFeedShadowCompareMismatchByCategory(
         mismatch.category,
       );
-      // Keep payload minimal; ids only.
+      // Keep payload minimal and hashed so shadow compare logs do not expose raw ids.
       this.logger.warn("homeFeed shadow compare mismatch", {
-        currentUserId,
+        userHash: hashNumber(currentUserId),
         category: mismatch.category,
         firstDivergentIndex: mismatch.firstDivergentIndex,
         legacyCount: legacyIds.length,
         projectionCount: projectionIds.length,
-        legacyIds,
-        projectionIds,
+        legacyIdHashes: hashNumbers(legacyIds),
+        projectionIdHashes: hashNumbers(projectionIds),
         legacyHasNextPage: legacy.pageInfo.hasNextPage,
         projectionHasNextPage: projection.pageInfo.hasNextPage,
       });
@@ -709,4 +736,23 @@ function isUserInDeterministicCohort(
 
 function positiveModulo(value: number, divisor: number): number {
   return ((value % divisor) + divisor) % divisor;
+}
+
+function parsePositiveIntSet(value: string | undefined): Set<number> {
+  if (!value) return new Set();
+
+  const ids = value
+    .split(",")
+    .map((part) => Number(part.trim()))
+    .filter((id) => Number.isInteger(id) && id > 0);
+
+  return new Set(ids);
+}
+
+function hashNumbers(values: number[]): string[] {
+  return values.map((value) => hashNumber(value));
+}
+
+function hashNumber(value: number): string {
+  return createHash("sha256").update(String(value)).digest("hex").slice(0, 16);
 }

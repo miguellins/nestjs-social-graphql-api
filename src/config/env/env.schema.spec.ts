@@ -64,13 +64,18 @@ describe("validateEnv", () => {
     expect(result.FEED_PROJECTION_PURGE_INTERVAL_MS).toBe(60_000);
     expect(result.FEED_PROJECTION_FANOUT_BATCH_SIZE).toBe(500);
     expect(result.FEED_PROJECTION_FOLLOWER_PAGE_SIZE).toBe(2000);
+    expect(result.FEED_PROJECTION_BACKFILL_POST_LIMIT).toBe(200);
+    expect(result.FEED_PROJECTION_BOOTSTRAP_POST_LIMIT).toBe(200);
     expect(result.FEED_PROJECTION_SHADOW_COMPARE_ENABLED).toBe(false);
     expect(result.FEED_PROJECTION_SHADOW_COMPARE_DEBUG_ONLY).toBe(true);
     expect(result.FEED_PROJECTION_SHADOW_COMPARE_SAMPLE_RATE).toBe(0.005);
     expect(result.FEED_PROJECTION_SHADOW_COMPARE_FORCE_USER_ID).toBeUndefined();
     expect(result.FEED_PROJECTION_READ_COHORT_ENABLED).toBe(false);
     expect(result.FEED_PROJECTION_READ_COHORT_SAMPLE_RATE).toBe(0);
+    expect(result.FEED_PROJECTION_READ_ALLOW_USER_IDS).toBe("");
+    expect(result.FEED_PROJECTION_READ_DENY_USER_IDS).toBe("");
     expect(result.FEED_PROJECTION_READ_FORCE_USER_ID).toBeUndefined();
+    expect(result.FEED_PROJECTION_FALLBACK_ENABLED).toBe(true);
     expect(result.FEED_PROJECTION_READ_REQUIRE_POPULATED).toBe(true);
     expect(result.FEED_PROJECTION_UNSAFE_MISSING_RATIO).toBe(0.5);
     expect(result.R2_PRESIGNED_URL_TTL_SECONDS).toBe(1800);
