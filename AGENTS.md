@@ -281,3 +281,17 @@ This file defines the working rules for contributors and coding agents in this r
 - No sensitive fields, secrets, stack traces, or internal persistence details are exposed.
 - Relevant MCPs and skills were used when they would improve accuracy, including `mysql-best-practices` for MySQL-specific changes.
 - Relevant MCPs were used when they provided safer or more current context for library docs, NestJS patterns, GraphQL schema checks, Redis cache inspection, Docker container inspection, or Git change inspection.
+
+## Agent skills
+
+### Issue tracker
+
+Work is tracked as local markdown under `.scratch/`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five canonical triage roles map to the same string ids listed in `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context layout: domain glossary and ADRs at the repo root when present (`CONTEXT.md`, `docs/adr/`). See `docs/agents/domain.md`.
