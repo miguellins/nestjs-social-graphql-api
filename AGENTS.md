@@ -31,10 +31,17 @@ This file defines the working rules for contributors and coding agents in this r
 - Use `nestjs` when implementing or reviewing NestJS modules, resolvers, services, guards, interceptors, filters, pipes, providers, testing patterns, request lifecycle behavior, security hardening, or project structure.
 - Use `apollo-mcp` when inspecting the GraphQL schema, verifying operation names, arguments, return shapes, schema descriptions, operation reports, manual API tests, or GraphQL contract impact.
 - Use `redis` when debugging local/dev cache or pubsub behavior, verifying Redis connectivity, inspecting key types, TTLs, counts, or checking cache invalidation effects.
-- Prefer read-only MCP actions during investigation. Do not use Redis MCP write/destructive tools such as `set`, `delete`, `rename`, `expire`, `publish`, stream/list/set/hash/zset mutations, JSON writes, or vector writes unless the user explicitly asks and the target is local/dev.
-- Do not use database/cache MCPs against production, staging, shared, or unknown environments unless the user explicitly confirms the target and action.
-- Do not use MCPs to bypass tests, type checks, lint, Prisma safety, GraphQL code-first rules, or migration restrictions.
-- If an MCP is unavailable, continue with repository inspection and state the limitation only when it affects the result.
+- Use `docker` when debugging local/dev containers, Docker Compose services, API or worker startup, MySQL or Redis container state, container logs, health, exposed ports, Docker socket/context mismatches, or environment mismatches between the API, worker, database, and cache.
+- Use `git` when inspecting repository status, staged and unstaged diffs, changed files, commit history, branch state, or preparing change summaries.
+- Use `git` before final summaries when code, docs, Prisma schema, GraphQL DTOs/resolvers, tests, config, or tooling files were changed.
+- Use `git` to verify unrelated files were not changed and to detect forbidden edits such as manual `src/schema.gql` changes or edits under `prisma/migrations/`.
+- Prefer read-only MCP actions during investigation. For Docker MCP, prefer `list_containers`, `fetch_container_logs`, `list_images`, `list_networks`, and `list_volumes` before using terminal commands. For Git MCP, prefer status, diff, log, and branch inspection.
+- Do not use Redis MCP write/destructive tools such as `set`, `delete`, `rename`, `expire`, `publish`, stream/list/set/hash/zset mutations, JSON writes, or vector writes unless the user explicitly asks and the target is local/dev.
+- Do not use Docker MCP write/destructive tools such as `create_container`, `start_container`, `stop_container`, `restart_container`, `remove_container`, image build/pull/push/removal, volume or network mutations, prune actions, Docker Compose mutations, or daemon/socket changes unless the user explicitly asks and the target is local/dev.
+- Do not use Git MCP write/destructive tools such as `add`, `commit`, `reset`, `checkout`, `merge`, `rebase`, `pull`, `push`, branch deletion, staging, or unstaging unless the user explicitly asks for that exact action.
+- Do not use database/cache/container/Git MCPs against production, staging, shared, or unknown environments unless the user explicitly confirms the target and action.
+- Do not use MCPs to bypass tests, type checks, lint, Prisma safety, GraphQL code-first rules, migration restrictions, or documented local setup steps.
+- If an MCP is unavailable, continue with repository inspection or safe terminal inspection and state the limitation only when it affects the result.
 
 
 ## Skill Usage Rules
@@ -273,4 +280,4 @@ This file defines the working rules for contributors and coding agents in this r
 - New or changed features update feature docs plus `docs/reviews/backend-maturity-review.md` and `docs/reviews/module-review.md`.
 - No sensitive fields, secrets, stack traces, or internal persistence details are exposed.
 - Relevant MCPs and skills were used when they would improve accuracy, including `mysql-best-practices` for MySQL-specific changes.
-- Relevant MCPs were used when they provided safer or more current context for library docs, NestJS patterns, GraphQL schema checks, or Redis cache inspection.
+- Relevant MCPs were used when they provided safer or more current context for library docs, NestJS patterns, GraphQL schema checks, Redis cache inspection, Docker container inspection, or Git change inspection.

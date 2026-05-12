@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "docker": {
+      "command": "uvx",
+      "args": ["mcp-server-docker"],
+      "env": {
+        "DOCKER_HOST": "unix:///home/mlins/.docker/desktop/docker.sock"
+      }
+    }
+  }
+}
