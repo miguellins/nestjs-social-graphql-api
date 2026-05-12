@@ -14,4 +14,12 @@ export class NotificationPreferences {
   /** Whether post and comment mention notifications are enabled. */
   @Field(() => Boolean)
   mentionNotificationsEnabled!: boolean;
+
+  /** Whether post-like notifications are enabled. */
+  @Field(() => Boolean)
+  postLikedNotificationsEnabled!: boolean;
+
+  /** Whether new-follower notifications are enabled. */
+  @Field(() => Boolean)
+  userFollowedNotificationsEnabled!: boolean;
 }

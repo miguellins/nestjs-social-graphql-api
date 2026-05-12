@@ -29,6 +29,8 @@ export type HomeFeedProjectionReconciliationOutcome =
   | "match"
   | "mismatch";
 
+export type NotificationSuppressionReason = "prefs";
+
 export type OutboxBacklogMetrics = {
   failedCount: number;
   oldestPendingAgeSeconds: number;
@@ -81,6 +83,7 @@ export class MetricsRegistryService {
   private readonly metricsDbRefreshErrorsTotal: Counter<
     "component" | "process"
   >;
+  private readonly notificationSuppressedTotal: Counter<"process" | "reason">;
 
   constructor() {
     this.outboxWorkerTicksTotal = new Counter({
@@ -228,6 +231,12 @@ export class MetricsRegistryService {
       labelNames: ["process", "component"],
       registers: [this.registry],
     });
+    this.notificationSuppressedTotal = new Counter({
+      name: "notification_suppressed_total",
+      help: "Total notifications suppressed before persistence by reason.",
+      labelNames: ["process", "reason"],
+      registers: [this.registry],
+    });
   }
 
   get contentType(): string {
@@ -372,6 +381,14 @@ export class MetricsRegistryService {
     this.metricsDbRefreshErrorsTotal.inc({
       process: "worker",
       component: "outbox",
+    });
+  }
+
+  /** Records a notification suppressed before persistence for a low-cardinality reason. */
+  incrementNotificationSuppressed(reason: NotificationSuppressionReason): void {
+    this.notificationSuppressedTotal.inc({
+      process: "api",
+      reason,
     });
   }
 }

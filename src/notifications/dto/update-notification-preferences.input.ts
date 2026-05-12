@@ -22,4 +22,16 @@ export class UpdateNotificationPreferencesInput {
   @IsOptional()
   @IsBoolean()
   mentionNotificationsEnabled?: boolean;
+
+  /** Whether post-like notifications are enabled. */
+  @Field(() => Boolean, { nullable: true })
+  @IsOptional()
+  @IsBoolean()
+  postLikedNotificationsEnabled?: boolean;
+
+  /** Whether new-follower notifications are enabled. */
+  @Field(() => Boolean, { nullable: true })
+  @IsOptional()
+  @IsBoolean()
+  userFollowedNotificationsEnabled?: boolean;
 }

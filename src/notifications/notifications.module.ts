@@ -9,10 +9,12 @@ import { NotificationsService } from "@/notifications/notifications.service";
 
 import { CacheHelpersModule } from "@/common/cache/cache-helpers.module";
 
+import { MetricsModule } from "@/metrics/metrics.module";
+
 import { MutesModule } from "@/mutes/mutes.module";
 
 @Module({
-  imports: [CacheHelpersModule, MutesModule],
+  imports: [CacheHelpersModule, MutesModule, MetricsModule],
   providers: [
     NotificationDeliveryService,
     NotificationOutboxHandler,

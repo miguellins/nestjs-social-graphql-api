@@ -30,6 +30,8 @@ import {
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { PrismaService } from "@/prisma/prisma.service";
 
+import { MetricsRegistryService } from "@/metrics/metrics-registry.service";
+
 import { MutesService } from "@/mutes/mutes.service";
 
 type PaginationParams = {
@@ -49,6 +51,7 @@ export class NotificationsService {
     private readonly notificationDelivery: NotificationDeliveryService,
     private readonly notificationPreferences: NotificationPreferencesService,
     private readonly mutesService: MutesService,
+    private readonly metricsRegistry: MetricsRegistryService,
   ) {}
 
   /** Persists the notification first, then treats realtime delivery as best-effort follow-up work. */
@@ -113,7 +116,11 @@ export class NotificationsService {
         data.type,
       );
 
-    if (!preferenceEnabled) return null;
+    if (!preferenceEnabled) {
+      this.metricsRegistry.incrementNotificationSuppressed("prefs");
+
+      return null;
+    }
 
     return client.notification.create({
       data,

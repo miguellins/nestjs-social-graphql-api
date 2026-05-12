@@ -2,8 +2,13 @@ import { Injectable, Logger } from "@nestjs/common";
 
 import { UpdateNotificationPreferencesInput } from "@/notifications/dto/update-notification-preferences.input";
 import { NotificationPreferences } from "@/notifications/models/notification-preferences.model";
+import {
+  updateNotificationPreferencesCommandSchema,
+  type UpdateNotificationPreferencesCommand,
+} from "@/notifications/schemas/update-notification-preferences.schema";
 
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
+import { parseWithBadRequest } from "@/common/zod/parse-with-zod";
 import { runBestEffort } from "@/common/errors/run-best-effort";
 
 import { PrismaService } from "@/prisma/prisma.service";
@@ -21,6 +26,7 @@ export class NotificationPreferencesService {
     private readonly cacheHelper: CacheHelperService,
   ) {}
 
+  /** Returns the current user's preferences from cache or default-on storage projection. */
   async getMyPreferences(userId: number): Promise<NotificationPreferences> {
     return this.cacheHelper.getOrSet(
       this.getCacheKey(userId),
@@ -33,7 +39,12 @@ export class NotificationPreferencesService {
     userId: number,
     input: UpdateNotificationPreferencesInput,
   ): Promise<NotificationPreferences> {
-    const data = this.buildUpdateData(input);
+    const command = parseWithBadRequest(
+      updateNotificationPreferencesCommandSchema,
+      input,
+      "Invalid notification preference update",
+    );
+    const data = this.buildUpdateData(command);
     const preferences = await this.prisma.notificationPreference.upsert({
       where: { userId },
       create: {
@@ -56,6 +67,7 @@ export class NotificationPreferencesService {
     return preferences;
   }
 
+  /** Resolves whether a notification type may create a new persisted row for a user. */
   async isNotificationTypeEnabled(
     userId: number,
     type: NotificationType,
@@ -70,11 +82,16 @@ export class NotificationPreferencesService {
       case NotificationType.POST_MENTIONED:
       case NotificationType.COMMENT_MENTIONED:
         return preferences.mentionNotificationsEnabled;
+      case NotificationType.POST_LIKED:
+        return preferences.postLikedNotificationsEnabled;
+      case NotificationType.USER_FOLLOWED:
+        return preferences.userFollowedNotificationsEnabled;
       default:
         return true;
     }
   }
 
+  /** Loads stored preferences or returns in-code default-on values for lazy materialization. */
   private async loadPreferences(
     userId: number,
   ): Promise<NotificationPreferences> {
@@ -86,8 +103,9 @@ export class NotificationPreferencesService {
     return preferences ?? defaultNotificationPreferences();
   }
 
+  /** Builds an explicit Prisma update payload from validated preference fields. */
   private buildUpdateData(
-    input: UpdateNotificationPreferencesInput,
+    input: UpdateNotificationPreferencesCommand,
   ): Partial<NotificationPreferences> {
     const data: Partial<NotificationPreferences> = {};
 
@@ -101,10 +119,18 @@ export class NotificationPreferencesService {
     if (input.mentionNotificationsEnabled !== undefined) {
       data.mentionNotificationsEnabled = input.mentionNotificationsEnabled;
     }
+    if (input.postLikedNotificationsEnabled !== undefined) {
+      data.postLikedNotificationsEnabled = input.postLikedNotificationsEnabled;
+    }
+    if (input.userFollowedNotificationsEnabled !== undefined) {
+      data.userFollowedNotificationsEnabled =
+        input.userFollowedNotificationsEnabled;
+    }
 
     return data;
   }
 
+  /** Builds the deterministic detail cache key for one user's preferences. */
   private getCacheKey(userId: number): string {
     return `user:notificationPrefs:${userId}`;
   }
@@ -115,6 +141,8 @@ export const notificationPreferencesSelect = {
   replyNotificationsEnabled: true,
   followRequestNotificationsEnabled: true,
   mentionNotificationsEnabled: true,
+  postLikedNotificationsEnabled: true,
+  userFollowedNotificationsEnabled: true,
 };
 
 function defaultNotificationPreferences(): NotificationPreferences {
@@ -122,5 +150,7 @@ function defaultNotificationPreferences(): NotificationPreferences {
     replyNotificationsEnabled: true,
     followRequestNotificationsEnabled: true,
     mentionNotificationsEnabled: true,
+    postLikedNotificationsEnabled: true,
+    userFollowedNotificationsEnabled: true,
   };
 }

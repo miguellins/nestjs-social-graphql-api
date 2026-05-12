@@ -16,6 +16,7 @@ import { NotificationSelect } from "@/notifications/dto/safe-notification.dto";
 
 import { PrismaService } from "@/prisma/prisma.service";
 import { MutesService } from "@/mutes/mutes.service";
+import { MetricsRegistryService } from "@/metrics/metrics-registry.service";
 
 import { NotificationsService } from "./notifications.service";
 
@@ -50,6 +51,10 @@ describe("NotificationsService", () => {
 
   const notificationPreferencesMock = {
     isNotificationTypeEnabled: jest.fn(),
+  };
+
+  const metricsRegistryMock = {
+    incrementNotificationSuppressed: jest.fn(),
   };
 
   const mockNotification = {
@@ -96,6 +101,10 @@ describe("NotificationsService", () => {
           provide: MutesService,
           useValue: mutesServiceMock,
         },
+        {
+          provide: MetricsRegistryService,
+          useValue: metricsRegistryMock,
+        },
       ],
     }).compile();
 
@@ -121,6 +130,9 @@ describe("NotificationsService", () => {
 
       expect(result).toBeNull();
       expect(prismaMock.notification.create).not.toHaveBeenCalled();
+      expect(
+        metricsRegistryMock.incrementNotificationSuppressed,
+      ).not.toHaveBeenCalled();
       expect(
         notificationDeliveryMock.publishNotificationReceived,
       ).not.toHaveBeenCalled();
@@ -241,6 +253,9 @@ describe("NotificationsService", () => {
       expect(result).toBeNull();
       expect(prismaMock.notification.create).not.toHaveBeenCalled();
       expect(
+        metricsRegistryMock.incrementNotificationSuppressed,
+      ).not.toHaveBeenCalled();
+      expect(
         notificationDeliveryMock.publishNotificationReceived,
       ).not.toHaveBeenCalled();
     });
@@ -315,6 +330,37 @@ describe("NotificationsService", () => {
       ).not.toHaveBeenCalled();
     });
 
+    it.each([NotificationType.POST_LIKED, NotificationType.USER_FOLLOWED])(
+      "suppresses %s notifications when the matching preference is disabled",
+      async (type) => {
+        prismaMock.userBlock.findFirst.mockResolvedValue(null);
+        notificationPreferencesMock.isNotificationTypeEnabled.mockResolvedValue(
+          false,
+        );
+
+        const result = await service.createAndPublishNotification({
+          recipientId: 1,
+          actorId: 2,
+          type,
+          title: "Suppressed notification",
+          body: "john interacted with you",
+          entityId: 10,
+        });
+
+        expect(result).toBeNull();
+        expect(
+          notificationPreferencesMock.isNotificationTypeEnabled,
+        ).toHaveBeenCalledWith(1, type);
+        expect(prismaMock.notification.create).not.toHaveBeenCalled();
+        expect(
+          metricsRegistryMock.incrementNotificationSuppressed,
+        ).toHaveBeenCalledWith("prefs");
+        expect(
+          notificationDeliveryMock.publishNotificationReceived,
+        ).not.toHaveBeenCalled();
+      },
+    );
+
     it.each([
       NotificationType.POST_MENTIONED,
       NotificationType.COMMENT_MENTIONED,
@@ -340,6 +386,9 @@ describe("NotificationsService", () => {
           notificationPreferencesMock.isNotificationTypeEnabled,
         ).toHaveBeenCalledWith(1, type);
         expect(prismaMock.notification.create).not.toHaveBeenCalled();
+        expect(
+          metricsRegistryMock.incrementNotificationSuppressed,
+        ).toHaveBeenCalledWith("prefs");
         expect(
           notificationDeliveryMock.publishNotificationReceived,
         ).not.toHaveBeenCalled();

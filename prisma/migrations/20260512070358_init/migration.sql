@@ -252,6 +252,8 @@ CREATE TABLE `NotificationPreference` (
     `replyNotificationsEnabled` BOOLEAN NOT NULL DEFAULT true,
     `followRequestNotificationsEnabled` BOOLEAN NOT NULL DEFAULT true,
     `mentionNotificationsEnabled` BOOLEAN NOT NULL DEFAULT true,
+    `postLikedNotificationsEnabled` BOOLEAN NOT NULL DEFAULT true,
+    `userFollowedNotificationsEnabled` BOOLEAN NOT NULL DEFAULT true,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 

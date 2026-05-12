@@ -986,6 +986,8 @@ model NotificationPreference {
   replyNotificationsEnabled         Boolean @default(true)
   followRequestNotificationsEnabled Boolean @default(true)
   mentionNotificationsEnabled       Boolean @default(true)
+  postLikedNotificationsEnabled     Boolean @default(true)
+  userFollowedNotificationsEnabled  Boolean @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

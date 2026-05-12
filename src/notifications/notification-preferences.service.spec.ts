@@ -1,4 +1,5 @@
 import { Test, TestingModule } from "@nestjs/testing";
+import { BadRequestException } from "@nestjs/common";
 import { NotificationType } from "@prisma/client";
 
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
@@ -51,6 +52,8 @@ describe("NotificationPreferencesService", () => {
       replyNotificationsEnabled: true,
       followRequestNotificationsEnabled: true,
       mentionNotificationsEnabled: true,
+      postLikedNotificationsEnabled: true,
+      userFollowedNotificationsEnabled: true,
     });
     expect(cacheMock.getOrSet).toHaveBeenCalledWith(
       "user:notificationPrefs:1",
@@ -63,6 +66,8 @@ describe("NotificationPreferencesService", () => {
         replyNotificationsEnabled: true,
         followRequestNotificationsEnabled: true,
         mentionNotificationsEnabled: true,
+        postLikedNotificationsEnabled: true,
+        userFollowedNotificationsEnabled: true,
       },
     });
   });
@@ -72,6 +77,8 @@ describe("NotificationPreferencesService", () => {
       replyNotificationsEnabled: false,
       followRequestNotificationsEnabled: true,
       mentionNotificationsEnabled: true,
+      postLikedNotificationsEnabled: true,
+      userFollowedNotificationsEnabled: true,
     };
     cacheMock.getOrSet.mockResolvedValue(cached);
 
@@ -84,25 +91,34 @@ describe("NotificationPreferencesService", () => {
       replyNotificationsEnabled: true,
       followRequestNotificationsEnabled: true,
       mentionNotificationsEnabled: false,
+      postLikedNotificationsEnabled: true,
+      userFollowedNotificationsEnabled: false,
     };
     prismaMock.notificationPreference.upsert.mockResolvedValue(preferences);
 
     await expect(
-      service.updateMyPreferences(1, { mentionNotificationsEnabled: false }),
+      service.updateMyPreferences(1, {
+        mentionNotificationsEnabled: false,
+        userFollowedNotificationsEnabled: false,
+      }),
     ).resolves.toEqual(preferences);
     expect(prismaMock.notificationPreference.upsert).toHaveBeenCalledWith({
       where: { userId: 1 },
       create: {
         userId: 1,
         mentionNotificationsEnabled: false,
+        userFollowedNotificationsEnabled: false,
       },
       update: {
         mentionNotificationsEnabled: false,
+        userFollowedNotificationsEnabled: false,
       },
       select: {
         replyNotificationsEnabled: true,
         followRequestNotificationsEnabled: true,
         mentionNotificationsEnabled: true,
+        postLikedNotificationsEnabled: true,
+        userFollowedNotificationsEnabled: true,
       },
     });
 
@@ -111,11 +127,22 @@ describe("NotificationPreferencesService", () => {
     expect(cacheMock.del).toHaveBeenCalledWith("user:notificationPrefs:1");
   });
 
+  it("rejects an empty update patch before touching Prisma", async () => {
+    await expect(service.updateMyPreferences(1, {})).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+
+    expect(prismaMock.notificationPreference.upsert).not.toHaveBeenCalled();
+    expect(cacheMock.del).not.toHaveBeenCalled();
+  });
+
   it("maps notification types to preference toggles", async () => {
     cacheMock.getOrSet.mockResolvedValue({
       replyNotificationsEnabled: false,
       followRequestNotificationsEnabled: true,
       mentionNotificationsEnabled: false,
+      postLikedNotificationsEnabled: false,
+      userFollowedNotificationsEnabled: false,
     });
 
     await expect(
@@ -132,7 +159,10 @@ describe("NotificationPreferencesService", () => {
     ).resolves.toBe(false);
     await expect(
       service.isNotificationTypeEnabled(1, NotificationType.USER_FOLLOWED),
-    ).resolves.toBe(true);
+    ).resolves.toBe(false);
+    await expect(
+      service.isNotificationTypeEnabled(1, NotificationType.POST_LIKED),
+    ).resolves.toBe(false);
   });
 });
 

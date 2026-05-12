@@ -20,6 +20,12 @@ type NotificationPreferences {
 
   """Whether post and comment mention notifications are enabled."""
   mentionNotificationsEnabled: Boolean!
+
+  """Whether post-like notifications are enabled."""
+  postLikedNotificationsEnabled: Boolean!
+
+  """Whether new-follower notifications are enabled."""
+  userFollowedNotificationsEnabled: Boolean!
 }
 
 """
@@ -1577,6 +1583,12 @@ input UpdateNotificationPreferencesInput {
 
   """Whether post and comment mention notifications are enabled."""
   mentionNotificationsEnabled: Boolean
+
+  """Whether post-like notifications are enabled."""
+  postLikedNotificationsEnabled: Boolean
+
+  """Whether new-follower notifications are enabled."""
+  userFollowedNotificationsEnabled: Boolean
 }
 
 input BlockUserInput {
