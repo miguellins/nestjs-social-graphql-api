@@ -43,9 +43,10 @@ This file defines the working rules for contributors and coding agents in this r
 - Do not use MCPs to bypass tests, type checks, lint, Prisma safety, GraphQL code-first rules, migration restrictions, or documented local setup steps.
 - If an MCP is unavailable, continue with repository inspection or safe terminal inspection and state the limitation only when it affects the result.
 
-
 ## Skill Usage Rules
 - Use installed skills automatically when they are relevant; do not wait for the user to manually request a skill.
+- When `manual-api-testing` needs fixture data before Test 1, return only `## Needed data for all tests` plus one fenced `text` block that contains copyable labels/placeholders the user can fill in another window. Do not use tables for needed test data.
+- Keep manual API test output copyable: use fenced `graphql`, `json`, `bash`, or `text` blocks for operations, variables, commands, tokens, ids, and expected values.
 - Use `mysql-best-practices` when designing, reviewing, or debugging MySQL schema design, indexes, query patterns, data types, constraints, transactions, connection behavior, Prisma-backed MySQL usage, or MySQL performance/security concerns.
 - Use `mysql-best-practices` before proposing MySQL-related Prisma schema/index changes, diagnosing slow or incorrect MySQL queries, or recommending database administration steps.
 - Treat skill output as supporting guidance, not as authority over this file, the project rules, or verified repository patterns.
@@ -243,7 +244,20 @@ This file defines the working rules for contributors and coding agents in this r
 - Avoid generic comments such as `/** Handles the request. */`, `/** Gets data. */`, or comments that only repeat the identifier.
 - Use multi-line JSDoc only when a service method, DTO type, or select constant has non-obvious constraints, side effects, security behavior, or return semantics that cannot fit clearly in one line.
 
+## Plan Decision Review Rules
+- When asked to review a project plan and extract implementation decisions, identify decisions only; do not implement the plan.
+- Include meaningful product scope, schema/model, API/GraphQL, auth/permission, UX/client-facing behavior, data lifecycle, infra/caching/queue/background-job, security/operational, testing strategy, and rollout/backward-compatibility decisions.
+- Exclude generic coding tasks, obvious implementation steps, duplicated decisions, and low-level style choices unless they affect architecture or public behavior.
+- For each decision, include the main options, one recommended option, why it is recommended, and a simple explanation of the impact.
+- Favor a clean, maintainable, production-like v1 unless the plan clearly points to a different tradeoff.
+- Return decision reviews as plain, copyable Markdown using sequential headings like `# 1 - [Decision]`.
+- Do not use tables, intro text, final summary, markdown links, file cards, or Cursor-specific references in decision review output unless the user explicitly asks for them.
+
 ## Output and Reference Formatting Rules
+- When the user asks for copyable text, return plain Markdown that can be selected and pasted cleanly outside Cursor.
+- For copyable operations, variables, commands, env snippets, fixture templates, or manual test steps, use fenced code blocks with the correct language label when helpful.
+- Avoid tables for copyable prompts, manual tests, needed data, and decision reviews unless the user explicitly asks for a table.
+- Keep copyable sections free of UI-only formatting, file cards, absolute local paths, and markdown links unless the user explicitly asks for links.
 - When referencing project files in reviews, prompts, summaries, recommendations, reports, or change explanations, use plain filenames or short repo-relative paths only.
 - Never return markdown links or absolute local filesystem paths for project files.
 - If the filename is clear enough, return only the filename.
@@ -278,6 +292,8 @@ This file defines the working rules for contributors and coding agents in this r
 - Auth, throttling, pagination, DTO/select safety, and cache invalidation rules are preserved.
 - New env vars are reflected in both `src/config/env/env.schema.ts` and `.env`.
 - New or changed features update feature docs plus `docs/reviews/backend-maturity-review.md` and `docs/reviews/module-review.md`.
+- Manual API test preflight output is copyable and includes a fillable fenced fixture template when data is needed.
+- Plan decision reviews are copyable, numbered, table-free, and contain only decisions with options, recommendation, why, and explanation.
 - No sensitive fields, secrets, stack traces, or internal persistence details are exposed.
 - Relevant MCPs and skills were used when they would improve accuracy, including `mysql-best-practices` for MySQL-specific changes.
 - Relevant MCPs were used when they provided safer or more current context for library docs, NestJS patterns, GraphQL schema checks, Redis cache inspection, Docker container inspection, or Git change inspection.
@@ -285,13 +301,10 @@ This file defines the working rules for contributors and coding agents in this r
 ## Agent skills
 
 ### Issue tracker
-
 Work is tracked as local markdown under `.scratch/`. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
-
 The five canonical triage roles map to the same string ids listed in `docs/agents/triage-labels.md`.
 
 ### Domain docs
-
 Single-context layout: domain glossary and ADRs at the repo root when present (`CONTEXT.md`, `docs/adr/`). See `docs/agents/domain.md`.

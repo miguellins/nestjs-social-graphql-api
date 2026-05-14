@@ -15,9 +15,15 @@ Weakness: `users.service.ts` is still large and multi-responsibility, and the us
 
 
 # Posts / Home Feed: 98/100
-Strength: privacy-aware visibility, block-aware and mute-aware reads, moderation-aware removal, cache discipline, media-aware projection, comment integration, and the split between `PostsService`, `PostReadService`, and `FeedReadService` is cleaner and more defensible. `CommentsReadService` remains the source for threaded comments in post detail reads. The home feed is now materially stronger because it has both the legacy fanout-on-read path and an optional persisted `HomeFeedEntry` projection driven by outbox events, with cohort rollout, allow/deny user gates, forced-user rollout, configurable fallback, bootstrap, shadow compare with hashed diagnostics, cleanup, relationship soft-hide, retention controls, projection-read lag metrics, and muted-author filtering.
+Strength: privacy-aware visibility, block-aware and mute-aware reads, moderation-aware removal, cache discipline, media-aware projection, comment integration, hashtag write integration, and the split between `PostsService`, `PostReadService`, and `FeedReadService` is cleaner and more defensible. `CommentsReadService` remains the source for threaded comments in post detail reads. The home feed is now materially stronger because it has both the legacy fanout-on-read path and an optional persisted `HomeFeedEntry` projection driven by outbox events, with cohort rollout, allow/deny user gates, forced-user rollout, configurable fallback, bootstrap, shadow compare with hashed diagnostics, cleanup, relationship soft-hide, retention controls, projection-read lag metrics, and muted-author filtering.
 
 Weakness: `posts.service.ts` is still one of the biggest pressure points in the repo, and the home feed remains an early chronological social-graph feed. The new projection is a credible scalability step, but it is not yet a richer ranking, recommendation, explainability, or fully event-platform-backed feed subsystem.
+
+
+# Hashtags / Discovery: 91/100
+Strength: normalized content hashtags now live in a dedicated `HashtagsModule` with conservative ASCII parsing, reserved-slug rejection, a 10-tag cap, transactional `PostHashtag` replacement during post writes, same-transaction public `postsCount` deltas, removal cleanup, `postsByHashtag`, and `searchHashtags`. The read path preserves the existing post page contract and applies post-list visibility, block, mute, pagination, and cache patterns.
+
+Weakness: the feature is still v1. Existing posts need a reviewed backfill, there is no counter reconciliation job for future account-visibility changes, no time-window trending or external search integration, and discovery is limited to prefix autocomplete plus chronological hashtag post lists.
 
 
 # Comments: 98/100
@@ -147,7 +153,7 @@ Weakness: the module is infrastructure-minimal. It does not add query instrument
 
 
 # Prisma Schema/Data Layer: 98/100
-Strength: the schema supports roles, privacy, account states, refresh sessions, email verification, password reset, follow requests, moderation actions, notifications, notification preferences, media, blocks, mutes, mentions, one-level threaded comments, durable outbox events, and now persisted home-feed entries. `HomeFeedEntry` has the right v1 shape for deterministic chronological reads, duplicate protection, relationship hiding, post cleanup, and retention work, with indexes aligned to feed reads and cleanup patterns. Recent work improved correctness through follow-request transition safety, comment counter consistency, media attachment ordering, session index alignment, stronger report dedup handling, persisted outbox-backed notification delivery, projected home-feed fanout, and indexed mute relationships.
+Strength: the schema supports roles, privacy, account states, refresh sessions, email verification, password reset, follow requests, moderation actions, notifications, notification preferences, media, blocks, mutes, mentions, hashtags, one-level threaded comments, durable outbox events, and now persisted home-feed entries. `HomeFeedEntry` has the right v1 shape for deterministic chronological reads, duplicate protection, relationship hiding, post cleanup, and retention work, with indexes aligned to feed reads and cleanup patterns. `Hashtag` and `PostHashtag` add normalized slug storage, duplicate-safe post/tag links, public-scope counts, and indexes for prefix discovery and chronological posts-by-tag reads. Recent work improved correctness through follow-request transition safety, comment counter consistency, media attachment ordering, session index alignment, stronger report dedup handling, persisted outbox-backed notification delivery, projected home-feed fanout, and indexed mute relationships.
 
 Weakness: the `ContentReport` "exactly one of postId/commentId" invariant still needs a reviewed MySQL migration/constraint to be fully database-enforced, and the domain model is still incomplete for a fuller social platform, especially around richer preferences, discovery, recommendation/feed ranking, and advanced moderation relationships.
 

@@ -46,18 +46,23 @@ import {
   SafePostListSelect,
 } from "@/posts/dto/safe-post-list.dto";
 
+import { UserPrivacySetting } from "@/users/enums/user-privacy-setting.enum";
+import { MODERATION_ROLE_SET } from "@/users/enums/user-role.enum";
+import { AccountState } from "@/users/enums/account-state.enum";
 import {
   getUserByUsernameCommandSchema,
   type GetUserByUsernameCommand,
 } from "@/users/schemas/user-read.schema";
 
-import { UserPrivacySetting } from "@/users/enums/user-privacy-setting.enum";
-import { MODERATION_ROLE_SET } from "@/users/enums/user-role.enum";
-import { AccountState } from "@/users/enums/account-state.enum";
-import { MentionsService } from "@/mentions/mentions.service";
-
 import { HOME_FEED_POST_FANOUT_EVENT } from "@/outbox/events/home-feed-post-fanout.event";
 import { OutboxService } from "@/outbox/outbox.service";
+
+import { MentionsService } from "@/mentions/mentions.service";
+
+import {
+  HashtagsService,
+  type HashtagSyncResult,
+} from "@/hashtags/hashtags.service";
 
 import type { AuthenticatedUser } from "@/auth/authenticated-user.type";
 
@@ -90,6 +95,7 @@ export class PostsService {
     private readonly postReadService: PostReadService,
     private readonly mutesService: MutesService,
     private readonly mentionsService: MentionsService,
+    private readonly hashtagsService: HashtagsService,
     private readonly outboxService: OutboxService,
     configService: ConfigService,
   ) {
@@ -378,8 +384,13 @@ export class PostsService {
     await this.assertActiveCurrentUserById(currentUserId);
     const data = this.parseCreatePostInput(input);
     this.mentionsService.validatePostContentMentions(data.content);
+    this.hashtagsService.validatePostContentHashtags(data.content);
 
     let post: CreatedPostDTO;
+    let hashtagSync: HashtagSyncResult = {
+      changed: false,
+      publicCountChanged: false,
+    };
 
     try {
       const createData: Prisma.PostCreateInput = {
@@ -391,10 +402,35 @@ export class PostsService {
         createData.title = data.title;
       }
 
-      post = await this.prisma.post.create({
-        data: createData,
+      post = await this.prisma.$transaction(async (tx) => {
+        const created = await tx.post.create({
+          data: createData,
+          select: CreatedPostSelect,
+        });
+        const author = await tx.user.findUnique({
+          where: { id: currentUserId },
+          select: {
+            accountState: true,
+            privacySetting: true,
+          },
+        });
 
-        select: CreatedPostSelect,
+        if (!author) {
+          throw new NotFoundException("Author not found");
+        }
+
+        hashtagSync = await this.hashtagsService.replacePostHashtags({
+          tx,
+          postId: created.id,
+          content: data.content,
+          postCreatedAt: created.createdAt,
+          publiclyCountable: this.hashtagsService.isPubliclyCountablePost({
+            removedAt: null,
+            author,
+          }),
+        });
+
+        return created;
       });
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError) {
@@ -415,6 +451,9 @@ export class PostsService {
         await this.cacheHelper.bumpVersion(
           this.getUserPostsListVersionKey(currentUserId),
         );
+        if (hashtagSync.publicCountChanged) {
+          await this.cacheHelper.bumpVersion("v:hashtags:list");
+        }
         await this.cacheHelper.del(`user:safe:${currentUserId}`);
         await this.cacheHelper.bumpVersion("v:user:list");
       },
@@ -477,6 +516,10 @@ export class PostsService {
 
     let post: SafePostListDTO;
     let finalContentForMentions: string | undefined;
+    let hashtagSync: HashtagSyncResult = {
+      changed: false,
+      publicCountChanged: false,
+    };
 
     try {
       const existing = await this.prisma.post.findUnique({
@@ -487,7 +530,14 @@ export class PostsService {
           authorId: true,
           title: true,
           content: true,
+          createdAt: true,
           removedAt: true,
+          author: {
+            select: {
+              accountState: true,
+              privacySetting: true,
+            },
+          },
         },
       });
 
@@ -510,13 +560,30 @@ export class PostsService {
         this.mentionsService.validatePostContentMentions(
           finalContentForMentions,
         );
+        this.hashtagsService.validatePostContentHashtags(
+          finalContentForMentions,
+        );
       }
 
-      post = await this.prisma.post.update({
-        where: { id },
-        data,
+      post = await this.prisma.$transaction(async (tx) => {
+        const updated = await tx.post.update({
+          where: { id },
+          data,
+          select: SafePostListSelect,
+        });
 
-        select: SafePostListSelect,
+        if (finalContentForMentions !== undefined) {
+          hashtagSync = await this.hashtagsService.replacePostHashtags({
+            tx,
+            postId: id,
+            content: finalContentForMentions,
+            postCreatedAt: existing.createdAt,
+            publiclyCountable:
+              this.hashtagsService.isPubliclyCountablePost(existing),
+          });
+        }
+
+        return updated;
       });
     } catch (err) {
       if (err instanceof HttpException) throw err;
@@ -538,6 +605,9 @@ export class PostsService {
         await this.cacheHelper.bumpVersion(
           this.getUserPostsListVersionKey(currentUserId),
         );
+        if (hashtagSync.publicCountChanged) {
+          await this.cacheHelper.bumpVersion("v:hashtags:list");
+        }
       },
     );
 
@@ -564,10 +634,25 @@ export class PostsService {
     currentUserId: number,
   ): Promise<MessageResponse> {
     await this.assertActiveCurrentUserById(currentUserId);
+    let hashtagSync: HashtagSyncResult = {
+      changed: false,
+      publicCountChanged: false,
+    };
+
     try {
       const existing = await this.prisma.post.findUnique({
         where: { id },
-        select: { id: true, authorId: true, removedAt: true },
+        select: {
+          id: true,
+          authorId: true,
+          removedAt: true,
+          author: {
+            select: {
+              accountState: true,
+              privacySetting: true,
+            },
+          },
+        },
       });
 
       if (!existing || existing.removedAt) {
@@ -580,8 +665,17 @@ export class PostsService {
         );
       }
 
-      await this.prisma.post.delete({
-        where: { id },
+      await this.prisma.$transaction(async (tx) => {
+        hashtagSync = await this.hashtagsService.stripPostHashtags({
+          tx,
+          postId: id,
+          publiclyCountable:
+            this.hashtagsService.isPubliclyCountablePost(existing),
+        });
+
+        await tx.post.delete({
+          where: { id },
+        });
       });
     } catch (err) {
       if (err instanceof HttpException) throw err;
@@ -606,6 +700,9 @@ export class PostsService {
         await this.cacheHelper.bumpVersion(
           this.getUserPostsListVersionKey(currentUserId),
         );
+        if (hashtagSync.publicCountChanged) {
+          await this.cacheHelper.bumpVersion("v:hashtags:list");
+        }
       },
     );
 
@@ -629,6 +726,12 @@ export class PostsService {
         id: true,
         authorId: true,
         removedAt: true,
+        author: {
+          select: {
+            accountState: true,
+            privacySetting: true,
+          },
+        },
       },
     });
 
@@ -639,6 +742,11 @@ export class PostsService {
     if (existing.removedAt) {
       throw new BadRequestException("Post has already been removed");
     }
+
+    let hashtagSync: HashtagSyncResult = {
+      changed: false,
+      publicCountChanged: false,
+    };
 
     try {
       await this.prisma.$transaction(async (tx) => {
@@ -657,6 +765,13 @@ export class PostsService {
         if (removal.count === 0) {
           throw new BadRequestException("Post has already been removed");
         }
+
+        hashtagSync = await this.hashtagsService.stripPostHashtags({
+          tx,
+          postId: data.postId,
+          publiclyCountable:
+            this.hashtagsService.isPubliclyCountablePost(existing),
+        });
 
         if (data.reportId !== undefined) {
           const linkedReport = await tx.contentReport.updateMany({
@@ -712,6 +827,9 @@ export class PostsService {
         await this.cacheHelper.bumpVersion(
           this.getUserPostsListVersionKey(existing.authorId),
         );
+        if (hashtagSync.publicCountChanged) {
+          await this.cacheHelper.bumpVersion("v:hashtags:list");
+        }
       },
     );
 

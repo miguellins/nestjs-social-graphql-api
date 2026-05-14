@@ -434,18 +434,22 @@ describe("LikesService", () => {
   describe("createLike", () => {
     it("creates like in transaction, bumps/invalidates caches and returns like", async () => {
       const like = makeLike(1);
-      prismaMock.$transaction.mockResolvedValue([like, { id: 20 }]);
+      prismaMock.$transaction.mockResolvedValue([{ id: 20 }, like]);
 
       const res = await service.createLike(10, 20);
 
-      expect(prismaMock.like.create).toHaveBeenCalledWith({
-        data: { userId: 10, postId: 20 },
-        select: LikeDetailSelect,
-      });
+      expect(prismaMock.post.update.mock.invocationCallOrder[0]).toBeLessThan(
+        prismaMock.like.create.mock.invocationCallOrder[0],
+      );
+
       expect(prismaMock.post.update).toHaveBeenCalledWith({
         where: { id: 20 },
         data: { likesCount: { increment: 1 } },
         select: { id: true },
+      });
+      expect(prismaMock.like.create).toHaveBeenCalledWith({
+        data: { userId: 10, postId: 20 },
+        select: LikeDetailSelect,
       });
 
       expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:likes:list");
@@ -462,7 +466,7 @@ describe("LikesService", () => {
         .mockImplementation(() => undefined);
 
       const like = makeLike(1);
-      prismaMock.$transaction.mockResolvedValue([like, { id: 20 }]);
+      prismaMock.$transaction.mockResolvedValue([{ id: 20 }, like]);
       notificationTriggerMock.notifyPostLiked.mockRejectedValue(
         new Error("notify failed"),
       );
@@ -484,7 +488,7 @@ describe("LikesService", () => {
         .mockImplementation(() => undefined);
 
       const like = makeLike(1);
-      prismaMock.$transaction.mockResolvedValue([like, { id: 20 }]);
+      prismaMock.$transaction.mockResolvedValue([{ id: 20 }, like]);
       cacheMock.bumpVersion.mockRejectedValueOnce(new Error("cache down"));
 
       const res = await service.createLike(10, 20);
@@ -500,7 +504,7 @@ describe("LikesService", () => {
 
     it("returns a post payload without commentsCount in the nested post preview", async () => {
       const like = makeLike(1);
-      prismaMock.$transaction.mockResolvedValue([like, { id: 20 }]);
+      prismaMock.$transaction.mockResolvedValue([{ id: 20 }, like]);
 
       const res = await service.createLike(10, 20);
 

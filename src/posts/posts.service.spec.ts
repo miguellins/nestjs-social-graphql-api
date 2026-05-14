@@ -19,6 +19,7 @@ import { encodeChronoCursor } from "@/common/pagination/chrono-cursor";
 import { MediaReadProjectionService } from "@/media/media-read-projection.service";
 import { CommentsReadService } from "@/comments/comments-read.service";
 import { MentionsService } from "@/mentions/mentions.service";
+import { HashtagsService } from "@/hashtags/hashtags.service";
 import { CreatedPostSelect } from "@/posts/dto/created-post.dto";
 import { SafePostDetailSelect } from "@/posts/dto/safe-post-detail.dto";
 
@@ -139,6 +140,13 @@ describe("PostsService", () => {
     syncPostMentions: jest.fn(),
   };
 
+  const hashtagsServiceMock = {
+    validatePostContentHashtags: jest.fn(),
+    replacePostHashtags: jest.fn(),
+    stripPostHashtags: jest.fn(),
+    isPubliclyCountablePost: jest.fn(),
+  };
+
   const outboxServiceMock = {
     enqueue: jest.fn(),
   };
@@ -170,8 +178,21 @@ describe("PostsService", () => {
     commentsReadServiceMock.listThreadedCommentsForPost.mockResolvedValue([]);
     mentionsServiceMock.validatePostContentMentions.mockReturnValue(undefined);
     mentionsServiceMock.syncPostMentions.mockResolvedValue(undefined);
+    hashtagsServiceMock.validatePostContentHashtags.mockReturnValue(undefined);
+    hashtagsServiceMock.replacePostHashtags.mockResolvedValue({
+      changed: false,
+      publicCountChanged: false,
+    });
+    hashtagsServiceMock.stripPostHashtags.mockResolvedValue({
+      changed: false,
+      publicCountChanged: false,
+    });
+    hashtagsServiceMock.isPubliclyCountablePost.mockReturnValue(true);
     mutesServiceMock.getMutedUserIds.mockResolvedValue([]);
     mutesServiceMock.isMuted.mockResolvedValue(false);
+    prismaMock.$transaction.mockImplementation((cb: (tx: never) => unknown) =>
+      cb(prismaMock as never),
+    );
 
     cacheMock.get.mockImplementation((key: string) =>
       Promise.resolve(mem.get(key)),
@@ -204,6 +225,7 @@ describe("PostsService", () => {
         { provide: R2StorageService, useValue: r2StorageMock },
         { provide: CommentsReadService, useValue: commentsReadServiceMock },
         { provide: MentionsService, useValue: mentionsServiceMock },
+        { provide: HashtagsService, useValue: hashtagsServiceMock },
         { provide: MutesService, useValue: mutesServiceMock },
         { provide: OutboxService, useValue: outboxServiceMock },
         { provide: ConfigService, useValue: configServiceMock },

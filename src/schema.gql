@@ -360,6 +360,24 @@ type CommentPage {
   pageInfo: PageInfo!
 }
 
+"""Minimal public hashtag discovery result."""
+type HashtagSearchResult {
+  """Canonical lowercase hashtag slug without the leading #."""
+  slug: String!
+
+  """Public anonymous timeline post count for this hashtag."""
+  postsCount: Int!
+}
+
+"""Cursor-paginated page of posts plus navigation metadata."""
+type PostPage {
+  """Items returned for the current page."""
+  items: [Post!]!
+
+  """Cursor navigation metadata for the current page."""
+  pageInfo: PageInfo!
+}
+
 """
 Upload instruction payload returned before a client uploads media directly to storage.
 """
@@ -714,15 +732,6 @@ type PostDetail {
 
   """Optional ordered list of media attachments associated with the post."""
   mediaAttachments: [PostMedia!]
-}
-
-"""Cursor-paginated page of posts plus navigation metadata."""
-type PostPage {
-  """Items returned for the current page."""
-  items: [Post!]!
-
-  """Cursor navigation metadata for the current page."""
-  pageInfo: PageInfo!
 }
 
 """
@@ -1229,6 +1238,28 @@ type Query {
   ): NotificationPage!
   unreadNotificationsCount: Int!
   myNotificationPreferences: NotificationPreferences!
+  postsByHashtag(
+    """Maximum number of items to return (1-${PAGINATION.MAX_TAKE})."""
+    first: Int
+
+    """
+    Cursor for the last item from the previous page. Reuse it only with the same filter and ordering inputs.
+    """
+    after: String
+
+    """Controls chronological ordering for paged list results."""
+    orderBy: ChronologicalOrder
+
+    """Hashtag slug to read, with or without the leading #."""
+    hashtag: String!
+  ): PostPage!
+  searchHashtags(
+    """Prefix query for hashtag slug autocomplete, with or without leading #."""
+    q: String!
+
+    """Maximum number of hashtags to return (1-${PAGINATION.MAX_TAKE})."""
+    first: Int
+  ): [HashtagSearchResult!]!
   likes(
     """Maximum number of items to return (1-${PAGINATION.MAX_TAKE})."""
     first: Int

@@ -276,6 +276,12 @@ model Post {
 
   /**
    * One-to-many relation
+   * A post can have many normalized hashtags via durable join rows
+   */
+  hashtags PostHashtag[]
+
+  /**
+   * One-to-many relation
    * A post can have many moderation actions targeting it
    */
   moderationActions ModerationAction[] @relation("ModerationActionPost")
@@ -322,6 +328,65 @@ model Post {
    * chronological ordering deterministic.
    */
   @@index([removedAt, createdAt(sort: Desc), id(sort: Desc)])
+}
+
+model Hashtag {
+  id Int @id @default(autoincrement())
+
+  /**
+   * Canonical lowercase ASCII hashtag without the leading #.
+   */
+  slug String @unique @db.VarChar(32)
+
+  /**
+   * Denormalized count of non-removed posts visible on the anonymous public timeline.
+   */
+  postsCount Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /**
+   * One-to-many relation
+   * A hashtag can be attached to many posts through durable join rows.
+   */
+  posts PostHashtag[]
+
+  @@index([postsCount(sort: Desc), slug])
+}
+
+model PostHashtag {
+  id Int @id @default(autoincrement())
+
+  postId    Int
+  hashtagId Int
+
+  /**
+   * Copies Post.createdAt so hashtag feeds can use efficient chronological keyset reads.
+   */
+  postCreatedAt DateTime
+
+  createdAt DateTime @default(now())
+
+  /**
+   * Relation to Post
+   * fields: [postId]   - this model stores the foreign key
+   * references: [id]   - references Post.id
+   * onDelete: Cascade  - delete hashtag links if the post is deleted
+   */
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  /**
+   * Relation to Hashtag
+   * fields: [hashtagId] - this model stores the foreign key
+   * references: [id]    - references Hashtag.id
+   * onDelete: Cascade   - delete links if the hashtag is deleted
+   */
+  hashtag Hashtag @relation(fields: [hashtagId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, hashtagId])
+  @@index([hashtagId, postCreatedAt(sort: Desc), postId(sort: Desc)])
+  @@index([postId])
 }
 
 model Comment {

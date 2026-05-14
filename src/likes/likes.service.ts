@@ -168,16 +168,9 @@ export class LikesService {
     let like: LikeDetailDTO;
 
     try {
-      [like] = await this.prisma.$transaction([
-        this.prisma.like.create({
-          data: {
-            userId: currentUserId,
-            postId,
-          },
-
-          select: LikeDetailSelect,
-        }),
-
+      // Increment likesCount before selecting nested `post` on the new like so
+      // the mutation response reflects the updated counter (same transaction).
+      const [, created] = await this.prisma.$transaction([
         this.prisma.post.update({
           where: { id: postId },
 
@@ -187,7 +180,17 @@ export class LikesService {
 
           select: { id: true },
         }),
+
+        this.prisma.like.create({
+          data: {
+            userId: currentUserId,
+            postId,
+          },
+
+          select: LikeDetailSelect,
+        }),
       ]);
+      like = created;
     } catch (err: unknown) {
       if (err instanceof Prisma.PrismaClientKnownRequestError) {
         if (err.code === "P2002") {
