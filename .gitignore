@@ -55,12 +55,3 @@ src/schema.gql
 .DS_Store
 Thumbs.db
 
-# optional local docs/notes
-*.md
-!docs/plans/
-!docs/plans/*.md
-!docs/runbooks/
-!docs/runbooks/*.md
-!docs/reviews/module-review.md
-!src/posts/HOME_FEED_PROJECTION.md
-*.orig
