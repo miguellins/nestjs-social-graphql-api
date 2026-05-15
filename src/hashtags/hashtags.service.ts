@@ -206,6 +206,7 @@ export class HashtagsService {
       where: { postId },
       select: {
         hashtagId: true,
+        postCreatedAt: true,
         hashtag: {
           select: {
             slug: true,
@@ -219,6 +220,13 @@ export class HashtagsService {
     const nextSlugSet = new Set(nextSlugs);
     const removedHashtagIds = existingRows
       .filter((row) => !nextSlugSet.has(row.hashtag.slug))
+      .map((row) => row.hashtagId);
+    const staleTimestampHashtagIds = existingRows
+      .filter(
+        (row) =>
+          nextSlugSet.has(row.hashtag.slug) &&
+          row.postCreatedAt.getTime() !== postCreatedAt.getTime(),
+      )
       .map((row) => row.hashtagId);
     const addedSlugs = nextSlugs.filter((slug) => !existingBySlug.has(slug));
 
@@ -237,9 +245,24 @@ export class HashtagsService {
       }
     }
 
+    if (staleTimestampHashtagIds.length > 0) {
+      await tx.postHashtag.updateMany({
+        where: {
+          postId,
+          hashtagId: {
+            in: staleTimestampHashtagIds,
+          },
+        },
+        data: {
+          postCreatedAt,
+        },
+      });
+    }
+
     if (addedSlugs.length === 0) {
       return {
-        changed: removedHashtagIds.length > 0,
+        changed:
+          removedHashtagIds.length > 0 || staleTimestampHashtagIds.length > 0,
         publicCountChanged: publiclyCountable && removedHashtagIds.length > 0,
       };
     }

@@ -1,6 +1,7 @@
 import { BadRequestException } from "@nestjs/common";
 
 import {
+  classifyHashtagContentError,
   extractUniqueHashtagSlugs,
   MAX_UNIQUE_HASHTAGS,
   normalizeHashtagSearchPrefix,
@@ -30,6 +31,29 @@ describe("hashtag-parser", () => {
     expect(() => extractUniqueHashtagSlugs("#admin")).toThrow(
       BadRequestException,
     );
+  });
+
+  it("classifies invalid legacy content reasons", () => {
+    expect(
+      classifyHashtagContentError(
+        new BadRequestException("This hashtag is reserved"),
+      ),
+    ).toBe("reserved");
+    expect(
+      classifyHashtagContentError(
+        new BadRequestException("Hashtags may contain only ASCII letters"),
+      ),
+    ).toBe("charset");
+    expect(
+      classifyHashtagContentError(
+        new BadRequestException("Hashtags must be at most 32 characters long"),
+      ),
+    ).toBe("length");
+    expect(
+      classifyHashtagContentError(
+        new BadRequestException("You can add up to 10 hashtags per post"),
+      ),
+    ).toBe("too_many_unique");
   });
 
   it("rejects more than the unique hashtag cap", () => {

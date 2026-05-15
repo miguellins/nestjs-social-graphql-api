@@ -70,6 +70,7 @@ Biggest current strengths:
   - one-level comment replies
   - mentions
   - normalized hashtags with `postsByHashtag` and `searchHashtags`
+  - hashtag backfill/reconciliation script and runbook for historical join and count drift
   - in-app notification preferences for replies, follow requests, mentions, post likes, and new followers
   - dedicated `myFeed` and `homeFeed` surfaces
   - durable notifications before realtime publish for reply and follow-request flows
@@ -232,7 +233,7 @@ Still missing for a more mature platform:
 - Still weak:
   - feed architecture remains early-stage
   - no ranking or recommendation blend yet
-  - hashtag backfill/reconciliation still needs reviewed migration/ops work
+  - hashtag backfill/reconciliation now has a reviewed dry-run/apply maintenance path, but still needs to be run against real historical data
 
 **Notifications / Async**
 - Improved:
@@ -318,7 +319,7 @@ Observability maturity is now:
 # 10. Prioritized Roadmap
 
 **Phase 1**
-- Backfill and reconcile hashtag rows for existing posts
+- Run hashtag backfill/reconciliation in canary ranges for real historical data
 - Broaden metrics and add tracing
 - Expand the outbox pattern beyond the current notification and feed-projection slices
 - Deepen session/device management

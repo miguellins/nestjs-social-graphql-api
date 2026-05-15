@@ -22,6 +22,7 @@ describe("HashtagsService", () => {
       createMany: jest.fn(),
       deleteMany: jest.fn(),
       findMany: jest.fn(),
+      updateMany: jest.fn(),
     },
   };
 
@@ -62,6 +63,7 @@ describe("HashtagsService", () => {
     tx.postHashtag.createMany.mockResolvedValue({ count: 1 });
     tx.postHashtag.deleteMany.mockResolvedValue({ count: 1 });
     tx.postHashtag.findMany.mockResolvedValue([]);
+    tx.postHashtag.updateMany.mockResolvedValue({ count: 1 });
     prismaMock.post.findMany.mockResolvedValue([]);
     (prismaMock as unknown as { hashtag: { findMany: jest.Mock } }).hashtag = {
       findMany: jest.fn().mockResolvedValue([]),
@@ -86,8 +88,16 @@ describe("HashtagsService", () => {
 
   it("replaces joins and applies public counter deltas in the same transaction", async () => {
     tx.postHashtag.findMany.mockResolvedValue([
-      { hashtagId: 1, hashtag: { slug: "old" } },
-      { hashtagId: 2, hashtag: { slug: "keep" } },
+      {
+        hashtagId: 1,
+        postCreatedAt: new Date("2026-05-13T09:00:00.000Z"),
+        hashtag: { slug: "old" },
+      },
+      {
+        hashtagId: 2,
+        postCreatedAt: new Date("2026-05-13T10:00:00.000Z"),
+        hashtag: { slug: "keep" },
+      },
     ]);
 
     const result = await service.replacePostHashtags({
@@ -129,6 +139,36 @@ describe("HashtagsService", () => {
       data: { postsCount: { increment: 1 } },
     });
     expect(result).toEqual({ changed: true, publicCountChanged: true });
+  });
+
+  it("repairs stale hashtag feed timestamps without changing public counts", async () => {
+    tx.postHashtag.findMany.mockResolvedValue([
+      {
+        hashtagId: 2,
+        postCreatedAt: new Date("2026-05-13T09:00:00.000Z"),
+        hashtag: { slug: "keep" },
+      },
+    ]);
+
+    const result = await service.replacePostHashtags({
+      tx: transaction,
+      postId: 10,
+      content: "#keep",
+      postCreatedAt: new Date("2026-05-13T10:00:00.000Z"),
+      publiclyCountable: true,
+    });
+
+    expect(tx.postHashtag.updateMany).toHaveBeenCalledWith({
+      where: {
+        postId: 10,
+        hashtagId: { in: [2] },
+      },
+      data: {
+        postCreatedAt: new Date("2026-05-13T10:00:00.000Z"),
+      },
+    });
+    expect(tx.hashtag.updateMany).not.toHaveBeenCalled();
+    expect(result).toEqual({ changed: true, publicCountChanged: false });
   });
 
   it("keeps joins for private posts without changing public counts", async () => {

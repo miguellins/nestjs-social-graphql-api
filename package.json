@@ -8,6 +8,7 @@
   "scripts": {
     "build": "nest build && tsc-alias",
     "format": "prettier --write .",
+    "hashtag:reconcile": "node dist/src/scripts/hashtag-backfill-reconciliation.js",
     "start": "node dist/src/main.js",
     "start:worker": "node dist/src/outbox-worker.js",
     "start:dev": "nest start --watch",

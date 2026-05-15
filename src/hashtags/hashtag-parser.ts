@@ -1,5 +1,12 @@
 import { BadRequestException } from "@nestjs/common";
 
+export type HashtagContentInvalidReason =
+  | "charset"
+  | "length"
+  | "reserved"
+  | "too_many_unique"
+  | "unknown";
+
 /** Maximum number of unique hashtags allowed in one post payload. */
 export const MAX_UNIQUE_HASHTAGS = 10;
 
@@ -44,6 +51,35 @@ export function extractUniqueHashtagSlugs(text: string): string[] {
   }
 
   return [...slugs];
+}
+
+/** Classifies parser failures for redacted maintenance-job reporting. */
+export function classifyHashtagContentError(
+  error: unknown,
+): HashtagContentInvalidReason {
+  if (!(error instanceof BadRequestException)) {
+    return "unknown";
+  }
+
+  const message = getBadRequestMessage(error);
+
+  if (message.includes("up to")) {
+    return "too_many_unique";
+  }
+
+  if (message.includes("reserved")) {
+    return "reserved";
+  }
+
+  if (message.includes("ASCII")) {
+    return "charset";
+  }
+
+  if (message.includes("least") || message.includes("most")) {
+    return "length";
+  }
+
+  return "unknown";
 }
 
 /** Normalizes a hashtag argument or token into the canonical lowercase slug. */
@@ -99,4 +135,32 @@ export function validateHashtagSlug(slug: string): void {
   if (RESERVED_HASHTAG_SLUGS.has(slug)) {
     throw new BadRequestException("This hashtag is reserved");
   }
+}
+
+function getBadRequestMessage(error: BadRequestException): string {
+  const response = error.getResponse();
+
+  if (typeof response === "string") {
+    return response;
+  }
+
+  if (
+    response &&
+    typeof response === "object" &&
+    "message" in response &&
+    typeof response.message === "string"
+  ) {
+    return response.message;
+  }
+
+  if (
+    response &&
+    typeof response === "object" &&
+    "message" in response &&
+    Array.isArray(response.message)
+  ) {
+    return response.message.join(" ");
+  }
+
+  return error.message;
 }

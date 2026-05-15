@@ -21,9 +21,9 @@ Weakness: `posts.service.ts` is still one of the biggest pressure points in the 
 
 
 # Hashtags / Discovery: 91/100
-Strength: normalized content hashtags now live in a dedicated `HashtagsModule` with conservative ASCII parsing, reserved-slug rejection, a 10-tag cap, transactional `PostHashtag` replacement during post writes, same-transaction public `postsCount` deltas, removal cleanup, `postsByHashtag`, and `searchHashtags`. The read path preserves the existing post page contract and applies post-list visibility, block, mute, pagination, and cache patterns.
+Strength: normalized content hashtags now live in a dedicated `HashtagsModule` with conservative ASCII parsing, reserved-slug rejection, a 10-tag cap, transactional `PostHashtag` replacement during post writes, same-transaction public `postsCount` deltas, removal cleanup, `postsByHashtag`, and `searchHashtags`. Historical join and count drift now have a dry-run-first maintenance script and runbook with canary flags, invalid-content skip classification, chunk cache version bumps, and aggregate public-count repair. The read path preserves the existing post page contract and applies post-list visibility, block, mute, pagination, and cache patterns.
 
-Weakness: the feature is still v1. Existing posts need a reviewed backfill, there is no counter reconciliation job for future account-visibility changes, no time-window trending or external search integration, and discovery is limited to prefix autocomplete plus chronological hashtag post lists.
+Weakness: the feature is still v1. The reconciliation job still needs to be run against real historical data, there is no continuous counter reconciliation for future account-visibility changes, no time-window trending or external search integration, and discovery is limited to prefix autocomplete plus chronological hashtag post lists.
 
 
 # Comments: 98/100
