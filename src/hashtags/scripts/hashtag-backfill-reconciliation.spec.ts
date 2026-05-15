@@ -3,7 +3,7 @@ import { AccountState, UserPrivacySetting } from "@prisma/client";
 import {
   HashtagBackfillReconciliationRunner,
   parseHashtagBackfillArgs,
-} from "@/scripts/hashtag-backfill-reconciliation";
+} from "@/hashtags/scripts/hashtag-backfill-reconciliation";
 
 describe("HashtagBackfillReconciliationRunner", () => {
   const tx = {};

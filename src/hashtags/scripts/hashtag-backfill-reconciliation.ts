@@ -591,7 +591,7 @@ async function bootstrapHashtagBackfillReconciliation(): Promise<void> {
   process.env.METRICS_ENABLED = "false";
   process.env.OUTBOX_PROCESS_ROLE = process.env.OUTBOX_PROCESS_ROLE ?? "api";
 
-  const { AppModule } = await import("../app.module.js");
+  const { AppModule } = await import("../../app.module.js");
   const app = await NestFactory.createApplicationContext(AppModule, {
     bufferLogs: true,
   });
