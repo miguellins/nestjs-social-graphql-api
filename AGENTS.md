@@ -45,7 +45,14 @@ This file defines the working rules for contributors and coding agents in this r
 
 ## Skill Usage Rules
 - Use installed skills automatically when they are relevant; do not wait for the user to manually request a skill.
-- When `manual-api-testing` needs fixture data before Test 1, return only `## Needed data for all tests` plus one fenced `text` block that contains copyable labels/placeholders the user can fill in another window. Do not use tables for needed test data.
+- Use `caveman` for short-enough answers, quick explanations, small fixes, simple command guidance, or compact next-step instructions where plain language is more useful than a full review.
+- Do not use `caveman` when the user asks for a detailed audit, architecture review, full implementation plan, long Markdown file, contract report, or manual API test suite.
+- Use `diagnose` when debugging failing behavior, unclear root causes, broken tests, runtime errors, GraphQL response mismatches, cache/pubsub inconsistencies, Prisma/MySQL issues, Docker/local environment problems, or any investigation where hypotheses and verification steps matter.
+- Use `zoom-out` before large architectural changes, new feature design, rollout planning, cross-module refactors, or when a local fix may have broader effects on GraphQL contracts, auth, caching, persistence, workers, docs, or operations.
+- Use `setup-matt-pocock-skills` only when installing, updating, repairing, or verifying the Matt Pocock/Total TypeScript skill setup. Do not invoke it during normal feature implementation unless the TypeScript skill setup itself is the task.
+- Use `manual-api-testing` after implementing a feature or changing a public GraphQL contract when the user asks for manual API tests, operation checks, or post-feature verification.
+- When running `manual-api-testing` after a feature implementation, use `diagnose` inside the manual testing workflow first: identify the changed behavior, affected operations, auth states, fixture needs, expected success paths, failure paths, cache/side-effect checks, and likely regression risks before writing tests.
+- When `manual-api-testing` needs fixture data before Test 1, return only `## Needed data for all tests` plus one fenced `text` block that contains copyable labels/placeholders the user can fill in another window. Do not show Test 1 until the user provides the needed data. Do not use tables for needed test data.
 - Keep manual API test output copyable: use fenced `graphql`, `json`, `bash`, or `text` blocks for operations, variables, commands, tokens, ids, and expected values.
 - Use `mysql-best-practices` when designing, reviewing, or debugging MySQL schema design, indexes, query patterns, data types, constraints, transactions, connection behavior, Prisma-backed MySQL usage, or MySQL performance/security concerns.
 - Use `mysql-best-practices` before proposing MySQL-related Prisma schema/index changes, diagnosing slow or incorrect MySQL queries, or recommending database administration steps.
@@ -295,7 +302,7 @@ This file defines the working rules for contributors and coding agents in this r
 - Manual API test preflight output is copyable and includes a fillable fenced fixture template when data is needed.
 - Plan decision reviews are copyable, numbered, table-free, and contain only decisions with options, recommendation, why, and explanation.
 - No sensitive fields, secrets, stack traces, or internal persistence details are exposed.
-- Relevant MCPs and skills were used when they would improve accuracy, including `mysql-best-practices` for MySQL-specific changes.
+- Relevant MCPs and skills were used when they would improve accuracy, including `caveman` for short answers, `diagnose` for investigations and manual API test pre-analysis, `zoom-out` for broad design impact, `setup-matt-pocock-skills` for TypeScript skill setup maintenance, and `mysql-best-practices` for MySQL-specific changes.
 - Relevant MCPs were used when they provided safer or more current context for library docs, NestJS patterns, GraphQL schema checks, Redis cache inspection, Docker container inspection, or Git change inspection.
 
 ## Agent skills
