@@ -78,5 +78,57 @@ export const updateUserCommandSchema = z
     },
   );
 
+const nullableTrimmedOptionalString = (max: number, emptyMessage: string) =>
+  z
+    .union([
+      z
+        .string()
+        .trim()
+        .max(max)
+        .transform((value) => value || null),
+      z.null(),
+    ])
+    .optional()
+    .refine((value) => value === undefined || value === null || value !== "", {
+      message: emptyMessage,
+    });
+
+export const updateMyProfileCommandSchema = z
+  .object({
+    bio: z
+      .union([
+        z
+          .string()
+          .trim()
+          .max(500)
+          .transform((value) => value.replace(/\s+/g, " ") || null),
+        z.null(),
+      ])
+      .optional(),
+    websiteUrl: z
+      .union([
+        z
+          .string()
+          .trim()
+          .max(255)
+          .url()
+          .refine((value) => /^https?:\/\//i.test(value), {
+            message: "Website URL must use http or https",
+          }),
+        z.null(),
+      ])
+      .optional(),
+    location: nullableTrimmedOptionalString(80, "Location cannot be empty"),
+  })
+  .refine(
+    (value) => Object.values(value).some((field) => field !== undefined),
+    {
+      message: "No profile fields provided to update",
+    },
+  );
+
 export type CreateUserCommand = z.infer<typeof createUserCommandSchema>;
 export type UpdateUserCommand = z.infer<typeof updateUserCommandSchema>;
+export type UpdateMyProfileCommand = z.infer<
+  typeof updateMyProfileCommandSchema
+>;

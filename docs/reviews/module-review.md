@@ -8,10 +8,10 @@ Strength: strong auth lifecycle with refresh-session rotation, logout, password 
 Weakness: `auth.service.ts` is still a large coordinator, and the session model is still short of a fuller device/session-management product with device labeling, anomaly detection, richer audit history, or higher-level session-risk features. Auth-domain side effects are still mostly request-bound rather than modeled as a broader async event stream.
 
 
-# Users: 94/100
-Strength: privacy settings, account-state moderation, moderation metadata, safe DTO/select discipline, cache-backed user reads through `UserCacheService`, and clean integration with auth/security concerns remain strong. The user surface is practical and consistent with the rest of the platform, and account-state handling feeds correctly into protected reads such as feeds and authentication.
+# Users: 96/100
+Strength: privacy settings, account-state moderation, moderation metadata, safe DTO/select discipline, cache-backed user reads through `UserCacheService`, and clean integration with auth/security concerns remain strong. The user surface now includes v1 richer profiles with bio, website, location, owner-only `myProfile`, separate `updateMyProfile`, avatar URL projection, and viewer-aware profile visibility for blocks, private accounts, and inactive account states. Account-state handling feeds correctly into protected reads such as feeds, profiles, and authentication.
 
-Weakness: `users.service.ts` is still large and multi-responsibility, and the user domain is still fairly lean for a broader social product, with limited profile richness and preference modeling beyond the essentials.
+Weakness: `users.service.ts` is still large and multi-responsibility even with `UserProfileReadService`, and the user domain still has intentionally narrow preferences beyond notification toggles. Profile v1 does not include banners, field-level privacy, pronouns, verified badges, or moderator profile-edit tooling.
 
 
 # Posts / Home Feed: 98/100
@@ -80,10 +80,10 @@ Strength: authenticated websocket handshake, explicit connection failure handlin
 Weakness: delivery is still not a replayable event stream, and the subscription layer still lacks stronger delivery guarantees, resumability, or consumer recovery semantics after disconnects.
 
 
-# Media: 97/100
-Strength: upload orchestration, ownership and policy enforcement, validation, R2 integration, attachment constraints, and the split across `MediaPolicyService`, `MediaQueryService`, `MediaReadProjectionService`, `MediaValidationService`, and `MediaService` are a clear architectural strength. The attach-path fix remains meaningful: `sortOrder` reservation now happens transactionally with bounded retry for collisions, and duplicate-attachment vs ordering conflicts are distinguished more correctly.
+# Media: 98/100
+Strength: upload orchestration, ownership and policy enforcement, validation, R2 integration, attachment constraints, and the split across `MediaPolicyService`, `MediaQueryService`, `MediaReadProjectionService`, `MediaValidationService`, and `MediaService` are a clear architectural strength. The module now also supports profile-avatar uploads with `PROFILE_AVATAR`, stricter image-only square validation, optional-storage unavailable behavior, avatar assignment, user-cache invalidation, and best-effort replacement cleanup. The attach-path fix remains meaningful: `sortOrder` reservation now happens transactionally with bounded retry for collisions, and duplicate-attachment vs ordering conflicts are distinguished more correctly.
 
-Weakness: the media lifecycle is still early-stage, with no processing pipeline, no variants/transcoding story, and no fuller orphan cleanup or asset lifecycle management yet.
+Weakness: the media lifecycle is still early-stage, with no processing pipeline, no variants/transcoding story, and no fuller orphan cleanup or asset lifecycle management beyond existing pending-expiry cleanup and best-effort avatar replacement deletion.
 
 
 # Mentions: 95/100
@@ -123,7 +123,7 @@ Weakness: invalidation correctness still depends heavily on service discipline a
 
 
 # Config / Environment: 97/100
-Strength: environment validation is fail-fast and typed through Zod, including auth secrets, Redis, R2, GraphQL complexity, outbox controls, metrics controls, mutes rollout, and the full home-feed projection rollout surface. Boolean and numeric parsing is explicit, and defaults are documented in code through the schema.
+Strength: environment validation is fail-fast and typed through Zod, including auth secrets, Redis, optional R2 media storage, GraphQL complexity, outbox controls, metrics controls, mutes rollout, profile-avatar byte limits, and the full home-feed projection rollout surface. Boolean and numeric parsing is explicit, and defaults are documented in code through the schema.
 
 Weakness: the schema is strong, but configuration is still one large flat namespace. As operational surfaces grow, grouped configuration objects or module-local config factories may improve ownership and reduce the cognitive load of global env review.
 
@@ -153,7 +153,7 @@ Weakness: the module is infrastructure-minimal. It does not add query instrument
 
 
 # Prisma Schema/Data Layer: 98/100
-Strength: the schema supports roles, privacy, account states, refresh sessions, email verification, password reset, follow requests, moderation actions, notifications, notification preferences, media, blocks, mutes, mentions, hashtags, one-level threaded comments, durable outbox events, and now persisted home-feed entries. `HomeFeedEntry` has the right v1 shape for deterministic chronological reads, duplicate protection, relationship hiding, post cleanup, and retention work, with indexes aligned to feed reads and cleanup patterns. `Hashtag` and `PostHashtag` add normalized slug storage, duplicate-safe post/tag links, public-scope counts, and indexes for prefix discovery and chronological posts-by-tag reads. Recent work improved correctness through follow-request transition safety, comment counter consistency, media attachment ordering, session index alignment, stronger report dedup handling, persisted outbox-backed notification delivery, projected home-feed fanout, and indexed mute relationships.
+Strength: the schema supports roles, privacy, account states, richer nullable profile fields, avatar media references, refresh sessions, email verification, password reset, follow requests, moderation actions, notifications, notification preferences, media, blocks, mutes, mentions, hashtags, one-level threaded comments, durable outbox events, and now persisted home-feed entries. `HomeFeedEntry` has the right v1 shape for deterministic chronological reads, duplicate protection, relationship hiding, post cleanup, and retention work, with indexes aligned to feed reads and cleanup patterns. `Hashtag` and `PostHashtag` add normalized slug storage, duplicate-safe post/tag links, public-scope counts, and indexes for prefix discovery and chronological posts-by-tag reads. Recent work improved correctness through follow-request transition safety, comment counter consistency, media attachment ordering, session index alignment, stronger report dedup handling, persisted outbox-backed notification delivery, projected home-feed fanout, indexed mute relationships, and profile-avatar storage linkage.
 
 Weakness: the `ContentReport` "exactly one of postId/commentId" invariant still needs a reviewed MySQL migration/constraint to be fully database-enforced, and the domain model is still incomplete for a fuller social platform, especially around richer preferences, discovery, recommendation/feed ranking, and advanced moderation relationships.
 

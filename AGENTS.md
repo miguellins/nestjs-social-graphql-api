@@ -257,11 +257,34 @@ This file defines the working rules for contributors and coding agents in this r
 - Exclude generic coding tasks, obvious implementation steps, duplicated decisions, and low-level style choices unless they affect architecture or public behavior.
 - For each decision, include the main options, one recommended option, why it is recommended, and a simple explanation of the impact.
 - Favor a clean, maintainable, production-like v1 unless the plan clearly points to a different tradeoff.
-- Return decision reviews as plain, copyable Markdown using sequential headings like `# 1 - [Decision]`.
-- Do not use tables, intro text, final summary, markdown links, file cards, or Cursor-specific references in decision review output unless the user explicitly asks for them.
+- Return decision reviews as one plain, copyable fenced `text` block unless the user explicitly asks for another format.
+- Inside the fenced `text` block, use only the decision content. Do not add intro text, final summaries, file cards, markdown links, Cursor-specific references, bullets, tables, or extra commentary.
+- Use this exact repeated structure for each decision:
+
+```text
+1 - [Decision name]
+[Option 1]
+
+[Option 2]
+
+[Option 3]
+
+Recommended: [selected option]
+
+Why: [brief reason the recommendation fits the plan and repo]
+
+Explanation: [plain-language impact of choosing this option]
+```
+
+- Number decisions sequentially as `1 -`, `2 -`, `3 -`, and so on. Do not use markdown heading markers such as `# 1 -`.
+- List options as plain standalone lines without `Option A`, bullet markers, checkboxes, tables, or nested formatting.
+- Keep `Recommended:`, `Why:`, and `Explanation:` labels exactly as written for every decision.
+- Keep each decision self-contained so the user can copy one decision or the whole block without needing surrounding context.
+
 
 ## Output and Reference Formatting Rules
 - When the user asks for copyable text, return plain Markdown that can be selected and pasted cleanly outside Cursor.
+- For plan decision reviews, return one fenced `text` block containing all numbered decisions in the required decision-review structure.
 - For copyable operations, variables, commands, env snippets, fixture templates, or manual test steps, use fenced code blocks with the correct language label when helpful.
 - Avoid tables for copyable prompts, manual tests, needed data, and decision reviews unless the user explicitly asks for a table.
 - Keep copyable sections free of UI-only formatting, file cards, absolute local paths, and markdown links unless the user explicitly asks for links.
@@ -300,7 +323,7 @@ This file defines the working rules for contributors and coding agents in this r
 - New env vars are reflected in both `src/config/env/env.schema.ts` and `.env`.
 - New or changed features update feature docs plus `docs/reviews/backend-maturity-review.md` and `docs/reviews/module-review.md`.
 - Manual API test preflight output is copyable and includes a fillable fenced fixture template when data is needed.
-- Plan decision reviews are copyable, numbered, table-free, and contain only decisions with options, recommendation, why, and explanation.
+- Plan decision reviews are returned as one fenced `text` block, numbered with `1 -`, table-free, and contain only decisions with options, `Recommended:`, `Why:`, and `Explanation:`.
 - No sensitive fields, secrets, stack traces, or internal persistence details are exposed.
 - Relevant MCPs and skills were used when they would improve accuracy, including `caveman` for short answers, `diagnose` for investigations and manual API test pre-analysis, `zoom-out` for broad design impact, `setup-matt-pocock-skills` for TypeScript skill setup maintenance, and `mysql-best-practices` for MySQL-specific changes.
 - Relevant MCPs were used when they provided safer or more current context for library docs, NestJS patterns, GraphQL schema checks, Redis cache inspection, Docker container inspection, or Git change inspection.

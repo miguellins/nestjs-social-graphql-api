@@ -80,7 +80,21 @@ describe("validateEnv", () => {
     expect(result.FEED_PROJECTION_UNSAFE_MISSING_RATIO).toBe(0.5);
     expect(result.R2_PRESIGNED_URL_TTL_SECONDS).toBe(1800);
     expect(result.MEDIA_IMAGE_MAX_BYTES).toBe(10 * 1024 * 1024);
+    expect(result.MEDIA_PROFILE_AVATAR_MAX_BYTES).toBe(2 * 1024 * 1024);
     expect(result.MEDIA_VIDEO_MAX_BYTES).toBe(100 * 1024 * 1024);
+  });
+
+  it("allows R2 media storage variables to be omitted", () => {
+    const {
+      R2_ACCOUNT_ID: _accountId,
+      R2_BUCKET: _bucket,
+      R2_ACCESS_KEY_ID: _accessKeyId,
+      R2_SECRET_ACCESS_KEY: _secretAccessKey,
+      R2_PUBLIC_BASE_URL: _publicBaseUrl,
+      ...withoutR2
+    } = baseEnv;
+
+    expect(validateEnv(withoutR2).R2_ACCOUNT_ID).toBeUndefined();
   });
 
   it("throws when a required variable is missing", () => {

@@ -1,6 +1,7 @@
 import { Field, GraphQLISODateTime, ObjectType } from "@nestjs/graphql";
 
 import { FormattedDateTimeField } from "@/graphql/fields/formatted-date-time-field.decorator";
+import { normalizeOutputTextMiddleware } from "@/graphql/middleware/normalize-output-text.middleware";
 
 import { PublicUserIdentity } from "@/users/models/public-user-identity.interface";
 import { UserPrivacySetting } from "@/users/enums/user-privacy-setting.enum";
@@ -16,6 +17,31 @@ export class SafeUser extends PublicUserIdentity {
   /** Whether the user has verified ownership of their email address. */
   @Field()
   isEmailVerified: boolean;
+
+  /** Plain-text public biography shown on profile detail reads. */
+  @Field({
+    nullable: true,
+    middleware: [normalizeOutputTextMiddleware],
+  })
+  bio?: string | null;
+
+  /** Optional public website URL supplied by the user. */
+  @Field({
+    nullable: true,
+  })
+  websiteUrl?: string | null;
+
+  /** Optional short free-text location shown on public profiles. */
+  @Field({
+    nullable: true,
+  })
+  location?: string | null;
+
+  /** Public delivery URL for the READY profile avatar, when available. */
+  @Field({
+    nullable: true,
+  })
+  avatarUrl?: string | null;
 
   /** When the user account was created */
   @Field(() => GraphQLISODateTime)

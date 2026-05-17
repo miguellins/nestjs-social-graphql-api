@@ -26,6 +26,11 @@ export class MediaValidationService {
     return `${this.getPostObjectKeyPrefix(postId)}${randomUUID()}/original.${this.getFileExtensionForMimeType(mimeType)}`;
   }
 
+  /** Builds the final R2 object key for one pending profile avatar. */
+  buildProfileAvatarObjectKey(userId: number, mimeType: string): string {
+    return `users/${userId}/avatar/${randomUUID()}/original.${this.getFileExtensionForMimeType(mimeType)}`;
+  }
+
   // Extracts the intended post id from a media object key
   getPostIdFromObjectKey(objectKey: string): number {
     const match = /^posts\/(\d+)\/media\//.exec(objectKey);

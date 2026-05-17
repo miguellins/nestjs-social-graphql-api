@@ -28,6 +28,7 @@ import { UpdateUserInput } from "@/users/dto/update-user.input";
 
 import { SafeUserSelect } from "@/users/dto/safe-user.dto";
 import { UserCacheService } from "@/users/user-cache.service";
+import { UserProfileReadService } from "@/users/user-profile-read.service";
 
 import { UsersService } from "./users.service";
 
@@ -88,6 +89,27 @@ describe("UsersService", () => {
     hashPassword: jest.fn(),
   };
 
+  const userProfileReadMock: {
+    findUsers: jest.Mock;
+    getUser: jest.Mock;
+    getUserByUsername: jest.Mock;
+    getMyProfile: jest.Mock;
+    toPublicUserView: jest.Mock;
+  } = {
+    findUsers: jest.fn(),
+    getUser: jest.fn(),
+    getUserByUsername: jest.fn(),
+    getMyProfile: jest.fn(),
+    toPublicUserView: jest.fn(
+      (user: { avatarMedia?: { objectKey: string } }) => ({
+        ...user,
+        avatarUrl: user.avatarMedia?.objectKey
+          ? `https://media.example.com/${user.avatarMedia.objectKey}`
+          : null,
+      }),
+    ),
+  };
+
   beforeEach(async () => {
     jest.clearAllMocks();
 
@@ -103,6 +125,7 @@ describe("UsersService", () => {
         { provide: PrismaService, useValue: prismaMock },
         { provide: CacheHelperService, useValue: cacheMock },
         { provide: PasswordService, useValue: passwordMock },
+        { provide: UserProfileReadService, useValue: userProfileReadMock },
       ],
     }).compile();
 
@@ -117,7 +140,7 @@ describe("UsersService", () => {
     it("caps first, builds a cursor-aware cache key, and queries prisma with SafeUserSelect", async () => {
       cacheMock.getVersion.mockResolvedValue(4);
       const rows = [makeUser(3), makeUser(2), makeUser(1)];
-      prismaMock.user.findMany.mockResolvedValue(rows);
+      userProfileReadMock.findUsers.mockResolvedValue(rows);
       const after = encodeChronoCursor({
         createdAt: new Date("2026-04-10T00:00:00.000Z"),
         id: 999,
@@ -137,26 +160,19 @@ describe("UsersService", () => {
         60_000,
       );
 
-      expect(prismaMock.user.findMany).toHaveBeenCalledWith({
-        take: expectedTake + 1,
-        where: {
-          AND: [
+      expect(userProfileReadMock.findUsers).toHaveBeenCalledWith({
+        limit: expectedTake,
+        orderBy: ChronologicalOrder.NEWEST,
+        sortDirection: "desc",
+        cursorFilter: {
+          OR: [
+            { createdAt: { lt: new Date("2026-04-10T00:00:00.000Z") } },
             {
-              OR: [
-                { createdAt: { lt: new Date("2026-04-10T00:00:00.000Z") } },
-                {
-                  createdAt: new Date("2026-04-10T00:00:00.000Z"),
-                  id: { lt: 999 },
-                },
-              ],
-            },
-            {
-              accountState: { not: "DEACTIVATED" },
+              createdAt: new Date("2026-04-10T00:00:00.000Z"),
+              id: { lt: 999 },
             },
           ],
         },
-        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-        select: SafeUserSelect,
       });
 
       expect(res.items).toEqual(rows);
@@ -165,23 +181,21 @@ describe("UsersService", () => {
 
     it("defaults first to PAGINATION.DEFAULT_TAKE", async () => {
       cacheMock.getVersion.mockResolvedValue(1);
-      prismaMock.user.findMany.mockResolvedValue([]);
+      userProfileReadMock.findUsers.mockResolvedValue([]);
 
       await service.findUsers();
 
-      expect(prismaMock.user.findMany).toHaveBeenCalledWith({
-        take: PAGINATION.DEFAULT_TAKE + 1,
-        where: {
-          accountState: { not: "DEACTIVATED" },
-        },
-        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-        select: SafeUserSelect,
+      expect(userProfileReadMock.findUsers).toHaveBeenCalledWith({
+        limit: PAGINATION.DEFAULT_TAKE,
+        orderBy: ChronologicalOrder.NEWEST,
+        cursorFilter: undefined,
+        sortDirection: "desc",
       });
     });
 
     it("uses a distinct cache key and ascending order for OLDEST", async () => {
       cacheMock.getVersion.mockResolvedValue(2);
-      prismaMock.user.findMany.mockResolvedValue([]);
+      userProfileReadMock.findUsers.mockResolvedValue([]);
 
       await service.findUsers({ orderBy: ChronologicalOrder.OLDEST });
 
@@ -191,13 +205,11 @@ describe("UsersService", () => {
         60_000,
       );
 
-      expect(prismaMock.user.findMany).toHaveBeenCalledWith({
-        take: PAGINATION.DEFAULT_TAKE + 1,
-        where: {
-          accountState: { not: "DEACTIVATED" },
-        },
-        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-        select: SafeUserSelect,
+      expect(userProfileReadMock.findUsers).toHaveBeenCalledWith({
+        limit: PAGINATION.DEFAULT_TAKE,
+        orderBy: ChronologicalOrder.OLDEST,
+        cursorFilter: undefined,
+        sortDirection: "asc",
       });
     });
 
@@ -206,12 +218,12 @@ describe("UsersService", () => {
         service.findUsers({ first: 5, after: "%%%invalid%%%" }),
       ).rejects.toBeInstanceOf(BadRequestException);
 
-      expect(prismaMock.user.findMany).not.toHaveBeenCalled();
+      expect(userProfileReadMock.findUsers).not.toHaveBeenCalled();
     });
 
     it("uses ascending tie-breaker filtering for OLDEST cursor pagination", async () => {
       cacheMock.getVersion.mockResolvedValue(3);
-      prismaMock.user.findMany.mockResolvedValue([]);
+      userProfileReadMock.findUsers.mockResolvedValue([]);
       const after = encodeChronoCursor({
         createdAt: new Date("2026-04-10T00:00:00.000Z"),
         id: 999,
@@ -223,52 +235,36 @@ describe("UsersService", () => {
         orderBy: ChronologicalOrder.OLDEST,
       });
 
-      expect(prismaMock.user.findMany).toHaveBeenCalledWith({
-        take: 6,
-        where: {
-          AND: [
+      expect(userProfileReadMock.findUsers).toHaveBeenCalledWith({
+        limit: 5,
+        orderBy: ChronologicalOrder.OLDEST,
+        sortDirection: "asc",
+        cursorFilter: {
+          OR: [
+            { createdAt: { gt: new Date("2026-04-10T00:00:00.000Z") } },
             {
-              OR: [
-                { createdAt: { gt: new Date("2026-04-10T00:00:00.000Z") } },
-                {
-                  createdAt: new Date("2026-04-10T00:00:00.000Z"),
-                  id: { gt: 999 },
-                },
-              ],
-            },
-            {
-              accountState: { not: "DEACTIVATED" },
+              createdAt: new Date("2026-04-10T00:00:00.000Z"),
+              id: { gt: 999 },
             },
           ],
         },
-        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-        select: SafeUserSelect,
       });
     });
   });
 
   describe("getUser", () => {
     it("returns user and caches longer (5 min)", async () => {
-      prismaMock.user.findUnique.mockResolvedValue({ id: 7 });
+      userProfileReadMock.getUser.mockResolvedValue({ id: 7 });
 
       const res = await service.getUser(7);
 
-      expect(cacheMock.getOrSet).toHaveBeenCalledWith(
-        "user:safe:7",
-        expect.any(Function),
-        5 * 60_000,
-      );
-
-      expect(prismaMock.user.findUnique).toHaveBeenCalledWith({
-        where: { id: 7 },
-        select: SafeUserSelect,
-      });
+      expect(userProfileReadMock.getUser).toHaveBeenCalledWith(7, undefined);
 
       expect(res).toEqual({ id: 7 });
     });
 
     it("throws NotFoundException when user does not exist", async () => {
-      prismaMock.user.findUnique.mockResolvedValue(null);
+      userProfileReadMock.getUser.mockRejectedValue(new NotFoundException());
 
       await expect(service.getUser(999)).rejects.toBeInstanceOf(
         NotFoundException,
@@ -278,8 +274,7 @@ describe("UsersService", () => {
 
   describe("getUserByUsername", () => {
     it("normalizes username, resolves by username on cache miss, and seeds both caches", async () => {
-      cacheMock.get.mockResolvedValueOnce(undefined);
-      prismaMock.user.findUnique.mockResolvedValue({
+      userProfileReadMock.getUserByUsername.mockResolvedValue({
         id: 7,
         name: "John",
         username: "john",
@@ -287,22 +282,9 @@ describe("UsersService", () => {
 
       const res = await service.getUserByUsername("  JoHn  ");
 
-      expect(cacheMock.get).toHaveBeenCalledWith("user:lookup:username:john");
-      expect(prismaMock.user.findUnique).toHaveBeenCalledWith({
-        where: { username: "john" },
-        select: SafeUserSelect,
-      });
-      expect(cacheMock.set).toHaveBeenNthCalledWith(
-        1,
-        "user:safe:7",
-        res,
-        5 * 60_000,
-      );
-      expect(cacheMock.set).toHaveBeenNthCalledWith(
-        2,
-        "user:lookup:username:john",
-        7,
-        5 * 60_000,
+      expect(userProfileReadMock.getUserByUsername).toHaveBeenCalledWith(
+        "  JoHn  ",
+        undefined,
       );
       expect(res).toEqual({
         id: 7,
@@ -312,27 +294,21 @@ describe("UsersService", () => {
     });
 
     it("reuses the canonical id lookup when the username alias cache hits", async () => {
-      cacheMock.get.mockResolvedValueOnce(7);
-      prismaMock.user.findUnique.mockResolvedValue({ id: 7 });
+      userProfileReadMock.getUserByUsername.mockResolvedValue({ id: 7 });
 
       const res = await service.getUserByUsername("john");
 
-      expect(cacheMock.get).toHaveBeenCalledWith("user:lookup:username:john");
-      expect(cacheMock.getOrSet).toHaveBeenCalledWith(
-        "user:safe:7",
-        expect.any(Function),
-        5 * 60_000,
+      expect(userProfileReadMock.getUserByUsername).toHaveBeenCalledWith(
+        "john",
+        undefined,
       );
-      expect(prismaMock.user.findUnique).toHaveBeenCalledWith({
-        where: { id: 7 },
-        select: SafeUserSelect,
-      });
       expect(res).toEqual({ id: 7 });
     });
 
     it("throws NotFoundException when username does not exist", async () => {
-      cacheMock.get.mockResolvedValueOnce(undefined);
-      prismaMock.user.findUnique.mockResolvedValue(null);
+      userProfileReadMock.getUserByUsername.mockRejectedValue(
+        new NotFoundException(),
+      );
 
       await expect(service.getUserByUsername("missing")).rejects.toBeInstanceOf(
         NotFoundException,
@@ -699,6 +675,89 @@ describe("UsersService", () => {
       await expect(
         service.updateUser({ name: "okay" }, 1),
       ).rejects.toBeInstanceOf(InternalServerErrorException);
+    });
+  });
+
+  describe("updateMyProfile", () => {
+    it("validates that at least one profile field is provided", async () => {
+      await expect(service.updateMyProfile({}, 1)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+
+      expect(prismaMock.user.update).not.toHaveBeenCalled();
+    });
+
+    it("normalizes profile fields, updates the user, and refreshes profile caches", async () => {
+      prismaMock.user.update.mockResolvedValue({
+        id: 2,
+        name: "Miguel",
+        username: "miguel",
+        bio: "Hello world",
+        websiteUrl: "https://example.com",
+        location: "Recife",
+        avatarMedia: null,
+      });
+
+      const result = await service.updateMyProfile(
+        {
+          bio: "  Hello   world  ",
+          websiteUrl: " https://example.com ",
+          location: " Recife ",
+        },
+        2,
+      );
+
+      expect(prismaMock.user.update).toHaveBeenCalledWith({
+        where: { id: 2 },
+        data: {
+          bio: "Hello world",
+          websiteUrl: "https://example.com",
+          location: "Recife",
+        },
+        select: SafeUserSelect,
+      });
+      expect(cacheMock.set).toHaveBeenCalledWith(
+        "user:safe:2",
+        result,
+        5 * 60_000,
+      );
+      expect(cacheMock.set).toHaveBeenCalledWith(
+        "user:lookup:username:miguel",
+        2,
+        5 * 60_000,
+      );
+      expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:user:list");
+    });
+
+    it("allows clearing nullable profile fields", async () => {
+      prismaMock.user.update.mockResolvedValue({
+        id: 2,
+        name: "Miguel",
+        username: "miguel",
+        bio: null,
+        websiteUrl: null,
+        location: null,
+        avatarMedia: null,
+      });
+
+      await service.updateMyProfile(
+        {
+          bio: null,
+          websiteUrl: null,
+          location: null,
+        },
+        2,
+      );
+
+      expect(prismaMock.user.update).toHaveBeenCalledWith({
+        where: { id: 2 },
+        data: {
+          bio: null,
+          websiteUrl: null,
+          location: null,
+        },
+        select: SafeUserSelect,
+      });
     });
   });
 

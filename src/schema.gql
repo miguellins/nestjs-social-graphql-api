@@ -68,6 +68,18 @@ type SafeUser implements PublicUserIdentity {
   """Whether the user has verified ownership of their email address."""
   isEmailVerified: Boolean!
 
+  """Plain-text public biography shown on profile detail reads."""
+  bio: String
+
+  """Optional public website URL supplied by the user."""
+  websiteUrl: String
+
+  """Optional short free-text location shown on public profiles."""
+  location: String
+
+  """Public delivery URL for the READY profile avatar, when available."""
+  avatarUrl: String
+
   """When the user account was created"""
   createdAt: DateTime!
 
@@ -213,6 +225,9 @@ type SafeUserPreview implements PublicUserIdentity {
   id: ID!
   name: String!
   username: String!
+
+  """Public delivery URL for the READY profile avatar, when available."""
+  avatarUrl: String
 }
 
 """Core public representation of a Post entity."""
@@ -474,6 +489,7 @@ type Media {
 enum MediaKind {
   POST_IMAGE
   POST_VIDEO
+  PROFILE_AVATAR
 }
 
 """Classifies whether a media item is an image or a video"""
@@ -896,7 +912,7 @@ type ReviewReportPage {
 """Cursor-paginated page of users plus navigation metadata."""
 type UserPage {
   """Items returned for the current page."""
-  items: [SafeUser!]!
+  items: [SafeUserPreview!]!
 
   """Cursor navigation metadata for the current page."""
   pageInfo: PageInfo!
@@ -1071,6 +1087,70 @@ type CreatedUser implements PublicUserIdentity {
   updatedAtFormatted: String
 }
 
+"""Owner-only profile avatar upload state for pending replacements."""
+type PendingProfileAvatar {
+  """Identifier of the pending avatar media record."""
+  id: ID!
+
+  """Upload lifecycle state for the pending avatar."""
+  status: MediaStatus!
+
+  """Public delivery URL expected after the pending avatar is uploaded."""
+  avatarUrl: String!
+
+  """Timestamp indicating when the pending avatar upload was requested."""
+  createdAt: DateTime!
+}
+
+"""
+Authenticated owner profile view with private upload state but no email.
+"""
+type MyProfile implements PublicUserIdentity {
+  id: ID!
+  name: String!
+  username: String!
+
+  """Account-wide privacy mode for this user."""
+  privacySetting: UserPrivacySetting!
+
+  """Whether the user has verified ownership of their email address."""
+  isEmailVerified: Boolean!
+
+  """Plain-text public biography shown on profile detail reads."""
+  bio: String
+
+  """Optional public website URL supplied by the user."""
+  websiteUrl: String
+
+  """Optional short free-text location shown on public profiles."""
+  location: String
+
+  """Public delivery URL for the READY profile avatar, when available."""
+  avatarUrl: String
+
+  """When the user account was created"""
+  createdAt: DateTime!
+
+  """
+  Presentation-friendly UTC timestamp for when the user account was created.
+  """
+  createdAtFormatted: String
+
+  """When the user was last updated"""
+  updatedAt: DateTime!
+
+  """
+  Presentation-friendly UTC timestamp for when the user was last updated.
+  """
+  updatedAtFormatted: String
+
+  """Related entity counts when explicitly requested"""
+  _count: UserCounts
+
+  """Latest pending avatar upload visible only to the owning user."""
+  pendingAvatar: PendingProfileAvatar
+}
+
 """Public GraphQL view of one active authenticated session."""
 type SessionInfo {
   """Stable session identifier."""
@@ -1135,7 +1215,21 @@ type Query {
     """Public username used to identify a user profile."""
     username: String!
   ): SafeUser!
+  myProfile: MyProfile!
   myPrivacySettings: MyPrivacySettings!
+  myMedia(
+    """Maximum number of items to return (1-${PAGINATION.MAX_TAKE})."""
+    first: Int
+
+    """
+    Cursor for the last item from the previous page. Reuse it only with the same filter and ordering inputs.
+    """
+    after: String
+
+    """Controls chronological ordering for paged list results."""
+    orderBy: ChronologicalOrder
+  ): MediaPage!
+  mediaSignedViewUrl(mediaId: Int!): MediaViewUrl!
   posts(
     """Maximum number of items to return (1-${PAGINATION.MAX_TAKE})."""
     first: Int
@@ -1193,19 +1287,6 @@ type Query {
     """Controls chronological ordering for paged list results."""
     orderBy: ChronologicalOrder
   ): HomeFeedPage!
-  myMedia(
-    """Maximum number of items to return (1-${PAGINATION.MAX_TAKE})."""
-    first: Int
-
-    """
-    Cursor for the last item from the previous page. Reuse it only with the same filter and ordering inputs.
-    """
-    after: String
-
-    """Controls chronological ordering for paged list results."""
-    orderBy: ChronologicalOrder
-  ): MediaPage!
-  mediaSignedViewUrl(mediaId: Int!): MediaViewUrl!
   commentsByPost(
     """Maximum number of items to return (1-${PAGINATION.MAX_TAKE})."""
     first: Int
@@ -1389,17 +1470,20 @@ type Mutation {
   unmuteUser(input: UnmuteUserInput!): Boolean!
   createUser(input: CreateUserInput!): CreatedUser!
   updateMe(input: UpdateUserInput!): SafeUser!
+  updateMyProfile(input: UpdateMyProfileInput!): SafeUser!
   updateMyPrivacySetting(input: UpdateMyPrivacySettingInput!): MyPrivacySettings!
   deleteMe: MessageResponse!
   suspendUser(input: SuspendUserInput!): MessageResponse!
   reactivateUser(input: ReactivateUserInput!): MessageResponse!
+  requestPostMediaUpload(input: RequestPostMediaUploadInput!): RequestPostMediaUpload!
+  completePostMediaUpload(input: CompletePostMediaUploadInput!): Media!
+  requestProfileAvatarUpload(input: RequestProfileAvatarUploadInput!): RequestPostMediaUpload!
+  completeProfileAvatarUpload(input: CompleteProfileAvatarUploadInput!): Media!
+  attachMediaToPost(input: AttachMediaToPostInput!): AttachMediaPostResult!
   createPost(input: CreatePostInput!): CreatedPost!
   updatePost(id: Int!, input: UpdatePostInput!): Post!
   deletePost(id: Int!): MessageResponse!
   removePostByModerator(input: RemovePostByModeratorInput!): MessageResponse!
-  requestPostMediaUpload(input: RequestPostMediaUploadInput!): RequestPostMediaUpload!
-  completePostMediaUpload(input: CompletePostMediaUploadInput!): Media!
-  attachMediaToPost(input: AttachMediaToPostInput!): AttachMediaPostResult!
   createComment(input: CreateCommentInput!): Comment!
   updateComment(commentId: Int!, input: UpdateCommentInput!): Comment!
   deleteComment(commentId: Int!): MessageResponse!
@@ -1500,6 +1584,17 @@ input UpdateUserInput {
   password: String
 }
 
+input UpdateMyProfileInput {
+  """Updated plain-text biography for the public profile."""
+  bio: String
+
+  """Updated optional public website URL."""
+  websiteUrl: String
+
+  """Updated optional short profile location."""
+  location: String
+}
+
 """
 Updates the current authenticated user's account-level privacy setting.
 """
@@ -1524,6 +1619,30 @@ input ReactivateUserInput {
 
   """Required moderation reason for the reactivation."""
   reason: String!
+}
+
+input RequestPostMediaUploadInput {
+  postId: Int!
+  mimeType: String!
+  originalFileName: String
+}
+
+input CompletePostMediaUploadInput {
+  mediaId: Int!
+}
+
+input RequestProfileAvatarUploadInput {
+  mimeType: String!
+  originalFileName: String
+}
+
+input CompleteProfileAvatarUploadInput {
+  mediaId: Int!
+}
+
+input AttachMediaToPostInput {
+  postId: Int!
+  mediaId: Int!
 }
 
 input CreatePostInput {
@@ -1555,21 +1674,6 @@ input RemovePostByModeratorInput {
 
   """Optional reviewed report linked to the removal action."""
   reportId: Int
-}
-
-input RequestPostMediaUploadInput {
-  postId: Int!
-  mimeType: String!
-  originalFileName: String
-}
-
-input CompletePostMediaUploadInput {
-  mediaId: Int!
-}
-
-input AttachMediaToPostInput {
-  postId: Int!
-  mediaId: Int!
 }
 
 input CreateCommentInput {

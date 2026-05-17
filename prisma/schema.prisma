@@ -15,6 +15,10 @@ model User {
   password                String
   role                    UserRole           @default(USER)
   privacySetting          UserPrivacySetting @default(PUBLIC)
+  bio                     String?
+  websiteUrl              String?
+  location                String?
+  avatarMediaId           Int?               @unique
   accountState            AccountState       @default(ACTIVE)
   accountStateReason      String?
   accountStateChangedAt   DateTime?
@@ -161,6 +165,11 @@ model User {
    * Media uploaded and owned by this user
    */
   media Media[]
+
+  /**
+   * Optional profile avatar media selected by this user
+   */
+  avatarMedia Media? @relation("UserAvatarMedia", fields: [avatarMediaId], references: [id], onDelete: SetNull)
 
   /**
    * Compound index on createdAt + id descending
@@ -1255,6 +1264,7 @@ model EmailVerificationToken {
 enum MediaKind {
   POST_IMAGE
   POST_VIDEO
+  PROFILE_AVATAR
 }
 
 enum MediaType {
@@ -1304,6 +1314,11 @@ model Media {
    * onDelete: Cascade - delete media if the owning user is deleted
    */
   owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  /**
+   * Users that currently use this media item as their profile avatar
+   */
+  avatarForUsers User[] @relation("UserAvatarMedia")
 
   /**
    * One-to-many relation

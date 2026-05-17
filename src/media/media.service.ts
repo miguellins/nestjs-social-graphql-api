@@ -5,6 +5,7 @@ import {
   InternalServerErrorException,
   Logger,
   NotFoundException,
+  ServiceUnavailableException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 
@@ -22,10 +23,17 @@ import {
 import {
   type AttachMediaToPostCommand,
   MAX_IMAGE_BYTES,
+  MAX_PROFILE_AVATAR_BYTES,
+  MAX_PROFILE_AVATAR_DIMENSION,
+  MIN_PROFILE_AVATAR_DIMENSION,
   MAX_VIDEO_BYTES,
   attachMediaToPostCommandSchema,
+  type CompleteProfileAvatarUploadCommand,
+  completeProfileAvatarUploadCommandSchema,
   type CompletePostMediaUploadCommand,
   completePostMediaUploadCommandSchema,
+  type RequestProfileAvatarUploadInputCommand,
+  requestProfileAvatarUploadCommandSchema,
   type RequestPostMediaUploadInputCommand,
   requestPostMediaUploadCommandSchema,
 } from "@/media/schemas/media-write.schema";
@@ -39,6 +47,7 @@ import { type SafeAttachMediaPostDTO } from "@/posts/dto/safe-attach-media-post.
 
 import { PrismaService } from "@/prisma/prisma.service";
 import {
+  MediaKind,
   MediaVisibility,
   MediaStatus,
   MediaType,
@@ -151,6 +160,87 @@ export class MediaService {
     };
   }
 
+  /** Creates a pending profile-avatar media record and returns direct-upload instructions. */
+  async requestProfileAvatarUpload(
+    input: RequestProfileAvatarUploadInputCommand,
+    currentUserId: number,
+  ): Promise<RequestPostMediaUpload> {
+    this.assertMediaStorageConfigured();
+
+    const data = this.parseRequestProfileAvatarUploadInput(input);
+    const objectKey = this.mediaValidation.buildProfileAvatarObjectKey(
+      currentUserId,
+      data.mimeType,
+    );
+    const publicUrl = this.r2Storage.getPublicUrl(objectKey);
+    const expiresAt = new Date(
+      Date.now() + this.r2Storage.getPresignedUrlTtlSeconds() * 1000,
+    );
+
+    let media: { id: number };
+
+    try {
+      media = await this.prisma.media.create({
+        data: {
+          owner: { connect: { id: currentUserId } },
+          kind: data.kind,
+          type: data.type,
+          status: MediaStatus.PENDING_UPLOAD,
+          visibility: MediaVisibility.PUBLIC,
+          storageProvider: StorageProvider.R2,
+          bucket: this.r2Storage.getBucket(),
+          objectKey,
+          originalFileName: data.originalFileName,
+          mimeType: data.mimeType,
+          expiresAt,
+        },
+        select: {
+          id: true,
+        },
+      });
+    } catch (error) {
+      this.throwUnexpectedPersistenceFailure(
+        "create pending profile avatar upload",
+        error,
+      );
+    }
+
+    let uploadUrl: string;
+
+    try {
+      uploadUrl = await this.r2Storage.createPresignedPutUrl({
+        objectKey,
+        contentType: data.mimeType,
+      });
+    } catch (error) {
+      await runBestEffort(
+        this.logger,
+        "error",
+        `Failed to clean up pending profile avatar ${media.id} after presigned URL creation failure`,
+        async () => {
+          await this.prisma.media.delete({
+            where: { id: media.id },
+          });
+        },
+      );
+
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
+      throw new InternalServerErrorException(
+        "Failed to create profile avatar upload URL",
+      );
+    }
+
+    return {
+      mediaId: media.id,
+      uploadUrl,
+      publicUrl,
+      expiresAt,
+    };
+  }
+
   // Verifies the uploaded object in R2 and marks the media record ready
   async completePostMediaUpload(
     input: CompletePostMediaUploadCommand,
@@ -237,6 +327,184 @@ export class MediaService {
     } catch (error) {
       this.throwUnexpectedPersistenceFailure("complete media upload", error);
     }
+  }
+
+  /** Verifies a profile avatar upload, marks it ready, and assigns it to the user. */
+  async completeProfileAvatarUpload(
+    input: CompleteProfileAvatarUploadCommand,
+    currentUserId: number,
+  ): Promise<SafeMediaDTO> {
+    this.assertMediaStorageConfigured();
+
+    const data = this.parseCompleteProfileAvatarUploadInput(input);
+    const media = await this.mediaPolicy.getOwnedMediaById(
+      data.mediaId,
+      currentUserId,
+    );
+
+    if (
+      media.kind !== MediaKind.PROFILE_AVATAR ||
+      media.type !== MediaType.IMAGE
+    ) {
+      throw new BadRequestException("Media is not a profile avatar upload");
+    }
+
+    if (media.status === MediaStatus.READY) {
+      throw new BadRequestException(
+        "Profile avatar upload is already complete",
+      );
+    }
+
+    if (media.status !== MediaStatus.PENDING_UPLOAD) {
+      throw new BadRequestException(
+        "Profile avatar upload is not in a completable state",
+      );
+    }
+
+    if (media.expiresAt && media.expiresAt.getTime() < Date.now()) {
+      throw new BadRequestException("Profile avatar upload has expired");
+    }
+
+    const head = await this.r2Storage.headObject(media.objectKey);
+
+    if (!head) {
+      throw new BadRequestException(
+        "Uploaded profile avatar object was not found",
+      );
+    }
+
+    const normalizedStoredMimeType = this.mediaValidation.normalizeMimeType(
+      head.contentType,
+    );
+
+    if (
+      !normalizedStoredMimeType ||
+      normalizedStoredMimeType !== media.mimeType
+    ) {
+      throw new BadRequestException(
+        "Uploaded profile avatar MIME type does not match",
+      );
+    }
+
+    const maxBytes =
+      this.configService.get<number>("MEDIA_PROFILE_AVATAR_MAX_BYTES") ??
+      MAX_PROFILE_AVATAR_BYTES;
+
+    if (head.contentLength === null || head.contentLength <= 0) {
+      throw new BadRequestException(
+        "Uploaded profile avatar object size is invalid",
+      );
+    }
+
+    if (head.contentLength > maxBytes) {
+      throw new BadRequestException(
+        `Profile avatar file size exceeds the maximum allowed size of ${maxBytes} bytes`,
+      );
+    }
+
+    const mediaMetadata = await this.mediaValidation.inspectMediaObject(
+      media.objectKey,
+      media.type,
+      media.mimeType,
+    );
+
+    this.assertProfileAvatarDimensions(
+      mediaMetadata.width,
+      mediaMetadata.height,
+    );
+
+    const previousAvatar = await this.prisma.user.findUnique({
+      where: { id: currentUserId },
+      select: {
+        username: true,
+        avatarMedia: {
+          select: {
+            id: true,
+            objectKey: true,
+            status: true,
+          },
+        },
+      },
+    });
+
+    if (!previousAvatar) {
+      throw new NotFoundException("User not found");
+    }
+
+    let mediaRecord: SafeMediaDTO;
+
+    try {
+      const record = await this.prisma.$transaction(async (tx) => {
+        const updatedMedia = await tx.media.update({
+          where: { id: media.id },
+          data: {
+            status: MediaStatus.READY,
+            etag: head.etag,
+            bytes: head.contentLength,
+            width: mediaMetadata.width ?? null,
+            height: mediaMetadata.height ?? null,
+            durationMs: null,
+            expiresAt: null,
+            attachedAt: new Date(),
+          },
+          select: SafeMediaSelect,
+        });
+
+        await tx.user.update({
+          where: { id: currentUserId },
+          data: {
+            avatarMedia: {
+              connect: { id: media.id },
+            },
+          },
+          select: { id: true },
+        });
+
+        return updatedMedia;
+      });
+
+      mediaRecord = this.mediaReadProjection.derivePublicUrl(record);
+    } catch (error) {
+      this.throwUnexpectedPersistenceFailure(
+        "complete profile avatar upload",
+        error,
+      );
+    }
+
+    await runBestEffort(
+      this.logger,
+      "error",
+      `Failed to invalidate user caches after updating profile avatar for user ${currentUserId}`,
+      async () => {
+        await this.cacheHelper.del(`user:safe:${currentUserId}`);
+        await this.cacheHelper.del(
+          `user:lookup:username:${previousAvatar.username}`,
+        );
+        await this.cacheHelper.bumpVersion("v:user:list");
+      },
+    );
+
+    const oldAvatar = previousAvatar.avatarMedia;
+
+    if (
+      oldAvatar &&
+      oldAvatar.id !== media.id &&
+      oldAvatar.status === MediaStatus.READY
+    ) {
+      await runBestEffort(
+        this.logger,
+        "error",
+        `Failed to delete previous profile avatar ${oldAvatar.id} for user ${currentUserId}`,
+        async () => {
+          await this.prisma.media.delete({
+            where: { id: oldAvatar.id },
+          });
+          await this.r2Storage.deleteObject(oldAvatar.objectKey);
+        },
+      );
+    }
+
+    return mediaRecord;
   }
 
   // Attaches a verified media item to one owned post and invalidates the post detail cache
@@ -454,6 +722,28 @@ export class MediaService {
     );
   }
 
+  /** Parses and normalizes profile-avatar request-upload input for the service layer. */
+  private parseRequestProfileAvatarUploadInput(
+    input: RequestProfileAvatarUploadInputCommand,
+  ) {
+    return parseWithBadRequest(
+      requestProfileAvatarUploadCommandSchema,
+      input,
+      "Invalid profile avatar upload request input",
+    );
+  }
+
+  /** Parses and normalizes profile-avatar completion input for the service layer. */
+  private parseCompleteProfileAvatarUploadInput(
+    input: CompleteProfileAvatarUploadCommand,
+  ) {
+    return parseWithBadRequest(
+      completeProfileAvatarUploadCommandSchema,
+      input,
+      "Invalid profile avatar upload completion input",
+    );
+  }
+
   // Parses and normalizes attach-media input for the service layer
   private parseAttachMediaToPostInput(input: AttachMediaToPostCommand) {
     return parseWithBadRequest(
@@ -463,11 +753,45 @@ export class MediaService {
     );
   }
 
+  /** Ensures avatar upload operations fail clearly when storage is disabled. */
+  private assertMediaStorageConfigured(): void {
+    if (!this.r2Storage.isConfigured()) {
+      throw new ServiceUnavailableException("Media storage is not configured");
+    }
+  }
+
+  /** Validates profile avatar dimensions are square and within avatar limits. */
+  private assertProfileAvatarDimensions(
+    width: number | undefined,
+    height: number | undefined,
+  ): void {
+    if (!width || !height) {
+      throw new BadRequestException("Profile avatar image metadata is invalid");
+    }
+
+    if (width !== height) {
+      throw new BadRequestException("Profile avatar image must be square");
+    }
+
+    if (
+      width < MIN_PROFILE_AVATAR_DIMENSION ||
+      height < MIN_PROFILE_AVATAR_DIMENSION ||
+      width > MAX_PROFILE_AVATAR_DIMENSION ||
+      height > MAX_PROFILE_AVATAR_DIMENSION
+    ) {
+      throw new BadRequestException(
+        `Profile avatar dimensions must be between ${MIN_PROFILE_AVATAR_DIMENSION} and ${MAX_PROFILE_AVATAR_DIMENSION} pixels`,
+      );
+    }
+  }
+
   // Throws one sanitized persistence failure for unexpected media writes
   private throwUnexpectedPersistenceFailure(
     action:
       | "create pending media upload"
+      | "create pending profile avatar upload"
       | "complete media upload"
+      | "complete profile avatar upload"
       | "attach media to post",
     error: unknown,
   ): never {

@@ -67,6 +67,8 @@ Biggest current strengths:
   - private-account follow requests
   - bookmarks
   - media upload and attachment flows
+  - richer public profiles with bio, website, location, viewer-aware profile
+    visibility, owner profile reads, and profile-avatar upload wiring
   - one-level comment replies
   - mentions
   - normalized hashtags with `postsByHashtag` and `searchHashtags`
@@ -132,7 +134,6 @@ Where it still feels MVP-like:
 Highest-priority remaining gaps after the current ops, outbox, and feed-projection work:
 - The product model is still incomplete for a realistic social platform:
   - richer mute/preference controls beyond the current user-level mute
-  - richer profiles
   - repost/share/quote flows
   - stronger discovery beyond v1 hashtag autocomplete
 - Feed maturity is still limited:
@@ -167,8 +168,7 @@ Best remaining improvements, excluding any single top feature:
 # 5. Real-World Social Media Feature Gaps
 
 Still missing for a realistic MVP:
-- Richer user profile fields
-- Avatar/profile-photo product wiring
+- Profile extensions beyond the v1 bio, website, location, and avatar surface
 - Richer notification preference matrices beyond the current in-app category toggles
 - Richer mute controls beyond the current flag-gated user-level mute system
 - More realistic discovery surfaces beyond hashtag prefix search

@@ -7,6 +7,10 @@ CREATE TABLE `User` (
     `password` VARCHAR(191) NOT NULL,
     `role` ENUM('USER', 'MODERATOR', 'ADMIN') NOT NULL DEFAULT 'USER',
     `privacySetting` ENUM('PUBLIC', 'PRIVATE') NOT NULL DEFAULT 'PUBLIC',
+    `bio` VARCHAR(191) NULL,
+    `websiteUrl` VARCHAR(191) NULL,
+    `location` VARCHAR(191) NULL,
+    `avatarMediaId` INTEGER NULL,
     `accountState` ENUM('ACTIVE', 'SUSPENDED', 'DEACTIVATED') NOT NULL DEFAULT 'ACTIVE',
     `accountStateReason` VARCHAR(191) NULL,
     `accountStateChangedAt` DATETIME(3) NULL,
@@ -17,6 +21,7 @@ CREATE TABLE `User` (
 
     UNIQUE INDEX `User_email_key`(`email`),
     UNIQUE INDEX `User_username_key`(`username`),
+    UNIQUE INDEX `User_avatarMediaId_key`(`avatarMediaId`),
     INDEX `User_createdAt_id_idx`(`createdAt` DESC, `id` DESC),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -390,7 +395,7 @@ CREATE TABLE `EmailVerificationToken` (
 CREATE TABLE `Media` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `ownerId` INTEGER NOT NULL,
-    `kind` ENUM('POST_IMAGE', 'POST_VIDEO') NOT NULL,
+    `kind` ENUM('POST_IMAGE', 'POST_VIDEO', 'PROFILE_AVATAR') NOT NULL,
     `type` ENUM('IMAGE', 'VIDEO') NOT NULL,
     `status` ENUM('PENDING_UPLOAD', 'READY') NOT NULL,
     `visibility` ENUM('PUBLIC') NOT NULL,
@@ -431,6 +436,9 @@ CREATE TABLE `PostMedia` (
     UNIQUE INDEX `PostMedia_postId_sortOrder_key`(`postId`, `sortOrder`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- AddForeignKey
+ALTER TABLE `User` ADD CONSTRAINT `User_avatarMediaId_fkey` FOREIGN KEY (`avatarMediaId`) REFERENCES `Media`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `Post` ADD CONSTRAINT `Post_authorId_fkey` FOREIGN KEY (`authorId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;

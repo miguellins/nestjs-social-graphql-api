@@ -25,6 +25,7 @@ import { PrismaModule } from "@/prisma/prisma.module";
   ],
   exports: [
     MediaService,
+    R2StorageService,
     MediaPolicyService,
     MediaQueryService,
     MediaReadProjectionService,

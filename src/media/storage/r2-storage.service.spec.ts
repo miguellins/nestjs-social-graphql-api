@@ -1,4 +1,8 @@
-import { InternalServerErrorException, Logger } from "@nestjs/common";
+import {
+  InternalServerErrorException,
+  Logger,
+  ServiceUnavailableException,
+} from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 
@@ -106,6 +110,10 @@ describe("R2StorageService", () => {
     });
   });
 
+  it("reports configured storage when all required R2 values are present", () => {
+    expect(service.isConfigured()).toBe(true);
+  });
+
   it("creates a presigned PUT URL", async () => {
     signedUrlMock.mockResolvedValue("https://upload.example.com");
 
@@ -185,6 +193,41 @@ describe("R2StorageService", () => {
   it("returns the configured bucket and presigned TTL", () => {
     expect(service.getBucket()).toBe("app-photos-videos");
     expect(service.getPresignedUrlTtlSeconds()).toBe(1800);
+  });
+
+  it("does not construct a client and fails media operations clearly when R2 is incomplete", async () => {
+    await moduleRef.close();
+    jest.clearAllMocks();
+    configGetMock.mockImplementation((key: string) => {
+      if (key === "R2_PRESIGNED_URL_TTL_SECONDS") return 1800;
+      return undefined;
+    });
+
+    moduleRef = await Test.createTestingModule({
+      providers: [
+        R2StorageService,
+        {
+          provide: ConfigService,
+          useValue: {
+            get: configGetMock,
+          },
+        },
+      ],
+    }).compile();
+
+    service = moduleRef.get(R2StorageService);
+
+    expect(service.isConfigured()).toBe(false);
+    expect(s3ClientConstructorMock).not.toHaveBeenCalled();
+    expect(() => service.getPublicUrl("users/1/avatar/key.jpg")).toThrow(
+      ServiceUnavailableException,
+    );
+    await expect(
+      service.createPresignedPutUrl({
+        objectKey: "users/1/avatar/key.jpg",
+        contentType: "image/jpeg",
+      }),
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
   });
 
   it("reads an object body into a buffer", async () => {

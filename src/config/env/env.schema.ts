@@ -32,19 +32,18 @@ export const envSchema = z.object({
     .trim()
     .min(1)
     .default("graphql-subscriptions"),
-  R2_ACCOUNT_ID: z.string().trim().min(1, "R2_ACCOUNT_ID is required"),
-  R2_BUCKET: z.string().trim().min(1, "R2_BUCKET is required"),
-  R2_ACCESS_KEY_ID: z.string().trim().min(1, "R2_ACCESS_KEY_ID is required"),
-  R2_SECRET_ACCESS_KEY: z
-    .string()
-    .trim()
-    .min(1, "R2_SECRET_ACCESS_KEY is required"),
+  R2_ACCOUNT_ID: z.string().trim().min(1).optional(),
+  R2_BUCKET: z.string().trim().min(1).optional(),
+  R2_ACCESS_KEY_ID: z.string().trim().min(1).optional(),
+  R2_SECRET_ACCESS_KEY: z.string().trim().min(1).optional(),
   R2_PUBLIC_BASE_URL: z
     .string()
     .trim()
-    .url("R2_PUBLIC_BASE_URL must be a valid URL"),
+    .url("R2_PUBLIC_BASE_URL must be a valid URL")
+    .optional(),
   R2_PRESIGNED_URL_TTL_SECONDS: positiveIntFromEnv.default(1800),
   MEDIA_IMAGE_MAX_BYTES: positiveIntFromEnv.default(10 * 1024 * 1024),
+  MEDIA_PROFILE_AVATAR_MAX_BYTES: positiveIntFromEnv.default(2 * 1024 * 1024),
   MEDIA_VIDEO_MAX_BYTES: positiveIntFromEnv.default(100 * 1024 * 1024),
   NODE_ENV: z
     .enum(["development", "test", "production"])

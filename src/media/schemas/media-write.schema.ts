@@ -21,6 +21,15 @@ type AllowedVideoMimeType = (typeof ALLOWED_VIDEO_MIME_TYPES)[number];
 /** Maximum allowed image upload size in bytes. */
 export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
+/** Maximum allowed profile avatar upload size in bytes. */
+export const MAX_PROFILE_AVATAR_BYTES = 2 * 1024 * 1024;
+
+/** Minimum profile avatar image dimension in pixels. */
+export const MIN_PROFILE_AVATAR_DIMENSION = 128;
+
+/** Maximum profile avatar image dimension in pixels. */
+export const MAX_PROFILE_AVATAR_DIMENSION = 4096;
+
 /** Maximum allowed video upload size in bytes. */
 export const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
 
@@ -88,8 +97,32 @@ export const requestPostMediaUploadCommandSchema = z
     } as const;
   });
 
+/** Validates and normalizes the profile-avatar request-upload command. */
+export const requestProfileAvatarUploadCommandSchema = z
+  .object({
+    mimeType: mediaMimeTypeSchema.refine(isAllowedImageMimeType, {
+      message: "Profile avatars must be image uploads",
+    }),
+    originalFileName: z
+      .string()
+      .trim()
+      .min(1, "Original file name cannot be empty")
+      .max(255)
+      .optional(),
+  })
+  .transform((value) => ({
+    ...value,
+    type: MediaType.IMAGE,
+    kind: MediaKind.PROFILE_AVATAR,
+  }));
+
 /** Validates the complete-upload command. */
 export const completePostMediaUploadCommandSchema = z.object({
+  mediaId: positiveIntIdSchema,
+});
+
+/** Validates the complete-profile-avatar command. */
+export const completeProfileAvatarUploadCommandSchema = z.object({
   mediaId: positiveIntIdSchema,
 });
 
@@ -109,9 +142,24 @@ export type RequestPostMediaUploadInputCommand = z.input<
   typeof requestPostMediaUploadCommandSchema
 >;
 
+/** Inferred type for profile-avatar request-upload commands. */
+export type RequestProfileAvatarUploadCommand = z.infer<
+  typeof requestProfileAvatarUploadCommandSchema
+>;
+
+/** Raw profile-avatar request input before schema normalization adds kind and type. */
+export type RequestProfileAvatarUploadInputCommand = z.input<
+  typeof requestProfileAvatarUploadCommandSchema
+>;
+
 /** Inferred type for complete-upload commands. */
 export type CompletePostMediaUploadCommand = z.infer<
   typeof completePostMediaUploadCommandSchema
+>;
+
+/** Inferred type for complete-profile-avatar commands. */
+export type CompleteProfileAvatarUploadCommand = z.infer<
+  typeof completeProfileAvatarUploadCommandSchema
 >;
 
 /** Inferred type for attach-media-to-post commands. */

@@ -26,7 +26,10 @@ import { MediaQueryService } from "@/media/media-query.service";
 import { MediaReadProjectionService } from "@/media/media-read-projection.service";
 import { MediaService } from "@/media/media.service";
 import { MediaValidationService } from "@/media/media-validation.service";
-import { MAX_IMAGE_BYTES } from "@/media/schemas/media-write.schema";
+import {
+  MAX_IMAGE_BYTES,
+  MAX_PROFILE_AVATAR_BYTES,
+} from "@/media/schemas/media-write.schema";
 import { R2StorageService } from "@/media/storage/r2-storage.service";
 import { PrismaService } from "@/prisma/prisma.service";
 
@@ -72,6 +75,14 @@ describe("MediaService", () => {
   };
 
   type CreatePresignedGetUrlArgs = [objectKey: string];
+  type TransactionCallback = (tx: {
+    media: {
+      update: jest.Mock<Promise<unknown>, [MediaUpdateArgs]>;
+    };
+    user: {
+      update: jest.Mock;
+    };
+  }) => Promise<unknown>;
 
   const onePixelPngBuffer = Buffer.from(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO7Z0i8AAAAASUVORK5CYII=",
@@ -85,6 +96,10 @@ describe("MediaService", () => {
   const prismaMock: {
     post: {
       findUnique: jest.Mock;
+    };
+    user: {
+      findUnique: jest.Mock;
+      update: jest.Mock;
     };
     media: {
       create: jest.Mock<Promise<unknown>, [MediaCreateArgs]>;
@@ -102,6 +117,10 @@ describe("MediaService", () => {
     post: {
       findUnique: jest.fn(),
     },
+    user: {
+      findUnique: jest.fn(),
+      update: jest.fn(),
+    },
     media: {
       create: jest.fn<Promise<unknown>, [MediaCreateArgs]>(),
       findUnique: jest.fn(),
@@ -118,8 +137,10 @@ describe("MediaService", () => {
 
   const cacheMock: {
     del: jest.Mock;
+    bumpVersion: jest.Mock;
   } = {
     del: jest.fn(),
+    bumpVersion: jest.fn(),
   };
 
   const configMock: {
@@ -142,6 +163,8 @@ describe("MediaService", () => {
     getBucket: jest.Mock;
     getPresignedUrlTtlSeconds: jest.Mock<number, []>;
     getObjectBuffer: jest.Mock;
+    isConfigured: jest.Mock<boolean, []>;
+    deleteObject: jest.Mock;
   } = {
     createPresignedPutUrl: jest.fn<
       Promise<string>,
@@ -156,6 +179,8 @@ describe("MediaService", () => {
     getBucket: jest.fn(),
     getPresignedUrlTtlSeconds: jest.fn<number, []>(),
     getObjectBuffer: jest.fn(),
+    isConfigured: jest.fn<boolean, []>(),
+    deleteObject: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -165,6 +190,8 @@ describe("MediaService", () => {
       switch (key) {
         case "MEDIA_IMAGE_MAX_BYTES":
           return MAX_IMAGE_BYTES;
+        case "MEDIA_PROFILE_AVATAR_MAX_BYTES":
+          return MAX_PROFILE_AVATAR_BYTES;
         case "MEDIA_VIDEO_MAX_BYTES":
           return 100 * 1024 * 1024;
         default:
@@ -173,6 +200,7 @@ describe("MediaService", () => {
     });
     r2StorageMock.getBucket.mockReturnValue("app-photos-videos");
     r2StorageMock.getPresignedUrlTtlSeconds.mockReturnValue(1800);
+    r2StorageMock.isConfigured.mockReturnValue(true);
     r2StorageMock.getPublicUrl.mockImplementation(
       (objectKey: string) => `https://media.example.com/${objectKey}`,
     );
@@ -496,6 +524,64 @@ describe("MediaService", () => {
     });
   });
 
+  describe("requestProfileAvatarUpload", () => {
+    it("returns a clear unavailable error when media storage is disabled", async () => {
+      r2StorageMock.isConfigured.mockReturnValue(false);
+
+      await expect(
+        service.requestProfileAvatarUpload({ mimeType: "image/jpeg" }, 7),
+      ).rejects.toThrow("Media storage is not configured");
+
+      expect(prismaMock.media.create).not.toHaveBeenCalled();
+    });
+
+    it("creates a pending profile avatar media row and upload instructions", async () => {
+      prismaMock.media.create.mockResolvedValue({ id: 101 });
+      r2StorageMock.createPresignedPutUrl.mockResolvedValue(
+        "https://upload.example.com/avatar",
+      );
+
+      const result = await service.requestProfileAvatarUpload(
+        {
+          mimeType: "IMAGE/PNG",
+          originalFileName: " avatar.png ",
+        },
+        7,
+      );
+
+      const createCall = prismaMock.media.create.mock.calls[0]?.[0] as {
+        data: Record<string, unknown>;
+      };
+
+      expect(createCall.data).toMatchObject({
+        kind: MediaKind.PROFILE_AVATAR,
+        type: MediaType.IMAGE,
+        status: MediaStatus.PENDING_UPLOAD,
+        visibility: MediaVisibility.PUBLIC,
+        storageProvider: StorageProvider.R2,
+        bucket: "app-photos-videos",
+        mimeType: "image/png",
+        originalFileName: "avatar.png",
+        owner: { connect: { id: 7 } },
+      });
+      expect(createCall.data.objectKey).toMatch(/^users\/7\/avatar\//);
+      expect(result).toEqual(
+        expect.objectContaining({
+          mediaId: 101,
+          uploadUrl: "https://upload.example.com/avatar",
+        }),
+      );
+    });
+
+    it("rejects non-image profile avatar upload requests", async () => {
+      await expect(
+        service.requestProfileAvatarUpload({ mimeType: "video/mp4" }, 7),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      expect(prismaMock.media.create).not.toHaveBeenCalled();
+    });
+  });
+
   describe("completePostMediaUpload", () => {
     it("throws BadRequestException when the uploaded object is missing", async () => {
       prismaMock.media.findUnique.mockResolvedValue({
@@ -734,6 +820,144 @@ describe("MediaService", () => {
       ).rejects.toThrow("Uploaded video is invalid or corrupt");
 
       expect(prismaMock.media.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("completeProfileAvatarUpload", () => {
+    it("verifies a square image, assigns it as avatar, invalidates caches, and deletes the old avatar", async () => {
+      const avatarBuffer = await sharp({
+        create: {
+          width: 128,
+          height: 128,
+          channels: 3,
+          background: { r: 255, g: 255, b: 255 },
+        },
+      })
+        .png()
+        .toBuffer();
+
+      prismaMock.media.findUnique.mockResolvedValue({
+        id: 101,
+        ownerId: 7,
+        kind: MediaKind.PROFILE_AVATAR,
+        status: MediaStatus.PENDING_UPLOAD,
+        type: MediaType.IMAGE,
+        objectKey: "users/7/avatar/new/original.png",
+        mimeType: "image/png",
+        bytes: null,
+        expiresAt: new Date(Date.now() + 60_000),
+      });
+      prismaMock.user.findUnique.mockResolvedValue({
+        username: "miguel",
+        avatarMedia: {
+          id: 55,
+          objectKey: "users/7/avatar/old/original.png",
+          status: MediaStatus.READY,
+        },
+      });
+      r2StorageMock.headObject.mockResolvedValue({
+        contentLength: avatarBuffer.length,
+        contentType: "image/png",
+        etag: "etag-avatar",
+      });
+      r2StorageMock.getObjectBuffer.mockResolvedValue(avatarBuffer);
+      prismaMock.media.update.mockResolvedValue({
+        id: 101,
+        kind: MediaKind.PROFILE_AVATAR,
+        type: MediaType.IMAGE,
+        status: MediaStatus.READY,
+        objectKey: "users/7/avatar/new/original.png",
+        mimeType: "image/png",
+        bytes: avatarBuffer.length,
+        width: 128,
+        height: 128,
+        durationMs: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        attachedAt: new Date(),
+      });
+      prismaMock.$transaction.mockImplementation(
+        (callback: TransactionCallback) => callback(prismaMock),
+      );
+
+      const result = await service.completeProfileAvatarUpload(
+        { mediaId: 101 },
+        7,
+      );
+
+      const updateCall = prismaMock.media.update.mock.calls[0]?.[0];
+
+      expect(updateCall?.where).toEqual({ id: 101 });
+      expect(updateCall?.data).toMatchObject({
+        status: MediaStatus.READY,
+        etag: "etag-avatar",
+        bytes: avatarBuffer.length,
+        width: 128,
+        height: 128,
+        expiresAt: null,
+      });
+      expect(prismaMock.user.update).toHaveBeenCalledWith({
+        where: { id: 7 },
+        data: {
+          avatarMedia: {
+            connect: { id: 101 },
+          },
+        },
+        select: { id: true },
+      });
+      expect(cacheMock.del).toHaveBeenCalledWith("user:safe:7");
+      expect(cacheMock.del).toHaveBeenCalledWith("user:lookup:username:miguel");
+      expect(cacheMock.bumpVersion).toHaveBeenCalledWith("v:user:list");
+      expect(prismaMock.media.delete).toHaveBeenCalledWith({
+        where: { id: 55 },
+      });
+      expect(r2StorageMock.deleteObject).toHaveBeenCalledWith(
+        "users/7/avatar/old/original.png",
+      );
+      expect(result).toEqual(
+        expect.objectContaining({
+          id: 101,
+          status: MediaStatus.READY,
+          width: 128,
+          height: 128,
+        }),
+      );
+    });
+
+    it("rejects non-square avatar images", async () => {
+      const avatarBuffer = await sharp({
+        create: {
+          width: 128,
+          height: 256,
+          channels: 3,
+          background: { r: 255, g: 255, b: 255 },
+        },
+      })
+        .png()
+        .toBuffer();
+
+      prismaMock.media.findUnique.mockResolvedValue({
+        id: 101,
+        ownerId: 7,
+        kind: MediaKind.PROFILE_AVATAR,
+        status: MediaStatus.PENDING_UPLOAD,
+        type: MediaType.IMAGE,
+        objectKey: "users/7/avatar/new/original.png",
+        mimeType: "image/png",
+        expiresAt: new Date(Date.now() + 60_000),
+      });
+      r2StorageMock.headObject.mockResolvedValue({
+        contentLength: avatarBuffer.length,
+        contentType: "image/png",
+        etag: "etag-avatar",
+      });
+      r2StorageMock.getObjectBuffer.mockResolvedValue(avatarBuffer);
+
+      await expect(
+        service.completeProfileAvatarUpload({ mediaId: 101 }, 7),
+      ).rejects.toThrow("Profile avatar image must be square");
+
+      expect(prismaMock.user.update).not.toHaveBeenCalled();
     });
   });
 

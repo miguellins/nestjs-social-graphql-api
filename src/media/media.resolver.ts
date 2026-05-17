@@ -1,6 +1,8 @@
 import { Args, Int, Mutation, Query, Resolver } from "@nestjs/graphql";
 import { Throttle } from "@nestjs/throttler";
 
+import { CompleteProfileAvatarUploadInput } from "@/media/dto/complete-profile-avatar-upload.input";
+import { RequestProfileAvatarUploadInput } from "@/media/dto/request-profile-avatar-upload.input";
 import { CompletePostMediaUploadInput } from "@/media/dto/complete-post-media-upload.input";
 import { RequestPostMediaUploadInput } from "@/media/dto/request-post-media-upload.input";
 import { RequestPostMediaUpload } from "@/media/models/request-post-media-upload.model";
@@ -36,6 +38,26 @@ export class MediaResolver {
     @CurrentUser() user: { id: number },
   ): Promise<Media> {
     return this.mediaService.completePostMediaUpload(input, user.id);
+  }
+
+  @Throttle({ default: THROTTLE_LIMITS.MUTATION })
+  @Mutation(() => RequestPostMediaUpload, {
+    name: "requestProfileAvatarUpload",
+  })
+  async requestProfileAvatarUpload(
+    @Args("input") input: RequestProfileAvatarUploadInput,
+    @CurrentUser() user: { id: number },
+  ): Promise<RequestPostMediaUpload> {
+    return this.mediaService.requestProfileAvatarUpload(input, user.id);
+  }
+
+  @Throttle({ default: THROTTLE_LIMITS.MUTATION })
+  @Mutation(() => Media, { name: "completeProfileAvatarUpload" })
+  async completeProfileAvatarUpload(
+    @Args("input") input: CompleteProfileAvatarUploadInput,
+    @CurrentUser() user: { id: number },
+  ): Promise<Media> {
+    return this.mediaService.completeProfileAvatarUpload(input, user.id);
   }
 
   @Throttle({ default: THROTTLE_LIMITS.MUTATION })

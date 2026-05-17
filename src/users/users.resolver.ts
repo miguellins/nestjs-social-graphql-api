@@ -10,12 +10,14 @@ import { Public, Roles } from "@/common/decorators/auth.decorator";
 import { UpdateMyPrivacySettingInput } from "@/users/dto/update-my-privacy-setting.input";
 import { GetUserByUsernameArgs } from "@/users/args/get-user-by-username.args";
 import { MyPrivacySettings } from "@/users/models/my-privacy-settings.model";
+import { UpdateMyProfileInput } from "@/users/dto/update-my-profile.input";
 import { ReactivateUserInput } from "@/users/dto/reactivate-user.input";
 import { SuspendUserInput } from "@/users/dto/suspend-user.input";
 import { CreatedUser } from "@/users/models/created-user.model";
 import { CreateUserInput } from "@/users/dto/create-user.input";
 import { UpdateUserInput } from "@/users/dto/update-user.input";
 import { MODERATION_ROLES } from "@/users/enums/user-role.enum";
+import { MyProfile } from "@/users/models/my-profile.model";
 import { SafeUser } from "@/users/models/safe-user.model";
 import { UserPage } from "@/users/models/user-page.model";
 import { UsersService } from "@/users/users.service";
@@ -36,15 +38,30 @@ export class UsersResolver {
   @Public()
   @Throttle({ default: THROTTLE_LIMITS.READ })
   @Query(() => SafeUser, { name: "userById" })
-  async userById(@Args("id", { type: () => Int }) id: number) {
-    return this.usersService.getUser(id);
+  async userById(
+    @Args("id", { type: () => Int }) id: number,
+    @CurrentUser() user: AuthenticatedUser | null = null,
+  ): Promise<SafeUser> {
+    return this.usersService.getUser(id, user ?? undefined);
   }
 
   @Public()
   @Throttle({ default: THROTTLE_LIMITS.READ })
   @Query(() => SafeUser, { name: "userByUsername" })
-  async userByUsername(@Args() args: GetUserByUsernameArgs): Promise<SafeUser> {
-    return this.usersService.getUserByUsername(args.username);
+  async userByUsername(
+    @Args() args: GetUserByUsernameArgs,
+    @CurrentUser() user: AuthenticatedUser | null = null,
+  ): Promise<SafeUser> {
+    return this.usersService.getUserByUsername(
+      args.username,
+      user ?? undefined,
+    );
+  }
+
+  @Throttle({ default: THROTTLE_LIMITS.READ })
+  @Query(() => MyProfile, { name: "myProfile" })
+  async myProfile(@CurrentUser() user: { id: number }): Promise<MyProfile> {
+    return this.usersService.getMyProfile(user.id);
   }
 
   // Set to Public
@@ -64,6 +81,15 @@ export class UsersResolver {
     @CurrentUser() user: { id: number },
   ): Promise<SafeUser> {
     return this.usersService.updateUser(input, user.id);
+  }
+
+  @Throttle({ default: THROTTLE_LIMITS.MUTATION })
+  @Mutation(() => SafeUser, { name: "updateMyProfile" })
+  async updateMyProfile(
+    @Args("input") input: UpdateMyProfileInput,
+    @CurrentUser() user: { id: number },
+  ): Promise<SafeUser> {
+    return this.usersService.updateMyProfile(input, user.id);
   }
 
   @Throttle({ default: THROTTLE_LIMITS.READ })

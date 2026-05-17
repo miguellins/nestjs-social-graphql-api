@@ -26,21 +26,18 @@ import {
 } from "@/common/pagination/cursor-pagination";
 
 import { SafeUserSelect, type SafeUserDTO } from "@/users/dto/safe-user.dto";
-import { UserPrivacySetting } from "@/users/enums/user-privacy-setting.enum";
 import { MyPrivacySettings } from "@/users/models/my-privacy-settings.model";
 import { MODERATION_ROLE_SET } from "@/users/enums/user-role.enum";
 import { AccountState } from "@/users/enums/account-state.enum";
 import { UserCacheService } from "@/users/user-cache.service";
 import {
   createUserCommandSchema,
+  updateMyProfileCommandSchema,
   updateUserCommandSchema,
   type CreateUserCommand,
+  type UpdateMyProfileCommand,
   type UpdateUserCommand,
 } from "@/users/schemas/user-write.schema";
-import {
-  getUserByUsernameCommandSchema,
-  type GetUserByUsernameCommand,
-} from "@/users/schemas/user-read.schema";
 import {
   CreatedUserSelect,
   type CreatedUserDTO,
@@ -53,6 +50,10 @@ import {
   type SuspendUserCommand,
   type UpdateMyPrivacySettingCommand,
 } from "@/users/schemas/privacy-account-state.schema";
+import {
+  UserProfileReadService,
+  type SafeUserRecord,
+} from "@/users/user-profile-read.service";
 
 import type { AuthenticatedUser } from "@/auth/authenticated-user.type";
 
@@ -74,6 +75,7 @@ export class UsersService {
     private readonly cacheHelper: CacheHelperService,
     private readonly passwordService: PasswordService,
     private readonly userCache: UserCacheService,
+    private readonly userProfileRead: UserProfileReadService,
   ) {}
 
   // Lists users with bounded pagination and cache support
@@ -95,95 +97,35 @@ export class UsersService {
     return this.cacheHelper.getOrSet(
       cacheKey,
       async () => {
-        const rows = await this.prisma.user.findMany({
-          take: limit + 1,
-          where: cursorFilter
-            ? {
-                AND: [
-                  cursorFilter,
-                  {
-                    accountState: {
-                      not: AccountState.DEACTIVATED,
-                    },
-                  },
-                ],
-              }
-            : {
-                accountState: {
-                  not: AccountState.DEACTIVATED,
-                },
-              },
-          orderBy: [
-            { createdAt: toSortDirection(orderby) },
-            { id: toSortDirection(orderby) },
-          ],
-          select: SafeUserSelect,
+        const rows = await this.userProfileRead.findUsers({
+          limit,
+          orderBy: orderby,
+          cursorFilter,
+          sortDirection: toSortDirection(orderby),
         });
 
-        return buildCursorPage(
-          rows.map((row) => this.toPublicUserView(row)),
-          limit,
-        );
+        return buildCursorPage(rows, limit);
       },
       60_000,
     );
   }
 
-  // Returns one safe user profile by id
-  async getUser(id: number): Promise<SafeUserDTO> {
-    const cacheKey = this.userCache.getUserCacheKey(id);
-
-    return this.cacheHelper.getOrSet(
-      cacheKey,
-      async () => {
-        const safeUser = await this.prisma.user.findUnique({
-          where: { id },
-          select: SafeUserSelect,
-        });
-
-        if (!safeUser || safeUser.accountState === AccountState.DEACTIVATED) {
-          throw new NotFoundException(`User with ID ${id} not found`);
-        }
-
-        return this.toPublicUserView(safeUser);
-      },
-      5 * 60_000,
-    );
+  /** Returns one viewer-aware safe user profile by id. */
+  async getUser(id: number, viewer?: AuthenticatedUser): Promise<SafeUserDTO> {
+    return this.userProfileRead.getUser(id, viewer);
   }
 
-  // Returns one safe user profile by username using id as the canonical cache identity
-  async getUserByUsername(username: string): Promise<SafeUserDTO> {
-    const normalized = this.parseGetUserByUsernameInput({ username });
+  /** Returns one viewer-aware safe user profile by username. */
+  async getUserByUsername(
+    username: string,
+    viewer?: AuthenticatedUser,
+  ): Promise<SafeUserDTO> {
+    return this.userProfileRead.getUserByUsername(username, viewer);
+  }
 
-    const cachedId = await this.userCache.getCachedUserIdByUsername(
-      normalized.username,
-    );
-
-    if (cachedId !== undefined) {
-      return this.getUser(cachedId);
-    }
-
-    const user = await this.prisma.user.findUnique({
-      where: { username: normalized.username },
-      select: SafeUserSelect,
-    });
-
-    if (!user || user.accountState === AccountState.DEACTIVATED) {
-      throw new NotFoundException(
-        `User with username "${normalized.username}" not found`,
-      );
-    }
-
-    await runBestEffort(
-      this.logger,
-      "error",
-      `Failed to refresh caches after looking up user ${user.id} by username`,
-      async () => {
-        await this.userCache.cacheUser(user);
-      },
-    );
-
-    return this.toPublicUserView(user);
+  /** Returns the authenticated owner's profile without exposing email. */
+  async getMyProfile(currentUserId: number) {
+    return this.userProfileRead.getMyProfile(currentUserId);
   }
 
   // Creates a new user with a hashed password
@@ -274,11 +216,14 @@ export class UsersService {
     let updated: SafeUserDTO;
 
     try {
-      updated = await this.prisma.user.update({
+      const updatedRecord = await this.prisma.user.update({
         where: { id: currentUserId },
         data,
         select: SafeUserSelect,
       });
+      updated = this.userProfileRead.toPublicUserView(
+        updatedRecord as SafeUserRecord,
+      );
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError) {
         if (err.code === "P2025") throw new NotFoundException("User not found");
@@ -306,6 +251,50 @@ export class UsersService {
           );
         }
 
+        await this.userCache.cacheUser(updated);
+        await this.cacheHelper.bumpVersion("v:user:list");
+      },
+    );
+
+    return updated;
+  }
+
+  /** Updates the current user's public profile text fields and refreshes profile caches. */
+  async updateMyProfile(
+    input: UpdateMyProfileCommand,
+    currentUserId: number,
+  ): Promise<SafeUserDTO> {
+    const data = this.parseUpdateMyProfileInput(input);
+    const updateData: Prisma.UserUpdateInput = {};
+
+    if (data.bio !== undefined) updateData.bio = data.bio;
+    if (data.websiteUrl !== undefined) updateData.websiteUrl = data.websiteUrl;
+    if (data.location !== undefined) updateData.location = data.location;
+
+    let updated: SafeUserDTO;
+
+    try {
+      const updatedRecord = await this.prisma.user.update({
+        where: { id: currentUserId },
+        data: updateData,
+        select: SafeUserSelect,
+      });
+      updated = this.userProfileRead.toPublicUserView(
+        updatedRecord as SafeUserRecord,
+      );
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError) {
+        if (err.code === "P2025") throw new NotFoundException("User not found");
+      }
+
+      this.throwUnexpectedPersistenceFailure("update profile", err);
+    }
+
+    await runBestEffort(
+      this.logger,
+      "error",
+      `Failed to refresh caches after updating profile for user ${currentUserId}`,
+      async () => {
         await this.userCache.cacheUser(updated);
         await this.cacheHelper.bumpVersion("v:user:list");
       },
@@ -570,6 +559,15 @@ export class UsersService {
     );
   }
 
+  /** Parses and normalizes public profile text updates for the current user. */
+  private parseUpdateMyProfileInput(input: UpdateMyProfileCommand) {
+    return parseWithBadRequest(
+      updateMyProfileCommandSchema,
+      input,
+      "Invalid profile input",
+    );
+  }
+
   /** Parses and normalizes privacy-setting updates for the current user. */
   private parseUpdateMyPrivacySettingInput(
     input: UpdateMyPrivacySettingCommand,
@@ -597,27 +595,6 @@ export class UsersService {
       input,
       "Invalid reactivate user input",
     );
-  }
-
-  // Parses and normalizes public username lookup input
-  private parseGetUserByUsernameInput(input: GetUserByUsernameCommand) {
-    return parseWithBadRequest(
-      getUserByUsernameCommandSchema,
-      input,
-      "Invalid user lookup input",
-    );
-  }
-
-  /** Hides sensitive counters for private accounts in public profile reads. */
-  private toPublicUserView(user: SafeUserDTO): SafeUserDTO {
-    if (user.privacySetting !== UserPrivacySetting.PRIVATE) {
-      return user;
-    }
-
-    return {
-      ...user,
-      _count: undefined,
-    };
   }
 
   /** Ensures only moderators and admins can mutate account state. */
@@ -674,7 +651,7 @@ export class UsersService {
 
   // Logs unexpected persistence failures and throws a sanitized error
   private throwUnexpectedPersistenceFailure(
-    action: "create user" | "update user" | "delete user",
+    action: "create user" | "update user" | "delete user" | "update profile",
     err: unknown,
   ): never {
     this.logger.error(
