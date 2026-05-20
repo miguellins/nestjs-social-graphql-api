@@ -10,6 +10,11 @@ import { NotificationType, Prisma } from "@prisma/client";
 
 import { CacheHelperService } from "@/common/cache/cache-helper.service";
 
+import { CommentCacheService } from "@/comments/comment-cache.service";
+import { CommentCreateService } from "@/comments/comment-create.service";
+import { CommentGuardsService } from "@/comments/comment-guards.service";
+import { CommentModerationService } from "@/comments/comment-moderation.service";
+import { CommentWriteService } from "@/comments/comment-write.service";
 import { CommentsReadService } from "@/comments/comments-read.service";
 import { SafeCommentSelect } from "@/comments/dto/safe-comment.dto";
 
@@ -128,6 +133,11 @@ describe("CommentsService", () => {
 
     moduleRef = await Test.createTestingModule({
       providers: [
+        CommentCacheService,
+        CommentCreateService,
+        CommentGuardsService,
+        CommentModerationService,
+        CommentWriteService,
         CommentsService,
         { provide: PrismaService, useValue: prismaMock },
         { provide: CacheHelperService, useValue: cacheMock },
@@ -465,6 +475,11 @@ describe("CommentsService", () => {
 
       moduleRef = await Test.createTestingModule({
         providers: [
+          CommentCacheService,
+          CommentCreateService,
+          CommentGuardsService,
+          CommentModerationService,
+          CommentWriteService,
           CommentsService,
           { provide: PrismaService, useValue: prismaMock },
           { provide: CacheHelperService, useValue: cacheMock },

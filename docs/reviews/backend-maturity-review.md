@@ -86,7 +86,7 @@ Biggest current weaknesses:
 - Durable async processing exists now, but coverage is still selective
 - Metrics exist for the outbox/feed-projection slice, but tracing and broader
   cross-module metrics are still missing
-- Some core services are still too large, especially `auth`, `posts`, `comments`, `follows`, and `users`
+- The former oversized core services have been split into slimmer facades plus feature-private collaborators; a few cohesive collaborators remain above the soft line guideline and can be split further if their responsibilities grow
 
 # 2. Current Maturity Assessment
 
@@ -161,7 +161,7 @@ Best remaining improvements, excluding any single top feature:
 - Broaden metrics and add tracing on top of the current
   health/logging/request-correlation baseline
 - Extend the outbox pattern to more post-commit delivery work where retries matter
-- Keep pushing feature-private collaborators into the broadest services
+- Keep the new facade/collaborator boundaries healthy and split cohesive collaborators further only when responsibilities grow
 - Build richer trust-and-abuse workflows on top of the existing moderation/report/block/account-state base
 - Expand richer profile/preferences/discovery surfaces
 
@@ -215,7 +215,7 @@ Still missing for a more mature platform:
 **Posts / Feed**
 - Improved:
   - dedicated `myFeed` and `homeFeed` surfaces exist
-  - cleaner read boundaries through read services
+  - cleaner read and write boundaries through `PostListReadService`, `PostReadService`, `PostWriteService`, `PostModerationService`, and `PostCacheService`
   - privacy/follow/block/mute/account-state-aware reads remain in place
   - content hashtags are normalized into durable `Hashtag` and `PostHashtag`
     rows during post writes
@@ -358,6 +358,6 @@ The biggest remaining gaps are now:
 - still-immature feed/discovery architecture despite projection and v1 hashtag progress
 - selective rather than broad durable async processing
 - metrics and readiness signals that are useful but still scoped mainly to outbox/feed projection, and no tracing
-- oversized core services under continued pressure
+- formerly oversized core services now use slimmer facade/collaborator boundaries, with remaining pressure mostly in cohesive credential/request/write collaborators
 
 So the project has moved from "good MVP backend with thin ops posture" toward "credible early product backend with real operational baseline, an initial durable async backbone, and an early feed-projection foundation, but still lacking broader platform maturity."

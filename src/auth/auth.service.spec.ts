@@ -9,6 +9,10 @@ import { JwtService } from "@nestjs/jwt";
 import { Test, TestingModule } from "@nestjs/testing";
 import { Prisma } from "@prisma/client";
 
+import { AuthCredentialService } from "@/auth/auth-credential.service";
+import { AuthEmailVerificationService } from "@/auth/auth-email-verification.service";
+import { AuthPasswordResetService } from "@/auth/auth-password-reset.service";
+import { AuthTokenService } from "@/auth/auth-token.service";
 import { EmailVerificationDeliveryService } from "@/auth/email-verification-delivery.service";
 import { PasswordResetDeliveryService } from "@/auth/password-reset-delivery.service";
 import { GRAPHQL_ERROR_CODES } from "@/common/constants/graphql-error-code.constants";
@@ -121,6 +125,10 @@ describe("AuthService", () => {
 
     moduleRef = await Test.createTestingModule({
       providers: [
+        AuthCredentialService,
+        AuthEmailVerificationService,
+        AuthPasswordResetService,
+        AuthTokenService,
         AuthService,
         PasswordService,
         { provide: PrismaService, useValue: prismaMock },

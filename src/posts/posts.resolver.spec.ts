@@ -10,14 +10,7 @@ describe("PostsResolver", () => {
         .fn()
         .mockResolvedValue({ items: [], pageInfo: {} }),
     };
-    const feedReadService = {
-      getHomeFeed: jest.fn(),
-    };
-
-    const resolver = new PostsResolver(
-      postsService as never,
-      feedReadService as never,
-    );
+    const resolver = new PostsResolver(postsService as never);
 
     await resolver.posts({ first: 5 }, null);
     await resolver.postById(10, null);
@@ -44,14 +37,7 @@ describe("PostsResolver", () => {
         .fn()
         .mockResolvedValue({ items: [], pageInfo: {} }),
     };
-    const feedReadService = {
-      getHomeFeed: jest.fn(),
-    };
-
-    const resolver = new PostsResolver(
-      postsService as never,
-      feedReadService as never,
-    );
+    const resolver = new PostsResolver(postsService as never);
 
     await resolver.posts({ first: 5 }, viewer);
     await resolver.postById(10, viewer);
@@ -66,24 +52,19 @@ describe("PostsResolver", () => {
     );
   });
 
-  it("forwards homeFeed args to the feed read service", async () => {
+  it("forwards homeFeed args to the service", async () => {
     const postsService = {
-      removePostByModerator: jest.fn(),
-    };
-    const feedReadService = {
-      getHomeFeed: jest.fn().mockResolvedValue({
+      homeFeed: jest.fn().mockResolvedValue({
         items: [],
         pageInfo: {
           endCursor: null,
           hasNextPage: false,
         },
       }),
+      removePostByModerator: jest.fn(),
     };
 
-    const resolver = new PostsResolver(
-      postsService as never,
-      feedReadService as never,
-    );
+    const resolver = new PostsResolver(postsService as never);
 
     await resolver.homeFeed(
       { id: 7 },
@@ -94,7 +75,7 @@ describe("PostsResolver", () => {
       },
     );
 
-    expect(feedReadService.getHomeFeed).toHaveBeenCalledWith(7, {
+    expect(postsService.homeFeed).toHaveBeenCalledWith(7, {
       first: 5,
       after: "cursor",
       orderBy: ChronologicalOrder.OLDEST,
@@ -107,14 +88,7 @@ describe("PostsResolver", () => {
         message: "Post removed successfully",
       }),
     };
-    const feedReadService = {
-      getHomeFeed: jest.fn(),
-    };
-
-    const resolver = new PostsResolver(
-      postsService as never,
-      feedReadService as never,
-    );
+    const resolver = new PostsResolver(postsService as never);
 
     await resolver.removePostByModerator(
       { postId: 10, reason: "spam", reportId: 99 },

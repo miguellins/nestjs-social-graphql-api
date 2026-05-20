@@ -27,3 +27,12 @@ The users module owns public user reads, signup, self-service profile updates, p
 - `myPrivacySettings` returns both `privacySetting`, `accountState`, and a result message
 - user reads are cache-backed with viewer rules applied after the base user cache
 - moderator account-state changes are separate from self-service flows
+
+
+## Service ownership
+
+- `UsersService` is the resolver-facing facade for list reads, profile read delegation, privacy setting reads/updates, and write/account-state delegation.
+- `UserProfileReadService` owns viewer-aware profile reads, owner profile reads, safe-user shaping, and public list query projection.
+- `UserWriteService` owns user creation, account field updates, public profile updates, password hashing, unique-conflict mapping, and profile cache refresh.
+- `UserAccountStateService` owns user deletion, suspension, reactivation, moderation role checks, session revocation during suspension, moderation action persistence, and visibility cache invalidation.
+- `UserCacheService` remains the cache-key and safe-user cache helper boundary.

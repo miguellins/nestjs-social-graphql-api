@@ -5,19 +5,19 @@
 # Auth: 96/100
 Strength: strong auth lifecycle with refresh-session rotation, logout, password reset, email verification, password-hash upgrade-on-login, session metadata capture, suspended/deactivated account enforcement, and solid spec coverage across `auth.service.ts`, `auth-session.service.ts`, `auth.resolver.ts`, and `jwt.strategy.ts`. The session layer includes explicit session inventory and revoke flows rather than only token issuance, and the module benefits from request correlation, structured logging, and fail-fast security configuration across the app.
 
-Weakness: `auth.service.ts` is still a large coordinator, and the session model is still short of a fuller device/session-management product with device labeling, anomaly detection, richer audit history, or higher-level session-risk features. Auth-domain side effects are still mostly request-bound rather than modeled as a broader async event stream.
+Weakness: auth is now split into facade, credential, token, and session boundaries, but the session model is still short of a fuller device/session-management product with device labeling, anomaly detection, richer audit history, or higher-level session-risk features. Auth-domain side effects are still mostly request-bound rather than modeled as a broader async event stream.
 
 
 # Users: 96/100
 Strength: privacy settings, account-state moderation, moderation metadata, safe DTO/select discipline, cache-backed user reads through `UserCacheService`, and clean integration with auth/security concerns remain strong. The user surface now includes v1 richer profiles with bio, website, location, owner-only `myProfile`, separate `updateMyProfile`, avatar URL projection, and viewer-aware profile visibility for blocks, private accounts, and inactive account states. Account-state handling feeds correctly into protected reads such as feeds, profiles, and authentication.
 
-Weakness: `users.service.ts` is still large and multi-responsibility even with `UserProfileReadService`, and the user domain still has intentionally narrow preferences beyond notification toggles. Profile v1 does not include banners, field-level privacy, pronouns, verified badges, or moderator profile-edit tooling.
+Weakness: users is now split across profile-read, write, account-state, cache, and facade boundaries, and the user domain still has intentionally narrow preferences beyond notification toggles. Profile v1 does not include banners, field-level privacy, pronouns, verified badges, or moderator profile-edit tooling.
 
 
 # Posts / Home Feed: 98/100
-Strength: privacy-aware visibility, block-aware and mute-aware reads, moderation-aware removal, cache discipline, media-aware projection, comment integration, hashtag write integration, and the split between `PostsService`, `PostReadService`, and `FeedReadService` is cleaner and more defensible. `CommentsReadService` remains the source for threaded comments in post detail reads. The home feed is now materially stronger because it has both the legacy fanout-on-read path and an optional persisted `HomeFeedEntry` projection driven by outbox events, with cohort rollout, allow/deny user gates, forced-user rollout, configurable fallback, bootstrap, shadow compare with hashed diagnostics, cleanup, relationship soft-hide, retention controls, projection-read lag metrics, and muted-author filtering.
+Strength: privacy-aware visibility, block-aware and mute-aware reads, moderation-aware removal, cache discipline, media-aware projection, comment integration, hashtag write integration, and the split between `PostsService`, `PostListReadService`, `PostWriteService`, `PostModerationService`, `PostCacheService`, `PostReadService`, and `FeedReadService` is cleaner and more defensible. `CommentsReadService` remains the source for threaded comments in post detail reads. The home feed is now materially stronger because it has both the legacy fanout-on-read path and an optional persisted `HomeFeedEntry` projection driven by outbox events, with cohort rollout, allow/deny user gates, forced-user rollout, configurable fallback, bootstrap, shadow compare with hashed diagnostics, cleanup, relationship soft-hide, retention controls, projection-read lag metrics, and muted-author filtering.
 
-Weakness: `posts.service.ts` is still one of the biggest pressure points in the repo, and the home feed remains an early chronological social-graph feed. The new projection is a credible scalability step, but it is not yet a richer ranking, recommendation, explainability, or fully event-platform-backed feed subsystem.
+Weakness: the posts coordinator is now slim, but the home feed remains an early chronological social-graph feed. The new projection is a credible scalability step, but it is not yet a richer ranking, recommendation, explainability, or fully event-platform-backed feed subsystem.
 
 
 # Hashtags / Discovery: 91/100
@@ -29,7 +29,7 @@ Weakness: the feature is still v1. The reconciliation job still needs to be run 
 # Comments: 98/100
 Strength: one-level threading is implemented cleanly with `parentCommentId`, `CommentsReadService`, bounded inline replies, reply-aware counters, reply notifications, and a non-recursive GraphQL contract through `CommentReply`. The delete-path counter fix remains meaningful, and the comment write path is stronger because reply notifications can be persisted transactionally with a durable outbox event when enabled. Mention syncing, block-aware and mute-aware suppression, self-reply suppression, and outbox-backed reply delivery make the module product-realistic and operationally safer.
 
-Weakness: `comments.service.ts` is still a broad coordinator for writes, moderation, counters, cache invalidation, mention syncing, and notification orchestration, and comment threads still stop at a practical v1 shape rather than deeper thread navigation or reply pagination.
+Weakness: comments is now split across facade, read, write, and moderation boundaries, and comment threads still stop at a practical v1 shape rather than deeper thread navigation or reply pagination.
 
 
 # Likes: 90/100
@@ -41,7 +41,7 @@ Weakness: the feature is still narrow, with no reaction model, limited viewer-re
 # Follows: 96/100
 Strength: private-account follow requests, pending incoming/outgoing views, approve/reject/cancel flows, block-aware restrictions, notification hooks, and direct impact on feed visibility make this meaningfully more realistic than a simple follow table. The guarded transactional state-transition fixes materially improved correctness, and the module now also participates in home-feed projection by enqueueing follow backfill and relationship-hide events when projection enqueue/backfill is enabled.
 
-Weakness: `follows.service.ts` is still quite large, `deleteFollow` semantics remain a little conceptually muddy, and the relationship model is still basic beyond follow/request state handling. Feed projection integration improves downstream behavior but also increases the amount of orchestration concentrated in this service.
+Weakness: follows is now split across facade, relationship, request, feed-trigger, cache, and guard boundaries; `deleteFollow` semantics remain a little conceptually muddy, and the relationship model is still basic beyond follow/request state handling. Feed projection integration improves downstream behavior but also increases the amount of orchestration concentrated in this service.
 
 
 # Blocks: 93/100

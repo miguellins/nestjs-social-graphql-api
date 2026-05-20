@@ -30,7 +30,12 @@ import { CreatePostInput } from "@/posts/dto/create-post.input";
 import { UpdatePostInput } from "@/posts/dto/update-post.input";
 
 import { R2StorageService } from "@/media/storage/r2-storage.service";
+import { FeedReadService } from "@/posts/feed-read.service";
+import { PostCacheService } from "@/posts/post-cache.service";
+import { PostListReadService } from "@/posts/post-list-read.service";
+import { PostModerationService } from "@/posts/post-moderation.service";
 import { PostReadService } from "@/posts/post-read.service";
+import { PostWriteService } from "@/posts/post-write.service";
 import { PrismaService } from "@/prisma/prisma.service";
 import { AccountState } from "@/users/enums/account-state.enum";
 import { UserPrivacySetting } from "@/users/enums/user-privacy-setting.enum";
@@ -68,6 +73,7 @@ describe("PostsService", () => {
       findUnique: jest.Mock;
       create: jest.Mock;
       update: jest.Mock;
+      updateMany: jest.Mock;
       delete: jest.Mock;
     };
     user: {
@@ -83,6 +89,9 @@ describe("PostsService", () => {
       findMany: jest.Mock;
       findFirst: jest.Mock;
     };
+    follow: {
+      findUnique: jest.Mock;
+    };
     $transaction: jest.Mock;
   } = {
     post: {
@@ -91,6 +100,7 @@ describe("PostsService", () => {
       findUnique: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
+      updateMany: jest.fn(),
       delete: jest.fn(),
     },
     user: {
@@ -105,6 +115,9 @@ describe("PostsService", () => {
     userBlock: {
       findMany: jest.fn(),
       findFirst: jest.fn(),
+    },
+    follow: {
+      findUnique: jest.fn(),
     },
     $transaction: jest.fn(),
   };
@@ -166,6 +179,10 @@ describe("PostsService", () => {
     isMutedForScope: jest.fn(),
   };
 
+  const feedReadServiceMock = {
+    getHomeFeed: jest.fn(),
+  };
+
   beforeEach(async () => {
     jest.clearAllMocks();
     mem.clear();
@@ -175,6 +192,8 @@ describe("PostsService", () => {
       privacySetting: UserPrivacySetting.PUBLIC,
     });
     prismaMock.userBlock.findMany.mockResolvedValue([]);
+    prismaMock.userBlock.findFirst.mockResolvedValue(null);
+    prismaMock.follow.findUnique.mockResolvedValue({ id: 1 });
     r2StorageMock.getPublicUrl.mockImplementation(
       (objectKey: string) => `https://media.example.com/${objectKey}`,
     );
@@ -193,6 +212,10 @@ describe("PostsService", () => {
     hashtagsServiceMock.isPubliclyCountablePost.mockReturnValue(true);
     mutesServiceMock.getMutedUserIdsForScope.mockResolvedValue([]);
     mutesServiceMock.isMutedForScope.mockResolvedValue(false);
+    feedReadServiceMock.getHomeFeed.mockResolvedValue({
+      items: [],
+      pageInfo: { endCursor: null, hasNextPage: false },
+    });
     prismaMock.$transaction.mockImplementation((cb: (tx: never) => unknown) =>
       cb(prismaMock as never),
     );
@@ -221,7 +244,11 @@ describe("PostsService", () => {
     moduleRef = await Test.createTestingModule({
       providers: [
         MediaReadProjectionService,
+        PostCacheService,
+        PostListReadService,
+        PostModerationService,
         PostReadService,
+        PostWriteService,
         PostsService,
         { provide: PrismaService, useValue: prismaMock },
         { provide: CacheHelperService, useValue: cacheMock },
@@ -230,6 +257,7 @@ describe("PostsService", () => {
         { provide: MentionsService, useValue: mentionsServiceMock },
         { provide: HashtagsService, useValue: hashtagsServiceMock },
         { provide: MutesService, useValue: mutesServiceMock },
+        { provide: FeedReadService, useValue: feedReadServiceMock },
         { provide: OutboxService, useValue: outboxServiceMock },
         { provide: ConfigService, useValue: configServiceMock },
       ],

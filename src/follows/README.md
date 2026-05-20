@@ -92,3 +92,13 @@ For private follow requests:
 - when `OUTBOX_FOLLOW_REQUESTED_ENABLED=true`, the follow request row, notification row, and outbox row are persisted in one transaction
 - when `OUTBOX_FOLLOW_REQUESTED_ENABLED=false`, the service falls back to direct best-effort notification publishing
 - approval, rejection, and cancelation do not create follow-request notifications
+
+
+## Service ownership
+
+- `FollowsService` is the resolver-facing facade and delegates to feature-private collaborators.
+- `FollowRelationshipService` owns public follow list/detail reads, direct follow creation, backward-compatible `createFollow`, and follow deletion.
+- `FollowRequestService` owns private-account follow request creation, incoming/outgoing pending request reads, approve, reject, and cancel transitions.
+- `FollowFeedTriggerService` owns best-effort home-feed projection backfill and relationship-hide outbox enqueueing.
+- `FollowCacheService` owns targeted follow, user, and visibility cache invalidation.
+- `FollowGuardsService` owns active-account checks and bidirectional block relationship checks for follow workflows.

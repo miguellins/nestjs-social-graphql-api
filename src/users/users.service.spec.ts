@@ -27,8 +27,10 @@ import { CreatedUserSelect } from "@/users/dto/created-user.dto";
 import { UpdateUserInput } from "@/users/dto/update-user.input";
 
 import { SafeUserSelect } from "@/users/dto/safe-user.dto";
+import { UserAccountStateService } from "@/users/user-account-state.service";
 import { UserCacheService } from "@/users/user-cache.service";
 import { UserProfileReadService } from "@/users/user-profile-read.service";
+import { UserWriteService } from "@/users/user-write.service";
 
 import { UsersService } from "./users.service";
 
@@ -120,7 +122,9 @@ describe("UsersService", () => {
 
     moduleRef = await Test.createTestingModule({
       providers: [
+        UserAccountStateService,
         UserCacheService,
+        UserWriteService,
         UsersService,
         { provide: PrismaService, useValue: prismaMock },
         { provide: CacheHelperService, useValue: cacheMock },

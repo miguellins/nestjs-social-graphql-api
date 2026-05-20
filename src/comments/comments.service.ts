@@ -1,57 +1,18 @@
-import {
-  BadRequestException,
-  ForbiddenException,
-  HttpException,
-  Injectable,
-  InternalServerErrorException,
-  Logger,
-  NotFoundException,
-  UnauthorizedException,
-} from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
+import { Injectable } from "@nestjs/common";
 
-import { GRAPHQL_ERROR_CODES } from "@/common/constants/graphql-error-code.constants";
 import { type CursorPageResult } from "@/common/pagination/cursor-pagination";
 import { ChronologicalOrder } from "@/common/enums/chronological-order.enum";
-import { CacheHelperService } from "@/common/cache/cache-helper.service";
 import { MessageResponse } from "@/common/types/message-response.type";
-import { parseWithBadRequest } from "@/common/zod/parse-with-zod";
-import { runBestEffort } from "@/common/errors/run-best-effort";
 
+import { CommentModerationService } from "@/comments/comment-moderation.service";
+import { CommentWriteService } from "@/comments/comment-write.service";
 import { CommentsReadService } from "@/comments/comments-read.service";
-import {
-  type SafeCommentDTO,
-  type SafeCommentRecord,
-  SafeCommentSelect,
-} from "@/comments/dto/safe-comment.dto";
-import {
-  createCommentCommandSchema,
-  type CreateCommentCommand,
-} from "@/comments/schemas/create-comment.schema";
-import {
-  removeCommentByModeratorCommandSchema,
-  type RemoveCommentByModeratorCommand,
-} from "@/comments/schemas/remove-comment-by-moderator.schema";
-import {
-  updateCommentCommandSchema,
-  type UpdateCommentCommand,
-} from "@/comments/schemas/update-comment.schema";
-
-import { MODERATION_ROLE_SET } from "@/users/enums/user-role.enum";
-import { AccountState } from "@/users/enums/account-state.enum";
-
-import { COMMENT_REPLY_NOTIFICATION_DELIVERY_EVENT } from "@/outbox/events/comment-reply-notification-delivery.event";
-import { OutboxService } from "@/outbox/outbox.service";
-
-import { NotificationTriggerService } from "@/notifications/notification-trigger.service";
-import { NotificationsService } from "@/notifications/notifications.service";
+import { type SafeCommentDTO } from "@/comments/dto/safe-comment.dto";
+import { type CreateCommentCommand } from "@/comments/schemas/create-comment.schema";
+import { type RemoveCommentByModeratorCommand } from "@/comments/schemas/remove-comment-by-moderator.schema";
+import { type UpdateCommentCommand } from "@/comments/schemas/update-comment.schema";
 
 import type { AuthenticatedUser } from "@/auth/authenticated-user.type";
-
-import { MentionsService } from "@/mentions/mentions.service";
-
-import { NotificationType, Prisma } from "@prisma/client";
-import { PrismaService } from "@/prisma/prisma.service";
 
 type FindCommentsByPostParams = {
   after?: string;
@@ -63,206 +24,21 @@ type FindCommentsByPostParams = {
 
 @Injectable()
 export class CommentsService {
-  private readonly logger = new Logger(CommentsService.name);
-  private readonly outboxCommentRepliesEnabled: boolean;
-
   constructor(
-    private readonly prisma: PrismaService,
-    private readonly cacheHelper: CacheHelperService,
-    private readonly mentionsService: MentionsService,
+    private readonly commentWriteService: CommentWriteService,
+    private readonly commentModerationService: CommentModerationService,
     private readonly commentsReadService: CommentsReadService,
-    private readonly notificationTrigger: NotificationTriggerService,
-    private readonly notificationsService: NotificationsService,
-    private readonly outboxService: OutboxService,
-    configService: ConfigService,
-  ) {
-    this.outboxCommentRepliesEnabled =
-      configService.get<boolean>("OUTBOX_COMMENT_REPLIED_ENABLED") ?? false;
-  }
+  ) {}
 
+  /** Delegates comment creation to the write collaborator. */
   async createComment(
     input: CreateCommentCommand,
     currentUserId: number,
   ): Promise<SafeCommentDTO> {
-    await this.assertActiveCurrentUserById(currentUserId);
-    const data = this.parseCreateCommentInput(input);
-    this.mentionsService.validateCommentContentMentions(data.content);
-    const post = await this.commentsReadService.getReadablePostOrThrow(
-      data.postId,
-      currentUserId,
-    );
-
-    let parentCommentAuthorId: number | undefined;
-    if (data.parentCommentId !== undefined) {
-      const parentComment = await this.prisma.comment.findUnique({
-        where: { id: data.parentCommentId },
-        select: {
-          id: true,
-          postId: true,
-          removedAt: true,
-          parentCommentId: true,
-          authorId: true,
-        },
-      });
-
-      if (!parentComment) {
-        throw new NotFoundException("Parent comment not found");
-      }
-
-      if (parentComment.removedAt) {
-        throw new BadRequestException("Parent comment has been removed");
-      }
-
-      if (parentComment.postId !== data.postId) {
-        throw new BadRequestException(
-          "Parent comment does not belong to this post",
-        );
-      }
-
-      if (parentComment.parentCommentId !== null) {
-        throw new BadRequestException(
-          "Replies can only target top-level comments",
-        );
-      }
-
-      parentCommentAuthorId = parentComment.authorId;
-    }
-
-    const shouldPersistReplyNotificationInTransaction =
-      this.outboxCommentRepliesEnabled &&
-      parentCommentAuthorId !== undefined &&
-      parentCommentAuthorId !== currentUserId;
-    const replyRecipientId = shouldPersistReplyNotificationInTransaction
-      ? parentCommentAuthorId
-      : undefined;
-
-    let replyActorUsername: string | undefined;
-    if (shouldPersistReplyNotificationInTransaction) {
-      const currentUser = await this.prisma.user.findUnique({
-        where: { id: currentUserId },
-        select: {
-          username: true,
-        },
-      });
-
-      replyActorUsername = currentUser?.username;
-    }
-
-    const comment = await this.prisma.$transaction(async (tx) => {
-      const createdComment = await tx.comment.create({
-        data: {
-          content: data.content,
-          postId: data.postId,
-          authorId: currentUserId,
-          parentCommentId: data.parentCommentId,
-        },
-
-        select: SafeCommentSelect,
-      });
-
-      await tx.post.update({
-        where: { id: data.postId },
-
-        data: {
-          commentsCount: {
-            increment: 1,
-          },
-        },
-      });
-
-      if (replyRecipientId !== undefined && replyActorUsername) {
-        const notification = await this.notificationsService.createNotification(
-          {
-            recipientId: replyRecipientId,
-            actorId: currentUserId,
-            type: NotificationType.COMMENT_REPLIED,
-            title: "New reply",
-            body: `${replyActorUsername} replied to your comment`,
-            entityId: createdComment.id,
-          },
-          tx,
-        );
-
-        if (notification) {
-          await this.outboxService.enqueue(
-            {
-              eventType: COMMENT_REPLY_NOTIFICATION_DELIVERY_EVENT,
-              aggregateType: "notification",
-              aggregateId: notification.id,
-              payload: {
-                notificationId: notification.id,
-                recipientId: notification.recipientId,
-                actorId: notification.actorId,
-                commentId: createdComment.id,
-                notificationType: NotificationType.COMMENT_REPLIED,
-              },
-            },
-            tx,
-          );
-        }
-      }
-
-      return createdComment;
-    });
-
-    await runBestEffort(
-      this.logger,
-      "error",
-      `Failed to invalidate caches after creating comment on post ${data.postId}`,
-      async () => {
-        await this.cacheHelper.del(`posts:detail:${data.postId}`);
-        await this.cacheHelper.bumpVersion("v:posts:list");
-        await this.cacheHelper.bumpVersion(
-          `v:user:${post.authorId}:posts:list`,
-        );
-      },
-    );
-
-    if (
-      !this.outboxCommentRepliesEnabled &&
-      parentCommentAuthorId !== undefined &&
-      parentCommentAuthorId !== currentUserId
-    ) {
-      const currentUser = await this.prisma.user.findUnique({
-        where: { id: currentUserId },
-        select: {
-          username: true,
-        },
-      });
-
-      if (currentUser) {
-        await runBestEffort(
-          this.logger,
-          "error",
-          `Failed to create reply notification for comment ${comment.id}`,
-          async () => {
-            await this.notificationTrigger.notifyCommentReplied({
-              recipientId: parentCommentAuthorId,
-              actorId: currentUserId,
-              actorUsername: currentUser.username,
-              commentId: comment.id,
-            });
-          },
-        );
-      }
-    }
-
-    await runBestEffort(
-      this.logger,
-      "error",
-      `Failed to sync mentions after creating comment ${comment.id}`,
-      async () => {
-        await this.mentionsService.syncCommentMentions({
-          commentId: comment.id,
-          actorId: currentUserId,
-          content: data.content,
-        });
-      },
-    );
-
-    return this.toCommentMutationResult(comment);
+    return this.commentWriteService.createComment(input, currentUserId);
   }
 
+  /** Delegates post comment reads to the read collaborator. */
   async findCommentsByPost({
     after,
     first,
@@ -279,398 +55,35 @@ export class CommentsService {
     });
   }
 
+  /** Delegates comment updates to the write collaborator. */
   async updateComment(
     commentId: number,
     input: UpdateCommentCommand,
     currentUserId: number,
   ): Promise<SafeCommentDTO> {
-    await this.assertActiveCurrentUserById(currentUserId);
-    const data = this.parseUpdateCommentInput(input);
-    this.mentionsService.validateCommentContentMentions(data.content);
-
-    const updateData: Prisma.CommentUpdateInput = {
-      content: data.content,
-    };
-
-    let updatedComment: SafeCommentRecord;
-    let postId: number;
-
-    try {
-      const existing = await this.prisma.comment.findUnique({
-        where: { id: commentId },
-
-        select: {
-          id: true,
-          authorId: true,
-          postId: true,
-          removedAt: true,
-        },
-      });
-
-      if (!existing || existing.removedAt) {
-        throw new NotFoundException("Comment not found");
-      }
-
-      if (existing.authorId !== currentUserId) {
-        throw new ForbiddenException(
-          "You do not have permission to update this comment",
-        );
-      }
-
-      postId = existing.postId;
-
-      updatedComment = await this.prisma.comment.update({
-        where: { id: commentId },
-        data: updateData,
-
-        select: SafeCommentSelect,
-      });
-    } catch (err) {
-      if (err instanceof HttpException) throw err;
-
-      if (
-        err instanceof Prisma.PrismaClientKnownRequestError &&
-        err.code === "P2025"
-      ) {
-        throw new NotFoundException("Comment not found");
-      }
-
-      this.throwUnexpectedPersistenceFailure("update comment", err);
-    }
-
-    await runBestEffort(
-      this.logger,
-      "error",
-      `Failed to invalidate caches after updating comment ${commentId}`,
-      async () => {
-        await this.cacheHelper.del(`posts:detail:${postId}`);
-      },
+    return this.commentWriteService.updateComment(
+      commentId,
+      input,
+      currentUserId,
     );
-
-    await runBestEffort(
-      this.logger,
-      "error",
-      `Failed to sync mentions after updating comment ${commentId}`,
-      async () => {
-        await this.mentionsService.syncCommentMentions({
-          commentId,
-          actorId: currentUserId,
-          content: data.content,
-        });
-      },
-    );
-
-    return this.toCommentMutationResult(updatedComment);
   }
 
+  /** Delegates comment deletion to the write collaborator. */
   async deleteComment(
     commentId: number,
     currentUserId: number,
   ): Promise<MessageResponse> {
-    await this.assertActiveCurrentUserById(currentUserId);
-    const comment = await this.prisma.comment.findUnique({
-      where: { id: commentId },
-
-      select: {
-        id: true,
-        authorId: true,
-        postId: true,
-        parentCommentId: true,
-        removedAt: true,
-        post: {
-          select: {
-            authorId: true,
-          },
-        },
-      },
-    });
-
-    if (!comment || comment.removedAt) {
-      throw new NotFoundException("Comment not found");
-    }
-
-    if (comment.authorId !== currentUserId) {
-      throw new ForbiddenException(
-        "You do not have permission to delete this comment",
-      );
-    }
-
-    try {
-      await this.prisma.$transaction(async (tx) => {
-        const deletedReplies =
-          comment.parentCommentId === null
-            ? await tx.comment.deleteMany({
-                where: {
-                  parentCommentId: commentId,
-                  removedAt: null,
-                },
-              })
-            : { count: 0 };
-
-        await tx.comment.delete({
-          where: { id: commentId },
-        });
-
-        await tx.post.update({
-          where: { id: comment.postId },
-
-          data: {
-            commentsCount: {
-              decrement: deletedReplies.count + 1,
-            },
-          },
-        });
-      });
-    } catch (err) {
-      if (
-        err instanceof Prisma.PrismaClientKnownRequestError &&
-        err.code === "P2025"
-      ) {
-        throw new NotFoundException("Comment not found");
-      }
-
-      this.throwUnexpectedPersistenceFailure("delete comment", err);
-    }
-
-    await runBestEffort(
-      this.logger,
-      "error",
-      `Failed to invalidate caches after deleting comment ${commentId}`,
-      async () => {
-        await this.cacheHelper.del(`posts:detail:${comment.postId}`);
-        await this.cacheHelper.bumpVersion("v:posts:list");
-        await this.cacheHelper.bumpVersion(
-          `v:user:${comment.post.authorId}:posts:list`,
-        );
-      },
-    );
-
-    return {
-      message: "Comment deleted successfully",
-    };
+    return this.commentWriteService.deleteComment(commentId, currentUserId);
   }
 
+  /** Delegates moderator comment removal to the moderation collaborator. */
   async removeCommentByModerator(
     input: RemoveCommentByModeratorCommand,
     currentUser: AuthenticatedUser,
   ): Promise<MessageResponse> {
-    await this.assertActiveCurrentUserById(currentUser.id);
-    this.assertCanModerateContent(currentUser);
-
-    const data = this.parseRemoveCommentByModeratorInput(input);
-
-    const existing = await this.prisma.comment.findUnique({
-      where: { id: data.commentId },
-      select: {
-        id: true,
-        postId: true,
-        parentCommentId: true,
-        removedAt: true,
-        post: {
-          select: {
-            authorId: true,
-          },
-        },
-      },
-    });
-
-    if (!existing) {
-      throw new NotFoundException("Comment not found");
-    }
-
-    if (existing.removedAt) {
-      throw new BadRequestException("Comment has already been removed");
-    }
-
-    try {
-      await this.prisma.$transaction(async (tx) => {
-        const removal = await tx.comment.updateMany({
-          where: {
-            ...(existing.parentCommentId === null
-              ? {
-                  OR: [
-                    { id: data.commentId },
-                    { parentCommentId: data.commentId },
-                  ],
-                }
-              : {
-                  id: data.commentId,
-                }),
-            removedAt: null,
-          },
-          data: {
-            removedAt: new Date(),
-            removedById: currentUser.id,
-            removalReason: data.reason,
-          },
-        });
-
-        if (removal.count === 0) {
-          throw new BadRequestException("Comment has already been removed");
-        }
-
-        await tx.post.update({
-          where: { id: existing.postId },
-          data: {
-            commentsCount: {
-              decrement: removal.count,
-            },
-          },
-        });
-
-        if (data.reportId !== undefined) {
-          const linkedReport = await tx.contentReport.updateMany({
-            where: {
-              id: data.reportId,
-              commentId: data.commentId,
-              status: "OPEN",
-            },
-            data: {
-              status: "ACTIONED",
-            },
-          });
-
-          if (linkedReport.count === 0) {
-            throw new BadRequestException(
-              "Linked report is not open for this comment",
-            );
-          }
-        }
-
-        await tx.moderationAction.create({
-          data: {
-            actorId: currentUser.id,
-            actionType: "REMOVE_COMMENT",
-            targetType: "COMMENT",
-            targetId: data.commentId,
-            reason: data.reason,
-            reportId: data.reportId,
-            commentId: data.commentId,
-          },
-        });
-      });
-    } catch (err) {
-      if (err instanceof HttpException) throw err;
-
-      if (
-        err instanceof Prisma.PrismaClientKnownRequestError &&
-        err.code === "P2025"
-      ) {
-        throw new NotFoundException("Comment not found");
-      }
-
-      this.throwUnexpectedPersistenceFailure(
-        "remove comment by moderator",
-        err,
-      );
-    }
-
-    await runBestEffort(
-      this.logger,
-      "error",
-      `Failed to invalidate caches after moderator removed comment ${data.commentId}`,
-      async () => {
-        await this.cacheHelper.del(`posts:detail:${existing.postId}`);
-        await this.cacheHelper.bumpVersion("v:posts:list");
-        await this.cacheHelper.bumpVersion(
-          `v:user:${existing.post.authorId}:posts:list`,
-        );
-      },
-    );
-
-    return {
-      message: "Comment removed successfully",
-    };
-  }
-
-  // Private Helpers
-  /** Parses and normalizes create-comment input with Zod, throws BadRequest on error. */
-  private parseCreateCommentInput(input: CreateCommentCommand) {
-    return parseWithBadRequest(
-      createCommentCommandSchema,
+    return this.commentModerationService.removeCommentByModerator(
       input,
-      "Invalid comment input",
+      currentUser,
     );
-  }
-
-  /** Parses and normalizes update-comment input with Zod, throws BadRequest on error. */
-  private parseUpdateCommentInput(input: UpdateCommentCommand) {
-    return parseWithBadRequest(
-      updateCommentCommandSchema,
-      input,
-      "Invalid comment input",
-    );
-  }
-
-  /** Parses and normalizes moderator/admin comment-removal input with Zod. */
-  private parseRemoveCommentByModeratorInput(
-    input: RemoveCommentByModeratorCommand,
-  ) {
-    return parseWithBadRequest(
-      removeCommentByModeratorCommandSchema,
-      input,
-      "Invalid moderator comment removal input",
-    );
-  }
-
-  /** Enforces that only moderators/admins can perform moderation actions. */
-  private assertCanModerateContent(user: AuthenticatedUser): void {
-    if (!user.role || !MODERATION_ROLE_SET.has(user.role)) {
-      throw new ForbiddenException(
-        "You do not have permission to moderate content",
-      );
-    }
-  }
-
-  /** Enforces active-account status for authenticated comment operations. */
-  private async assertActiveCurrentUserById(
-    currentUserId: number,
-  ): Promise<void> {
-    const user = await this.prisma.user.findUnique({
-      where: { id: currentUserId },
-      select: {
-        accountState: true,
-      },
-    });
-
-    if (!user) {
-      throw new NotFoundException("Current user not found");
-    }
-
-    if (user.accountState === AccountState.SUSPENDED) {
-      throw new UnauthorizedException({
-        message: "This account is suspended",
-        code: GRAPHQL_ERROR_CODES.ACCOUNT_SUSPENDED,
-      });
-    }
-
-    if (user.accountState === AccountState.DEACTIVATED) {
-      throw new UnauthorizedException({
-        message: "This account is deactivated",
-        code: GRAPHQL_ERROR_CODES.ACCOUNT_DEACTIVATED,
-      });
-    }
-  }
-
-  /** Logs and throws InternalServerErrorException for unexpected persistence errors. */
-  private throwUnexpectedPersistenceFailure(
-    action: "update comment" | "delete comment" | "remove comment by moderator",
-    err: unknown,
-  ): never {
-    this.logger.error(
-      `Unexpected persistence failure while trying to ${action}`,
-      err instanceof Error ? err.stack : undefined,
-    );
-
-    throw new InternalServerErrorException(`Failed to ${action}`);
-  }
-
-  /** Shapes one flat safe comment record into the mutation response contract used by GraphQL. */
-  private toCommentMutationResult(comment: SafeCommentRecord): SafeCommentDTO {
-    return {
-      ...comment,
-      repliesCount: 0,
-      replies: [],
-    };
   }
 }

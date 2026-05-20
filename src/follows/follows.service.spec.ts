@@ -19,6 +19,13 @@ import { PAGINATION } from "@/common/constants/hard-cap.constants";
 import { encodeChronoCursor } from "@/common/pagination/chrono-cursor";
 
 import { SafeFollowSelect } from "@/follows/dto/safe-follow.dto";
+import { FollowCacheService } from "@/follows/follow-cache.service";
+import { FollowFeedTriggerService } from "@/follows/follow-feed-trigger.service";
+import { FollowGuardsService } from "@/follows/follow-guards.service";
+import { FollowRelationshipService } from "@/follows/follow-relationship.service";
+import { FollowRequestReadService } from "@/follows/follow-request-read.service";
+import { FollowRequestService } from "@/follows/follow-request.service";
+import { FollowRequestTransitionService } from "@/follows/follow-request-transition.service";
 
 import { NotificationsService } from "@/notifications/notifications.service";
 import { NotificationTriggerService } from "@/notifications/notification-trigger.service";
@@ -148,6 +155,13 @@ describe("FollowsService", () => {
 
     moduleRef = await Test.createTestingModule({
       providers: [
+        FollowCacheService,
+        FollowFeedTriggerService,
+        FollowGuardsService,
+        FollowRelationshipService,
+        FollowRequestReadService,
+        FollowRequestService,
+        FollowRequestTransitionService,
         FollowsService,
         { provide: PrismaService, useValue: prismaMock },
         { provide: CacheHelperService, useValue: cacheMock },
@@ -928,6 +942,13 @@ describe("FollowsService", () => {
       await moduleRef.close();
       moduleRef = await Test.createTestingModule({
         providers: [
+          FollowCacheService,
+          FollowFeedTriggerService,
+          FollowGuardsService,
+          FollowRelationshipService,
+          FollowRequestReadService,
+          FollowRequestService,
+          FollowRequestTransitionService,
           FollowsService,
           { provide: PrismaService, useValue: prismaMock },
           { provide: CacheHelperService, useValue: cacheMock },

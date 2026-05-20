@@ -3,6 +3,10 @@ import { ConfigService } from "@nestjs/config";
 import { Module } from "@nestjs/common";
 import { JwtModule } from "@nestjs/jwt";
 
+import { AuthCredentialService } from "@/auth/auth-credential.service";
+import { AuthEmailVerificationService } from "@/auth/auth-email-verification.service";
+import { AuthPasswordResetService } from "@/auth/auth-password-reset.service";
+import { AuthTokenService } from "@/auth/auth-token.service";
 import { EmailVerificationDeliveryService } from "@/auth/email-verification-delivery.service";
 import { PasswordResetDeliveryService } from "@/auth/password-reset-delivery.service";
 import { AuthSessionService } from "@/auth/auth-session.service";
@@ -37,6 +41,10 @@ import type { StringValue } from "ms";
     }),
   ],
   providers: [
+    AuthCredentialService,
+    AuthEmailVerificationService,
+    AuthPasswordResetService,
+    AuthTokenService,
     AuthService,
     AuthSessionService,
     AuthResolver,

@@ -44,3 +44,11 @@ Authenticated operations:
 - `logoutCurrentSession`
 - `revokeSession`
 - `revokeOtherSessions`
+
+
+## Service ownership
+
+- `AuthService` is the resolver-facing facade and keeps refresh-session rotation and logout close to the session boundary.
+- `AuthCredentialService` owns login, password reset request/confirmation, email verification request/confirmation, credential validation, password hash upgrades, and delivery side effects.
+- `AuthTokenService` owns access-token signing, opaque token generation, token hashing, token expiry calculation, and active-account authentication gates.
+- `AuthSessionService` continues to own session inventory and revocation APIs.

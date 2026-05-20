@@ -196,6 +196,36 @@ type NotificationPage {
   pageInfo: PageInfo!
 }
 
+"""Represents one per-actor notification silence preference."""
+type SilencedActorEdge {
+  """Unique identifier of the actor preference row."""
+  id: Int!
+
+  """Recipient user id that owns this preference."""
+  userId: Int!
+
+  """Actor user id whose notifications are silenced."""
+  actorId: Int!
+
+  """Whether notifications from this actor are enabled."""
+  notificationsEnabled: Boolean!
+
+  """Safe public profile for the silenced actor."""
+  actor: SafeUser
+
+  """When this actor preference was created."""
+  createdAt: DateTime!
+}
+
+"""Cursor-paginated page of silenced notification actors."""
+type SilencedActorPage {
+  """Silenced actor edges returned for the current page."""
+  items: [SilencedActorEdge!]!
+
+  """Cursor navigation metadata for the current page."""
+  pageInfo: PageInfo!
+}
+
 """Represents one directional mute relationship edge."""
 type MuteEdgeDTO {
   """Unique identifier of the mute edge."""
@@ -233,6 +263,18 @@ type MutedUserPage {
 
   """Cursor navigation metadata for the current page."""
   pageInfo: PageInfo!
+}
+
+"""Unified current-user interaction preference snapshot."""
+type UserInteractionPreferences {
+  """Global notification category preferences."""
+  notificationPreferences: NotificationPreferences!
+
+  """Current page of muted user relationships."""
+  mutedUsers: MutedUserPage!
+
+  """Current page of notification-silenced actors."""
+  silencedActors: SilencedActorPage!
 }
 
 """Minimal public user representation for nested fields"""
@@ -1334,6 +1376,19 @@ type Query {
   ): NotificationPage!
   unreadNotificationsCount: Int!
   myNotificationPreferences: NotificationPreferences!
+  myInteractionPreferences(mutedFirst: Int, mutedAfter: String, silencedFirst: Int, silencedAfter: String): UserInteractionPreferences!
+  mySilencedNotificationActors(
+    """Maximum number of items to return (1-${PAGINATION.MAX_TAKE})."""
+    first: Int
+
+    """
+    Cursor for the last item from the previous page. Reuse it only with the same filter and ordering inputs.
+    """
+    after: String
+
+    """Controls chronological ordering for paged list results."""
+    orderBy: ChronologicalOrder
+  ): SilencedActorPage!
   postsByHashtag(
     """Maximum number of items to return (1-${PAGINATION.MAX_TAKE})."""
     first: Int
@@ -1505,6 +1560,8 @@ type Mutation {
   deleteComment(commentId: Int!): MessageResponse!
   removeCommentByModerator(input: RemoveCommentByModeratorInput!): MessageResponse!
   updateNotificationPreferences(input: UpdateNotificationPreferencesInput!): NotificationPreferences!
+  silenceNotificationsFromActor(actorId: Int!): SilencedActorEdge!
+  unsilenceNotificationsFromActor(actorId: Int!): Boolean!
   markNotificationAsRead(notificationId: Int!): MessageResponse!
   markAllNotificationsAsRead: MessageResponse!
   createLike(postId: Int!): LikeListItem!

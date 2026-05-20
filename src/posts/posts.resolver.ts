@@ -15,7 +15,6 @@ import { CreatePostInput } from "@/posts/dto/create-post.input";
 import { UpdatePostInput } from "@/posts/dto/update-post.input";
 import { PostDetail } from "@/posts/models/post-detail.model";
 import { FindPostsArgs } from "@/posts/args/find-posts.args";
-import { FeedReadService } from "@/posts/feed-read.service";
 import { HomeFeedArgs } from "@/posts/args/home-feed.args";
 import { PostPage } from "@/posts/models/post-page.model";
 import { PostsService } from "@/posts/posts.service";
@@ -27,10 +26,7 @@ import { MODERATION_ROLES } from "@/users/enums/user-role.enum";
 
 @Resolver(() => Post)
 export class PostsResolver {
-  constructor(
-    private readonly postsService: PostsService,
-    private readonly feedReadService: FeedReadService,
-  ) {}
+  constructor(private readonly postsService: PostsService) {}
 
   @Public()
   @Throttle({ default: THROTTLE_LIMITS.LIST })
@@ -81,7 +77,7 @@ export class PostsResolver {
     @CurrentUser() user: { id: number },
     @Args() args: HomeFeedArgs,
   ): Promise<HomeFeedPage> {
-    return this.feedReadService.getHomeFeed(user.id, args);
+    return this.postsService.homeFeed(user.id, args);
   }
 
   @Throttle({ default: THROTTLE_LIMITS.MUTATION })

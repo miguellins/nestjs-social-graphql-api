@@ -23,3 +23,11 @@ The comments module owns top-level comments, one-level replies, comment thread r
 - self-reply notifications are suppressed
 - blocked-pair reply notifications are suppressed
 - when outbox-backed reply delivery is enabled, the notification row and outbox row are persisted transactionally
+
+
+## Service ownership
+
+- `CommentsService` is the resolver-facing facade for create, read, update, delete, and moderator removal delegation.
+- `CommentsReadService` owns post comment reads, threaded reply shaping, readable-post checks, visibility checks, and comment read projection.
+- `CommentWriteService` owns create, update, delete, comment counter transactions, reply validation, mention sync, reply notification/outbox behavior, and write-side cache invalidation.
+- `CommentModerationService` owns moderator comment removal, moderator role checks, linked-report actioning, moderation action persistence, counter decrement, and moderation cache invalidation.

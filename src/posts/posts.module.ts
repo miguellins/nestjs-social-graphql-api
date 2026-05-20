@@ -11,7 +11,11 @@ import { MutesModule } from "@/mutes/mutes.module";
 import { HomeFeedProjectionService } from "@/posts/home-feed-projection.service";
 import { HomeFeedOutboxHandler } from "@/posts/home-feed-outbox.handler";
 import { FeedReadService } from "@/posts/feed-read.service";
+import { PostCacheService } from "@/posts/post-cache.service";
+import { PostListReadService } from "@/posts/post-list-read.service";
+import { PostModerationService } from "@/posts/post-moderation.service";
 import { PostReadService } from "@/posts/post-read.service";
+import { PostWriteService } from "@/posts/post-write.service";
 import { PostsResolver } from "@/posts/posts.resolver";
 import { PostsService } from "@/posts/posts.service";
 
@@ -30,7 +34,11 @@ import { PrismaModule } from "@/prisma/prisma.module";
   ],
   providers: [
     FeedReadService,
+    PostCacheService,
+    PostListReadService,
+    PostModerationService,
     PostReadService,
+    PostWriteService,
     HomeFeedProjectionService,
     HomeFeedOutboxHandler,
     PostsService,

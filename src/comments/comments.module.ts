@@ -1,5 +1,10 @@
 import { forwardRef, Module } from "@nestjs/common";
 
+import { CommentCacheService } from "@/comments/comment-cache.service";
+import { CommentCreateService } from "@/comments/comment-create.service";
+import { CommentGuardsService } from "@/comments/comment-guards.service";
+import { CommentModerationService } from "@/comments/comment-moderation.service";
+import { CommentWriteService } from "@/comments/comment-write.service";
 import { CommentsReadService } from "@/comments/comments-read.service";
 import { CommentsResolver } from "@/comments/comments.resolver";
 import { CommentsService } from "@/comments/comments.service";
@@ -20,7 +25,16 @@ import { MutesModule } from "@/mutes/mutes.module";
     forwardRef(() => OutboxModule),
     MentionsModule,
   ],
-  providers: [CommentsReadService, CommentsService, CommentsResolver],
+  providers: [
+    CommentCacheService,
+    CommentCreateService,
+    CommentGuardsService,
+    CommentModerationService,
+    CommentWriteService,
+    CommentsReadService,
+    CommentsService,
+    CommentsResolver,
+  ],
   exports: [CommentsReadService, CommentsService],
 })
 export class CommentsModule {}
