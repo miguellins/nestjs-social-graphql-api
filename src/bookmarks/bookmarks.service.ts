@@ -27,6 +27,7 @@ import { BookmarkSelect, type BookmarkDTO } from "@/bookmarks/dto/bookmark.dto";
 
 import { PostReadService } from "@/posts/post-read.service";
 import { MutesService } from "@/mutes/mutes.service";
+import { MuteScope } from "@/mutes/enums/mute-scope.enum";
 
 import { AccountState } from "@/users/enums/account-state.enum";
 
@@ -220,7 +221,10 @@ export class BookmarksService {
   ): Promise<Prisma.PostWhereInput> {
     const blockedAuthorIds =
       await this.postReadService.getBlockedAuthorIds(viewerId);
-    const mutedAuthorIds = await this.mutesService.getMutedUserIds(viewerId);
+    const mutedAuthorIds = await this.mutesService.getMutedUserIdsForScope(
+      viewerId,
+      MuteScope.POSTS,
+    );
     const filters: Prisma.PostWhereInput[] = [
       {
         removedAt: null,

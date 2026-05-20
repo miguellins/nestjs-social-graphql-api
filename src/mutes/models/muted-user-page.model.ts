@@ -1,14 +1,14 @@
 import { Field, ObjectType } from "@nestjs/graphql";
 
 import { PageInfo } from "@/common/models/page-info.model";
-import { SafeUser } from "@/users/models/safe-user.model";
+import { MuteEdgeDTO } from "@/mutes/dto/mute-edge.dto";
 
-/** Cursor-paginated page of users muted by the current user. */
+/** Cursor-paginated page of mute relationship edges for the current user. */
 @ObjectType()
 export class MutedUserPage {
-  /** Items returned for the current page. */
-  @Field(() => [SafeUser])
-  items!: SafeUser[];
+  /** Mute edges returned for the current page. */
+  @Field(() => [MuteEdgeDTO])
+  items!: MuteEdgeDTO[];
 
   /** Cursor navigation metadata for the current page. */
   @Field(() => PageInfo)

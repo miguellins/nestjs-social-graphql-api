@@ -35,6 +35,7 @@ import { PrismaService } from "@/prisma/prisma.service";
 import { AccountState } from "@/users/enums/account-state.enum";
 import { UserPrivacySetting } from "@/users/enums/user-privacy-setting.enum";
 import { MutesService } from "@/mutes/mutes.service";
+import { MuteScope } from "@/mutes/enums/mute-scope.enum";
 
 import { PostsService } from "./posts.service";
 import { OutboxService } from "@/outbox/outbox.service";
@@ -80,6 +81,7 @@ describe("PostsService", () => {
     };
     userBlock: {
       findMany: jest.Mock;
+      findFirst: jest.Mock;
     };
     $transaction: jest.Mock;
   } = {
@@ -102,6 +104,7 @@ describe("PostsService", () => {
     },
     userBlock: {
       findMany: jest.fn(),
+      findFirst: jest.fn(),
     },
     $transaction: jest.fn(),
   };
@@ -159,8 +162,8 @@ describe("PostsService", () => {
   };
 
   const mutesServiceMock = {
-    getMutedUserIds: jest.fn(),
-    isMuted: jest.fn(),
+    getMutedUserIdsForScope: jest.fn(),
+    isMutedForScope: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -188,8 +191,8 @@ describe("PostsService", () => {
       publicCountChanged: false,
     });
     hashtagsServiceMock.isPubliclyCountablePost.mockReturnValue(true);
-    mutesServiceMock.getMutedUserIds.mockResolvedValue([]);
-    mutesServiceMock.isMuted.mockResolvedValue(false);
+    mutesServiceMock.getMutedUserIdsForScope.mockResolvedValue([]);
+    mutesServiceMock.isMutedForScope.mockResolvedValue(false);
     prismaMock.$transaction.mockImplementation((cb: (tx: never) => unknown) =>
       cb(prismaMock as never),
     );
@@ -553,6 +556,45 @@ describe("PostsService", () => {
         select: SafePostListSelect,
       });
     });
+
+    it("throws NotFoundException when an authenticated viewer POSTS-muted the author", async () => {
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: 7,
+        privacySetting: UserPrivacySetting.PUBLIC,
+        accountState: AccountState.ACTIVE,
+      });
+      prismaMock.userBlock.findFirst.mockResolvedValue(null);
+      mutesServiceMock.isMutedForScope.mockResolvedValue(true);
+
+      await expect(
+        service.findPostsByUsername("tester", { first: 5 }, { id: 10 }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+
+      expect(mutesServiceMock.isMutedForScope).toHaveBeenCalledWith(
+        10,
+        7,
+        MuteScope.POSTS,
+      );
+      expect(prismaMock.post.findMany).not.toHaveBeenCalled();
+    });
+
+    it("returns the public timeline when no viewer is provided even if POSTS mutes exist", async () => {
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: 7,
+        privacySetting: UserPrivacySetting.PUBLIC,
+        accountState: AccountState.ACTIVE,
+      });
+      cacheMock.getVersion.mockResolvedValue(1);
+      const visibleRows = [makeListPost(2), makeListPost(1)];
+      prismaMock.post.findMany.mockResolvedValue(visibleRows);
+      mutesServiceMock.isMutedForScope.mockResolvedValue(true);
+
+      const result = await service.findPostsByUsername("tester");
+
+      expect(result.items).toEqual(visibleRows);
+      expect(mutesServiceMock.isMutedForScope).not.toHaveBeenCalled();
+      expect(prismaMock.post.findMany).toHaveBeenCalled();
+    });
   });
 
   describe("myFeed", () => {
@@ -599,6 +641,10 @@ describe("PostsService", () => {
       expect(result.items).toEqual(rows);
       expect(result.pageInfo.hasNextPage).toBe(false);
       expect(result.pageInfo.endCursor).toBeDefined();
+      expect(mutesServiceMock.getMutedUserIdsForScope).toHaveBeenCalledWith(
+        7,
+        MuteScope.FEED,
+      );
     });
 
     it("applies the feed cursor filter", async () => {

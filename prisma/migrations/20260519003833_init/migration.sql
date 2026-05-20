@@ -171,6 +171,7 @@ CREATE TABLE `Mute` (
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `muterId` INTEGER NOT NULL,
     `mutedUserId` INTEGER NOT NULL,
+    `scopes` JSON NOT NULL,
 
     INDEX `Mute_muterId_createdAt_id_idx`(`muterId`, `createdAt` DESC, `id` DESC),
     INDEX `Mute_mutedUserId_idx`(`mutedUserId`),
@@ -290,6 +291,20 @@ CREATE TABLE `NotificationPreference` (
     `updatedAt` DATETIME(3) NOT NULL,
 
     UNIQUE INDEX `NotificationPreference_userId_key`(`userId`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `NotificationActorPreference` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `userId` INTEGER NOT NULL,
+    `actorId` INTEGER NOT NULL,
+    `notificationsEnabled` BOOLEAN NOT NULL DEFAULT false,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    INDEX `NotificationActorPreference_userId_createdAt_id_idx`(`userId`, `createdAt` DESC, `id` DESC),
+    UNIQUE INDEX `NotificationActorPreference_userId_actorId_key`(`userId`, `actorId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -535,6 +550,12 @@ ALTER TABLE `Notification` ADD CONSTRAINT `Notification_recipientId_fkey` FOREIG
 
 -- AddForeignKey
 ALTER TABLE `NotificationPreference` ADD CONSTRAINT `NotificationPreference_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `NotificationActorPreference` ADD CONSTRAINT `NotificationActorPreference_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `NotificationActorPreference` ADD CONSTRAINT `NotificationActorPreference_actorId_fkey` FOREIGN KEY (`actorId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `HomeFeedEntry` ADD CONSTRAINT `HomeFeedEntry_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;

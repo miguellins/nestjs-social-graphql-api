@@ -67,6 +67,7 @@ import {
 import type { AuthenticatedUser } from "@/auth/authenticated-user.type";
 
 import { MutesService } from "@/mutes/mutes.service";
+import { MuteScope } from "@/mutes/enums/mute-scope.enum";
 
 import { PrismaService } from "@/prisma/prisma.service";
 import { Prisma } from "@prisma/client";
@@ -130,7 +131,10 @@ export class PostsService {
       const blockedAuthorIds = await this.postReadService.getBlockedAuthorIds(
         viewer.id,
       );
-      const mutedAuthorIds = await this.mutesService.getMutedUserIds(viewer.id);
+      const mutedAuthorIds = await this.mutesService.getMutedUserIdsForScope(
+        viewer.id,
+        MuteScope.POSTS,
+      );
       const filters: Prisma.PostWhereInput[] = [
         {
           removedAt: null,
@@ -1008,7 +1012,13 @@ export class PostsService {
       return false;
     }
 
-    if (await this.mutesService.isMuted(viewerId, author.id)) {
+    if (
+      await this.mutesService.isMutedForScope(
+        viewerId,
+        author.id,
+        MuteScope.POSTS,
+      )
+    ) {
       return false;
     }
 

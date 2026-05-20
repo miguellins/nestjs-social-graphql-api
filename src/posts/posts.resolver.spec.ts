@@ -2,6 +2,70 @@ import { PostsResolver } from "./posts.resolver";
 import { ChronologicalOrder } from "@/common/enums/chronological-order.enum";
 
 describe("PostsResolver", () => {
+  it("forwards anonymous public post reads without a viewer", async () => {
+    const postsService = {
+      findPosts: jest.fn().mockResolvedValue({ items: [], pageInfo: {} }),
+      getPost: jest.fn().mockResolvedValue({ id: 10 }),
+      findPostsByUsername: jest
+        .fn()
+        .mockResolvedValue({ items: [], pageInfo: {} }),
+    };
+    const feedReadService = {
+      getHomeFeed: jest.fn(),
+    };
+
+    const resolver = new PostsResolver(
+      postsService as never,
+      feedReadService as never,
+    );
+
+    await resolver.posts({ first: 5 }, null);
+    await resolver.postById(10, null);
+    await resolver.postsByUsername({ username: "author", first: 5 }, null);
+
+    expect(postsService.findPosts).toHaveBeenCalledWith(
+      { first: 5 },
+      undefined,
+    );
+    expect(postsService.getPost).toHaveBeenCalledWith(10, undefined);
+    expect(postsService.findPostsByUsername).toHaveBeenCalledWith(
+      "author",
+      { username: "author", first: 5 },
+      undefined,
+    );
+  });
+
+  it("forwards authenticated public post reads with the viewer for mute-aware filtering", async () => {
+    const viewer = { id: 7 };
+    const postsService = {
+      findPosts: jest.fn().mockResolvedValue({ items: [], pageInfo: {} }),
+      getPost: jest.fn().mockResolvedValue({ id: 10 }),
+      findPostsByUsername: jest
+        .fn()
+        .mockResolvedValue({ items: [], pageInfo: {} }),
+    };
+    const feedReadService = {
+      getHomeFeed: jest.fn(),
+    };
+
+    const resolver = new PostsResolver(
+      postsService as never,
+      feedReadService as never,
+    );
+
+    await resolver.posts({ first: 5 }, viewer);
+    await resolver.postById(10, viewer);
+    await resolver.postsByUsername({ username: "author", first: 5 }, viewer);
+
+    expect(postsService.findPosts).toHaveBeenCalledWith({ first: 5 }, viewer);
+    expect(postsService.getPost).toHaveBeenCalledWith(10, viewer);
+    expect(postsService.findPostsByUsername).toHaveBeenCalledWith(
+      "author",
+      { username: "author", first: 5 },
+      viewer,
+    );
+  });
+
   it("forwards homeFeed args to the feed read service", async () => {
     const postsService = {
       removePostByModerator: jest.fn(),

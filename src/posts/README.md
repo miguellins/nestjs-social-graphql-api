@@ -18,6 +18,9 @@ The posts module owns post creation and updates, public and viewer-aware post re
 ## Important behavior
 
 - post reads are privacy-aware and block-aware
+- public post reads are anonymous when no valid `Authorization: Bearer <token>`
+  is provided; viewer-specific `POSTS` mute filtering requires a valid bearer
+  token so `@CurrentUser()` can pass the viewer into the service
 - `postById` returns `commentsCount` and inline comments when available
 - post detail views also carry `viewsCount`
 - cache invalidation is versioned and targeted

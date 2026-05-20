@@ -37,6 +37,7 @@ import {
 import { AccountState } from "@/users/enums/account-state.enum";
 
 import { MutesService } from "@/mutes/mutes.service";
+import { MuteScope } from "@/mutes/enums/mute-scope.enum";
 
 import { PrismaService } from "@/prisma/prisma.service";
 import { Prisma } from "@prisma/client";
@@ -283,8 +284,10 @@ export class FeedReadService {
       : undefined;
     const blockedAuthorIds =
       await this.postReadService.getBlockedAuthorIds(currentUserId);
-    const mutedAuthorIds =
-      await this.mutesService.getMutedUserIds(currentUserId);
+    const mutedAuthorIds = await this.mutesService.getMutedUserIdsForScope(
+      currentUserId,
+      MuteScope.FEED,
+    );
 
     const filters: Prisma.PostWhereInput[] = [
       {
@@ -392,8 +395,10 @@ export class FeedReadService {
           }
       : undefined;
 
-    const mutedAuthorIds =
-      await this.mutesService.getMutedUserIds(currentUserId);
+    const mutedAuthorIds = await this.mutesService.getMutedUserIdsForScope(
+      currentUserId,
+      MuteScope.FEED,
+    );
 
     const entries = await this.prisma.homeFeedEntry.findMany({
       take: take + 1,

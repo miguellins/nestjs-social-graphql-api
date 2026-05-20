@@ -34,6 +34,7 @@ import {
 } from "@/hashtags/hashtag-parser";
 
 import { MutesService } from "@/mutes/mutes.service";
+import { MuteScope } from "@/mutes/enums/mute-scope.enum";
 
 import { PrismaService } from "@/prisma/prisma.service";
 
@@ -408,7 +409,10 @@ export class HashtagsService {
     if (params.viewerId) {
       const [blockedAuthorIds, mutedAuthorIds] = await Promise.all([
         this.postReadService.getBlockedAuthorIds(params.viewerId),
-        this.mutesService.getMutedUserIds(params.viewerId),
+        this.mutesService.getMutedUserIdsForScope(
+          params.viewerId,
+          MuteScope.POSTS,
+        ),
       ]);
 
       if (blockedAuthorIds.length > 0) {

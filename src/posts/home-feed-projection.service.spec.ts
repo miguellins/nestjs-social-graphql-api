@@ -3,6 +3,8 @@ import { ConfigService } from "@nestjs/config";
 import { HomeFeedProjectionService } from "@/posts/home-feed-projection.service";
 
 import { PrismaService } from "@/prisma/prisma.service";
+import { MuteScope } from "@/mutes/enums/mute-scope.enum";
+import { MutesService } from "@/mutes/mutes.service";
 
 describe("HomeFeedProjectionService", () => {
   const prismaMock = {
@@ -15,9 +17,6 @@ describe("HomeFeedProjectionService", () => {
       findMany: jest.fn(),
       groupBy: jest.fn(),
       updateMany: jest.fn(),
-    },
-    mute: {
-      findMany: jest.fn(),
     },
     post: {
       findFirst: jest.fn(),
@@ -33,17 +32,22 @@ describe("HomeFeedProjectionService", () => {
   const configServiceMock = {
     get: jest.fn(),
   };
+  const mutesServiceMock = {
+    getMutedUserIdsForScope: jest.fn(),
+  };
 
   let service: HomeFeedProjectionService;
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mutesServiceMock.getMutedUserIdsForScope.mockResolvedValue([]);
     configServiceMock.get.mockImplementation((key: string) => {
       if (key === "MUTES_ENABLED") return false;
       return undefined;
     });
     service = new HomeFeedProjectionService(
       prismaMock as unknown as PrismaService,
+      mutesServiceMock as unknown as MutesService,
       configServiceMock as unknown as ConfigService,
     );
   });
@@ -144,6 +148,7 @@ describe("HomeFeedProjectionService", () => {
     });
     service = new HomeFeedProjectionService(
       prismaMock as unknown as PrismaService,
+      mutesServiceMock as unknown as MutesService,
       configServiceMock as unknown as ConfigService,
     );
     prismaMock.post.findMany.mockResolvedValue([]);
@@ -163,6 +168,25 @@ describe("HomeFeedProjectionService", () => {
     expect(prismaMock.post.findMany).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({ take: 75 }),
+    );
+  });
+
+  it("uses FEED-scoped mutes for projection reconciliation", async () => {
+    prismaMock.homeFeedEntry.groupBy.mockResolvedValue([{ userId: 1 }]);
+    prismaMock.user.findMany.mockResolvedValue([]);
+    prismaMock.userBlock.findMany.mockResolvedValue([]);
+    mutesServiceMock.getMutedUserIdsForScope.mockResolvedValue([2]);
+    prismaMock.homeFeedEntry.findMany.mockResolvedValue([]);
+    prismaMock.post.findMany.mockResolvedValue([]);
+
+    await service.reconcileSampledUsers({
+      pageSize: 100,
+      sampleSize: 25,
+    });
+
+    expect(mutesServiceMock.getMutedUserIdsForScope).toHaveBeenCalledWith(
+      1,
+      MuteScope.FEED,
     );
   });
 });

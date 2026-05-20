@@ -117,6 +117,8 @@ export const envSchema = z.object({
     .default(0.5),
 
   MUTES_ENABLED: booleanFromEnv.default(false),
+  MUTE_SCOPES_ENABLED: booleanFromEnv.default(false),
+  NOTIFICATION_ACTOR_SILENCE_ENABLED: booleanFromEnv.default(false),
 });
 
 /** Type representing the validated application environment variables. */

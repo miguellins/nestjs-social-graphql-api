@@ -10,6 +10,7 @@ import { FeedReadService } from "@/posts/feed-read.service";
 import { HomeFeedItemSelect } from "@/posts/dto/home-feed-item.dto";
 import { PostReadService } from "@/posts/post-read.service";
 import { MutesService } from "@/mutes/mutes.service";
+import { MuteScope } from "@/mutes/enums/mute-scope.enum";
 
 import { MediaReadProjectionService } from "@/media/media-read-projection.service";
 import { R2StorageService } from "@/media/storage/r2-storage.service";
@@ -44,7 +45,7 @@ describe("FeedReadService", () => {
   };
 
   const mutesServiceMock = {
-    getMutedUserIds: jest.fn(),
+    getMutedUserIdsForScope: jest.fn(),
   };
 
   const r2StorageMock = {
@@ -113,7 +114,7 @@ describe("FeedReadService", () => {
       accountState: AccountState.ACTIVE,
     });
     postReadServiceMock.getBlockedAuthorIds.mockResolvedValue([]);
-    mutesServiceMock.getMutedUserIds.mockResolvedValue([]);
+    mutesServiceMock.getMutedUserIdsForScope.mockResolvedValue([]);
     r2StorageMock.getPublicUrl.mockImplementation(
       (objectKey: string) => `https://media.example.com/${objectKey}`,
     );
@@ -237,6 +238,10 @@ describe("FeedReadService", () => {
     expect(
       metricsRegistryMock.incrementHomeFeedReadSource,
     ).toHaveBeenCalledWith("legacy");
+    expect(mutesServiceMock.getMutedUserIdsForScope).toHaveBeenCalledWith(
+      7,
+      MuteScope.FEED,
+    );
   });
 
   it("reads home feed from projection when enabled", async () => {

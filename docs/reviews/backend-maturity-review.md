@@ -58,7 +58,7 @@ Biggest current strengths:
   - account-state enforcement
 - Stronger trust/safety than a typical project at this stage:
   - blocks
-  - mutes, including durable projection cleanup for newly muted authors
+  - scoped mutes, including durable projection cleanup when FEED scope is added
   - reports
   - moderation review/actions
   - moderator takedowns for posts/comments
@@ -74,6 +74,7 @@ Biggest current strengths:
   - normalized hashtags with `postsByHashtag` and `searchHashtags`
   - hashtag backfill/reconciliation script and runbook for historical join and count drift
   - in-app notification preferences for replies, follow requests, mentions, post likes, and new followers
+  - per-actor notification silence and a unified interaction-preferences read
   - dedicated `myFeed` and `homeFeed` surfaces
   - durable notifications before realtime publish for reply and follow-request flows
   - early durable feed projection path
@@ -133,7 +134,6 @@ Where it still feels MVP-like:
 
 Highest-priority remaining gaps after the current ops, outbox, and feed-projection work:
 - The product model is still incomplete for a realistic social platform:
-  - richer mute/preference controls beyond the current user-level mute
   - repost/share/quote flows
   - stronger discovery beyond v1 hashtag autocomplete
 - Feed maturity is still limited:
@@ -169,8 +169,8 @@ Best remaining improvements, excluding any single top feature:
 
 Still missing for a realistic MVP:
 - Profile extensions beyond the v1 bio, website, location, and avatar surface
-- Richer notification preference matrices beyond the current in-app category toggles
-- Richer mute controls beyond the current flag-gated user-level mute system
+- Notification preferences are still in-app only and do not yet model push/email channels, digests, or quiet hours
+- Mute controls still lack expiration, bulk operations, and automatic projection un-hide
 - More realistic discovery surfaces beyond hashtag prefix search
 - Broader moderation console/operator workflow
 
@@ -194,8 +194,7 @@ Still missing for a more mature platform:
   - bootstrap wires logger, request context, filters, validation, security, and boot-complete tracking explicitly
   - `MetricsModule` exposes Prometheus-compatible metrics on a dedicated
     internal endpoint when enabled
-  - notification preference suppressions emit a low-cardinality Prometheus
-    counter with `reason="prefs"`
+  - notification suppressions emit a low-cardinality Prometheus counter with `reason="mute"`, `reason="actor"`, and `reason="prefs"`
   - outbox/feed-projection alert rules, a Grafana dashboard, and an outbox
     backlog runbook exist
 - Still missing:
@@ -226,7 +225,7 @@ Still missing for a more mature platform:
     ordered by public-scope `postsCount`
   - `HomeFeedProjectionService` now supports fanout, follow backfill, user bootstrap, cleanup, soft-hide, and retention purging
   - `HomeFeedOutboxHandler` routes feed projection events through the durable outbox worker path
-  - newly created mute relationships enqueue durable relationship-hide work so projected rows for muted authors are soft-hidden
+  - mutes are now scoped by FEED, POSTS, COMMENTS, and NOTIFICATIONS, with FEED additions enqueueing durable relationship-hide work so projected rows for muted authors are soft-hidden
   - projected home-feed reads can be enabled behind feature flags and compared against legacy reads through shadow comparison
   - projection read rollout has explicit allow/deny user gates, configurable fallback behavior, hashed shadow diagnostics, and a read-lag metric
   - feed-projection outbox rows are visible by concrete event type in readiness, while backlog remains report-only
@@ -241,7 +240,9 @@ Still missing for a more mature platform:
   - trigger/delivery split exists
   - Redis-backed realtime remains in place
   - mention, reply, and follow-request notifications exist
-  - muted actors are suppressed or filtered in notification creation, realtime delivery, and notification reads
+  - NOTIFICATIONS-scope muted actors are suppressed or filtered in notification creation, realtime delivery, and notification reads
+  - per-actor notification silence suppresses new persistence and delayed realtime delivery without retroactively hiding existing notification rows
+  - `myInteractionPreferences` gives clients a unified read for global notification preferences, muted users, and silenced actors
   - reply and follow-request delivery have outbox-backed durable worker paths
   - feed projection now also uses outbox events for fanout/backfill/bootstrap/cleanup and relationship-hide work
 - Still missing:
@@ -258,10 +259,10 @@ Current protections are stronger than the previous writeup implied because the p
 - cleaner bad-request transport behavior for GraphQL clients
 - explicit account-state modeling
 - block-aware visibility and notification suppression
-- mute-aware feed/comment/bookmark/notification filtering
+- scope-aware mute filtering across feed, post, comment, bookmark, hashtag, and notification surfaces
 
 Still missing:
-- richer mute/preference controls
+- expiration, bulk management, channel preferences, and richer notification scheduling controls
 - broader anti-abuse tooling
 - richer moderation workflows like appeals, escalations, and operator UX
 
@@ -304,7 +305,7 @@ Testing maturity is stronger than the previous review stated because the repo ha
 - follow-request notification delivery through direct and outbox-backed paths
 - feed read behavior
 - home-feed outbox processor behavior
-- mutes service/resolver behavior and mute-aware filtering paths
+- mutes service/resolver behavior and scope-aware mute filtering paths
 - hashtag parsing, transactional hashtag sync, counter deltas, and hashtag
   post visibility/cache behavior
 

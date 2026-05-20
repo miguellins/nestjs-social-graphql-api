@@ -16,6 +16,7 @@ import {
 } from "@/common/pagination/cursor-pagination";
 
 import { NotificationPreferencesService } from "@/notifications/notification-preferences.service";
+import { NotificationActorPreferencesService } from "@/notifications/notification-actor-preferences.service";
 import { NotificationReadStatus } from "@/notifications/enums/notification-read-status.enum";
 import { NotificationDeliveryService } from "@/notifications/notification-delivery.service";
 import {
@@ -33,6 +34,7 @@ import { PrismaService } from "@/prisma/prisma.service";
 import { MetricsRegistryService } from "@/metrics/metrics-registry.service";
 
 import { MutesService } from "@/mutes/mutes.service";
+import { MuteScope } from "@/mutes/enums/mute-scope.enum";
 
 type PaginationParams = {
   after?: string;
@@ -50,6 +52,7 @@ export class NotificationsService {
     private readonly prisma: PrismaService,
     private readonly notificationDelivery: NotificationDeliveryService,
     private readonly notificationPreferences: NotificationPreferencesService,
+    private readonly actorPreferences: NotificationActorPreferencesService,
     private readonly mutesService: MutesService,
     private readonly metricsRegistry: MetricsRegistryService,
   ) {}
@@ -76,6 +79,7 @@ export class NotificationsService {
     return notification;
   }
 
+  /** Persists a notification unless blocks, scoped mutes, actor silence, or global prefs suppress it. */
   async createNotification(
     input: CreateNotificationInput,
     client: NotificationWriteClient = this.prisma,
@@ -106,7 +110,26 @@ export class NotificationsService {
 
     if (blockRelationship) return null;
 
-    if (await this.mutesService.isMuted(data.recipientId, data.actorId)) {
+    if (
+      await this.mutesService.isMutedForScope(
+        data.recipientId,
+        data.actorId,
+        MuteScope.NOTIFICATIONS,
+      )
+    ) {
+      this.metricsRegistry.incrementNotificationSuppressed("mute");
+
+      return null;
+    }
+
+    if (
+      await this.actorPreferences.isActorSilenced(
+        data.recipientId,
+        data.actorId,
+      )
+    ) {
+      this.metricsRegistry.incrementNotificationSuppressed("actor");
+
       return null;
     }
 
@@ -129,6 +152,7 @@ export class NotificationsService {
     });
   }
 
+  /** Re-checks current delivery preferences before publishing an existing notification. */
   async publishPersistedNotificationIfNeeded(
     notificationId: number,
   ): Promise<"already-delivered" | "delivered" | "missing"> {
@@ -144,7 +168,19 @@ export class NotificationsService {
     if (notification.realtimeDeliveredAt) return "already-delivered";
 
     if (
-      await this.mutesService.isMuted(
+      await this.mutesService.isMutedForScope(
+        notification.recipientId,
+        notification.actorId,
+        MuteScope.NOTIFICATIONS,
+      )
+    ) {
+      await this.markRealtimeDelivered(notificationId);
+
+      return "already-delivered";
+    }
+
+    if (
+      await this.actorPreferences.isActorSilenced(
         notification.recipientId,
         notification.actorId,
       )
@@ -191,7 +227,10 @@ export class NotificationsService {
     const orderby = params?.orderBy ?? ChronologicalOrder.NEWEST;
     const cursor = params?.after ? decodeChronoCursor(params.after) : undefined;
     const cursorFilter = buildChronologicalCursorFilter(cursor, orderby);
-    const mutedActorIds = await this.mutesService.getMutedUserIds(userId);
+    const mutedActorIds = await this.mutesService.getMutedUserIdsForScope(
+      userId,
+      MuteScope.NOTIFICATIONS,
+    );
 
     const readFilter =
       status === NotificationReadStatus.READ
@@ -232,12 +271,20 @@ export class NotificationsService {
     return buildCursorPage(rows, limit);
   }
 
-  /** Returns the unread notification count for a user. */
+  /** Returns the unread notification count for a user, excluding NOTIFICATIONS-muted actors. */
   async getUnreadCount(userId: number): Promise<number> {
+    const mutedActorIds = await this.mutesService.getMutedUserIdsForScope(
+      userId,
+      MuteScope.NOTIFICATIONS,
+    );
+
     return this.prisma.notification.count({
       where: {
         recipientId: userId,
         isRead: false,
+        ...(mutedActorIds.length > 0
+          ? { actorId: { notIn: mutedActorIds } }
+          : {}),
       },
     });
   }

@@ -9,6 +9,7 @@ import { PrismaService } from "@/prisma/prisma.service";
 import { PostReadService } from "@/posts/post-read.service";
 import { SafePostDetailSelect } from "@/posts/dto/safe-post-detail.dto";
 import { MutesService } from "@/mutes/mutes.service";
+import { MuteScope } from "@/mutes/enums/mute-scope.enum";
 
 describe("PostReadService", () => {
   let service: PostReadService;
@@ -32,13 +33,13 @@ describe("PostReadService", () => {
   };
 
   const mutesServiceMock = {
-    getMutedUserIds: jest.fn(),
+    getMutedUserIdsForScope: jest.fn(),
   };
 
   beforeEach(async () => {
     jest.clearAllMocks();
     prismaMock.userBlock.findMany.mockResolvedValue([]);
-    mutesServiceMock.getMutedUserIds.mockResolvedValue([]);
+    mutesServiceMock.getMutedUserIdsForScope.mockResolvedValue([]);
     commentsReadServiceMock.listThreadedCommentsForPost.mockResolvedValue([
       {
         id: 30,
@@ -175,6 +176,10 @@ describe("PostReadService", () => {
       11,
       7,
       Math.min(PAGINATION.DEFAULT_TAKE, PAGINATION.MAX_TAKE),
+    );
+    expect(mutesServiceMock.getMutedUserIdsForScope).toHaveBeenCalledWith(
+      7,
+      MuteScope.POSTS,
     );
   });
 

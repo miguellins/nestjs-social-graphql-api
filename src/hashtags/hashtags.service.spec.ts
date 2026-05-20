@@ -7,6 +7,7 @@ import { UserPrivacySetting } from "@/users/enums/user-privacy-setting.enum";
 
 import { ChronologicalOrder } from "@/common/enums/chronological-order.enum";
 import { SafePostListSelect } from "@/posts/dto/safe-post-list.dto";
+import { MuteScope } from "@/mutes/enums/mute-scope.enum";
 
 import type { Prisma } from "@prisma/client";
 
@@ -44,7 +45,7 @@ describe("HashtagsService", () => {
     getBlockedAuthorIds: jest.fn(),
   };
   const mutesServiceMock = {
-    getMutedUserIds: jest.fn(),
+    getMutedUserIdsForScope: jest.fn(),
   };
 
   beforeEach(() => {
@@ -83,7 +84,7 @@ describe("HashtagsService", () => {
       },
     ]);
     postReadServiceMock.getBlockedAuthorIds.mockResolvedValue([]);
-    mutesServiceMock.getMutedUserIds.mockResolvedValue([]);
+    mutesServiceMock.getMutedUserIdsForScope.mockResolvedValue([]);
   });
 
   it("replaces joins and applies public counter deltas in the same transaction", async () => {
@@ -300,7 +301,7 @@ describe("HashtagsService", () => {
       },
     ]);
     postReadServiceMock.getBlockedAuthorIds.mockResolvedValue([2]);
-    mutesServiceMock.getMutedUserIds.mockResolvedValue([3]);
+    mutesServiceMock.getMutedUserIdsForScope.mockResolvedValue([3]);
 
     await service.postsByHashtag({ hashtag: "news", first: 5 }, { id: 7 });
 
@@ -313,6 +314,10 @@ describe("HashtagsService", () => {
           ]) as unknown[],
         },
       }),
+    );
+    expect(mutesServiceMock.getMutedUserIdsForScope).toHaveBeenCalledWith(
+      7,
+      MuteScope.POSTS,
     );
   });
 

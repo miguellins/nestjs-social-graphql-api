@@ -4,6 +4,8 @@ import { ConfigService } from "@nestjs/config";
 import { PrismaService } from "@/prisma/prisma.service";
 
 import type { HomeFeedShadowMismatchCategory } from "@/metrics/metrics-registry.service";
+import { MuteScope } from "@/mutes/enums/mute-scope.enum";
+import { MutesService } from "@/mutes/mutes.service";
 
 import { HomeFeedEntryReason, type Prisma } from "@prisma/client";
 
@@ -55,12 +57,12 @@ export class HomeFeedProjectionService {
   private readonly backfillPostLimit: number;
   private readonly bootstrapPostLimit: number;
   private readonly followerPageSize: number;
-  private readonly mutesEnabled: boolean;
   private readonly retentionDays: number;
   private readonly retentionMaxItemsPerUser: number;
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly mutesService: MutesService,
     configService: ConfigService,
   ) {
     this.fanoutBatchSize =
@@ -71,7 +73,6 @@ export class HomeFeedProjectionService {
       configService.get<number>("FEED_PROJECTION_BOOTSTRAP_POST_LIMIT") ?? 200;
     this.followerPageSize =
       configService.get<number>("FEED_PROJECTION_FOLLOWER_PAGE_SIZE") ?? 2_000;
-    this.mutesEnabled = configService.get<boolean>("MUTES_ENABLED") ?? false;
     this.retentionDays =
       configService.get<number>("FEED_PROJECTION_RETENTION_DAYS") ?? 90;
     this.retentionMaxItemsPerUser =
@@ -591,14 +592,7 @@ export class HomeFeedProjectionService {
 
   /** Returns authors muted by the viewer when mutes are enabled. */
   private async getMutedAuthorIds(userId: number): Promise<number[]> {
-    if (!this.mutesEnabled) return [];
-
-    const rows = await this.prisma.mute.findMany({
-      where: { muterId: userId },
-      select: { mutedUserId: true },
-    });
-
-    return rows.map((row) => row.mutedUserId);
+    return this.mutesService.getMutedUserIdsForScope(userId, MuteScope.FEED);
   }
 
   /** Restores existing soft-hidden projected entries included in rebuild/backfill input. */

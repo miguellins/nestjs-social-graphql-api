@@ -138,6 +138,18 @@ model User {
 
   /**
    * 1:N relation
+   * Per-actor notification preferences created by this user as recipient.
+   */
+  notificationActorPreferences NotificationActorPreference[] @relation("NotificationActorPreferenceUser")
+
+  /**
+   * 1:N relation
+   * Per-actor notification preferences where this user is the silenced actor.
+   */
+  notificationActorSilencedBy NotificationActorPreference[] @relation("NotificationActorPreferenceActor")
+
+  /**
+   * 1:N relation
    * Password reset tokens issued for this user
    */
   passwordResetTokens PasswordResetToken[]
@@ -715,6 +727,12 @@ model Mute {
   mutedUserId Int
 
   /**
+   * JSON array of active mute scopes.
+   * Application validation allows FEED, POSTS, COMMENTS, and NOTIFICATIONS.
+   */
+  scopes Json
+
+  /**
    * Relation to User (the muted user)
    * "MuteMuted" is the relation name
    * needed because User is referenced twice
@@ -1073,6 +1091,34 @@ model NotificationPreference {
    * onDelete: Cascade - delete preferences if the user is deleted
    */
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model NotificationActorPreference {
+  id Int @id @default(autoincrement())
+
+  // Recipient user who owns the preference
+  userId Int
+
+  // Actor whose notifications are silenced or allowed
+  actorId Int
+
+  notificationsEnabled Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /**
+   * Relation to User (the recipient preference owner)
+   */
+  user User @relation("NotificationActorPreferenceUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  /**
+   * Relation to User (the actor being silenced)
+   */
+  actor User @relation("NotificationActorPreferenceActor", fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, actorId])
+  @@index([userId, createdAt(sort: Desc), id(sort: Desc)])
 }
 
 model OutboxEvent {

@@ -22,6 +22,7 @@ import {
 import { HOME_FEED_RELATIONSHIP_HIDE_EVENT } from "@/outbox/events/home-feed-cleanup.event";
 import { OutboxService } from "@/outbox/outbox.service";
 
+import { ALL_MUTE_SCOPES, MuteScope } from "@/mutes/enums/mute-scope.enum";
 import { SafeUserSelect, type SafeUserDTO } from "@/users/dto/safe-user.dto";
 
 import { PrismaService } from "@/prisma/prisma.service";
@@ -36,13 +37,16 @@ type MuteEdgeDTO = {
   id: number;
   muterId: number;
   mutedUserId: number;
+  scopes: MuteScope[];
   createdAt: Date;
+  mutedUser?: SafeUserDTO;
 };
 
 @Injectable()
 export class MutesService {
   private readonly logger = new Logger(MutesService.name);
   private readonly mutesEnabled: boolean;
+  private readonly muteScopesEnabled: boolean;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -51,12 +55,16 @@ export class MutesService {
     configService: ConfigService,
   ) {
     this.mutesEnabled = configService.get<boolean>("MUTES_ENABLED") ?? false;
+    this.muteScopesEnabled =
+      configService.get<boolean>("MUTE_SCOPES_ENABLED") ?? false;
   }
 
+  /** Returns whether the mutes feature is available through public APIs. */
   isEnabled(): boolean {
     return this.mutesEnabled;
   }
 
+  /** Hides mute APIs when the master feature flag is disabled. */
   assertEnabled(): void {
     if (!this.mutesEnabled) {
       // Hide the feature behind a flag without leaking deployment state.
@@ -64,12 +72,19 @@ export class MutesService {
     }
   }
 
-  async muteUser(muterId: number, mutedUserId: number): Promise<MuteEdgeDTO> {
+  /** Creates or replaces a mute relationship and enqueues feed hiding when FEED is newly active. */
+  async muteUser(
+    muterId: number,
+    mutedUserId: number,
+    scopes?: MuteScope[],
+  ): Promise<MuteEdgeDTO> {
     this.assertEnabled();
 
     if (muterId === mutedUserId) {
       throw new BadRequestException("You cannot mute yourself");
     }
+
+    const nextScopes = this.normalizeRequestedScopes(scopes);
 
     const target = await this.prisma.user.findUnique({
       where: { id: mutedUserId },
@@ -80,28 +95,69 @@ export class MutesService {
       throw new NotFoundException("User not found");
     }
 
-    let edge: MuteEdgeDTO;
-    let created = false;
+    await this.assertNoBlockRelationship(muterId, mutedUserId);
 
-    try {
-      edge = await this.prisma.mute.create({
-        data: {
+    const existing = await this.prisma.mute.findUnique({
+      where: {
+        muterId_mutedUserId: {
           muterId,
           mutedUserId,
         },
-        select: {
-          id: true,
-          muterId: true,
-          mutedUserId: true,
-          createdAt: true,
-        },
-      });
-      created = true;
+      },
+      select: {
+        id: true,
+        muterId: true,
+        mutedUserId: true,
+        scopes: true,
+        createdAt: true,
+      },
+    });
+
+    let edge: MuteEdgeDTO;
+    const existingScopes = existing
+      ? this.parseStoredScopes(existing.scopes)
+      : [];
+    const shouldHideFeed =
+      nextScopes.includes(MuteScope.FEED) &&
+      !existingScopes.includes(MuteScope.FEED);
+
+    try {
+      if (existing) {
+        edge = this.toMuteEdge(
+          await this.prisma.mute.update({
+            where: { id: existing.id },
+            data: { scopes: nextScopes },
+            select: {
+              id: true,
+              muterId: true,
+              mutedUserId: true,
+              scopes: true,
+              createdAt: true,
+            },
+          }),
+        );
+      } else {
+        edge = this.toMuteEdge(
+          await this.prisma.mute.create({
+            data: {
+              muterId,
+              mutedUserId,
+              scopes: nextScopes,
+            },
+            select: {
+              id: true,
+              muterId: true,
+              mutedUserId: true,
+              scopes: true,
+              createdAt: true,
+            },
+          }),
+        );
+      }
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError) {
         if (err.code === "P2002") {
-          // Idempotent success: return the existing edge.
-          const existing = await this.prisma.mute.findUnique({
+          const racedExisting = await this.prisma.mute.findUnique({
             where: {
               muterId_mutedUserId: {
                 muterId,
@@ -112,12 +168,25 @@ export class MutesService {
               id: true,
               muterId: true,
               mutedUserId: true,
+              scopes: true,
               createdAt: true,
             },
           });
 
-          if (existing) {
-            edge = existing;
+          if (racedExisting) {
+            edge = this.toMuteEdge(
+              await this.prisma.mute.update({
+                where: { id: racedExisting.id },
+                data: { scopes: nextScopes },
+                select: {
+                  id: true,
+                  muterId: true,
+                  mutedUserId: true,
+                  scopes: true,
+                  createdAt: true,
+                },
+              }),
+            );
           } else {
             this.throwUnexpectedPersistenceFailure("mute user", err);
           }
@@ -131,40 +200,82 @@ export class MutesService {
       }
     }
 
-    void runBestEffort(
-      this.logger,
-      "error",
-      `Failed to invalidate caches after muting user ${mutedUserId} by user ${muterId}`,
-      async () => {
-        await this.cacheHelper.bumpVersion(
-          this.getMutedUsersListVersionKey(muterId),
-        );
-        await this.cacheHelper.bumpVersion(`v:user:${muterId}:bookmarks:list`);
-      },
-    );
-
-    if (created) {
-      void runBestEffort(
-        this.logger,
-        "error",
-        `Failed to enqueue home feed relationship hide for user ${muterId} -> author ${mutedUserId}`,
-        async () => {
-          await this.outboxService.enqueue({
-            eventType: HOME_FEED_RELATIONSHIP_HIDE_EVENT,
-            aggregateType: "user",
-            aggregateId: muterId,
-            payload: {
-              userId: muterId,
-              authorId: mutedUserId,
-            },
-          });
-        },
-      );
-    }
+    await this.invalidateMuteWriteCaches(muterId, mutedUserId, "muting");
+    this.enqueueRelationshipHideIfNeeded(muterId, mutedUserId, shouldHideFeed);
 
     return edge;
   }
 
+  /** Replaces the scope set on an existing mute relationship. */
+  async updateMuteScopes(
+    muterId: number,
+    mutedUserId: number,
+    scopes: MuteScope[],
+  ): Promise<MuteEdgeDTO> {
+    this.assertEnabled();
+
+    if (muterId === mutedUserId) {
+      throw new BadRequestException("You cannot mute yourself");
+    }
+
+    const nextScopes = this.normalizeRequestedScopes(scopes);
+    const existing = await this.prisma.mute.findUnique({
+      where: {
+        muterId_mutedUserId: {
+          muterId,
+          mutedUserId,
+        },
+      },
+      select: {
+        id: true,
+        scopes: true,
+      },
+    });
+
+    if (!existing) {
+      throw new NotFoundException("Mute not found");
+    }
+
+    await this.assertNoBlockRelationship(muterId, mutedUserId);
+
+    const shouldHideFeed =
+      nextScopes.includes(MuteScope.FEED) &&
+      !this.parseStoredScopes(existing.scopes).includes(MuteScope.FEED);
+
+    let edge: MuteEdgeDTO;
+
+    try {
+      edge = this.toMuteEdge(
+        await this.prisma.mute.update({
+          where: { id: existing.id },
+          data: { scopes: nextScopes },
+          select: {
+            id: true,
+            muterId: true,
+            mutedUserId: true,
+            scopes: true,
+            createdAt: true,
+          },
+        }),
+      );
+    } catch (err) {
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === "P2025"
+      ) {
+        throw new NotFoundException("Mute not found");
+      }
+
+      this.throwUnexpectedPersistenceFailure("update mute scopes", err);
+    }
+
+    await this.invalidateMuteWriteCaches(muterId, mutedUserId, "updating");
+    this.enqueueRelationshipHideIfNeeded(muterId, mutedUserId, shouldHideFeed);
+
+    return edge;
+  }
+
+  /** Deletes a mute relationship if present. */
   async unmuteUser(muterId: number, mutedUserId: number): Promise<boolean> {
     this.assertEnabled();
 
@@ -190,25 +301,16 @@ export class MutesService {
       this.throwUnexpectedPersistenceFailure("unmute user", err);
     }
 
-    void runBestEffort(
-      this.logger,
-      "error",
-      `Failed to invalidate caches after unmuting user ${mutedUserId} by user ${muterId}`,
-      async () => {
-        await this.cacheHelper.bumpVersion(
-          this.getMutedUsersListVersionKey(muterId),
-        );
-        await this.cacheHelper.bumpVersion(`v:user:${muterId}:bookmarks:list`);
-      },
-    );
+    await this.invalidateMuteWriteCaches(muterId, mutedUserId, "unmuting");
 
     return true;
   }
 
+  /** Returns a cursor page of mute edges with safe muted-user profiles. */
   async findMyMutedUsers(
     currentUserId: number,
     params?: MutePaginationParams,
-  ): Promise<CursorPageResult<SafeUserDTO>> {
+  ): Promise<CursorPageResult<MuteEdgeDTO>> {
     this.assertEnabled();
 
     const take = normalizeCursorTake(params?.first);
@@ -226,6 +328,9 @@ export class MutesService {
       take: take + 1,
       select: {
         id: true,
+        muterId: true,
+        mutedUserId: true,
+        scopes: true,
         createdAt: true,
         mutedUser: {
           select: SafeUserSelect,
@@ -234,8 +339,8 @@ export class MutesService {
     });
 
     const hasNextPage = rows.length > take;
-    const items = (hasNextPage ? rows.slice(0, take) : rows).map(
-      (row) => row.mutedUser,
+    const items = (hasNextPage ? rows.slice(0, take) : rows).map((row) =>
+      this.toMuteEdge(row),
     );
     const lastRow = (hasNextPage ? rows.slice(0, take) : rows).at(-1);
 
@@ -253,6 +358,7 @@ export class MutesService {
     };
   }
 
+  /** Returns whether any active mute scope exists for the relationship. */
   async isMuted(muterId: number, mutedUserId: number): Promise<boolean> {
     if (!this.mutesEnabled) return false;
     if (muterId === mutedUserId) return false;
@@ -264,21 +370,63 @@ export class MutesService {
           mutedUserId,
         },
       },
-      select: { id: true },
+      select: { scopes: true },
     });
 
-    return Boolean(row);
+    return Boolean(row && this.parseStoredScopes(row.scopes).length > 0);
   }
 
+  /** Returns whether the requested scope is active for the relationship. */
+  async isMutedForScope(
+    muterId: number,
+    mutedUserId: number,
+    scope: MuteScope,
+  ): Promise<boolean> {
+    if (!this.mutesEnabled) return false;
+    if (muterId === mutedUserId) return false;
+
+    const row = await this.prisma.mute.findUnique({
+      where: {
+        muterId_mutedUserId: {
+          muterId,
+          mutedUserId,
+        },
+      },
+      select: { scopes: true },
+    });
+
+    return Boolean(row && this.parseStoredScopes(row.scopes).includes(scope));
+  }
+
+  /** Returns muted user ids with any active scope for legacy GraphQL compatibility. */
   async getMutedUserIds(muterId: number): Promise<number[]> {
     if (!this.mutesEnabled) return [];
 
     const rows = await this.prisma.mute.findMany({
       where: { muterId },
-      select: { mutedUserId: true },
+      select: { mutedUserId: true, scopes: true },
     });
 
-    return rows.map((row) => row.mutedUserId);
+    return rows
+      .filter((row) => this.parseStoredScopes(row.scopes).length > 0)
+      .map((row) => row.mutedUserId);
+  }
+
+  /** Returns muted user ids where the requested scope is active. */
+  async getMutedUserIdsForScope(
+    muterId: number,
+    scope: MuteScope,
+  ): Promise<number[]> {
+    if (!this.mutesEnabled) return [];
+
+    const rows = await this.prisma.mute.findMany({
+      where: { muterId },
+      select: { mutedUserId: true, scopes: true },
+    });
+
+    return rows
+      .filter((row) => this.parseStoredScopes(row.scopes).includes(scope))
+      .map((row) => row.mutedUserId);
   }
 
   /** Builds the per-user muted-users list version cache key. */
@@ -286,9 +434,129 @@ export class MutesService {
     return `v:user:${userId}:mutes:list`;
   }
 
+  /** Converts a raw Prisma mute row into the public edge shape. */
+  private toMuteEdge(row: {
+    id: number;
+    muterId: number;
+    mutedUserId: number;
+    scopes: Prisma.JsonValue;
+    createdAt: Date;
+    mutedUser?: SafeUserDTO;
+  }): MuteEdgeDTO {
+    return {
+      id: row.id,
+      muterId: row.muterId,
+      mutedUserId: row.mutedUserId,
+      scopes: this.parseStoredScopes(row.scopes),
+      createdAt: row.createdAt,
+      ...(row.mutedUser ? { mutedUser: row.mutedUser } : {}),
+    };
+  }
+
+  /** Normalizes requested scopes and applies rollback behavior when scoped mutes are disabled. */
+  private normalizeRequestedScopes(scopes?: MuteScope[]): MuteScope[] {
+    if (!this.muteScopesEnabled) return [...ALL_MUTE_SCOPES];
+
+    const requested = scopes ?? [...ALL_MUTE_SCOPES];
+    const validScopes = new Set(Object.values(MuteScope));
+
+    if (!requested.every((scope) => validScopes.has(scope))) {
+      throw new BadRequestException("Invalid mute scope");
+    }
+
+    const unique = [...new Set(requested)];
+
+    if (unique.length === 0) {
+      throw new BadRequestException("At least one mute scope is required");
+    }
+
+    return unique;
+  }
+
+  /** Parses stored JSON scopes and fails closed to a full mute when data is invalid. */
+  private parseStoredScopes(scopes: Prisma.JsonValue | undefined): MuteScope[] {
+    if (!this.muteScopesEnabled) return [...ALL_MUTE_SCOPES];
+    if (!Array.isArray(scopes)) return [...ALL_MUTE_SCOPES];
+
+    const parsed = scopes.filter((scope): scope is MuteScope =>
+      Object.values(MuteScope).includes(scope as MuteScope),
+    );
+
+    if (parsed.length !== scopes.length || parsed.length === 0) {
+      return [...ALL_MUTE_SCOPES];
+    }
+
+    return [...new Set(parsed)];
+  }
+
+  /** Rejects mute writes when either user has blocked the other. */
+  private async assertNoBlockRelationship(
+    muterId: number,
+    mutedUserId: number,
+  ): Promise<void> {
+    const block = await this.prisma.userBlock.findFirst({
+      where: {
+        OR: [
+          { blockerId: muterId, blockedId: mutedUserId },
+          { blockerId: mutedUserId, blockedId: muterId },
+        ],
+      },
+      select: { id: true },
+    });
+
+    if (block) {
+      throw new BadRequestException("You cannot mute a blocked user");
+    }
+  }
+
+  /** Invalidates read caches affected by a mute write. */
+  private async invalidateMuteWriteCaches(
+    muterId: number,
+    mutedUserId: number,
+    action: "muting" | "unmuting" | "updating",
+  ): Promise<void> {
+    await runBestEffort(
+      this.logger,
+      "error",
+      `Failed to invalidate caches after ${action} user ${mutedUserId} by user ${muterId}`,
+      async () => {
+        await this.cacheHelper.bumpVersion(
+          this.getMutedUsersListVersionKey(muterId),
+        );
+        await this.cacheHelper.bumpVersion(`v:user:${muterId}:bookmarks:list`);
+      },
+    );
+  }
+
+  /** Enqueues projected feed cleanup when FEED scope becomes active. */
+  private enqueueRelationshipHideIfNeeded(
+    muterId: number,
+    mutedUserId: number,
+    shouldHideFeed: boolean,
+  ): void {
+    if (!shouldHideFeed) return;
+
+    void runBestEffort(
+      this.logger,
+      "error",
+      `Failed to enqueue home feed relationship hide for user ${muterId} -> author ${mutedUserId}`,
+      async () => {
+        await this.outboxService.enqueue({
+          eventType: HOME_FEED_RELATIONSHIP_HIDE_EVENT,
+          aggregateType: "user",
+          aggregateId: muterId,
+          payload: {
+            userId: muterId,
+            authorId: mutedUserId,
+          },
+        });
+      },
+    );
+  }
+
   /** Logs unexpected mute persistence failures and returns a sanitized API error. */
   private throwUnexpectedPersistenceFailure(
-    action: "mute user" | "unmute user",
+    action: "mute user" | "unmute user" | "update mute scopes",
     err: unknown,
   ): never {
     this.logger.error(

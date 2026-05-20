@@ -28,6 +28,7 @@ import { UserPrivacySetting } from "@/users/enums/user-privacy-setting.enum";
 import { AccountState } from "@/users/enums/account-state.enum";
 
 import { MutesService } from "@/mutes/mutes.service";
+import { MuteScope } from "@/mutes/enums/mute-scope.enum";
 
 import { PrismaService } from "@/prisma/prisma.service";
 
@@ -77,7 +78,10 @@ export class CommentsReadService {
     const cursorFilter = buildChronologicalCursorFilter(cursor, orderby);
     const mutedAuthorIds =
       viewerId !== undefined
-        ? await this.mutesService.getMutedUserIds(viewerId)
+        ? await this.mutesService.getMutedUserIdsForScope(
+            viewerId,
+            MuteScope.COMMENTS,
+          )
         : [];
 
     const rows = await this.prisma.comment.findMany({
@@ -128,7 +132,10 @@ export class CommentsReadService {
     await this.getReadablePostOrThrow(postId, viewerId);
     const mutedAuthorIds =
       viewerId !== undefined && viewerId !== null
-        ? await this.mutesService.getMutedUserIds(viewerId)
+        ? await this.mutesService.getMutedUserIdsForScope(
+            viewerId,
+            MuteScope.COMMENTS,
+          )
         : [];
 
     const rows = await this.prisma.comment.findMany({
@@ -305,7 +312,13 @@ export class CommentsReadService {
       return false;
     }
 
-    if (await this.mutesService.isMuted(viewerId, post.authorId)) {
+    if (
+      await this.mutesService.isMutedForScope(
+        viewerId,
+        post.authorId,
+        MuteScope.POSTS,
+      )
+    ) {
       return false;
     }
 

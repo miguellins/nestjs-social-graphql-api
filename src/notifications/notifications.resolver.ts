@@ -12,18 +12,24 @@ import { Throttle } from "@nestjs/throttler";
 import { CurrentUser } from "@/common/decorators/current-user.decorator";
 import { THROTTLE_LIMITS } from "@/common/constants/throttle.constants";
 import { MessageResponse } from "@/common/types/message-response.type";
+import { CursorPaginationArgs } from "@/common/args/cursor-pagination.args";
 
 import { UpdateNotificationPreferencesInput } from "@/notifications/dto/update-notification-preferences.input";
 import { NotificationPreferencesService } from "@/notifications/notification-preferences.service";
+import { NotificationActorPreferencesService } from "@/notifications/notification-actor-preferences.service";
 import { buildNotificationReceivedTrigger } from "@/notifications/notification-delivery.service";
 import { NotificationPreferences } from "@/notifications/models/notification-preferences.model";
 import { FindNotificationsArgs } from "@/notifications/args/find-notifications.args";
 import { NotificationPage } from "@/notifications/models/notification-page.model";
 import { NotificationsService } from "@/notifications/notifications.service";
 import { NotificationDTO } from "@/notifications/models/notification.model";
+import { SilencedActorEdge } from "@/notifications/models/silenced-actor-edge.model";
+import { SilencedActorPage } from "@/notifications/models/silenced-actor-page.model";
+import { UserInteractionPreferences } from "@/notifications/models/user-interaction-preferences.model";
 
 import { GraphqlPubSubService } from "@/graphql/subscriptions/graphql-pubsub.service";
 import type { GqlContext } from "@/graphql/config/graphql-context.types";
+import { MutesService } from "@/mutes/mutes.service";
 
 type SubscriptionContextUserCarrier = {
   id?: unknown;
@@ -73,6 +79,8 @@ export class NotificationsResolver {
   constructor(
     private readonly notificationsService: NotificationsService,
     private readonly notificationPreferences: NotificationPreferencesService,
+    private readonly actorPreferences: NotificationActorPreferencesService,
+    private readonly mutesService: MutesService,
     private readonly graphqlPubSub: GraphqlPubSubService,
   ) {}
 
@@ -105,6 +113,36 @@ export class NotificationsResolver {
     return this.notificationPreferences.getMyPreferences(user.id);
   }
 
+  @Throttle({ default: THROTTLE_LIMITS.READ })
+  @Query(() => UserInteractionPreferences, { name: "myInteractionPreferences" })
+  async myInteractionPreferences(
+    @CurrentUser() user: { id: number },
+    @Args("mutedFirst", { type: () => Int, nullable: true })
+    mutedFirst?: number,
+    @Args("mutedAfter", { type: () => String, nullable: true })
+    mutedAfter?: string,
+    @Args("silencedFirst", { type: () => Int, nullable: true })
+    silencedFirst?: number,
+    @Args("silencedAfter", { type: () => String, nullable: true })
+    silencedAfter?: string,
+  ): Promise<UserInteractionPreferences> {
+    return {
+      notificationPreferences:
+        await this.notificationPreferences.getMyPreferences(user.id),
+      mutedUsers: await this.mutesService.findMyMutedUsers(user.id, {
+        first: mutedFirst,
+        after: mutedAfter,
+      }),
+      silencedActors: await this.actorPreferences.findMySilencedActors(
+        user.id,
+        {
+          first: silencedFirst,
+          after: silencedAfter,
+        },
+      ),
+    };
+  }
+
   @Throttle({ default: THROTTLE_LIMITS.MUTATION })
   @Mutation(() => NotificationPreferences, {
     name: "updateNotificationPreferences",
@@ -114,6 +152,37 @@ export class NotificationsResolver {
     @Args("input") input: UpdateNotificationPreferencesInput,
   ): Promise<NotificationPreferences> {
     return this.notificationPreferences.updateMyPreferences(user.id, input);
+  }
+
+  @Throttle({ default: THROTTLE_LIMITS.MUTATION })
+  @Mutation(() => SilencedActorEdge, {
+    name: "silenceNotificationsFromActor",
+  })
+  async silenceNotificationsFromActor(
+    @CurrentUser() user: { id: number },
+    @Args("actorId", { type: () => Int }) actorId: number,
+  ): Promise<SilencedActorEdge> {
+    return this.actorPreferences.silenceActor(user.id, actorId);
+  }
+
+  @Throttle({ default: THROTTLE_LIMITS.MUTATION })
+  @Mutation(() => Boolean, {
+    name: "unsilenceNotificationsFromActor",
+  })
+  async unsilenceNotificationsFromActor(
+    @CurrentUser() user: { id: number },
+    @Args("actorId", { type: () => Int }) actorId: number,
+  ): Promise<boolean> {
+    return this.actorPreferences.unsilenceActor(user.id, actorId);
+  }
+
+  @Throttle({ default: THROTTLE_LIMITS.LIST })
+  @Query(() => SilencedActorPage, { name: "mySilencedNotificationActors" })
+  async mySilencedNotificationActors(
+    @CurrentUser() user: { id: number },
+    @Args() args: CursorPaginationArgs,
+  ): Promise<SilencedActorPage> {
+    return this.actorPreferences.findMySilencedActors(user.id, args);
   }
 
   @Throttle({ default: THROTTLE_LIMITS.MUTATION })

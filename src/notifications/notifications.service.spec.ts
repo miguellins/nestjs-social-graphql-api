@@ -8,6 +8,7 @@ import { ChronologicalOrder } from "@/common/enums/chronological-order.enum";
 import { PAGINATION } from "@/common/constants/hard-cap.constants";
 import { encodeChronoCursor } from "@/common/pagination/chrono-cursor";
 import { NotificationDeliveryService } from "@/notifications/notification-delivery.service";
+import { NotificationActorPreferencesService } from "@/notifications/notification-actor-preferences.service";
 import { NotificationPreferencesService } from "@/notifications/notification-preferences.service";
 
 import { NotificationReadStatus } from "@/notifications/enums/notification-read-status.enum";
@@ -16,6 +17,7 @@ import { NotificationSelect } from "@/notifications/dto/safe-notification.dto";
 
 import { PrismaService } from "@/prisma/prisma.service";
 import { MutesService } from "@/mutes/mutes.service";
+import { MuteScope } from "@/mutes/enums/mute-scope.enum";
 import { MetricsRegistryService } from "@/metrics/metrics-registry.service";
 
 import { NotificationsService } from "./notifications.service";
@@ -45,12 +47,16 @@ describe("NotificationsService", () => {
   };
 
   const mutesServiceMock = {
-    isMuted: jest.fn(),
-    getMutedUserIds: jest.fn(),
+    isMutedForScope: jest.fn(),
+    getMutedUserIdsForScope: jest.fn(),
   };
 
   const notificationPreferencesMock = {
     isNotificationTypeEnabled: jest.fn(),
+  };
+
+  const actorPreferencesMock = {
+    isActorSilenced: jest.fn(),
   };
 
   const metricsRegistryMock = {
@@ -76,8 +82,9 @@ describe("NotificationsService", () => {
     notificationDeliveryMock.publishNotificationReceived.mockResolvedValue(
       undefined,
     );
-    mutesServiceMock.isMuted.mockResolvedValue(false);
-    mutesServiceMock.getMutedUserIds.mockResolvedValue([]);
+    mutesServiceMock.isMutedForScope.mockResolvedValue(false);
+    mutesServiceMock.getMutedUserIdsForScope.mockResolvedValue([]);
+    actorPreferencesMock.isActorSilenced.mockResolvedValue(false);
     notificationPreferencesMock.isNotificationTypeEnabled.mockResolvedValue(
       true,
     );
@@ -96,6 +103,10 @@ describe("NotificationsService", () => {
         {
           provide: NotificationPreferencesService,
           useValue: notificationPreferencesMock,
+        },
+        {
+          provide: NotificationActorPreferencesService,
+          useValue: actorPreferencesMock,
         },
         {
           provide: MutesService,
@@ -262,7 +273,7 @@ describe("NotificationsService", () => {
 
     it("should not persist or publish notifications for muted actors", async () => {
       prismaMock.userBlock.findFirst.mockResolvedValue(null);
-      mutesServiceMock.isMuted.mockResolvedValue(true);
+      mutesServiceMock.isMutedForScope.mockResolvedValue(true);
 
       const result = await service.createAndPublishNotification({
         recipientId: 1,
@@ -274,6 +285,14 @@ describe("NotificationsService", () => {
       });
 
       expect(result).toBeNull();
+      expect(mutesServiceMock.isMutedForScope).toHaveBeenCalledWith(
+        1,
+        2,
+        MuteScope.NOTIFICATIONS,
+      );
+      expect(
+        metricsRegistryMock.incrementNotificationSuppressed,
+      ).toHaveBeenCalledWith("mute");
       expect(prismaMock.notification.create).not.toHaveBeenCalled();
       expect(
         notificationDeliveryMock.publishNotificationReceived,
@@ -303,6 +322,30 @@ describe("NotificationsService", () => {
       expect(
         notificationDeliveryMock.publishNotificationReceived,
       ).not.toHaveBeenCalled();
+    });
+
+    it("suppresses notifications for silenced actors after mute checks", async () => {
+      prismaMock.userBlock.findFirst.mockResolvedValue(null);
+      actorPreferencesMock.isActorSilenced.mockResolvedValue(true);
+
+      const result = await service.createAndPublishNotification({
+        recipientId: 1,
+        actorId: 2,
+        type: NotificationType.USER_FOLLOWED,
+        title: "New follower",
+        body: "john started following you",
+        entityId: 10,
+      });
+
+      expect(result).toBeNull();
+      expect(actorPreferencesMock.isActorSilenced).toHaveBeenCalledWith(1, 2);
+      expect(
+        metricsRegistryMock.incrementNotificationSuppressed,
+      ).toHaveBeenCalledWith("actor");
+      expect(
+        notificationPreferencesMock.isNotificationTypeEnabled,
+      ).not.toHaveBeenCalled();
+      expect(prismaMock.notification.create).not.toHaveBeenCalled();
     });
 
     it("suppresses follow-request notifications when follow-request preferences are disabled", async () => {
@@ -510,11 +553,16 @@ describe("NotificationsService", () => {
         realtimeDeliveredAt: null,
       });
       prismaMock.notification.updateMany.mockResolvedValue({ count: 1 });
-      mutesServiceMock.isMuted.mockResolvedValue(true);
+      mutesServiceMock.isMutedForScope.mockResolvedValue(true);
 
       const result = await service.publishPersistedNotificationIfNeeded(1);
 
       expect(result).toBe("already-delivered");
+      expect(mutesServiceMock.isMutedForScope).toHaveBeenCalledWith(
+        1,
+        2,
+        MuteScope.NOTIFICATIONS,
+      );
       expect(
         notificationDeliveryMock.publishNotificationReceived,
       ).not.toHaveBeenCalled();
@@ -549,6 +597,32 @@ describe("NotificationsService", () => {
       expect(
         notificationPreferencesMock.isNotificationTypeEnabled,
       ).toHaveBeenCalledWith(1, NotificationType.COMMENT_REPLIED);
+      expect(prismaMock.notification.updateMany).toHaveBeenCalledWith({
+        where: {
+          id: 1,
+          realtimeDeliveredAt: null,
+        },
+        data: {
+          realtimeDeliveredAt: expect.any(Date) as Date,
+        },
+      });
+    });
+
+    it("suppresses realtime delivery for silenced actors and marks it already delivered", async () => {
+      prismaMock.notification.findUnique = jest.fn().mockResolvedValue({
+        ...mockNotification,
+        realtimeDeliveredAt: null,
+      });
+      prismaMock.notification.updateMany.mockResolvedValue({ count: 1 });
+      actorPreferencesMock.isActorSilenced.mockResolvedValue(true);
+
+      const result = await service.publishPersistedNotificationIfNeeded(1);
+
+      expect(result).toBe("already-delivered");
+      expect(actorPreferencesMock.isActorSilenced).toHaveBeenCalledWith(1, 2);
+      expect(
+        notificationDeliveryMock.publishNotificationReceived,
+      ).not.toHaveBeenCalled();
       expect(prismaMock.notification.updateMany).toHaveBeenCalledWith({
         where: {
           id: 1,
@@ -609,10 +683,14 @@ describe("NotificationsService", () => {
 
     it("filters out notifications from muted actors", async () => {
       prismaMock.notification.findMany.mockResolvedValue([mockNotification]);
-      mutesServiceMock.getMutedUserIds.mockResolvedValue([2, 3]);
+      mutesServiceMock.getMutedUserIdsForScope.mockResolvedValue([2, 3]);
 
       await service.findMyNotifications(1, { first: 5 });
 
+      expect(mutesServiceMock.getMutedUserIdsForScope).toHaveBeenCalledWith(
+        1,
+        MuteScope.NOTIFICATIONS,
+      );
       expect(prismaMock.notification.findMany).toHaveBeenCalledWith({
         where: {
           recipientId: 1,
@@ -802,6 +880,10 @@ describe("NotificationsService", () => {
 
       const result = await service.getUnreadCount(1);
 
+      expect(mutesServiceMock.getMutedUserIdsForScope).toHaveBeenCalledWith(
+        1,
+        MuteScope.NOTIFICATIONS,
+      );
       expect(prismaMock.notification.count).toHaveBeenCalledWith({
         where: {
           recipientId: 1,
@@ -810,6 +892,26 @@ describe("NotificationsService", () => {
       });
 
       expect(result).toBe(3);
+    });
+
+    it("filters out unread notifications from NOTIFICATIONS-muted actors", async () => {
+      prismaMock.notification.count.mockResolvedValue(1);
+      mutesServiceMock.getMutedUserIdsForScope.mockResolvedValue([2, 3]);
+
+      const result = await service.getUnreadCount(1);
+
+      expect(mutesServiceMock.getMutedUserIdsForScope).toHaveBeenCalledWith(
+        1,
+        MuteScope.NOTIFICATIONS,
+      );
+      expect(prismaMock.notification.count).toHaveBeenCalledWith({
+        where: {
+          recipientId: 1,
+          isRead: false,
+          actorId: { notIn: [2, 3] },
+        },
+      });
+      expect(result).toBe(1);
     });
   });
 

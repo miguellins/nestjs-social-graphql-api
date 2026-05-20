@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 
 import { NotificationPreferencesService } from "@/notifications/notification-preferences.service";
+import { NotificationActorPreferencesService } from "@/notifications/notification-actor-preferences.service";
 import { NotificationDeliveryService } from "@/notifications/notification-delivery.service";
 import { NotificationTriggerService } from "@/notifications/notification-trigger.service";
 import { NotificationOutboxHandler } from "@/notifications/notification-outbox.handler";
@@ -17,6 +18,7 @@ import { MutesModule } from "@/mutes/mutes.module";
   imports: [CacheHelpersModule, MutesModule, MetricsModule],
   providers: [
     NotificationDeliveryService,
+    NotificationActorPreferencesService,
     NotificationOutboxHandler,
     NotificationPreferencesService,
     NotificationTriggerService,
@@ -25,6 +27,7 @@ import { MutesModule } from "@/mutes/mutes.module";
   ],
   exports: [
     NotificationDeliveryService,
+    NotificationActorPreferencesService,
     NotificationOutboxHandler,
     NotificationPreferencesService,
     NotificationsService,

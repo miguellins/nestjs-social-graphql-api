@@ -12,6 +12,7 @@ import { encodeChronoCursor } from "@/common/pagination/chrono-cursor";
 
 import { PostReadService } from "@/posts/post-read.service";
 import { MutesService } from "@/mutes/mutes.service";
+import { MuteScope } from "@/mutes/enums/mute-scope.enum";
 
 import { PrismaService } from "@/prisma/prisma.service";
 
@@ -49,7 +50,7 @@ describe("BookmarksService", () => {
   };
 
   const mutesServiceMock = {
-    getMutedUserIds: jest.fn(),
+    getMutedUserIdsForScope: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -59,7 +60,7 @@ describe("BookmarksService", () => {
       accountState: AccountState.ACTIVE,
     });
     postReadServiceMock.getBlockedAuthorIds.mockResolvedValue([]);
-    mutesServiceMock.getMutedUserIds.mockResolvedValue([]);
+    mutesServiceMock.getMutedUserIdsForScope.mockResolvedValue([]);
     postReadServiceMock.buildViewerVisibilityFilters.mockReturnValue([
       {
         OR: [
@@ -275,6 +276,10 @@ describe("BookmarksService", () => {
       createdAt: true,
     });
     expect(result.items).toHaveLength(1);
+    expect(mutesServiceMock.getMutedUserIdsForScope).toHaveBeenCalledWith(
+      1,
+      MuteScope.POSTS,
+    );
   });
 
   it("rejects suspended users from bookmark operations", async () => {

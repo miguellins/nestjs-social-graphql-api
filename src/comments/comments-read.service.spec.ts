@@ -11,6 +11,7 @@ import { encodeChronoCursor } from "@/common/pagination/chrono-cursor";
 import { PrismaService } from "@/prisma/prisma.service";
 import { SafeCommentSelect } from "@/comments/dto/safe-comment.dto";
 import { MutesService } from "@/mutes/mutes.service";
+import { MuteScope } from "@/mutes/enums/mute-scope.enum";
 
 import { AccountState } from "@/users/enums/account-state.enum";
 import { UserPrivacySetting } from "@/users/enums/user-privacy-setting.enum";
@@ -59,8 +60,8 @@ describe("CommentsReadService", () => {
   };
 
   const mutesServiceMock = {
-    getMutedUserIds: jest.fn(),
-    isMuted: jest.fn(),
+    getMutedUserIdsForScope: jest.fn(),
+    isMutedForScope: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -79,8 +80,8 @@ describe("CommentsReadService", () => {
     });
     prismaMock.userBlock.findFirst.mockResolvedValue(null);
     prismaMock.follow.findUnique.mockResolvedValue({ id: 1 });
-    mutesServiceMock.getMutedUserIds.mockResolvedValue([]);
-    mutesServiceMock.isMuted.mockResolvedValue(false);
+    mutesServiceMock.getMutedUserIdsForScope.mockResolvedValue([]);
+    mutesServiceMock.isMutedForScope.mockResolvedValue(false);
 
     moduleRef = await Test.createTestingModule({
       providers: [
@@ -302,7 +303,7 @@ describe("CommentsReadService", () => {
   });
 
   it("filters out muted comment authors in list reads", async () => {
-    mutesServiceMock.getMutedUserIds.mockResolvedValue([20]);
+    mutesServiceMock.getMutedUserIdsForScope.mockResolvedValue([20]);
     prismaMock.comment.findMany.mockResolvedValueOnce([
       makeComment(30),
       makeComment(10),
@@ -326,5 +327,9 @@ describe("CommentsReadService", () => {
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       select: SafeCommentSelect,
     });
+    expect(mutesServiceMock.getMutedUserIdsForScope).toHaveBeenCalledWith(
+      99,
+      MuteScope.COMMENTS,
+    );
   });
 });

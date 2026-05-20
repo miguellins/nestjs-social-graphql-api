@@ -29,7 +29,7 @@ export type HomeFeedProjectionReconciliationOutcome =
   | "match"
   | "mismatch";
 
-export type NotificationSuppressionReason = "prefs";
+export type NotificationSuppressionReason = "actor" | "mute" | "prefs";
 
 export type OutboxBacklogMetrics = {
   failedCount: number;

@@ -6,6 +6,14 @@ describe("NotificationsResolver", () => {
     getMyPreferences: jest.fn(),
     updateMyPreferences: jest.fn(),
   };
+  const actorPreferences = {
+    findMySilencedActors: jest.fn(),
+    silenceActor: jest.fn(),
+    unsilenceActor: jest.fn(),
+  };
+  const mutesService = {
+    findMyMutedUsers: jest.fn(),
+  };
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -20,6 +28,8 @@ describe("NotificationsResolver", () => {
     const resolver = new NotificationsResolver(
       {} as never,
       notificationPreferences as never,
+      actorPreferences as never,
+      mutesService as never,
       graphqlPubSub as never,
     );
 
@@ -38,6 +48,8 @@ describe("NotificationsResolver", () => {
     const resolver = new NotificationsResolver(
       {} as never,
       notificationPreferences as never,
+      actorPreferences as never,
+      mutesService as never,
       graphqlPubSub as never,
     );
 
@@ -60,6 +72,8 @@ describe("NotificationsResolver", () => {
     const resolver = new NotificationsResolver(
       {} as never,
       notificationPreferences as never,
+      actorPreferences as never,
+      mutesService as never,
       {} as never,
     );
 
@@ -81,6 +95,8 @@ describe("NotificationsResolver", () => {
     const resolver = new NotificationsResolver(
       {} as never,
       notificationPreferences as never,
+      actorPreferences as never,
+      mutesService as never,
       {} as never,
     );
 
@@ -91,5 +107,62 @@ describe("NotificationsResolver", () => {
       7,
       input,
     );
+  });
+
+  it("delegates actor silence mutations to the actor preference service", async () => {
+    actorPreferences.silenceActor.mockResolvedValue({ id: 1 });
+    actorPreferences.unsilenceActor.mockResolvedValue(true);
+    const resolver = new NotificationsResolver(
+      {} as never,
+      notificationPreferences as never,
+      actorPreferences as never,
+      mutesService as never,
+      {} as never,
+    );
+
+    await expect(
+      resolver.silenceNotificationsFromActor({ id: 7 }, 2),
+    ).resolves.toEqual({ id: 1 });
+    await expect(
+      resolver.unsilenceNotificationsFromActor({ id: 7 }, 2),
+    ).resolves.toBe(true);
+    expect(actorPreferences.silenceActor).toHaveBeenCalledWith(7, 2);
+    expect(actorPreferences.unsilenceActor).toHaveBeenCalledWith(7, 2);
+  });
+
+  it("returns unified interaction preferences with nested pages", async () => {
+    const preferences = {
+      replyNotificationsEnabled: true,
+      followRequestNotificationsEnabled: true,
+      mentionNotificationsEnabled: true,
+    };
+    const mutedUsers = { items: [], pageInfo: { endCursor: null } };
+    const silencedActors = { items: [], pageInfo: { endCursor: null } };
+    notificationPreferences.getMyPreferences.mockResolvedValue(preferences);
+    mutesService.findMyMutedUsers.mockResolvedValue(mutedUsers);
+    actorPreferences.findMySilencedActors.mockResolvedValue(silencedActors);
+    const resolver = new NotificationsResolver(
+      {} as never,
+      notificationPreferences as never,
+      actorPreferences as never,
+      mutesService as never,
+      {} as never,
+    );
+
+    await expect(
+      resolver.myInteractionPreferences({ id: 7 }, 5, "m", 6, "s"),
+    ).resolves.toEqual({
+      notificationPreferences: preferences,
+      mutedUsers,
+      silencedActors,
+    });
+    expect(mutesService.findMyMutedUsers).toHaveBeenCalledWith(7, {
+      first: 5,
+      after: "m",
+    });
+    expect(actorPreferences.findMySilencedActors).toHaveBeenCalledWith(7, {
+      first: 6,
+      after: "s",
+    });
   });
 });

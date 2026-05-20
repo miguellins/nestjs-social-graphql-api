@@ -1,5 +1,42 @@
 {
   "mcpServers": {
+    "eraser": {
+      "url": "https://app.eraser.io/api/mcp"
+    },
+    "Lucid Software": {
+      "type": "http",
+      "url": "https://mcp.lucid.app/mcp"
+    },
+    "context7": {
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp@latest"]
+    },
+    "nestjs": {
+      "command": "node",
+      "args": [
+        "/home/mlins/Desktop/nestjs_graphql/.mcp/NestJsMcp/dist/index.js"
+      ]
+    },
+    "apollo-mcp": {
+      "command": "/home/mlins/Desktop/nestjs_graphql/.mcp/apollo-mcp-server/apollo-mcp-server",
+      "args": [
+        "/home/mlins/Desktop/nestjs_graphql/.mcp/apollo-mcp-server/config.yaml"
+      ]
+    },
+    "redis": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "redis-mcp-server@latest",
+        "redis-mcp-server",
+        "--url",
+        "redis://localhost:6379/0"
+      ]
+    },
+    "git": {
+      "command": "uvx",
+      "args": ["mcp-server-git"]
+    },
     "docker": {
       "command": "uvx",
       "args": ["mcp-server-docker"],

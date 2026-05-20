@@ -30,6 +30,7 @@ import { MediaReadProjectionService } from "@/media/media-read-projection.servic
 import { CommentsReadService } from "@/comments/comments-read.service";
 
 import { MutesService } from "@/mutes/mutes.service";
+import { MuteScope } from "@/mutes/enums/mute-scope.enum";
 
 import { PrismaService } from "@/prisma/prisma.service";
 
@@ -66,7 +67,10 @@ export class PostReadService {
       ? await this.getBlockedAuthorIds(viewerId)
       : [];
     const mutedAuthorIds = viewerId
-      ? await this.mutesService.getMutedUserIds(viewerId)
+      ? await this.mutesService.getMutedUserIdsForScope(
+          viewerId,
+          MuteScope.POSTS,
+        )
       : [];
 
     const post = await this.prisma.post.findFirst({
@@ -138,8 +142,10 @@ export class PostReadService {
     const blockedAuthorIds = relatedBlocks.map((block) =>
       block.blockerId === currentUserId ? block.blockedId : block.blockerId,
     );
-    const mutedAuthorIds =
-      await this.mutesService.getMutedUserIds(currentUserId);
+    const mutedAuthorIds = await this.mutesService.getMutedUserIdsForScope(
+      currentUserId,
+      MuteScope.FEED,
+    );
 
     const rows = await this.prisma.post.findMany({
       where: {

@@ -152,4 +152,113 @@ Important behavior:
 - `FOLLOW_REQUESTED` notifications use the `followRequest.id` as `entityId`
 - in v1, old `FOLLOW_REQUESTED` notifications remain in history even after approval, rejection, or cancelation
 - notification preference updates are partial patches, but empty patches are rejected
-- preference suppressions block new persistence and increment `notification_suppressed_total{reason="prefs"}`
+- notification suppression order is block, `NOTIFICATIONS` mute, actor silence, then global preferences
+- relationship mutes with `NOTIFICATIONS` suppress new notifications, filter `myNotifications`, and exclude muted actors from `unreadNotificationsCount`
+- actor silence suppresses new notifications only; it does not hide existing rows from `myNotifications`
+- notification suppressions increment `notification_suppressed_total` with `reason="mute"`, `reason="actor"`, or `reason="prefs"`
+- actor-silence APIs require `MUTES_ENABLED=true` and `NOTIFICATION_ACTOR_SILENCE_ENABLED=true`; otherwise they return `Not found`
+
+## `silenceNotificationsFromActor`
+```graphql
+mutation SilenceNotificationsFromActor($actorId: Int!) {
+  silenceNotificationsFromActor(actorId: $actorId) {
+    id
+    actorId
+    notificationsEnabled
+    actor {
+      id
+      username
+    }
+    createdAt
+  }
+}
+```
+
+```json
+{
+  "actorId": 2
+}
+```
+
+## `unsilenceNotificationsFromActor`
+```graphql
+mutation UnsilenceNotificationsFromActor($actorId: Int!) {
+  unsilenceNotificationsFromActor(actorId: $actorId)
+}
+```
+
+```json
+{
+  "actorId": 2
+}
+```
+
+## `mySilencedNotificationActors`
+```graphql
+query MySilencedNotificationActors($first: Int, $after: String) {
+  mySilencedNotificationActors(first: $first, after: $after) {
+    items {
+      id
+      actorId
+      notificationsEnabled
+      actor {
+        id
+        username
+      }
+      createdAt
+    }
+    pageInfo {
+      endCursor
+      hasNextPage
+    }
+  }
+}
+```
+
+```json
+{
+  "first": 10
+}
+```
+
+## `myInteractionPreferences`
+```graphql
+query MyInteractionPreferences($mutedFirst: Int, $silencedFirst: Int) {
+  myInteractionPreferences(mutedFirst: $mutedFirst, silencedFirst: $silencedFirst) {
+    notificationPreferences {
+      replyNotificationsEnabled
+      followRequestNotificationsEnabled
+      mentionNotificationsEnabled
+      postLikedNotificationsEnabled
+      userFollowedNotificationsEnabled
+    }
+    mutedUsers {
+      items {
+        mutedUserId
+        scopes
+      }
+      pageInfo {
+        endCursor
+        hasNextPage
+      }
+    }
+    silencedActors {
+      items {
+        actorId
+        notificationsEnabled
+      }
+      pageInfo {
+        endCursor
+        hasNextPage
+      }
+    }
+  }
+}
+```
+
+```json
+{
+  "mutedFirst": 10,
+  "silencedFirst": 10
+}
+```
