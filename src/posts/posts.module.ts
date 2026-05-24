@@ -47,6 +47,7 @@ import { PrismaModule } from "@/prisma/prisma.module";
   exports: [
     PostsService,
     PostReadService,
+    PostCacheService,
     HomeFeedProjectionService,
     HomeFeedOutboxHandler,
   ],

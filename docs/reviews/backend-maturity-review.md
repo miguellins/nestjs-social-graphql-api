@@ -73,10 +73,11 @@ Biggest current strengths:
   - mentions
   - normalized hashtags with `postsByHashtag` and `searchHashtags`
   - hashtag backfill/reconciliation script and runbook for historical join and count drift
-  - in-app notification preferences for replies, follow requests, mentions, post likes, and new followers
+  - in-app notification preferences for replies, follow requests, mentions, post likes, reposts, quotes, and new followers
   - per-actor notification silence and a unified interaction-preferences read
   - dedicated `myFeed` and `homeFeed` surfaces
   - durable notifications before realtime publish for reply and follow-request flows
+  - repost/share/quote flows that reuse post rows and feed fanout
   - early durable feed projection path
 - Testing remains above average for the maturity level
 
@@ -134,7 +135,6 @@ Where it still feels MVP-like:
 
 Highest-priority remaining gaps after the current ops, outbox, and feed-projection work:
 - The product model is still incomplete for a realistic social platform:
-  - repost/share/quote flows
   - stronger discovery beyond v1 hashtag autocomplete
 - Feed maturity is still limited:
   - dedicated `myFeed` and `homeFeed` surfaces exist
@@ -177,7 +177,6 @@ Still missing for a realistic MVP:
 Still missing for a more mature platform:
 - Search/discovery infrastructure beyond hashtag autocomplete
 - Ranked home feed
-- Reposts/shares/quotes
 - Recommendation infrastructure
 - Push/email fanout beyond current channels
 - Broader outbox/event coverage beyond the current notification and feed-projection slices

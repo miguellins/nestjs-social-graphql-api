@@ -19,6 +19,14 @@ export class NotificationPreferences {
   @Field(() => Boolean)
   postLikedNotificationsEnabled!: boolean;
 
+  /** Whether post-repost notifications are enabled. */
+  @Field(() => Boolean)
+  postRepostedNotificationsEnabled!: boolean;
+
+  /** Whether post-quote notifications are enabled. */
+  @Field(() => Boolean)
+  postQuotedNotificationsEnabled!: boolean;
+
   /** Whether new-follower notifications are enabled. */
   @Field(() => Boolean)
   userFollowedNotificationsEnabled!: boolean;

@@ -8,6 +8,9 @@ import {
 
 import { FormattedDateTimeField } from "@/graphql/fields/formatted-date-time-field.decorator";
 
+import { PostKind } from "@/posts/enums/post-kind.enum";
+import { SafePostEmbed } from "@/posts/models/safe-post-embed.model";
+
 import { SafeUserPreview } from "@/users/models/safe-user-preview.model";
 import { LikePreview } from "@/posts/models/like-preview.model";
 import { PostMedia } from "@/media/models/post-media.model";
@@ -27,6 +30,14 @@ export class PostDetail {
   /** Main textual content of the post. */
   @Field()
   content: string;
+
+  /** Post composition kind used by clients to render original, repost, and quote cards. */
+  @Field(() => PostKind)
+  kind: PostKind;
+
+  /** Root source post id for repost and quote derivatives. */
+  @Field(() => ID, { nullable: true })
+  sourcePostId: number | null;
 
   /** Timestamp indicating when the post was originally created. */
   @Field(() => GraphQLISODateTime)
@@ -61,6 +72,18 @@ export class PostDetail {
   /** Total number of comments associated with the post. */
   @Field(() => Int)
   commentsCount: number;
+
+  /** Repost count for original posts; null for repost and quote wrappers. */
+  @Field(() => Int, { nullable: true })
+  repostsCount: number | null;
+
+  /** Indicates whether the current viewer has reposted this post or root source. */
+  @Field(() => Boolean)
+  viewerHasReposted: boolean;
+
+  /** Embedded source preview for repost and quote wrappers. */
+  @Field(() => SafePostEmbed, { nullable: true })
+  sourcePost?: SafePostEmbed | null;
 
   /** Total number of times the post detail view has been accessed successfully. */
   @Field(() => Int)

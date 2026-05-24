@@ -10,7 +10,10 @@ import type {
 import type { Prisma } from "@prisma/client";
 
 /** Defines the safe post shape returned after attaching media to a post. */
-export type SafeAttachMediaPostDTO = SafePostListDTO & {
+export type SafeAttachMediaPostDTO = Omit<
+  SafePostListDTO,
+  "viewerHasReposted" | "sourcePost"
+> & {
   updatedAt: Date;
   editedAt: Date | null;
   viewsCount: number;

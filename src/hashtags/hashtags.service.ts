@@ -19,6 +19,7 @@ import {
 } from "@/common/pagination/cursor-pagination";
 
 import { PostReadService } from "@/posts/post-read.service";
+import { PostKind } from "@/posts/enums/post-kind.enum";
 import {
   type SafePostListDTO,
   SafePostListSelect,
@@ -380,6 +381,10 @@ export class HashtagsService {
   }): Promise<SafePostListDTO[]> {
     const filters: Prisma.PostWhereInput[] = [
       { removedAt: null },
+      { kind: { not: PostKind.REPOST } },
+      this.postReadService.buildListSurfaceSourceAvailabilityFilter(
+        params.viewerId,
+      ),
       {
         hashtags: {
           some: {
@@ -428,7 +433,7 @@ export class HashtagsService {
       filters.push(params.cursorFilter);
     }
 
-    return this.prisma.post.findMany({
+    const rows = await this.prisma.post.findMany({
       take: params.take + 1,
       where: filters.length === 1 ? filters[0] : { AND: filters },
       orderBy: [
@@ -437,6 +442,8 @@ export class HashtagsService {
       ],
       select: SafePostListSelect,
     });
+
+    return this.postReadService.projectPostListRows(rows, params.viewerId);
   }
 
   /** Enforces that authenticated hashtag reads come only from active accounts. */

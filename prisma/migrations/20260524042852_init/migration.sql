@@ -31,18 +31,23 @@ CREATE TABLE `Post` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `title` VARCHAR(191) NULL,
     `content` VARCHAR(191) NOT NULL,
+    `kind` ENUM('ORIGINAL', 'REPOST', 'QUOTE') NOT NULL DEFAULT 'ORIGINAL',
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
     `editedAt` DATETIME(3) NULL,
     `removedAt` DATETIME(3) NULL,
     `authorId` INTEGER NOT NULL,
+    `sourcePostId` INTEGER NULL,
     `removedById` INTEGER NULL,
     `removalReason` VARCHAR(191) NULL,
     `likesCount` INTEGER NOT NULL DEFAULT 0,
     `commentsCount` INTEGER NOT NULL DEFAULT 0,
     `viewsCount` INTEGER NOT NULL DEFAULT 0,
+    `repostsCount` INTEGER NOT NULL DEFAULT 0,
 
     INDEX `Post_authorId_idx`(`authorId`),
+    INDEX `Post_sourcePostId_idx`(`sourcePostId`),
+    INDEX `Post_authorId_sourcePostId_kind_idx`(`authorId`, `sourcePostId`, `kind`),
     INDEX `Post_createdAt_idx`(`createdAt` DESC),
     INDEX `Post_authorId_createdAt_idx`(`authorId`, `createdAt` DESC),
     INDEX `Post_createdAt_id_idx`(`createdAt` DESC, `id` DESC),
@@ -260,7 +265,7 @@ CREATE TABLE `CommentMention` (
 -- CreateTable
 CREATE TABLE `Notification` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
-    `type` ENUM('USER_FOLLOWED', 'FOLLOW_REQUESTED', 'POST_LIKED', 'COMMENT_REPLIED', 'POST_MENTIONED', 'COMMENT_MENTIONED') NOT NULL,
+    `type` ENUM('USER_FOLLOWED', 'FOLLOW_REQUESTED', 'POST_LIKED', 'POST_REPOSTED', 'POST_QUOTED', 'COMMENT_REPLIED', 'POST_MENTIONED', 'COMMENT_MENTIONED') NOT NULL,
     `title` VARCHAR(191) NOT NULL,
     `body` VARCHAR(191) NULL,
     `isRead` BOOLEAN NOT NULL DEFAULT false,
@@ -286,6 +291,8 @@ CREATE TABLE `NotificationPreference` (
     `followRequestNotificationsEnabled` BOOLEAN NOT NULL DEFAULT true,
     `mentionNotificationsEnabled` BOOLEAN NOT NULL DEFAULT true,
     `postLikedNotificationsEnabled` BOOLEAN NOT NULL DEFAULT true,
+    `postRepostedNotificationsEnabled` BOOLEAN NOT NULL DEFAULT true,
+    `postQuotedNotificationsEnabled` BOOLEAN NOT NULL DEFAULT true,
     `userFollowedNotificationsEnabled` BOOLEAN NOT NULL DEFAULT true,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
@@ -457,6 +464,9 @@ ALTER TABLE `User` ADD CONSTRAINT `User_avatarMediaId_fkey` FOREIGN KEY (`avatar
 
 -- AddForeignKey
 ALTER TABLE `Post` ADD CONSTRAINT `Post_authorId_fkey` FOREIGN KEY (`authorId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `Post` ADD CONSTRAINT `Post_sourcePostId_fkey` FOREIGN KEY (`sourcePostId`) REFERENCES `Post`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `PostHashtag` ADD CONSTRAINT `PostHashtag_postId_fkey` FOREIGN KEY (`postId`) REFERENCES `Post`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;

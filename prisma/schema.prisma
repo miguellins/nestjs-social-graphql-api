@@ -208,10 +208,17 @@ enum AccountState {
   DEACTIVATED
 }
 
+enum PostKind {
+  ORIGINAL
+  REPOST
+  QUOTE
+}
+
 model Post {
-  id      Int     @id @default(autoincrement())
+  id      Int      @id @default(autoincrement())
   title   String?
   content String
+  kind    PostKind @default(ORIGINAL)
 
   // Timestamps
   createdAt DateTime  @default(now())
@@ -221,6 +228,11 @@ model Post {
 
   // Stores the ID of the author (User)
   authorId Int
+
+  /**
+   * Optional root source post for repost and quote derivatives
+   */
+  sourcePostId Int?
 
   /**
    * Optional moderator/admin actor who removed this post
@@ -242,6 +254,16 @@ model Post {
   author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
 
   /**
+   * Root source post embedded by repost and quote derivatives
+   */
+  sourcePost Post? @relation("PostDerivatives", fields: [sourcePostId], references: [id], onDelete: Restrict)
+
+  /**
+   * Repost and quote derivatives that point at this source post
+   */
+  derivedPosts Post[] @relation("PostDerivatives")
+
+  /**
    * Number of likes for this post
    * This is a denormalized field to improve read performance
    */
@@ -258,6 +280,11 @@ model Post {
    * For now, a view is counted when postById is called successfully
    */
   viewsCount Int @default(0)
+
+  /**
+   * Number of repost derivatives for root original posts
+   */
+  repostsCount Int @default(0)
 
   /**
    * One-to-many relation
@@ -320,6 +347,16 @@ model Post {
    * - feed filtering by followed authors
    */
   @@index([authorId])
+  /**
+   * Database index on sourcePostId
+   * Improves source lookup and derivative cleanup queries.
+   */
+  @@index([sourcePostId])
+  /**
+   * Compound index on authorId + sourcePostId + kind
+   * Supports active repost uniqueness checks.
+   */
+  @@index([authorId, sourcePostId, kind])
   /**
    * Database index on createdAt descending
    * Improves queries that sort by newest posts first
@@ -980,6 +1017,8 @@ enum NotificationType {
   USER_FOLLOWED
   FOLLOW_REQUESTED
   POST_LIKED
+  POST_REPOSTED
+  POST_QUOTED
   COMMENT_REPLIED
   POST_MENTIONED
   COMMENT_MENTIONED
@@ -1079,6 +1118,8 @@ model NotificationPreference {
   followRequestNotificationsEnabled Boolean @default(true)
   mentionNotificationsEnabled       Boolean @default(true)
   postLikedNotificationsEnabled     Boolean @default(true)
+  postRepostedNotificationsEnabled  Boolean @default(true)
+  postQuotedNotificationsEnabled    Boolean @default(true)
   userFollowedNotificationsEnabled  Boolean @default(true)
 
   createdAt DateTime @default(now())

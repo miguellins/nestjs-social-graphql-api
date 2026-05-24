@@ -7,6 +7,8 @@ export const updateNotificationPreferencesCommandSchema = z
     followRequestNotificationsEnabled: z.boolean().optional(),
     mentionNotificationsEnabled: z.boolean().optional(),
     postLikedNotificationsEnabled: z.boolean().optional(),
+    postRepostedNotificationsEnabled: z.boolean().optional(),
+    postQuotedNotificationsEnabled: z.boolean().optional(),
     userFollowedNotificationsEnabled: z.boolean().optional(),
   })
   .strict()

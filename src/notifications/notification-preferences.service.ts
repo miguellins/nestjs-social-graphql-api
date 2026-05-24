@@ -84,6 +84,10 @@ export class NotificationPreferencesService {
         return preferences.mentionNotificationsEnabled;
       case NotificationType.POST_LIKED:
         return preferences.postLikedNotificationsEnabled;
+      case NotificationType.POST_REPOSTED:
+        return preferences.postRepostedNotificationsEnabled;
+      case NotificationType.POST_QUOTED:
+        return preferences.postQuotedNotificationsEnabled;
       case NotificationType.USER_FOLLOWED:
         return preferences.userFollowedNotificationsEnabled;
       default:
@@ -122,6 +126,14 @@ export class NotificationPreferencesService {
     if (input.postLikedNotificationsEnabled !== undefined) {
       data.postLikedNotificationsEnabled = input.postLikedNotificationsEnabled;
     }
+    if (input.postRepostedNotificationsEnabled !== undefined) {
+      data.postRepostedNotificationsEnabled =
+        input.postRepostedNotificationsEnabled;
+    }
+    if (input.postQuotedNotificationsEnabled !== undefined) {
+      data.postQuotedNotificationsEnabled =
+        input.postQuotedNotificationsEnabled;
+    }
     if (input.userFollowedNotificationsEnabled !== undefined) {
       data.userFollowedNotificationsEnabled =
         input.userFollowedNotificationsEnabled;
@@ -142,6 +154,8 @@ export const notificationPreferencesSelect = {
   followRequestNotificationsEnabled: true,
   mentionNotificationsEnabled: true,
   postLikedNotificationsEnabled: true,
+  postRepostedNotificationsEnabled: true,
+  postQuotedNotificationsEnabled: true,
   userFollowedNotificationsEnabled: true,
 };
 
@@ -151,6 +165,8 @@ function defaultNotificationPreferences(): NotificationPreferences {
     followRequestNotificationsEnabled: true,
     mentionNotificationsEnabled: true,
     postLikedNotificationsEnabled: true,
+    postRepostedNotificationsEnabled: true,
+    postQuotedNotificationsEnabled: true,
     userFollowedNotificationsEnabled: true,
   };
 }

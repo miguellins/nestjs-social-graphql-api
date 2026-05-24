@@ -96,6 +96,9 @@ export class PostListReadService {
           },
         },
         ...this.postReadService.buildViewerVisibilityFilters(viewer.id),
+        this.postReadService.buildListSurfaceSourceAvailabilityFilter(
+          viewer.id,
+        ),
       ];
 
       if (blockedAuthorIds.length > 0) {
@@ -137,7 +140,15 @@ export class PostListReadService {
         select: SafePostListSelect,
       });
 
-      return buildCursorPage(rows, take);
+      const page = buildCursorPage(rows, take);
+
+      return {
+        items: await this.postReadService.projectPostListRows(
+          page.items,
+          viewer.id,
+        ),
+        pageInfo: page.pageInfo,
+      };
     }
 
     const v = await this.cacheHelper.getVersion("v:posts:list");
@@ -159,6 +170,9 @@ export class PostListReadService {
             },
           },
         });
+        filters.push(
+          this.postReadService.buildListSurfaceSourceAvailabilityFilter(),
+        );
 
         if (search) {
           filters.push({
@@ -193,7 +207,12 @@ export class PostListReadService {
           select: SafePostListSelect,
         });
 
-        return buildCursorPage(rows, take);
+        const page = buildCursorPage(rows, take);
+
+        return {
+          items: await this.postReadService.projectPostListRows(page.items),
+          pageInfo: page.pageInfo,
+        };
       },
       30_000,
     );
@@ -251,11 +270,23 @@ export class PostListReadService {
         take: take + 1,
         where: cursorFilter
           ? {
-              AND: [{ authorId }, { removedAt: null }, cursorFilter],
+              AND: [
+                { authorId },
+                { removedAt: null },
+                this.postReadService.buildListSurfaceSourceAvailabilityFilter(
+                  viewer?.id,
+                ),
+                cursorFilter,
+              ],
             }
           : {
-              authorId,
-              removedAt: null,
+              AND: [
+                { authorId },
+                { removedAt: null },
+                this.postReadService.buildListSurfaceSourceAvailabilityFilter(
+                  viewer?.id,
+                ),
+              ],
             },
         orderBy: [
           { createdAt: toSortDirection(orderby) },
@@ -264,7 +295,15 @@ export class PostListReadService {
         select: SafePostListSelect,
       });
 
-      return buildCursorPage(rows, take);
+      const page = buildCursorPage(rows, take);
+
+      return {
+        items: await this.postReadService.projectPostListRows(
+          page.items,
+          viewer?.id,
+        ),
+        pageInfo: page.pageInfo,
+      };
     }
 
     return this.cacheHelper.getOrSet(
@@ -274,11 +313,19 @@ export class PostListReadService {
           take: take + 1,
           where: cursorFilter
             ? {
-                AND: [{ authorId }, { removedAt: null }, cursorFilter],
+                AND: [
+                  { authorId },
+                  { removedAt: null },
+                  this.postReadService.buildListSurfaceSourceAvailabilityFilter(),
+                  cursorFilter,
+                ],
               }
             : {
-                authorId,
-                removedAt: null,
+                AND: [
+                  { authorId },
+                  { removedAt: null },
+                  this.postReadService.buildListSurfaceSourceAvailabilityFilter(),
+                ],
               },
 
           orderBy: [
@@ -289,7 +336,12 @@ export class PostListReadService {
           select: SafePostListSelect,
         });
 
-        return buildCursorPage(rows, take);
+        const page = buildCursorPage(rows, take);
+
+        return {
+          items: await this.postReadService.projectPostListRows(page.items),
+          pageInfo: page.pageInfo,
+        };
       },
       30_000,
     );

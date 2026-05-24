@@ -21,6 +21,11 @@ import {
   type SafePostListDTO,
   SafePostListSelect,
 } from "@/posts/dto/safe-post-list.dto";
+import type {
+  SafePostEmbedDTO,
+  SafePostEmbedRecord,
+} from "@/posts/dto/safe-post-embed.dto";
+import { PostKind } from "@/posts/enums/post-kind.enum";
 
 import { UserPrivacySetting } from "@/users/enums/user-privacy-setting.enum";
 import { AccountState } from "@/users/enums/account-state.enum";
@@ -40,6 +45,28 @@ type PaginationParams = {
   after?: string;
   first?: number;
   orderBy?: ChronologicalOrder;
+};
+
+type PostReadProjectionRow = {
+  id: number;
+  title: string | null;
+  content: string;
+  kind: PostKind;
+  sourcePostId: number | null;
+  createdAt: Date;
+  likesCount: number;
+  commentsCount: number;
+  repostsCount: number | null;
+  author: unknown;
+  sourcePost?: SafePostEmbedRecord | null;
+};
+
+type PostDetailProjectionRow = Omit<
+  SafePostDetailDTO,
+  "viewerHasReposted" | "sourcePost" | "mediaAttachments"
+> & {
+  sourcePost?: SafePostEmbedRecord | null;
+  mediaAttachments?: import("@/posts/dto/safe-post-detail.dto").SafePostMediaAttachmentRecord[];
 };
 
 @Injectable()
@@ -111,14 +138,17 @@ export class PostReadService {
       throw new NotFoundException("Post not found");
     }
 
-    return this.mediaReadProjection.derivePostDetailMediaUrls({
-      ...post,
-      comments: await this.commentsReadService.listThreadedCommentsForPost(
-        id,
-        viewerId,
-        commentsTake,
-      ),
-    });
+    return this.projectPostDetailRow(
+      {
+        ...post,
+        comments: await this.commentsReadService.listThreadedCommentsForPost(
+          id,
+          viewerId,
+          commentsTake,
+        ),
+      },
+      viewerId,
+    );
   }
 
   // Returns the authenticated user's feed with bounded chronological pagination
@@ -158,6 +188,7 @@ export class PostReadService {
               accountState: AccountState.ACTIVE,
             },
           },
+          this.buildListSurfaceSourceAvailabilityFilter(currentUserId),
           {
             OR: [
               { authorId: currentUserId },
@@ -192,7 +223,83 @@ export class PostReadService {
       select: SafePostListSelect,
     });
 
-    return buildCursorPage(rows, take);
+    const page = buildCursorPage(rows, take);
+
+    return {
+      items: await this.projectPostListRows(page.items, currentUserId),
+      pageInfo: page.pageInfo,
+    };
+  }
+
+  /** Projects post-list rows into GraphQL-safe DTOs with embedded source and viewer repost state. */
+  async projectPostListRows<T extends PostReadProjectionRow>(
+    rows: T[],
+    viewerId?: number | null,
+  ): Promise<
+    Array<
+      T & {
+        viewerHasReposted: boolean;
+        sourcePost: SafePostEmbedDTO | null;
+        repostsCount: number | null;
+      }
+    >
+  > {
+    const repostedSourceIds = await this.getViewerRepostedSourceIds(
+      rows,
+      viewerId,
+    );
+
+    return Promise.all(
+      rows.map(async (row) =>
+        this.projectPostListRow(row, repostedSourceIds, viewerId),
+      ),
+    );
+  }
+
+  /** Projects one post-detail row into a GraphQL-safe DTO with media URLs and repost state. */
+  async projectPostDetailRow<T extends PostDetailProjectionRow>(
+    row: T,
+    viewerId?: number | null,
+  ): Promise<SafePostDetailDTO> {
+    const projected = await this.projectPostListRows([row], viewerId);
+    const withMedia = this.mediaReadProjection.derivePostDetailMediaUrls({
+      ...row,
+      viewerHasReposted: false,
+      sourcePost: null,
+    });
+
+    return {
+      ...withMedia,
+      ...projected[0]!,
+      updatedAt: row.updatedAt,
+      editedAt: row.editedAt,
+      viewsCount: row.viewsCount,
+      likes: row.likes,
+      comments: row.comments,
+      mediaAttachments: withMedia.mediaAttachments,
+    };
+  }
+
+  /** Returns a where filter that hides derivatives whose source cannot be shown on list surfaces. */
+  buildListSurfaceSourceAvailabilityFilter(
+    viewerId?: number | null,
+  ): Prisma.PostWhereInput {
+    return {
+      OR: [
+        { kind: PostKind.ORIGINAL },
+        {
+          sourcePost: {
+            is: {
+              AND: [
+                { removedAt: null },
+                { author: { accountState: { not: AccountState.DEACTIVATED } } },
+                ...this.buildViewerVisibilityFilters(viewerId),
+              ],
+            },
+          },
+        },
+      ],
+    };
   }
 
   /** Builds the viewer-sensitive visibility filter for public/private author content reads. */
@@ -232,6 +339,161 @@ export class PostReadService {
         ],
       },
     ];
+  }
+
+  /** Projects one list row with source embed and viewer repost state. */
+  private async projectPostListRow<T extends PostReadProjectionRow>(
+    row: T,
+    repostedSourceIds: Set<number>,
+    viewerId?: number | null,
+  ): Promise<
+    T & {
+      viewerHasReposted: boolean;
+      sourcePost: SafePostEmbedDTO | null;
+      repostsCount: number | null;
+    }
+  > {
+    const rootSourceId = this.getRootSourceId(row);
+
+    return {
+      ...row,
+      repostsCount:
+        row.kind === PostKind.ORIGINAL ? (row.repostsCount ?? 0) : null,
+      viewerHasReposted: rootSourceId
+        ? repostedSourceIds.has(rootSourceId)
+        : false,
+      sourcePost:
+        row.kind === PostKind.ORIGINAL
+          ? null
+          : await this.projectSourcePostEmbed(row.sourcePost ?? null, viewerId),
+    };
+  }
+
+  /** Returns source ids the viewer has actively reposted. */
+  private async getViewerRepostedSourceIds(
+    rows: PostReadProjectionRow[],
+    viewerId?: number | null,
+  ): Promise<Set<number>> {
+    if (!viewerId || rows.length === 0) return new Set();
+
+    const sourceIds = [
+      ...new Set(
+        rows
+          .map((row) => this.getRootSourceId(row))
+          .filter((id): id is number => id !== null),
+      ),
+    ];
+
+    if (sourceIds.length === 0) return new Set();
+
+    const reposts = await this.prisma.post.findMany({
+      where: {
+        authorId: viewerId,
+        kind: PostKind.REPOST,
+        sourcePostId: { in: sourceIds },
+        removedAt: null,
+      },
+      select: { sourcePostId: true },
+    });
+
+    return new Set(
+      reposts
+        .map((row) => row.sourcePostId)
+        .filter((id): id is number => id !== null),
+    );
+  }
+
+  /** Returns the root source id for repost-state checks. */
+  private getRootSourceId(
+    row: Pick<PostReadProjectionRow, "id" | "kind" | "sourcePostId">,
+  ): number | null {
+    return row.kind === PostKind.ORIGINAL ? row.id : row.sourcePostId;
+  }
+
+  /** Projects an embedded source post or an unavailable tombstone for direct detail reads. */
+  private async projectSourcePostEmbed(
+    source: SafePostEmbedRecord | null,
+    viewerId?: number | null,
+  ): Promise<SafePostEmbedDTO> {
+    if (!source || !(await this.canViewerReadSourcePost(source, viewerId))) {
+      return {
+        id: null,
+        title: null,
+        content: null,
+        kind: null,
+        createdAt: null,
+        likesCount: null,
+        commentsCount: null,
+        repostsCount: null,
+        isUnavailable: true,
+        author: null,
+        mediaAttachments: [],
+      };
+    }
+
+    return {
+      id: source.id,
+      title: source.title,
+      content: source.content,
+      kind: source.kind,
+      createdAt: source.createdAt,
+      likesCount: source.likesCount,
+      commentsCount: source.commentsCount,
+      repostsCount:
+        source.kind === PostKind.ORIGINAL ? source.repostsCount : null,
+      isUnavailable: false,
+      author: source.author,
+      mediaAttachments: source.mediaAttachments?.map((attachment) => ({
+        ...attachment,
+        media: this.mediaReadProjection.derivePublicUrl(attachment.media),
+      })),
+    };
+  }
+
+  /** Checks whether an embedded source is readable by the current viewer. */
+  private async canViewerReadSourcePost(
+    source: SafePostEmbedRecord,
+    viewerId?: number | null,
+  ): Promise<boolean> {
+    if (
+      source.removedAt ||
+      source.author.accountState === AccountState.DEACTIVATED
+    ) {
+      return false;
+    }
+
+    if (viewerId === source.author.id) return true;
+
+    if (!viewerId) {
+      return source.author.privacySetting === UserPrivacySetting.PUBLIC;
+    }
+
+    const blockedAuthorIds = await this.getBlockedAuthorIds(viewerId);
+    if (blockedAuthorIds.includes(source.author.id)) return false;
+
+    if (
+      await this.mutesService.isMutedForScope(
+        viewerId,
+        source.author.id,
+        MuteScope.POSTS,
+      )
+    ) {
+      return false;
+    }
+
+    if (source.author.privacySetting === UserPrivacySetting.PUBLIC) return true;
+
+    const follow = await this.prisma.follow.findUnique({
+      where: {
+        followerId_followingId: {
+          followerId: viewerId,
+          followingId: source.author.id,
+        },
+      },
+      select: { id: true },
+    });
+
+    return Boolean(follow);
   }
 
   /** Returns author ids hidden from the viewer because of a block relationship. */

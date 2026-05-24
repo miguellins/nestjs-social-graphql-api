@@ -25,6 +25,40 @@ export class NotificationTriggerService {
     });
   }
 
+  /** Creates the standard notification for a reposted post. */
+  async notifyPostReposted(params: {
+    recipientId: number;
+    actorId: number;
+    actorUsername: string;
+    postId: number;
+  }): Promise<void> {
+    await this.notificationsService.createAndPublishNotification({
+      recipientId: params.recipientId,
+      actorId: params.actorId,
+      type: NotificationType.POST_REPOSTED,
+      title: "New repost",
+      body: `${params.actorUsername} reposted your post`,
+      entityId: params.postId,
+    });
+  }
+
+  /** Creates the standard notification for a quoted post. */
+  async notifyPostQuoted(params: {
+    recipientId: number;
+    actorId: number;
+    actorUsername: string;
+    postId: number;
+  }): Promise<void> {
+    await this.notificationsService.createAndPublishNotification({
+      recipientId: params.recipientId,
+      actorId: params.actorId,
+      type: NotificationType.POST_QUOTED,
+      title: "New quote",
+      body: `${params.actorUsername} quoted your post`,
+      entityId: params.postId,
+    });
+  }
+
   // Creates the standard notification for a new follower
   async notifyUserFollowed(params: {
     recipientId: number;

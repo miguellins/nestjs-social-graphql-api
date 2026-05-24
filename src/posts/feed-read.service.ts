@@ -21,6 +21,7 @@ import {
 import { PostReadService } from "@/posts/post-read.service";
 import {
   type HomeFeedItemDTO,
+  type HomeFeedItemRecord,
   HomeFeedItemSelect,
 } from "@/posts/dto/home-feed-item.dto";
 
@@ -298,6 +299,9 @@ export class FeedReadService {
           accountState: AccountState.ACTIVE,
         },
       },
+      this.postReadService.buildListSurfaceSourceAvailabilityFilter(
+        currentUserId,
+      ),
       {
         OR: [
           {
@@ -363,11 +367,35 @@ export class FeedReadService {
     const page = buildCursorPage(rows, take);
 
     return {
-      items: page.items.map((row) =>
-        this.mediaReadProjection.deriveHomeFeedItemMediaUrls(row),
-      ),
+      items: await this.projectHomeFeedRows(page.items, currentUserId),
       pageInfo: page.pageInfo,
     };
+  }
+
+  /** Projects home-feed rows with media URLs, viewer relation flags, and repost source state. */
+  private async projectHomeFeedRows(
+    rows: HomeFeedItemRecord[],
+    currentUserId: number,
+  ): Promise<HomeFeedItemDTO[]> {
+    const listRows = await this.postReadService.projectPostListRows(
+      rows,
+      currentUserId,
+    );
+
+    return rows.map((row, index) => {
+      const mediaProjected =
+        this.mediaReadProjection.deriveHomeFeedItemMediaUrls(row);
+      const projected = listRows[index]!;
+
+      return {
+        ...mediaProjected,
+        kind: projected.kind,
+        sourcePostId: projected.sourcePostId,
+        repostsCount: projected.repostsCount,
+        viewerHasReposted: projected.viewerHasReposted,
+        sourcePost: projected.sourcePost,
+      };
+    });
   }
 
   /** Reads the home feed from persisted projection entries and hydrates posts. */
@@ -466,6 +494,9 @@ export class FeedReadService {
           accountState: AccountState.ACTIVE,
         },
       },
+      this.postReadService.buildListSurfaceSourceAvailabilityFilter(
+        currentUserId,
+      ),
     ];
 
     if (blockedAuthorIds.length > 0) {
@@ -507,7 +538,7 @@ export class FeedReadService {
         missingPostIds.push(id);
         continue;
       }
-      ordered.push(this.mediaReadProjection.deriveHomeFeedItemMediaUrls(row));
+      ordered.push(...(await this.projectHomeFeedRows([row], currentUserId)));
     }
 
     if (missingPostIds.length > 0) {

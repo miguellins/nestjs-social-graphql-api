@@ -8,6 +8,9 @@ import {
 
 import { FormattedDateTimeField } from "@/graphql/fields/formatted-date-time-field.decorator";
 
+import { PostKind } from "@/posts/enums/post-kind.enum";
+import { SafePostEmbed } from "@/posts/models/safe-post-embed.model";
+
 import { PostMedia } from "@/media/models/post-media.model";
 
 import { SafeUserPreview } from "@/users/models/safe-user-preview.model";
@@ -26,6 +29,14 @@ export class HomeFeedItem {
   /** Main textual content shown in the feed card. */
   @Field()
   content: string;
+
+  /** Feed item post composition kind. */
+  @Field(() => PostKind)
+  kind: PostKind;
+
+  /** Root source post id for repost and quote feed items. */
+  @Field(() => ID, { nullable: true })
+  sourcePostId: number | null;
 
   /** Timestamp indicating when the post was originally created. */
   @Field(() => GraphQLISODateTime)
@@ -47,9 +58,21 @@ export class HomeFeedItem {
   @Field(() => Boolean)
   viewerHasLiked: boolean;
 
+  /** Repost count for original posts; null for repost and quote wrappers. */
+  @Field(() => Int, { nullable: true })
+  repostsCount: number | null;
+
+  /** Indicates whether the current viewer has reposted this post or root source. */
+  @Field(() => Boolean)
+  viewerHasReposted: boolean;
+
   /** Indicates whether the current viewer has bookmarked the post. */
   @Field(() => Boolean)
   viewerHasBookmarked: boolean;
+
+  /** Embedded source preview for repost and quote feed items. */
+  @Field(() => SafePostEmbed, { nullable: true })
+  sourcePost?: SafePostEmbed | null;
 
   /** Safe public preview of the post author. */
   @Field(() => SafeUserPreview)

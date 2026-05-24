@@ -25,6 +25,7 @@ import {
 
 import { BookmarkSelect, type BookmarkDTO } from "@/bookmarks/dto/bookmark.dto";
 
+import type { SafePostListDTO } from "@/posts/dto/safe-post-list.dto";
 import { PostReadService } from "@/posts/post-read.service";
 import { MutesService } from "@/mutes/mutes.service";
 import { MuteScope } from "@/mutes/enums/mute-scope.enum";
@@ -33,6 +34,10 @@ import { AccountState } from "@/users/enums/account-state.enum";
 
 import { PrismaService } from "@/prisma/prisma.service";
 import { Prisma } from "@prisma/client";
+
+type BookmarkRecord = Omit<BookmarkDTO, "post"> & {
+  post: Parameters<PostReadService["projectPostListRows"]>[0][number];
+};
 
 type FindMyBookmarksParams = {
   after?: string;
@@ -63,13 +68,14 @@ export class BookmarksService {
     let bookmark: BookmarkDTO;
 
     try {
-      bookmark = await this.prisma.bookmark.create({
+      const created = await this.prisma.bookmark.create({
         data: {
           userId: currentUserId,
           postId,
         },
         select: BookmarkSelect,
       });
+      bookmark = await this.projectBookmark(created, currentUserId);
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError) {
         if (err.code === "P2002") {
@@ -172,13 +178,36 @@ export class BookmarksService {
             select: BookmarkSelect,
           });
 
-          return buildCursorPage(rows, take);
+          const page = buildCursorPage(rows, take);
+
+          return {
+            items: await Promise.all(
+              page.items.map((row) => this.projectBookmark(row, currentUserId)),
+            ),
+            pageInfo: page.pageInfo,
+          };
         } catch (err) {
           this.throwUnexpectedPersistenceFailure("find bookmarks", err);
         }
       },
       30_000,
     );
+  }
+
+  /** Projects nested bookmarked posts with viewer repost state. */
+  private async projectBookmark(
+    bookmark: BookmarkRecord,
+    viewerId: number,
+  ): Promise<BookmarkDTO> {
+    const [post] = await this.postReadService.projectPostListRows(
+      [bookmark.post],
+      viewerId,
+    );
+
+    return {
+      ...bookmark,
+      post: post! as SafePostListDTO,
+    };
   }
 
   // Private Helpers
@@ -237,6 +266,7 @@ export class BookmarksService {
         },
       },
       ...this.postReadService.buildViewerVisibilityFilters(viewerId),
+      this.postReadService.buildListSurfaceSourceAvailabilityFilter(viewerId),
     ];
 
     if (postId !== undefined) {

@@ -24,6 +24,12 @@ type NotificationPreferences {
   """Whether post-like notifications are enabled."""
   postLikedNotificationsEnabled: Boolean!
 
+  """Whether post-repost notifications are enabled."""
+  postRepostedNotificationsEnabled: Boolean!
+
+  """Whether post-quote notifications are enabled."""
+  postQuotedNotificationsEnabled: Boolean!
+
   """Whether new-follower notifications are enabled."""
   userFollowedNotificationsEnabled: Boolean!
 }
@@ -182,6 +188,8 @@ enum NotificationType {
   USER_FOLLOWED
   FOLLOW_REQUESTED
   POST_LIKED
+  POST_REPOSTED
+  POST_QUOTED
   COMMENT_REPLIED
   POST_MENTIONED
   COMMENT_MENTIONED
@@ -277,6 +285,108 @@ type UserInteractionPreferences {
   silencedActors: SilencedActorPage!
 }
 
+"""
+Public media object exposed to owners and post detail consumers with safe delivery metadata.
+"""
+type Media {
+  """Unique identifier of the media item."""
+  id: ID!
+
+  """Product-level classification for the media item."""
+  kind: MediaKind!
+
+  """Technical media type used for rendering decisions."""
+  type: MediaType!
+
+  """Upload lifecycle state for the media item."""
+  status: MediaStatus!
+
+  """MIME type verified for the stored object."""
+  mimeType: String!
+
+  """Public delivery URL used by clients to render the media item."""
+  url: String!
+
+  """Size of the stored object in bytes."""
+  bytes: Int
+
+  """Image width in pixels when known."""
+  width: Int
+
+  """Image height in pixels when known."""
+  height: Int
+
+  """Video duration in milliseconds when known."""
+  durationMs: Int
+
+  """Timestamp indicating when the media item was created."""
+  createdAt: DateTime!
+
+  """
+  Presentation-friendly UTC timestamp for when the media item was created.
+  """
+  createdAtFormatted: String
+
+  """Timestamp indicating when the media item was last updated."""
+  updatedAt: DateTime!
+
+  """
+  Presentation-friendly UTC timestamp for when the media item was last updated.
+  """
+  updatedAtFormatted: String
+
+  """
+  Timestamp indicating when the media item was attached to a post, if any.
+  """
+  attachedAt: DateTime
+
+  """
+  Presentation-friendly UTC timestamp for when the media item was attached to a post.
+  """
+  attachedAtFormatted: String
+}
+
+"""Classifies the product-level purpose of a media item"""
+enum MediaKind {
+  POST_IMAGE
+  POST_VIDEO
+  PROFILE_AVATAR
+}
+
+"""Classifies whether a media item is an image or a video"""
+enum MediaType {
+  IMAGE
+  VIDEO
+}
+
+"""Tracks the upload and verification lifecycle of a media item"""
+enum MediaStatus {
+  PENDING_UPLOAD
+  READY
+}
+
+"""
+Post attachment object that links a media item to a post with ordering metadata.
+"""
+type PostMedia {
+  """Unique identifier of the post-media attachment relation."""
+  id: ID!
+
+  """Zero-based or sequential ordering value for attachments on a post."""
+  sortOrder: Int!
+
+  """Media payload attached to the post."""
+  media: Media!
+
+  """Timestamp indicating when the media item was attached to the post."""
+  createdAt: DateTime!
+
+  """
+  Presentation-friendly UTC timestamp for when the media item was attached to the post.
+  """
+  createdAtFormatted: String
+}
+
 """Minimal public user representation for nested fields"""
 type SafeUserPreview implements PublicUserIdentity {
   id: ID!
@@ -285,6 +395,58 @@ type SafeUserPreview implements PublicUserIdentity {
 
   """Public delivery URL for the READY profile avatar, when available."""
   avatarUrl: String
+}
+
+"""Embedded source-post preview shown inside repost and quote post cards."""
+type SafePostEmbed {
+  """Source post id when available to the viewer."""
+  id: ID
+
+  """Source post title when available to the viewer."""
+  title: String
+
+  """Source post content when available to the viewer."""
+  content: String
+
+  """Source post kind when available to the viewer."""
+  kind: PostKind
+
+  """Source post creation timestamp when available to the viewer."""
+  createdAt: DateTime
+
+  """
+  Presentation-friendly UTC timestamp for the embedded source creation time.
+  """
+  createdAtFormatted: String
+
+  """Source post like count when available to the viewer."""
+  likesCount: Int
+
+  """Source post comment count when available to the viewer."""
+  commentsCount: Int
+
+  """Source post repost count when available to the viewer."""
+  repostsCount: Int
+
+  """
+  Indicates the source exists but is unavailable to this viewer or read surface.
+  """
+  isUnavailable: Boolean!
+
+  """Safe public preview of the embedded source author."""
+  author: SafeUserPreview
+
+  """Optional ordered source media attachments."""
+  mediaAttachments: [PostMedia!]
+}
+
+"""
+Represents whether a post is original content, a repost, or a quote post
+"""
+enum PostKind {
+  ORIGINAL
+  REPOST
+  QUOTE
 }
 
 """Core public representation of a Post entity."""
@@ -300,6 +462,14 @@ type Post {
   """Main textual content of the post."""
   content: String!
 
+  """
+  Post composition kind used by clients to render original, repost, and quote cards.
+  """
+  kind: PostKind!
+
+  """Root source post id for repost and quote derivatives."""
+  sourcePostId: ID
+
   """Timestamp indicating when the post was originally created."""
   createdAt: DateTime!
 
@@ -313,6 +483,17 @@ type Post {
 
   """Total number of comments associated with the post."""
   commentsCount: Int!
+
+  """Repost count for original posts; null for repost and quote wrappers."""
+  repostsCount: Int
+
+  """
+  Indicates whether the current viewer has reposted this post or root source.
+  """
+  viewerHasReposted: Boolean!
+
+  """Embedded source preview for repost and quote wrappers."""
+  sourcePost: SafePostEmbed
 
   """Public safe preview of the user who authored the post."""
   author: SafeUserPreview!
@@ -481,86 +662,6 @@ type MediaViewUrl {
   expiresAt: DateTime!
 }
 
-"""
-Public media object exposed to owners and post detail consumers with safe delivery metadata.
-"""
-type Media {
-  """Unique identifier of the media item."""
-  id: ID!
-
-  """Product-level classification for the media item."""
-  kind: MediaKind!
-
-  """Technical media type used for rendering decisions."""
-  type: MediaType!
-
-  """Upload lifecycle state for the media item."""
-  status: MediaStatus!
-
-  """MIME type verified for the stored object."""
-  mimeType: String!
-
-  """Public delivery URL used by clients to render the media item."""
-  url: String!
-
-  """Size of the stored object in bytes."""
-  bytes: Int
-
-  """Image width in pixels when known."""
-  width: Int
-
-  """Image height in pixels when known."""
-  height: Int
-
-  """Video duration in milliseconds when known."""
-  durationMs: Int
-
-  """Timestamp indicating when the media item was created."""
-  createdAt: DateTime!
-
-  """
-  Presentation-friendly UTC timestamp for when the media item was created.
-  """
-  createdAtFormatted: String
-
-  """Timestamp indicating when the media item was last updated."""
-  updatedAt: DateTime!
-
-  """
-  Presentation-friendly UTC timestamp for when the media item was last updated.
-  """
-  updatedAtFormatted: String
-
-  """
-  Timestamp indicating when the media item was attached to a post, if any.
-  """
-  attachedAt: DateTime
-
-  """
-  Presentation-friendly UTC timestamp for when the media item was attached to a post.
-  """
-  attachedAtFormatted: String
-}
-
-"""Classifies the product-level purpose of a media item"""
-enum MediaKind {
-  POST_IMAGE
-  POST_VIDEO
-  PROFILE_AVATAR
-}
-
-"""Classifies whether a media item is an image or a video"""
-enum MediaType {
-  IMAGE
-  VIDEO
-}
-
-"""Tracks the upload and verification lifecycle of a media item"""
-enum MediaStatus {
-  PENDING_UPLOAD
-  READY
-}
-
 """Cursor-paginated page of media plus navigation metadata."""
 type MediaPage {
   """Items returned for the current page."""
@@ -568,28 +669,6 @@ type MediaPage {
 
   """Cursor navigation metadata for the current page."""
   pageInfo: PageInfo!
-}
-
-"""
-Post attachment object that links a media item to a post with ordering metadata.
-"""
-type PostMedia {
-  """Unique identifier of the post-media attachment relation."""
-  id: ID!
-
-  """Zero-based or sequential ordering value for attachments on a post."""
-  sortOrder: Int!
-
-  """Media payload attached to the post."""
-  media: Media!
-
-  """Timestamp indicating when the media item was attached to the post."""
-  createdAt: DateTime!
-
-  """
-  Presentation-friendly UTC timestamp for when the media item was attached to the post.
-  """
-  createdAtFormatted: String
 }
 
 """Post payload returned after a media attachment mutation succeeds."""
@@ -662,6 +741,12 @@ type HomeFeedItem {
   """Main textual content shown in the feed card."""
   content: String!
 
+  """Feed item post composition kind."""
+  kind: PostKind!
+
+  """Root source post id for repost and quote feed items."""
+  sourcePostId: ID
+
   """Timestamp indicating when the post was originally created."""
   createdAt: DateTime!
 
@@ -679,8 +764,19 @@ type HomeFeedItem {
   """Indicates whether the current viewer has liked the post."""
   viewerHasLiked: Boolean!
 
+  """Repost count for original posts; null for repost and quote wrappers."""
+  repostsCount: Int
+
+  """
+  Indicates whether the current viewer has reposted this post or root source.
+  """
+  viewerHasReposted: Boolean!
+
   """Indicates whether the current viewer has bookmarked the post."""
   viewerHasBookmarked: Boolean!
+
+  """Embedded source preview for repost and quote feed items."""
+  sourcePost: SafePostEmbed
 
   """Safe public preview of the post author."""
   author: SafeUserPreview!
@@ -757,6 +853,14 @@ type PostDetail {
   """Main textual content of the post."""
   content: String!
 
+  """
+  Post composition kind used by clients to render original, repost, and quote cards.
+  """
+  kind: PostKind!
+
+  """Root source post id for repost and quote derivatives."""
+  sourcePostId: ID
+
   """Timestamp indicating when the post was originally created."""
   createdAt: DateTime!
 
@@ -788,6 +892,17 @@ type PostDetail {
 
   """Total number of comments associated with the post."""
   commentsCount: Int!
+
+  """Repost count for original posts; null for repost and quote wrappers."""
+  repostsCount: Int
+
+  """
+  Indicates whether the current viewer has reposted this post or root source.
+  """
+  viewerHasReposted: Boolean!
+
+  """Embedded source preview for repost and quote wrappers."""
+  sourcePost: SafePostEmbed
 
   """
   Total number of times the post detail view has been accessed successfully.
@@ -964,6 +1079,50 @@ type ReviewReportPage {
 
   """Cursor navigation metadata for the current page."""
   pageInfo: PageInfo!
+}
+
+"""
+Lightweight repost list item showing the repost wrapper, actor, and source preview.
+"""
+type RepostListItem {
+  """Repost wrapper post id."""
+  id: ID!
+
+  """Root source post id that was reposted."""
+  sourcePostId: ID!
+
+  """Timestamp when the repost wrapper was created."""
+  createdAt: DateTime!
+
+  """Presentation-friendly UTC timestamp for when the repost was created."""
+  createdAtFormatted: String
+
+  """Public safe preview of the reposting user."""
+  author: SafeUserPreview!
+
+  """Embedded source post preview."""
+  sourcePost: SafePostEmbed!
+}
+
+"""Cursor-paginated page of reposts plus navigation metadata."""
+type RepostPage {
+  """Items returned for the current page."""
+  items: [RepostListItem!]!
+
+  """Cursor navigation metadata for the current page."""
+  pageInfo: PageInfo!
+}
+
+"""Payload returned after a successful repost create operation."""
+type RepostPostPayload {
+  """Created repost wrapper post id."""
+  repostPostId: ID!
+
+  """Root source post id that was reposted."""
+  sourcePostId: ID!
+
+  """Updated repost count on the root source post."""
+  repostsCount: Int!
 }
 
 """Cursor-paginated page of users plus navigation metadata."""
@@ -1498,6 +1657,33 @@ type Query {
     """
     targetType: ReportTargetType
   ): ReviewReportPage!
+  reposts(
+    """Maximum number of items to return (1-${PAGINATION.MAX_TAKE})."""
+    first: Int
+
+    """
+    Cursor for the last item from the previous page. Reuse it only with the same filter and ordering inputs.
+    """
+    after: String
+
+    """Controls chronological ordering for paged list results."""
+    orderBy: ChronologicalOrder
+
+    """Source post id whose repost wrappers should be listed."""
+    postId: Int!
+  ): RepostPage!
+  myReposts(
+    """Maximum number of items to return (1-${PAGINATION.MAX_TAKE})."""
+    first: Int
+
+    """
+    Cursor for the last item from the previous page. Reuse it only with the same filter and ordering inputs.
+    """
+    after: String
+
+    """Controls chronological ordering for paged list results."""
+    orderBy: ChronologicalOrder
+  ): RepostPage!
   myBookmarks(
     """Maximum number of items to return (1-${PAGINATION.MAX_TAKE})."""
     first: Int
@@ -1577,6 +1763,9 @@ type Mutation {
   reportComment(input: ReportCommentInput!): MessageResponse!
   dismissReport(reportId: Int!): MessageResponse!
   actionReport(reportId: Int!): MessageResponse!
+  repostPost(postId: Int!): RepostPostPayload!
+  undoRepost(postId: Int!): MessageResponse!
+  quotePost(input: QuotePostInput!): CreatedPost!
   bookmarkPost(postId: Int!): Bookmark!
   removeBookmark(postId: Int!): MessageResponse!
 }
@@ -1810,6 +1999,12 @@ input UpdateNotificationPreferencesInput {
   """Whether post-like notifications are enabled."""
   postLikedNotificationsEnabled: Boolean
 
+  """Whether post-repost notifications are enabled."""
+  postRepostedNotificationsEnabled: Boolean
+
+  """Whether post-quote notifications are enabled."""
+  postQuotedNotificationsEnabled: Boolean
+
   """Whether new-follower notifications are enabled."""
   userFollowedNotificationsEnabled: Boolean
 }
@@ -1848,6 +2043,22 @@ input ReportCommentInput {
 
   """Optional extra reporter-provided context about the issue."""
   details: String
+}
+
+"""
+Input used to create a quote post with commentary around a visible source post.
+"""
+input QuotePostInput {
+  """
+  Source post id to quote; repost and quote wrappers resolve to their root original.
+  """
+  sourcePostId: Int!
+
+  """Optional quote title using the same bounds as normal post creation."""
+  title: String
+
+  """Quote commentary using the same bounds as normal post creation."""
+  content: String!
 }
 
 type Subscription {

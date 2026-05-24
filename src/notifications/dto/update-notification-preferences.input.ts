@@ -29,6 +29,18 @@ export class UpdateNotificationPreferencesInput {
   @IsBoolean()
   postLikedNotificationsEnabled?: boolean;
 
+  /** Whether post-repost notifications are enabled. */
+  @Field(() => Boolean, { nullable: true })
+  @IsOptional()
+  @IsBoolean()
+  postRepostedNotificationsEnabled?: boolean;
+
+  /** Whether post-quote notifications are enabled. */
+  @Field(() => Boolean, { nullable: true })
+  @IsOptional()
+  @IsBoolean()
+  postQuotedNotificationsEnabled?: boolean;
+
   /** Whether new-follower notifications are enabled. */
   @Field(() => Boolean, { nullable: true })
   @IsOptional()

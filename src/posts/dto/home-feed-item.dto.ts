@@ -1,5 +1,11 @@
 import type { Prisma } from "@prisma/client";
 
+import { PostKind } from "@/posts/enums/post-kind.enum";
+import {
+  SafePostEmbedSelect,
+  type SafePostEmbedDTO,
+} from "@/posts/dto/safe-post-embed.dto";
+
 import type {
   SafePostMediaAttachmentDTO,
   SafePostMediaAttachmentRecord,
@@ -10,11 +16,16 @@ export type HomeFeedItemDTO = {
   id: number;
   title: string | null;
   content: string;
+  kind: PostKind;
+  sourcePostId: number | null;
   createdAt: Date;
   likesCount: number;
   commentsCount: number;
+  repostsCount: number | null;
   viewerHasLiked: boolean;
   viewerHasBookmarked: boolean;
+  viewerHasReposted: boolean;
+  sourcePost?: SafePostEmbedDTO | null;
   author: {
     id: number;
     name: string;
@@ -30,11 +41,18 @@ type HomeFeedRelationMarker = {
 /** Defines the internal home-feed item record shape before media URL and viewer-state projection. */
 export type HomeFeedItemRecord = Omit<
   HomeFeedItemDTO,
-  "mediaAttachments" | "viewerHasLiked" | "viewerHasBookmarked"
+  | "mediaAttachments"
+  | "viewerHasLiked"
+  | "viewerHasBookmarked"
+  | "viewerHasReposted"
+  | "sourcePost"
 > & {
   likes: HomeFeedRelationMarker[];
   bookmarks: HomeFeedRelationMarker[];
   mediaAttachments?: SafePostMediaAttachmentRecord[];
+  sourcePost?:
+    | import("@/posts/dto/safe-post-embed.dto").SafePostEmbedRecord
+    | null;
 };
 
 /** Defines the Prisma select shape that matches the safe home-feed item record. */
@@ -42,9 +60,15 @@ export const HomeFeedItemSelect = {
   id: true,
   title: true,
   content: true,
+  kind: true,
+  sourcePostId: true,
   createdAt: true,
   likesCount: true,
   commentsCount: true,
+  repostsCount: true,
+  sourcePost: {
+    select: SafePostEmbedSelect,
+  },
   author: {
     select: {
       id: true,

@@ -13,6 +13,7 @@ import { runBestEffort } from "@/common/errors/run-best-effort";
 import { parseWithBadRequest } from "@/common/zod/parse-with-zod";
 
 import { PostCacheService } from "@/posts/post-cache.service";
+import { PostReadService } from "@/posts/post-read.service";
 import {
   type CreatedPostDTO,
   CreatedPostSelect,
@@ -42,7 +43,7 @@ import { AccountState } from "@/users/enums/account-state.enum";
 
 import { PrismaService } from "@/prisma/prisma.service";
 
-import { Prisma } from "@prisma/client";
+import { PostKind, Prisma } from "@prisma/client";
 
 @Injectable()
 export class PostWriteService {
@@ -52,6 +53,7 @@ export class PostWriteService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly postCacheService: PostCacheService,
+    private readonly postReadService: PostReadService,
     private readonly mentionsService: MentionsService,
     private readonly hashtagsService: HashtagsService,
     private readonly outboxService: OutboxService,
@@ -207,6 +209,7 @@ export class PostWriteService {
           content: true,
           createdAt: true,
           removedAt: true,
+          kind: true,
           author: {
             select: {
               accountState: true,
@@ -226,6 +229,12 @@ export class PostWriteService {
         );
       }
 
+      if (existing.kind !== PostKind.ORIGINAL) {
+        throw new ForbiddenException(
+          "Repost and quote posts cannot be updated",
+        );
+      }
+
       if (this.didPostContentChange(existing, normalizedInput)) {
         data.editedAt = new Date();
         finalContentForMentions = normalizedInput.content;
@@ -240,7 +249,7 @@ export class PostWriteService {
         );
       }
 
-      post = await this.prisma.$transaction(async (tx) => {
+      const updatedPost = await this.prisma.$transaction(async (tx) => {
         const updated = await tx.post.update({
           where: { id },
           data,
@@ -260,6 +269,11 @@ export class PostWriteService {
 
         return updated;
       });
+      const [projectedPost] = await this.postReadService.projectPostListRows(
+        [updatedPost],
+        currentUserId,
+      );
+      post = projectedPost!;
     } catch (err) {
       if (err instanceof HttpException) throw err;
 
@@ -312,6 +326,7 @@ export class PostWriteService {
           id: true,
           authorId: true,
           removedAt: true,
+          kind: true,
           author: {
             select: {
               accountState: true,
@@ -331,6 +346,10 @@ export class PostWriteService {
         );
       }
 
+      if (existing.kind === PostKind.REPOST) {
+        throw new ForbiddenException("Use undoRepost to remove a repost");
+      }
+
       await this.prisma.$transaction(async (tx) => {
         hashtagSync = await this.hashtagsService.stripPostHashtags({
           tx,
@@ -338,6 +357,15 @@ export class PostWriteService {
           publiclyCountable:
             this.hashtagsService.isPubliclyCountablePost(existing),
         });
+
+        if (existing.kind === PostKind.ORIGINAL) {
+          await tx.post.update({
+            where: { id },
+            data: { removedAt: new Date() },
+            select: { id: true },
+          });
+          return;
+        }
 
         await tx.post.delete({
           where: { id },

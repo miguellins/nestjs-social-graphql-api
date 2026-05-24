@@ -102,6 +102,37 @@ export class PostCacheService {
     );
   }
 
+  /** Invalidates root-source and author list caches after repost counter changes. */
+  async invalidateAfterRepostChange(
+    sourcePostId: number,
+    repostAuthorId: number,
+    sourceAuthorId: number,
+    repostPostId?: number,
+  ): Promise<void> {
+    await runBestEffort(
+      this.logger,
+      "error",
+      `Failed to invalidate caches after repost change for source post ${sourcePostId}`,
+      async () => {
+        await this.cacheHelper.del(`posts:detail:${sourcePostId}`);
+        if (repostPostId !== undefined) {
+          await this.cacheHelper.del(`posts:detail:${repostPostId}`);
+        }
+        await this.cacheHelper.bumpVersion("v:posts:list");
+        await this.cacheHelper.bumpVersion("v:reposts:list");
+        await this.cacheHelper.bumpVersion(
+          `v:user:${repostAuthorId}:reposts:list`,
+        );
+        await this.cacheHelper.bumpVersion(
+          this.getUserPostsListVersionKey(repostAuthorId),
+        );
+        await this.cacheHelper.bumpVersion(
+          this.getUserPostsListVersionKey(sourceAuthorId),
+        );
+      },
+    );
+  }
+
   /** Returns the cache version key string for a user post list. */
   private getUserPostsListVersionKey(userId: number): string {
     return `v:user:${userId}:posts:list`;

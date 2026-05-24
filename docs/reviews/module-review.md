@@ -1,5 +1,3 @@
-03/05
-
 # MODULE REVIEW
 
 # Auth: 96/100
@@ -30,6 +28,12 @@ Weakness: the feature is still v1. The reconciliation job still needs to be run 
 Strength: one-level threading is implemented cleanly with `parentCommentId`, `CommentsReadService`, bounded inline replies, reply-aware counters, reply notifications, and a non-recursive GraphQL contract through `CommentReply`. The delete-path counter fix remains meaningful, and the comment write path is stronger because reply notifications can be persisted transactionally with a durable outbox event when enabled. Mention syncing, block-aware and mute-aware suppression, self-reply suppression, and outbox-backed reply delivery make the module product-realistic and operationally safer.
 
 Weakness: comments is now split across facade, read, write, and moderation boundaries, and comment threads still stop at a practical v1 shape rather than deeper thread navigation or reply pagination.
+
+
+# Reposts: 88/100
+Strength: repost and quote flows now use typed post rows, transactional root repost counters, root-source resolution for reposts and quotes, visibility/block/mute/account-state gates, cache invalidation, home-feed fanout reuse, embedded source previews, viewer repost state, quote mention/hashtag sync, and separate notification preferences for repost and quote alerts. The module is intentionally small and follows the existing thin resolver plus service-owned domain behavior pattern.
+
+Weakness: v1 intentionally omits quote editing, quote counts, durable outbox notification delivery for repost/quote alerts, richer profile repost tabs beyond `myReposts`, and deeper analytics around redistribution behavior.
 
 
 # Likes: 90/100
@@ -63,7 +67,7 @@ Weakness: `reports.service.ts` still combines intake and review concerns, and th
 
 
 # Notifications: 99/100
-Strength: durable persistence before publish, self-notification suppression, block-aware and NOTIFICATIONS-scope mute suppression, actor-silence suppression, explicit trigger/delivery separation, `COMMENT_REPLIED` support, unread count, mark-as-read flows, muted-actor filtering in notification lists, notification preference read/update operations, and working realtime delivery through `notificationReceived` give this module solid product footing. It is materially stronger because reply and follow-request notifications can be persisted first and then delivered through the outbox-backed worker path instead of relying only on immediate best-effort publish. Mention-driven notifications, reply flows, persisted per-user toggles for reply, follow-request, mentions, post likes, and new followers, per-actor notification silence, and `myInteractionPreferences` make it meaningfully more complete than a simple in-app alert list. Suppression gates new persistence in the order block, mute, actor silence, then global preferences, and emits `notification_suppressed_total` with low-cardinality `mute`, `actor`, and `prefs` reasons.
+Strength: durable persistence before publish, self-notification suppression, block-aware and NOTIFICATIONS-scope mute suppression, actor-silence suppression, explicit trigger/delivery separation, `COMMENT_REPLIED` support, unread count, mark-as-read flows, muted-actor filtering in notification lists, notification preference read/update operations, and working realtime delivery through `notificationReceived` give this module solid product footing. It is materially stronger because reply and follow-request notifications can be persisted first and then delivered through the outbox-backed worker path instead of relying only on immediate best-effort publish. Mention-driven notifications, reply flows, persisted per-user toggles for reply, follow-request, mentions, post likes, reposts, quotes, and new followers, per-actor notification silence, and `myInteractionPreferences` make it meaningfully more complete than a simple in-app alert list. Suppression gates new persistence in the order block, mute, actor silence, then global preferences, and emits `notification_suppressed_total` with low-cardinality `mute`, `actor`, and `prefs` reasons.
 
 Weakness: notification coverage is still relatively narrow overall, with a limited event set, no digesting, no channel routing, limited delivery history beyond the current realtime-delivered marker, and no broader multi-channel delivery strategy.
 
