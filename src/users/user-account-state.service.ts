@@ -62,6 +62,7 @@ export class UserAccountStateService {
       async () => {
         await this.userCache.clearUser(deletedUser.username, currentUserId);
         await this.cacheHelper.bumpVersion("v:user:list");
+        await this.cacheHelper.bumpVersion("v:search:users");
       },
     );
 
@@ -222,6 +223,7 @@ export class UserAccountStateService {
 
     await this.userCache.clearUser(username, userId);
     await this.cacheHelper.bumpVersion("v:user:list");
+    await this.cacheHelper.bumpVersion("v:search:users");
     await this.cacheHelper.bumpVersion("v:posts:list");
     await this.cacheHelper.bumpVersion(`v:user:${userId}:posts:list`);
 

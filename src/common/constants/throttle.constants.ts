@@ -13,6 +13,14 @@ export const THROTTLE_LIMITS = {
   LIST: { limit: 60, ttl: 60 },
 
   /**
+   * Used for relevance-ranked search queries.
+   *
+   * Search can be more expensive than ordinary chronological lists because it
+   * uses database fulltext ranking and viewer-specific filtering.
+   */
+  SEARCH: { limit: 30, ttl: 60 },
+
+  /**
    * Used for single-record reads (userById, postById)
    *
    * These queries are usually cheaper:

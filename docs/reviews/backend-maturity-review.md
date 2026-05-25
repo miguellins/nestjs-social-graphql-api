@@ -171,11 +171,11 @@ Still missing for a realistic MVP:
 - Profile extensions beyond the v1 bio, website, location, and avatar surface
 - Notification preferences are still in-app only and do not yet model push/email channels, digests, or quiet hours
 - Mute controls still lack expiration, bulk operations, and automatic projection un-hide
-- More realistic discovery surfaces beyond hashtag prefix search
+- More realistic discovery surfaces beyond hashtag prefix search; V1 MySQL-native `searchPosts` and `searchUsers` now exist, but unified discovery, trending, typo tolerance, and external search infrastructure remain future work
 - Broader moderation console/operator workflow
 
 Still missing for a more mature platform:
-- Search/discovery infrastructure beyond hashtag autocomplete
+- Search/discovery infrastructure beyond hashtag autocomplete; V1 uses MySQL FULLTEXT while external search infrastructure remains future work
 - Ranked home feed
 - Recommendation infrastructure
 - Push/email fanout beyond current channels
@@ -329,7 +329,7 @@ Observability maturity is now:
 **Phase 2**
 - Richer profiles and preferences
 - Notification preferences
-- Discovery improvements beyond hashtag prefix search
+- Discovery V1 rollout validation for MySQL FULLTEXT post/user search, followed by richer discovery improvements beyond the current separate search operations
 - Media lifecycle expansion
 - Contract refinements for frontend ergonomics
 

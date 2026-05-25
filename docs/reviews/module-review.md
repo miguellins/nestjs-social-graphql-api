@@ -18,10 +18,10 @@ Strength: privacy-aware visibility, block-aware and mute-aware reads, moderation
 Weakness: the posts coordinator is now slim, but the home feed remains an early chronological social-graph feed. The new projection is a credible scalability step, but it is not yet a richer ranking, recommendation, explainability, or fully event-platform-backed feed subsystem.
 
 
-# Hashtags / Discovery: 91/100
-Strength: normalized content hashtags now live in a dedicated `HashtagsModule` with conservative ASCII parsing, reserved-slug rejection, a 10-tag cap, transactional `PostHashtag` replacement during post writes, same-transaction public `postsCount` deltas, removal cleanup, `postsByHashtag`, and `searchHashtags`. Historical join and count drift now have a dry-run-first maintenance script and runbook with canary flags, invalid-content skip classification, chunk cache version bumps, and aggregate public-count repair. The read path preserves the existing post page contract and applies post-list visibility, block, mute, pagination, and cache patterns.
+# Hashtags / Discovery / Search: 94/100
+Strength: normalized content hashtags now live in a dedicated `HashtagsModule` with conservative ASCII parsing, reserved-slug rejection, a 10-tag cap, transactional `PostHashtag` replacement during post writes, same-transaction public `postsCount` deltas, removal cleanup, `postsByHashtag`, and `searchHashtags`. Discovery now also has a dedicated `SearchModule` with MySQL FULLTEXT-backed `searchPosts` and `searchUsers`, separate search throttling, DTO plus Zod validation, versioned read-through caches, safe DTO/select hydration, and existing post visibility, block, and mute filters applied after raw relevance lookup. Historical hashtag join and count drift now have a dry-run-first maintenance script and runbook with canary flags, invalid-content skip classification, chunk cache version bumps, and aggregate public-count repair.
 
-Weakness: the feature is still v1. The reconciliation job still needs to be run against real historical data, there is no continuous counter reconciliation for future account-visibility changes, no time-window trending or external search integration, and discovery is limited to prefix autocomplete plus chronological hashtag post lists.
+Weakness: search remains V1. It uses bounded raw MySQL candidate queries and may return sparse pages after viewer-aware filters. There is no unified mixed-result discovery, trending surface, typo tolerance, search analytics, external engine, or relevance cursor contract yet. The hashtag reconciliation job still needs to be run against real historical data, and there is no continuous counter reconciliation for future account-visibility changes.
 
 
 # Comments: 98/100

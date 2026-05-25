@@ -19,6 +19,7 @@ import { RepostsModule } from "@/reposts/reposts.module";
 import { MetricsModule } from "@/metrics/metrics.module";
 import { BlocksModule } from "@/blocks/blocks.module";
 import { OutboxModule } from "@/outbox/outbox.module";
+import { SearchModule } from "@/search/search.module";
 import { MutesModule } from "@/mutes/mutes.module";
 import { LikesModule } from "@/likes/likes.module";
 import { PostsModule } from "@/posts/posts.module";
@@ -78,6 +79,7 @@ import { validateEnv } from "@/config/env/env.schema";
     PostsModule,
     MediaModule,
     LikesModule,
+    SearchModule,
     OutboxModule,
     BlocksModule,
     LoggingModule,

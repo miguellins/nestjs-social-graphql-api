@@ -189,6 +189,10 @@ model User {
    * ordered by newest first with deterministic id tie-breaking.
    */
   @@index([createdAt(sort: Desc), id(sort: Desc)])
+  /**
+   * Fulltext index for v1 user discovery by public identity fields.
+   */
+  @@fulltext([username, name])
 }
 
 enum UserRole {
@@ -386,6 +390,10 @@ model Post {
    * chronological ordering deterministic.
    */
   @@index([removedAt, createdAt(sort: Desc), id(sort: Desc)])
+  /**
+   * Fulltext index for v1 post discovery by title and content.
+   */
+  @@fulltext([title, content])
 }
 
 model Hashtag {

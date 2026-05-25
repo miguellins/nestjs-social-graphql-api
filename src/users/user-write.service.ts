@@ -81,6 +81,7 @@ export class UserWriteService {
       async () => {
         await this.userCache.cacheUsernameLookup(user.username, user.id);
         await this.cacheHelper.bumpVersion("v:user:list");
+        await this.cacheHelper.bumpVersion("v:search:users");
       },
     );
 
@@ -165,6 +166,7 @@ export class UserWriteService {
 
         await this.userCache.cacheUser(updated);
         await this.cacheHelper.bumpVersion("v:user:list");
+        await this.cacheHelper.bumpVersion("v:search:users");
       },
     );
 
@@ -209,6 +211,7 @@ export class UserWriteService {
       async () => {
         await this.userCache.cacheUser(updated);
         await this.cacheHelper.bumpVersion("v:user:list");
+        await this.cacheHelper.bumpVersion("v:search:users");
       },
     );
 

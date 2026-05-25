@@ -21,6 +21,7 @@ export class PostCacheService {
       `Failed to invalidate caches after creating post ${postId}`,
       async () => {
         await this.cacheHelper.bumpVersion("v:posts:list");
+        await this.cacheHelper.bumpVersion("v:search:posts");
         await this.cacheHelper.bumpVersion(
           this.getUserPostsListVersionKey(authorId),
         );
@@ -46,6 +47,7 @@ export class PostCacheService {
       async () => {
         await this.cacheHelper.del(`posts:detail:${postId}`);
         await this.cacheHelper.bumpVersion("v:posts:list");
+        await this.cacheHelper.bumpVersion("v:search:posts");
         await this.cacheHelper.bumpVersion(
           this.getUserPostsListVersionKey(authorId),
         );
@@ -69,6 +71,7 @@ export class PostCacheService {
       async () => {
         await this.cacheHelper.del(`posts:detail:${postId}`);
         await this.cacheHelper.bumpVersion("v:posts:list");
+        await this.cacheHelper.bumpVersion("v:search:posts");
         await this.cacheHelper.bumpVersion(
           this.getUserPostsListVersionKey(authorId),
         );
@@ -92,6 +95,7 @@ export class PostCacheService {
       async () => {
         await this.cacheHelper.del(`posts:detail:${postId}`);
         await this.cacheHelper.bumpVersion("v:posts:list");
+        await this.cacheHelper.bumpVersion("v:search:posts");
         await this.cacheHelper.bumpVersion(
           this.getUserPostsListVersionKey(authorId),
         );

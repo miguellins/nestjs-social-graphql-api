@@ -12,6 +12,7 @@ This backend currently provides:
 - Email verification initiation and completion
 - Refresh-session rotation and logout
 - Cursor-based pagination for list-style queries
+- Relevance-ranked post and user search with MySQL FULLTEXT
 - Post creation, listing, detail view, update, and delete
 - Comment creation, listing, update, and delete
 - Like/unlike post behavior with atomic counter updates
@@ -103,6 +104,7 @@ Notes:
   - `AuthModule`
   - `UsersModule`
   - `PostsModule`
+  - `SearchModule`
   - `MediaModule`
   - `LikesModule`
   - `OutboxModule`
@@ -249,6 +251,18 @@ Current strengths:
 - ownership checks in the service layer
 - cursor-based pagination for post lists and feed reads
 
+### Search
+- `searchPosts(q, first)`
+- `searchUsers(q, first)`
+
+Current strengths:
+- dedicated `SearchModule` for discovery beyond hashtag autocomplete
+- MySQL FULLTEXT candidate lookup for posts and users
+- safe hydration through existing DTO/select patterns
+- viewer-aware post visibility, block, and POSTS mute filtering
+- ACTIVE-only user discovery with mutual-block filtering
+- versioned read-through cache keys scoped by normalized query, viewer, and page size
+
 ### Comments
 - `commentsByPost(postId, first, after, orderBy)`
 - `createComment(input)`
@@ -373,6 +387,8 @@ This is already stronger than in-memory pubsub and is designed for multi-instanc
 - `posts`
 - `postsByUsername`
 - `postById`
+- `searchPosts`
+- `searchUsers`
 - `myFeed`
 - `homeFeed`
 - `commentsByPost`
@@ -574,6 +590,8 @@ npm install
 npx prisma migrate dev
 ```
 
+Search uses MySQL FULLTEXT indexes declared in `prisma/schema.prisma`. After schema changes, generate and review the Prisma migration before rollout, and validate local/dev `ft_min_word_len` and `innodb_ft_min_token_size` are both `2` when short-token search matters.
+
 4. Start in development:
 ```bash
 npm run start:dev
@@ -621,6 +639,7 @@ src/
   metrics/         # Prometheus-compatible metrics exposure
   mutes/           # user mute workflows
   notifications/   # notification persistence + delivery
+  search/          # MySQL-native post and user discovery
   ops/             # HTTP liveness/readiness endpoints
   outbox/          # durable background event processing
   posts/           # post CRUD, feed, detail reads, media attachment integration
@@ -666,7 +685,7 @@ This codebase is already coherent and production-minded, but it is still intenti
   - no auto-moderation
 - Product realism is still limited
   - no mute system
-  - no hashtags
+  - hashtag and MySQL-native search are V1-only
   - no richer profile domain
   - session/device management is present but still basic
 - Operational maturity is still limited

@@ -23,6 +23,7 @@ CREATE TABLE `User` (
     UNIQUE INDEX `User_username_key`(`username`),
     UNIQUE INDEX `User_avatarMediaId_key`(`avatarMediaId`),
     INDEX `User_createdAt_id_idx`(`createdAt` DESC, `id` DESC),
+    FULLTEXT INDEX `User_username_name_idx`(`username`, `name`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -53,6 +54,7 @@ CREATE TABLE `Post` (
     INDEX `Post_createdAt_id_idx`(`createdAt` DESC, `id` DESC),
     INDEX `Post_authorId_createdAt_id_idx`(`authorId`, `createdAt` DESC, `id` DESC),
     INDEX `Post_removedAt_createdAt_id_idx`(`removedAt`, `createdAt` DESC, `id` DESC),
+    FULLTEXT INDEX `Post_title_content_idx`(`title`, `content`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 

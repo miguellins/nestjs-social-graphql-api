@@ -1134,6 +1134,114 @@ type UserPage {
   pageInfo: PageInfo!
 }
 
+"""Authenticated viewer's privacy and account-state settings."""
+type MyPrivacySettings {
+  """Human-readable result message for privacy-setting reads or updates."""
+  message: String!
+
+  """Current account-wide privacy mode."""
+  privacySetting: UserPrivacySetting!
+
+  """Current account access state."""
+  accountState: AccountState!
+}
+
+"""Represents the current access state of a user account"""
+enum AccountState {
+  ACTIVE
+  SUSPENDED
+  DEACTIVATED
+}
+
+"""
+Public user payload returned immediately after successful account creation.
+"""
+type CreatedUser implements PublicUserIdentity {
+  id: ID!
+  name: String!
+  username: String!
+
+  """Timestamp indicating when the user account was created."""
+  createdAt: DateTime!
+
+  """
+  Presentation-friendly UTC timestamp for when the user account was created.
+  """
+  createdAtFormatted: String
+
+  """Timestamp indicating when the user account was last updated."""
+  updatedAt: DateTime!
+
+  """
+  Presentation-friendly UTC timestamp for when the user account was last updated.
+  """
+  updatedAtFormatted: String
+}
+
+"""Owner-only profile avatar upload state for pending replacements."""
+type PendingProfileAvatar {
+  """Identifier of the pending avatar media record."""
+  id: ID!
+
+  """Upload lifecycle state for the pending avatar."""
+  status: MediaStatus!
+
+  """Public delivery URL expected after the pending avatar is uploaded."""
+  avatarUrl: String!
+
+  """Timestamp indicating when the pending avatar upload was requested."""
+  createdAt: DateTime!
+}
+
+"""
+Authenticated owner profile view with private upload state but no email.
+"""
+type MyProfile implements PublicUserIdentity {
+  id: ID!
+  name: String!
+  username: String!
+
+  """Account-wide privacy mode for this user."""
+  privacySetting: UserPrivacySetting!
+
+  """Whether the user has verified ownership of their email address."""
+  isEmailVerified: Boolean!
+
+  """Plain-text public biography shown on profile detail reads."""
+  bio: String
+
+  """Optional public website URL supplied by the user."""
+  websiteUrl: String
+
+  """Optional short free-text location shown on public profiles."""
+  location: String
+
+  """Public delivery URL for the READY profile avatar, when available."""
+  avatarUrl: String
+
+  """When the user account was created"""
+  createdAt: DateTime!
+
+  """
+  Presentation-friendly UTC timestamp for when the user account was created.
+  """
+  createdAtFormatted: String
+
+  """When the user was last updated"""
+  updatedAt: DateTime!
+
+  """
+  Presentation-friendly UTC timestamp for when the user was last updated.
+  """
+  updatedAtFormatted: String
+
+  """Related entity counts when explicitly requested"""
+  _count: UserCounts
+
+  """Latest pending avatar upload visible only to the owning user."""
+  pendingAvatar: PendingProfileAvatar
+}
+
 """Public-safe post preview tailored for like payloads."""
 type LikedPostPreview {
   """Unique identifier of the liked post."""
@@ -1257,114 +1365,6 @@ type Like {
 
   """Identifier of the post that was liked."""
   postId: Int!
-}
-
-"""Authenticated viewer's privacy and account-state settings."""
-type MyPrivacySettings {
-  """Human-readable result message for privacy-setting reads or updates."""
-  message: String!
-
-  """Current account-wide privacy mode."""
-  privacySetting: UserPrivacySetting!
-
-  """Current account access state."""
-  accountState: AccountState!
-}
-
-"""Represents the current access state of a user account"""
-enum AccountState {
-  ACTIVE
-  SUSPENDED
-  DEACTIVATED
-}
-
-"""
-Public user payload returned immediately after successful account creation.
-"""
-type CreatedUser implements PublicUserIdentity {
-  id: ID!
-  name: String!
-  username: String!
-
-  """Timestamp indicating when the user account was created."""
-  createdAt: DateTime!
-
-  """
-  Presentation-friendly UTC timestamp for when the user account was created.
-  """
-  createdAtFormatted: String
-
-  """Timestamp indicating when the user account was last updated."""
-  updatedAt: DateTime!
-
-  """
-  Presentation-friendly UTC timestamp for when the user account was last updated.
-  """
-  updatedAtFormatted: String
-}
-
-"""Owner-only profile avatar upload state for pending replacements."""
-type PendingProfileAvatar {
-  """Identifier of the pending avatar media record."""
-  id: ID!
-
-  """Upload lifecycle state for the pending avatar."""
-  status: MediaStatus!
-
-  """Public delivery URL expected after the pending avatar is uploaded."""
-  avatarUrl: String!
-
-  """Timestamp indicating when the pending avatar upload was requested."""
-  createdAt: DateTime!
-}
-
-"""
-Authenticated owner profile view with private upload state but no email.
-"""
-type MyProfile implements PublicUserIdentity {
-  id: ID!
-  name: String!
-  username: String!
-
-  """Account-wide privacy mode for this user."""
-  privacySetting: UserPrivacySetting!
-
-  """Whether the user has verified ownership of their email address."""
-  isEmailVerified: Boolean!
-
-  """Plain-text public biography shown on profile detail reads."""
-  bio: String
-
-  """Optional public website URL supplied by the user."""
-  websiteUrl: String
-
-  """Optional short free-text location shown on public profiles."""
-  location: String
-
-  """Public delivery URL for the READY profile avatar, when available."""
-  avatarUrl: String
-
-  """When the user account was created"""
-  createdAt: DateTime!
-
-  """
-  Presentation-friendly UTC timestamp for when the user account was created.
-  """
-  createdAtFormatted: String
-
-  """When the user was last updated"""
-  updatedAt: DateTime!
-
-  """
-  Presentation-friendly UTC timestamp for when the user was last updated.
-  """
-  updatedAtFormatted: String
-
-  """Related entity counts when explicitly requested"""
-  _count: UserCounts
-
-  """Latest pending avatar upload visible only to the owning user."""
-  pendingAvatar: PendingProfileAvatar
 }
 
 """Public GraphQL view of one active authenticated session."""
@@ -1591,6 +1591,20 @@ type Query {
     userId: Int
   ): LikePage!
   likeById(id: Int!): LikeListItem!
+  searchPosts(
+    """Search text matched against post titles and content."""
+    q: String!
+
+    """Maximum number of posts to return (1-${PAGINATION.MAX_TAKE})."""
+    first: Int
+  ): [Post!]!
+  searchUsers(
+    """Search text matched against public username and name fields."""
+    q: String!
+
+    """Maximum number of users to return (1-${PAGINATION.MAX_TAKE})."""
+    first: Int
+  ): [SafeUser!]!
   myBlockedUsers(
     """Maximum number of blocked users to return (1-${PAGINATION.MAX_TAKE})."""
     first: Int
