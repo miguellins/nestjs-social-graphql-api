@@ -85,8 +85,7 @@ Biggest current weaknesses:
 - The product model is still narrow relative to a real social platform
 - Feed and discovery architecture are improved but still early-stage
 - Durable async processing exists now, but coverage is still selective
-- Metrics exist for the outbox/feed-projection slice, but tracing and broader
-  cross-module metrics are still missing
+- Metrics now cover outbox/feed projection plus GraphQL operations, cache helper results, Prisma query outcomes/duration, auth failures, and throttle rejections. OpenTelemetry tracing is available with OTLP HTTP export, active-span trace/log correlation, worker spans, and sampled cache spans
 - The former oversized core services have been split into slimmer facades plus feature-private collaborators; a few cohesive collaborators remain above the soft line guideline and can be split further if their responsibilities grow
 
 # 2. Current Maturity Assessment
@@ -126,8 +125,7 @@ Where it feels strong:
 Where it still feels MVP-like:
 - Feed projection exists, but it is not yet a mature ranked/recommendation subsystem
 - Durable async processing is not yet a broad platform pattern across all post-commit work
-- Initial outbox/feed-projection metrics exist, but tracing is still missing
-  and broader request/cache/database metrics are not yet present
+- Application metrics now include GraphQL latency/outcomes, cache helper hit/miss/write/error results, Prisma query timing/outcomes, auth failures, and throttle rejections, with optional OpenTelemetry tracing and trace/log correlation
 - Limited integration/e2e depth
 - Large core services still carry too much coordination logic
 
@@ -140,13 +138,12 @@ Highest-priority remaining gaps after the current ops, outbox, and feed-projecti
   - dedicated `myFeed` and `homeFeed` surfaces exist
   - home-feed projection/fanout infrastructure exists
   - but there is no ranking, recommendation blend, search-backed discovery, or mature feed evaluation loop
-- Observability is improved but still partial:
+- Observability is improved but still needs production baselines:
   - health checks exist
-  - structured logs exist
-  - request IDs exist
-  - outbox/feed-projection metrics, alert rules, a Grafana dashboard, and a
-    backlog runbook exist
-  - but tracing and broader application metrics do not
+  - structured logs exist with request IDs and active span correlation
+  - GraphQL/cache/Prisma/guard/outbox/feed-projection metrics exist
+  - application and outbox alert rules plus Grafana dashboards exist
+  - OpenTelemetry tracing exports over OTLP HTTP when configured
 - Durable async processing is still selective:
   - the outbox exists
   - notification delivery uses it for selected flows
@@ -158,8 +155,7 @@ Highest-priority remaining gaps after the current ops, outbox, and feed-projecti
 
 Best remaining improvements, excluding any single top feature:
 - Deepen the current feed boundary into a clearer feed subsystem with explicit projection ownership, rollout health, and correctness baselines
-- Broaden metrics and add tracing on top of the current
-  health/logging/request-correlation baseline
+- Tune the broadened metrics/tracing baseline with production traffic thresholds and collector-specific dashboards
 - Extend the outbox pattern to more post-commit delivery work where retries matter
 - Keep the new facade/collaborator boundaries healthy and split cohesive collaborators further only when responsibilities grow
 - Build richer trust-and-abuse workflows on top of the existing moderation/report/block/account-state base
@@ -188,19 +184,18 @@ Still missing for a more mature platform:
   - `HealthController` and `HealthService` provide real liveness/readiness behavior
   - readiness checks cover database, cache, pubsub, and report-only outbox summary
   - outbox readiness summary is event-type-aware for all known event types, with an `unknown` bucket for unexpected producers
-  - `AppLoggerService` provides structured request-aware logs
+  - `AppLoggerService` provides structured request-aware logs and includes active `traceId` / `spanId` fields when tracing is enabled
   - `RequestContextMiddleware` and `RequestContextService` provide request IDs and operation correlation
   - bootstrap wires logger, request context, filters, validation, security, and boot-complete tracking explicitly
   - `MetricsModule` exposes Prometheus-compatible metrics on a dedicated
     internal endpoint when enabled
-  - notification suppressions emit a low-cardinality Prometheus counter with `reason="mute"`, `reason="actor"`, and `reason="prefs"`
-  - outbox/feed-projection alert rules, a Grafana dashboard, and an outbox
-    backlog runbook exist
+  - metrics now cover GraphQL operations, cache helper operations, Prisma queries, auth failures, throttle rejections, notification suppressions, outbox, and feed projection
+  - OpenTelemetry tracing is available through OTLP HTTP export with HTTP, Nest, GraphQL, Redis, Prisma, worker, and sampled cache spans
+  - application and outbox/feed-projection alert rules, Grafana dashboards, and runbooks exist
 - Still missing:
-  - tracing
-  - broader request/cache/database metrics
-  - broader deployment/runtime posture docs
-  - production traffic baselines for broader SLOs if the project is deployed beyond local/demo use
+  - production traffic baselines for broader SLOs
+  - collector/backend-specific dashboard tuning
+  - production deployment manifests for scrape targets and collector routing
 
 **GraphQL Infrastructure**
 - Improved:

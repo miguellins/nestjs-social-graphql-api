@@ -3,6 +3,7 @@ import { Reflector } from "@nestjs/core";
 import { GqlExecutionContext } from "@nestjs/graphql";
 
 import { USER_ROLE } from "@/users/enums/user-role.enum";
+import { MetricsRegistryService } from "@/metrics/metrics-registry.service";
 import { GqlRolesGuard } from "./gql-roles.guard";
 
 jest.mock("@nestjs/graphql", () => ({
@@ -20,12 +21,17 @@ describe("GqlRolesGuard", () => {
 
   let guard: GqlRolesGuard;
   let reflector: Reflector;
+  let metricsRegistry: { incrementAuthFailure: jest.Mock };
 
   beforeEach(() => {
     reflector = {
       getAllAndOverride: jest.fn(),
     } as unknown as Reflector;
-    guard = new GqlRolesGuard(reflector);
+    metricsRegistry = { incrementAuthFailure: jest.fn() };
+    guard = new GqlRolesGuard(
+      reflector,
+      metricsRegistry as unknown as MetricsRegistryService,
+    );
   });
 
   it("allows routes without role metadata", () => {
@@ -85,5 +91,8 @@ describe("GqlRolesGuard", () => {
     });
 
     expect(() => guard.canActivate(context)).toThrow(ForbiddenException);
+    expect(metricsRegistry.incrementAuthFailure).toHaveBeenCalledWith(
+      "forbidden",
+    );
   });
 });

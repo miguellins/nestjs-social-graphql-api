@@ -5,6 +5,7 @@ import { ExecutionContext } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 
 import { RequestContextService } from "@/common/request-context/request-context.service";
+import { MetricsRegistryService } from "@/metrics/metrics-registry.service";
 
 import { GqlJwtGuard } from "./gql-jwt.guard";
 
@@ -36,6 +37,7 @@ describe("GqlJwtGuard", () => {
   let reflector: Reflector;
   let requestContextService: jest.Mocked<RequestContextService>;
   let setUserIdMock: jest.Mock;
+  let metricsRegistry: { incrementAuthFailure: jest.Mock };
 
   const context = {
     getHandler: jest.fn(),
@@ -56,7 +58,14 @@ describe("GqlJwtGuard", () => {
       setUserId: (setUserIdMock = jest.fn()),
       setOperationName: jest.fn(),
     } as unknown as jest.Mocked<RequestContextService>;
-    guard = new GqlJwtGuard(reflector, requestContextService);
+    metricsRegistry = {
+      incrementAuthFailure: jest.fn(),
+    };
+    guard = new GqlJwtGuard(
+      reflector,
+      requestContextService,
+      metricsRegistry as unknown as MetricsRegistryService,
+    );
 
     const gqlExecutionContextMock = GqlExecutionContext as unknown as {
       create: jest.Mock;
@@ -77,6 +86,7 @@ describe("GqlJwtGuard", () => {
     expect(result).toBe(true);
     expect(canActivateMock).toHaveBeenCalledWith(context);
     expect(setUserIdMock).not.toHaveBeenCalled();
+    expect(metricsRegistry.incrementAuthFailure).not.toHaveBeenCalled();
   });
 
   it("delegates to passport guard for non-public routes", async () => {
@@ -88,6 +98,7 @@ describe("GqlJwtGuard", () => {
     expect(canActivateMock).toHaveBeenCalledWith(context);
     expect(result).toBe(true);
     expect(setUserIdMock).not.toHaveBeenCalled();
+    expect(metricsRegistry.incrementAuthFailure).not.toHaveBeenCalled();
   });
 
   it("extracts GraphQL request from context", () => {
@@ -142,6 +153,26 @@ describe("GqlJwtGuard", () => {
 
     expect(result).toBe(true);
     expect(setUserIdMock).toHaveBeenCalledWith(7);
+  });
+
+  it("records unauthorized metrics for rejected subscriptions", async () => {
+    (reflector.getAllAndOverride as jest.Mock).mockReturnValue(false);
+
+    const gqlExecutionContextMock = GqlExecutionContext as unknown as {
+      create: jest.Mock;
+    };
+    gqlExecutionContextMock.create.mockReturnValue({
+      getInfo: jest
+        .fn()
+        .mockReturnValue({ operation: { operation: "subscription" } }),
+      getContext: jest.fn().mockReturnValue({ extra: {} }),
+    });
+
+    await expect(guard.canActivate(context)).rejects.toThrow("Unauthorized");
+
+    expect(metricsRegistry.incrementAuthFailure).toHaveBeenCalledWith(
+      "unauthorized",
+    );
   });
 
   it("returns true for public HTTP routes without invoking passport auth", async () => {

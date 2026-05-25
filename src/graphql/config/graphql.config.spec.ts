@@ -6,6 +6,7 @@ import { RequestContextService } from "@/common/request-context/request-context.
 import { createGraphqlConfig } from "@/graphql/config/graphql.config";
 import { createBadRequestStatusPlugin } from "@/graphql/plugins/bad-request-status.plugin";
 import { createQueryComplexityPlugin } from "@/graphql/plugins/query-complexity.plugin";
+import { createGraphqlMetricsPlugin } from "@/graphql/plugins/graphql-metrics.plugin";
 import { createGraphqlSubscriptionsConfig } from "@/graphql/subscriptions/subscriptions.config";
 import type { GqlContext } from "@/graphql/config/graphql-context.types";
 
@@ -59,6 +60,10 @@ jest.mock("@/graphql/plugins/bad-request-status.plugin", () => ({
   createBadRequestStatusPlugin: jest.fn(() => "bad-request-status-plugin"),
 }));
 
+jest.mock("@/graphql/plugins/graphql-metrics.plugin", () => ({
+  createGraphqlMetricsPlugin: jest.fn(() => "graphql-metrics-plugin"),
+}));
+
 jest.mock("@/graphql/subscriptions/subscriptions.config", () => ({
   createGraphqlSubscriptionsConfig: jest.fn(() => ({
     "graphql-ws": {
@@ -99,10 +104,13 @@ describe("createGraphqlConfig", () => {
       setOperationName: setOperationNameMock,
     } as unknown as RequestContextService;
 
+    const metricsRegistry = { recordGraphqlOperation: jest.fn() };
+
     const rawConfig = createGraphqlConfig(
       jwtService as never,
       configService as never,
       requestContextService,
+      metricsRegistry as never,
     );
     const config = rawConfig as unknown as TestedGraphqlConfig;
     const createQueryComplexityPluginMock = jest.mocked(
@@ -113,6 +121,9 @@ describe("createGraphqlConfig", () => {
     );
     const createGraphqlSubscriptionsConfigMock = jest.mocked(
       createGraphqlSubscriptionsConfig,
+    );
+    const createGraphqlMetricsPluginMock = jest.mocked(
+      createGraphqlMetricsPlugin,
     );
     const formatError = rawConfig.formatError as TestedFormatError;
     const subscriptions =
@@ -129,11 +140,15 @@ describe("createGraphqlConfig", () => {
     expect(createGraphqlSubscriptionsConfigMock).toHaveBeenCalledWith(
       jwtService,
     );
+    expect(createGraphqlMetricsPluginMock).toHaveBeenCalledWith(
+      metricsRegistry,
+    );
     expect(config.driver).toBe(ApolloDriver);
     expect(config.autoSchemaFile).toMatch(/src\/schema\.gql$/);
     expect(config.plugins).toEqual([
       "complexity-plugin",
       "bad-request-status-plugin",
+      "graphql-metrics-plugin",
     ]);
     expect(typeof subscriptions["graphql-ws"].onConnect).toBe("function");
     expect(config.debug).toBe(false);

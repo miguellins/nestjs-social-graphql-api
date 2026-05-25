@@ -1,5 +1,7 @@
 import { ConsoleLogger, Injectable, type LogLevel } from "@nestjs/common";
 
+import { trace } from "@opentelemetry/api";
+
 import { RequestContextService } from "@/common/request-context/request-context.service";
 
 type StructuredLogLevel =
@@ -17,6 +19,8 @@ type StructuredLogEntry = {
   requestId?: string;
   operationName?: string;
   userId?: number;
+  traceId?: string;
+  spanId?: string;
   path?: string;
   method?: string;
   service?: string;
@@ -98,6 +102,7 @@ export class AppLoggerService extends ConsoleLogger {
       parsed.errorName ?? (message instanceof Error ? message.name : undefined);
     const stack =
       parsed.stack ?? (message instanceof Error ? message.stack : undefined);
+    const spanContext = trace.getActiveSpan()?.spanContext();
 
     return {
       level,
@@ -106,6 +111,8 @@ export class AppLoggerService extends ConsoleLogger {
       requestId: context?.requestId,
       operationName: context?.operationName,
       userId: context?.userId,
+      traceId: spanContext?.traceId,
+      spanId: spanContext?.spanId,
       path: parsed.path,
       method: parsed.method,
       service: parsed.context,
@@ -119,6 +126,8 @@ export class AppLoggerService extends ConsoleLogger {
       entry.service ? `[${entry.service}]` : undefined,
       entry.requestId ? `requestId=${entry.requestId}` : undefined,
       entry.userId !== undefined ? `userId=${entry.userId}` : undefined,
+      entry.traceId ? `traceId=${entry.traceId}` : undefined,
+      entry.spanId ? `spanId=${entry.spanId}` : undefined,
       entry.operationName ? `operationName=${entry.operationName}` : undefined,
       entry.method ? `method=${entry.method}` : undefined,
       entry.path ? `path=${entry.path}` : undefined,

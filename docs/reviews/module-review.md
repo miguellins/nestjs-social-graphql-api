@@ -102,38 +102,38 @@ Strength: viewer-aware and mute-aware bookmark visibility, per-user versioned ca
 Weakness: it is still a compact utility feature with no richer organization, tagging, collections, or bookmark-specific product depth.
 
 
-# Ops / Health: 96/100
+# Ops / Health: 97/100
 Strength: the project has real liveness/readiness endpoints through `HealthController` and `HealthService`, dependency-aware readiness checks for DB/cache/pubsub, boot-complete tracking, report-only outbox backlog summary, and direct test coverage for the operational wiring. Readiness now reflects the async processing surface through aggregate outbox counters plus event-type-aware buckets for known producers and an `unknown` rollup, while metrics provide a more scrape-friendly view of outbox/feed projection health. Liveness remains cheap and uncoupled from database, cache, pubsub, or outbox state.
 
-Weakness: the layer is still not production-complete. Metrics and readiness now cover the outbox/feed projection slice more clearly, but there is still no tracing posture, broader SLO-oriented monitoring stack, or deeper worker-health and failure analytics across the full application.
+Weakness: the layer is still not production-complete. Metrics and tracing now cover the main application infrastructure paths, but thresholds need traffic baselines, collector/backend dashboards need tuning, and production scrape/collector manifests are not included.
 
 
-# Metrics: 95/100
-Strength: `MetricsModule`, `MetricsRegistryService`, and `MetricsServerService` add a real Prometheus-compatible metrics surface behind `METRICS_ENABLED`, with a dedicated internal `/metrics` server per process, typed env configuration, stable low-cardinality metric names, and direct tests for disabled/enabled endpoint behavior and emitted series. The metrics surface covers outbox worker ticks/errors, event outcomes, batch sizes, processing latency, feed projection purge health, DB-backed backlog gauges, shadow compare counters, cleanup enqueue outcomes, notification suppression counts for mute, actor silence, and global preferences, and refresh failures. Prometheus alert rules, a Grafana dashboard, and the outbox backlog runbook now align with event-type-aware readiness reporting, including guidance for unknown outbox producers.
+# Metrics: 98/100
+Strength: `MetricsModule`, `MetricsRegistryService`, and `MetricsServerService` provide a broader Prometheus-compatible metrics surface behind `METRICS_ENABLED`, with a dedicated internal `/metrics` server per process, typed env configuration, stable low-cardinality labels, and tests for disabled/enabled endpoint behavior and emitted series. The surface now covers GraphQL operation counts, outcomes, latency, and allowlisted error codes; cache helper hit/miss/write/error results; Prisma query timing and low-cardinality outcomes; auth failures; throttle rejections; notification suppression; outbox worker/event/backlog health; and feed projection rollout signals. Separate Prometheus alert rules and Grafana dashboards now exist for application observability and outbox/feed projection health.
 
-Weakness: the module is intentionally v1 and focused on outbox/feed projection health. It does not yet include a broader metrics taxonomy across all modules, request/GraphQL latency metrics, cache hit/miss metrics, Prisma query timing, tracing correlation, or production deployment manifests for scrape targets and network policy.
-
-
-# Request Context / Logging: 96/100
-Strength: `RequestContextMiddleware`, `RequestContextService`, and `AppLoggerService` give the app correlation IDs and structured logging across request-bound behavior. This is a meaningful foundation for debugging auth, GraphQL, cache, health, and outbox flows without scattering correlation logic through feature services.
-
-Weakness: the logging layer is still primarily structured application logging. It does not yet include distributed tracing, metrics correlation, sampling policy, log redaction policy as a first-class module, or a broader observability pipeline.
+Weakness: thresholds are still conservative placeholders until baseline traffic is observed, and production deployment manifests for scrape targets and network policy remain out of scope.
 
 
-# Cache Layer: 95/100
+# Request Context / Logging: 98/100
+Strength: `RequestContextMiddleware`, `RequestContextService`, and `AppLoggerService` give the app request IDs, operation names, user ids when known, and structured logging across request-bound behavior. The logger now reads the active OpenTelemetry span at log time and adds `traceId` / `spanId` without storing trace ids in request context or exposing them to clients.
+
+Weakness: the logging layer still depends on downstream log storage/search and trace collector configuration. Redaction policy is handled by disciplined call sites and tracing denylist choices rather than a separate first-class logging policy module.
+
+
+# Cache Layer: 97/100
 Strength: Redis-backed cache configuration, `CacheHelperService`, read-through `getOrSet(...)`, deterministic key patterns, detail-key deletion, list-version invalidation, and cache health checks give the codebase a disciplined caching baseline. Feature services generally use cache helpers instead of direct cache-manager calls.
 
-Weakness: invalidation correctness still depends heavily on service discipline and careful review. There is no centralized dependency graph for cache invalidation, no automatic stale-key detection, and no broader cache metrics around hit rate, churn, or invalidation effectiveness.
+Weakness: invalidation correctness still depends heavily on service discipline and careful review. There is no centralized dependency graph for cache invalidation or automatic stale-key detection, and cache metrics remain helper-level rather than per-key by design.
 
 
-# Config / Environment: 97/100
-Strength: environment validation is fail-fast and typed through Zod, including auth secrets, Redis, optional R2 media storage, GraphQL complexity, outbox controls, metrics controls, scoped mutes and actor-silence rollout, profile-avatar byte limits, and the full home-feed projection rollout surface. Boolean and numeric parsing is explicit, and defaults are documented in code through the schema.
+# Config / Environment: 98/100
+Strength: environment validation is fail-fast and typed through Zod, including auth secrets, Redis, optional R2 media storage, GraphQL complexity, outbox controls, metrics controls, tracing controls, scoped mutes and actor-silence rollout, profile-avatar byte limits, and the full home-feed projection rollout surface. Boolean and numeric parsing is explicit, and defaults are documented in code through the schema.
 
 Weakness: the schema is strong, but configuration is still one large flat namespace. As operational surfaces grow, grouped configuration objects or module-local config factories may improve ownership and reduce the cognitive load of global env review.
 
 
-# App Module: 95/100
-Strength: `AppModule` wires the platform coherently, with global environment validation, Redis-backed cache configuration, GraphQL setup, throttling, auth/roles/throttle guards, request context, logging, subscriptions, ops, outbox, metrics, and all feature modules registered in one predictable composition root. The module keeps application-level concerns centralized while leaving business behavior inside feature services.
+# App Module: 96/100
+Strength: `AppModule` wires the platform coherently, with global environment validation, Redis-backed cache configuration, GraphQL setup, throttling, auth/roles/throttle guards, request context, logging, subscriptions, ops, outbox, metrics, tracing, and all feature modules registered in one predictable composition root. The module keeps application-level concerns centralized while leaving business behavior inside feature services.
 
 Weakness: the composition root is still conventional NestJS wiring rather than a richer runtime capability layer. As deployment profiles grow, this area may need clearer module grouping, startup capability reporting, or environment-specific import boundaries to keep global wiring easy to audit.
 
@@ -150,10 +150,10 @@ Strength: strong shared infrastructure for pagination, caching helpers, validati
 Weakness: cache invalidation correctness still depends heavily on service discipline rather than stronger centralized enforcement, and the shared observability baseline still stops short of tracing and broader cross-module operational instrumentation. Current metrics are valuable but focused on outbox/feed projection behavior.
 
 
-# Prisma Module: 94/100
-Strength: `PrismaModule` is a small global provider module that exposes one shared `PrismaService` across the application, which keeps feature modules from creating ad hoc Prisma clients or accidental extra connection pools. `PrismaService` owns lifecycle connection and disconnect behavior through Nest module hooks and stays intentionally thin.
+# Prisma Module: 96/100
+Strength: `PrismaModule` is a small global provider module that exposes one shared `PrismaService` across the application, which keeps feature modules from creating ad hoc Prisma clients or accidental extra connection pools. `PrismaService` owns lifecycle connection/disconnect behavior and now applies a Prisma query extension for low-cardinality Prometheus query counts and duration histograms while preserving direct Prisma access patterns.
 
-Weakness: the module is infrastructure-minimal. It does not add query instrumentation, transaction helpers, connection health metadata, or Prisma middleware for cross-cutting concerns such as timing, audit hooks, or safer logging.
+Weakness: the module remains intentionally infrastructure-minimal beyond metrics/tracing. It does not add transaction helpers, audit hooks, or query logging because those would need clearer product and security requirements.
 
 
 # Prisma Schema/Data Layer: 98/100
@@ -174,7 +174,7 @@ Strength: shared chronological cursor pagination with deterministic ordering, sh
 Weakness: there are still a few older or feature-specific patterns around the shared model, so pagination is not perfectly uniform everywhere.
 
 
-# Operational / Observability Layer: 97/100
-Strength: this area is materially stronger than the earlier project state. The project has liveness/readiness endpoints, dependency-aware readiness checks for DB/cache/pubsub, structured application logging, request/correlation IDs, boot-complete tracking, direct test coverage for the operational wiring, a dedicated Prometheus-compatible metrics server, and a durable async processing surface through the outbox module with aggregate and event-type-aware backlog visibility exposed in readiness and metrics. Home-feed projection purge, worker gating, shadow compare metrics, cleanup enqueue metrics, Prometheus alert rules, a Grafana dashboard, and an outbox backlog runbook give the background-processing story a more realistic operational shape.
+# Operational / Observability Layer: 99/100
+Strength: this area is materially stronger than the earlier project state. The project has liveness/readiness endpoints, dependency-aware readiness checks for DB/cache/pubsub, structured application logging, request/correlation IDs, active-span trace/log correlation, boot-complete tracking, direct test coverage for operational wiring, a dedicated Prometheus-compatible metrics server, and optional OpenTelemetry tracing over OTLP HTTP. Metrics now cover GraphQL, cache, Prisma, auth guards, throttling, outbox, notification suppression, and feed projection. Home-feed projection purge, worker gating, shadow compare metrics, cleanup enqueue metrics, application/outbox Prometheus alert rules, Grafana dashboards, and runbooks give the operational story a realistic shape.
 
-Weakness: despite the improvement, the layer is still not production-complete. Metrics are now real but scoped mostly to outbox/feed projection behavior, and there is still no distributed tracing posture, broad request/cache/Prisma metrics, richer SLO ownership model, broad job taxonomy beyond the current outbox cases, or production deployment manifests for scrape target/network policy wiring. Relative to the maturity of the product/backend logic, tracing and broader cross-module instrumentation are now the main remaining ops gaps.
+Weakness: despite the improvement, the layer is still not production-complete. Alert thresholds need baseline tuning, collector/backend dashboards need real deployment validation, SLO ownership is still informal, and production manifests for scrape target/network policy/collector routing remain out of scope.

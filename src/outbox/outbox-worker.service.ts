@@ -13,6 +13,8 @@ import { HomeFeedProjectionService } from "@/posts/home-feed-projection.service"
 
 import { MetricsRegistryService } from "@/metrics/metrics-registry.service";
 
+import { TracingService } from "@/tracing/tracing.service";
+
 const FEED_PROJECTION_RECONCILIATION_INTERVAL_MS = 10 * 60 * 1_000;
 const FEED_PROJECTION_RECONCILIATION_SAMPLE_SIZE = 25;
 const FEED_PROJECTION_RECONCILIATION_PAGE_SIZE = 100;
@@ -40,6 +42,7 @@ export class OutboxWorkerService implements OnModuleDestroy, OnModuleInit {
     private readonly outboxService: OutboxService,
     private readonly homeFeedProjection: HomeFeedProjectionService,
     private readonly metricsRegistry: MetricsRegistryService,
+    private readonly tracingService: TracingService,
   ) {
     const processRole =
       configService.get<string>("OUTBOX_PROCESS_ROLE") ?? "api";
@@ -88,6 +91,14 @@ export class OutboxWorkerService implements OnModuleDestroy, OnModuleInit {
     }
 
     this.isRunning = true;
+
+    await this.tracingService.startActiveSpan("outbox.worker.tick", {}, () =>
+      this.runTickWork(),
+    );
+  }
+
+  /** Runs one outbox worker tick and records metrics/logs for the attempt. */
+  private async runTickWork(): Promise<void> {
     this.metricsRegistry.incrementOutboxWorkerTick();
 
     try {

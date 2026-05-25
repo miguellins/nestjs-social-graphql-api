@@ -41,6 +41,7 @@ import { AccountState } from "@/users/enums/account-state.enum";
 import { UserPrivacySetting } from "@/users/enums/user-privacy-setting.enum";
 import { MutesService } from "@/mutes/mutes.service";
 import { MuteScope } from "@/mutes/enums/mute-scope.enum";
+import { PostKind } from "@/posts/enums/post-kind.enum";
 
 import { PostsService } from "./posts.service";
 import { OutboxService } from "@/outbox/outbox.service";
@@ -50,13 +51,80 @@ describe("PostsService", () => {
   let moduleRef: TestingModule;
   const maxContent = "a".repeat(2000);
   const tooLongContent = "a".repeat(2001);
+  const publicSourcePostAvailabilityFilter = {
+    OR: [
+      { kind: PostKind.ORIGINAL },
+      {
+        sourcePost: {
+          is: {
+            AND: [
+              { removedAt: null },
+              {
+                author: {
+                  accountState: { not: AccountState.DEACTIVATED },
+                },
+              },
+              {
+                author: {
+                  privacySetting: UserPrivacySetting.PUBLIC,
+                },
+              },
+            ],
+          },
+        },
+      },
+    ],
+  };
+  const viewerSourcePostAvailabilityFilter = {
+    OR: [
+      { kind: PostKind.ORIGINAL },
+      {
+        sourcePost: {
+          is: {
+            AND: [
+              { removedAt: null },
+              {
+                author: {
+                  accountState: { not: AccountState.DEACTIVATED },
+                },
+              },
+              {
+                OR: [
+                  { authorId: 7 },
+                  {
+                    author: {
+                      privacySetting: UserPrivacySetting.PUBLIC,
+                    },
+                  },
+                  {
+                    author: {
+                      followers: {
+                        some: {
+                          followerId: 7,
+                        },
+                      },
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      },
+    ],
+  };
   const makeListPost = (id: number) => ({
     id,
     title: `Title ${id}`,
     content: `Content ${id}`,
     createdAt: new Date(`2026-04-0${id}T00:00:00.000Z`),
+    kind: PostKind.ORIGINAL,
+    sourcePostId: null,
     likesCount: id,
     commentsCount: id + 1,
+    repostsCount: 0,
+    sourcePost: null,
+    viewerHasReposted: false,
     author: {
       id,
       name: `User ${id}`,
@@ -309,6 +377,7 @@ describe("PostsService", () => {
                 accountState: { not: AccountState.DEACTIVATED },
               },
             },
+            publicSourcePostAvailabilityFilter,
             {
               OR: [
                 { title: { contains: expectedSearch } },
@@ -355,6 +424,7 @@ describe("PostsService", () => {
                 accountState: { not: AccountState.DEACTIVATED },
               },
             },
+            publicSourcePostAvailabilityFilter,
           ],
         },
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -415,6 +485,7 @@ describe("PostsService", () => {
                 accountState: { not: AccountState.DEACTIVATED },
               },
             },
+            publicSourcePostAvailabilityFilter,
             {
               OR: [
                 { createdAt: { gt: new Date("2026-04-10T00:00:00.000Z") } },
@@ -453,6 +524,7 @@ describe("PostsService", () => {
                 accountState: { not: AccountState.DEACTIVATED },
               },
             },
+            publicSourcePostAvailabilityFilter,
           ],
         },
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -501,6 +573,7 @@ describe("PostsService", () => {
           AND: [
             { authorId: 7 },
             { removedAt: null },
+            publicSourcePostAvailabilityFilter,
             {
               OR: [
                 { createdAt: { lt: new Date("2026-04-10T00:00:00.000Z") } },
@@ -577,8 +650,11 @@ describe("PostsService", () => {
       expect(prismaMock.post.findMany).toHaveBeenCalledWith({
         take: PAGINATION.DEFAULT_TAKE + 1,
         where: {
-          authorId: 7,
-          removedAt: null,
+          AND: [
+            { authorId: 7 },
+            { removedAt: null },
+            publicSourcePostAvailabilityFilter,
+          ],
         },
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         select: SafePostListSelect,
@@ -642,6 +718,7 @@ describe("PostsService", () => {
                 accountState: AccountState.ACTIVE,
               },
             },
+            viewerSourcePostAvailabilityFilter,
             {
               OR: [
                 {
@@ -694,6 +771,7 @@ describe("PostsService", () => {
                 accountState: AccountState.ACTIVE,
               },
             },
+            viewerSourcePostAvailabilityFilter,
             {
               OR: [
                 {
@@ -760,6 +838,7 @@ describe("PostsService", () => {
                 accountState: AccountState.ACTIVE,
               },
             },
+            viewerSourcePostAvailabilityFilter,
             {
               OR: [
                 {
@@ -814,6 +893,7 @@ describe("PostsService", () => {
                 accountState: AccountState.ACTIVE,
               },
             },
+            viewerSourcePostAvailabilityFilter,
             {
               OR: [
                 {
@@ -862,6 +942,7 @@ describe("PostsService", () => {
                 accountState: AccountState.ACTIVE,
               },
             },
+            viewerSourcePostAvailabilityFilter,
             {
               OR: [
                 {
@@ -900,6 +981,10 @@ describe("PostsService", () => {
 
       prismaMock.post.findFirst.mockResolvedValue({
         id: 10,
+        kind: PostKind.ORIGINAL,
+        sourcePostId: null,
+        repostsCount: 0,
+        sourcePost: null,
         viewsCount: 1,
         editedAt: null,
       });
@@ -941,6 +1026,14 @@ describe("PostsService", () => {
 
       expect(res).toEqual({
         id: 10,
+        kind: PostKind.ORIGINAL,
+        sourcePostId: null,
+        likes: undefined,
+        mediaAttachments: undefined,
+        updatedAt: undefined,
+        repostsCount: 0,
+        sourcePost: null,
+        viewerHasReposted: false,
         viewsCount: 1,
         editedAt: null,
         comments: [],
@@ -964,6 +1057,11 @@ describe("PostsService", () => {
     it("patches the cached viewsCount after the asynchronous increment succeeds", async () => {
       const cachedPost = {
         id: 10,
+        kind: PostKind.ORIGINAL,
+        sourcePostId: null,
+        repostsCount: 0,
+        sourcePost: null,
+        viewerHasReposted: false,
         viewsCount: 1,
         editedAt: null,
         comments: [],
@@ -980,7 +1078,20 @@ describe("PostsService", () => {
 
       expect(cacheMock.set).toHaveBeenCalledWith(
         "posts:detail:10",
-        { id: 10, viewsCount: 42, editedAt: null, comments: [] },
+        {
+          id: 10,
+          kind: PostKind.ORIGINAL,
+          sourcePostId: null,
+          likes: undefined,
+          mediaAttachments: undefined,
+          updatedAt: undefined,
+          repostsCount: 0,
+          sourcePost: null,
+          viewerHasReposted: false,
+          viewsCount: 42,
+          editedAt: null,
+          comments: [],
+        },
         60_000,
       );
     });
@@ -998,6 +1109,10 @@ describe("PostsService", () => {
     it("keeps the read response successful when the async viewsCount increment fails", async () => {
       prismaMock.post.findFirst.mockResolvedValue({
         id: 10,
+        kind: PostKind.ORIGINAL,
+        sourcePostId: null,
+        repostsCount: 0,
+        sourcePost: null,
         viewsCount: 1,
         editedAt: null,
       });
@@ -1005,6 +1120,14 @@ describe("PostsService", () => {
 
       await expect(service.getPost(10)).resolves.toEqual({
         id: 10,
+        kind: PostKind.ORIGINAL,
+        sourcePostId: null,
+        likes: undefined,
+        mediaAttachments: undefined,
+        updatedAt: undefined,
+        repostsCount: 0,
+        sourcePost: null,
+        viewerHasReposted: false,
         viewsCount: 1,
         editedAt: null,
         comments: [],
@@ -1233,6 +1356,7 @@ describe("PostsService", () => {
       prismaMock.post.findUnique.mockResolvedValue({
         id: 1,
         authorId: 7,
+        kind: PostKind.ORIGINAL,
         title: "Old",
         content: "OldC",
       });
@@ -1240,7 +1364,17 @@ describe("PostsService", () => {
       const editedAt = new Date("2026-03-24T15:00:00.000Z");
       jest.useFakeTimers().setSystemTime(editedAt);
 
-      const updated = { id: 1, title: "New", content: "NewC", editedAt };
+      const updated = {
+        id: 1,
+        title: "New",
+        content: "NewC",
+        editedAt,
+        kind: PostKind.ORIGINAL,
+        sourcePostId: null,
+        repostsCount: 0,
+        sourcePost: null,
+        viewerHasReposted: false,
+      };
       prismaMock.post.update.mockResolvedValue(updated);
 
       const input: UpdatePostInput = {
@@ -1275,6 +1409,7 @@ describe("PostsService", () => {
       prismaMock.post.findUnique.mockResolvedValue({
         id: 1,
         authorId: 7,
+        kind: PostKind.ORIGINAL,
         title: null,
         content: "Body",
       });
@@ -1282,7 +1417,17 @@ describe("PostsService", () => {
       const editedAt = new Date("2026-03-24T16:00:00.000Z");
       jest.useFakeTimers().setSystemTime(editedAt);
 
-      const updated = { id: 1, title: null, content: "Updated body", editedAt };
+      const updated = {
+        id: 1,
+        title: null,
+        content: "Updated body",
+        editedAt,
+        kind: PostKind.ORIGINAL,
+        sourcePostId: null,
+        repostsCount: 0,
+        sourcePost: null,
+        viewerHasReposted: false,
+      };
       prismaMock.post.update.mockResolvedValue(updated);
 
       await expect(
@@ -1309,6 +1454,7 @@ describe("PostsService", () => {
       prismaMock.post.findUnique.mockResolvedValue({
         id: 1,
         authorId: 7,
+        kind: PostKind.ORIGINAL,
         title: "Headline",
         content: "Body",
       });
@@ -1316,7 +1462,17 @@ describe("PostsService", () => {
       const editedAt = new Date("2026-03-24T17:00:00.000Z");
       jest.useFakeTimers().setSystemTime(editedAt);
 
-      const updated = { id: 1, title: null, content: "Body", editedAt };
+      const updated = {
+        id: 1,
+        title: null,
+        content: "Body",
+        editedAt,
+        kind: PostKind.ORIGINAL,
+        sourcePostId: null,
+        repostsCount: 0,
+        sourcePost: null,
+        viewerHasReposted: false,
+      };
       prismaMock.post.update.mockResolvedValue(updated);
 
       await expect(service.updatePost(1, { title: null }, 7)).resolves.toEqual(
@@ -1339,6 +1495,7 @@ describe("PostsService", () => {
       prismaMock.post.findUnique.mockResolvedValue({
         id: 1,
         authorId: 7,
+        kind: PostKind.ORIGINAL,
         title: "Headline",
         content: "Body",
       });
@@ -1348,6 +1505,11 @@ describe("PostsService", () => {
         title: "Headline",
         content: "Body",
         editedAt: null,
+        kind: PostKind.ORIGINAL,
+        sourcePostId: null,
+        repostsCount: 0,
+        sourcePost: null,
+        viewerHasReposted: false,
       };
       prismaMock.post.update.mockResolvedValue(updated);
 
@@ -1370,6 +1532,7 @@ describe("PostsService", () => {
       prismaMock.post.findUnique.mockResolvedValue({
         id: 1,
         authorId: 7,
+        kind: PostKind.ORIGINAL,
         title: "Test",
         content: "Old",
       });
@@ -1377,7 +1540,17 @@ describe("PostsService", () => {
       const editedAt = new Date("2026-03-24T18:00:00.000Z");
       jest.useFakeTimers().setSystemTime(editedAt);
 
-      const updated = { id: 1, title: "Test", content: maxContent, editedAt };
+      const updated = {
+        id: 1,
+        title: "Test",
+        content: maxContent,
+        editedAt,
+        kind: PostKind.ORIGINAL,
+        sourcePostId: null,
+        repostsCount: 0,
+        sourcePost: null,
+        viewerHasReposted: false,
+      };
       prismaMock.post.update.mockResolvedValue(updated);
 
       await expect(
@@ -1402,7 +1575,11 @@ describe("PostsService", () => {
     });
 
     it("throws NotFoundException when Prisma update throws P2025", async () => {
-      prismaMock.post.findUnique.mockResolvedValue({ id: 1, authorId: 7 });
+      prismaMock.post.findUnique.mockResolvedValue({
+        id: 1,
+        authorId: 7,
+        kind: PostKind.ORIGINAL,
+      });
 
       const err = new Prisma.PrismaClientKnownRequestError("gone", {
         code: "P2025",
@@ -1457,7 +1634,11 @@ describe("PostsService", () => {
     });
 
     it("throws NotFoundException when Prisma delete throws P2025 (race condition)", async () => {
-      prismaMock.post.findUnique.mockResolvedValue({ id: 1, authorId: 7 });
+      prismaMock.post.findUnique.mockResolvedValue({
+        id: 1,
+        authorId: 7,
+        kind: PostKind.ORIGINAL,
+      });
 
       const err = new Prisma.PrismaClientKnownRequestError("gone", {
         code: "P2025",

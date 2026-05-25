@@ -67,6 +67,11 @@ describe("MetricsServerService", () => {
       "processed",
       0.05,
     );
+    registry.recordGraphqlOperation("ViewerQuery", "query", "success", 0.03);
+    registry.incrementCacheOperation("get_or_set", "hit");
+    registry.recordPrismaQuery("User", "findMany", "success", 0.01);
+    registry.incrementAuthFailure("unauthorized");
+    registry.incrementThrottleRejection();
 
     const address = getServerAddress(service);
     expect(address).not.toBeNull();
@@ -77,11 +82,31 @@ describe("MetricsServerService", () => {
     expect(response.body).toContain("# HELP outbox_worker_ticks_total");
     expect(response.body).toContain("# HELP home_feed_shadow_compare_total");
     expect(response.body).toContain("# HELP metrics_db_refresh_errors_total");
+    expect(response.body).toContain("# HELP graphql_operations_total");
+    expect(response.body).toContain("# HELP cache_operations_total");
+    expect(response.body).toContain("# HELP prisma_queries_total");
+    expect(response.body).toContain("# HELP auth_failures_total");
+    expect(response.body).toContain("# HELP throttle_rejections_total");
     expect(response.body).toContain(
       'outbox_worker_ticks_total{process="worker"} 1',
     );
     expect(response.body).toContain(
       'outbox_events_total{process="worker",event_type="notification.commentReply.deliver",outcome="processed"} 1',
+    );
+    expect(response.body).toContain(
+      'graphql_operations_total{process="api",operation_name="ViewerQuery",operation_type="query",outcome="success"} 1',
+    );
+    expect(response.body).toContain(
+      'cache_operations_total{process="api",operation="get_or_set",result="hit"} 1',
+    );
+    expect(response.body).toContain(
+      'prisma_queries_total{process="api",model="User",action="findMany",outcome="success"} 1',
+    );
+    expect(response.body).toContain(
+      'auth_failures_total{process="api",reason="unauthorized"} 1',
+    );
+    expect(response.body).toContain(
+      'throttle_rejections_total{process="api"} 1',
     );
   });
 });

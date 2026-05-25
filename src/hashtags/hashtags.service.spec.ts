@@ -41,8 +41,10 @@ describe("HashtagsService", () => {
     getVersion: jest.fn(),
   };
   const postReadServiceMock = {
+    buildListSurfaceSourceAvailabilityFilter: jest.fn(),
     buildViewerVisibilityFilters: jest.fn(),
     getBlockedAuthorIds: jest.fn(),
+    projectPostListRows: jest.fn(),
   };
   const mutesServiceMock = {
     getMutedUserIdsForScope: jest.fn(),
@@ -83,7 +85,23 @@ describe("HashtagsService", () => {
         },
       },
     ]);
+    postReadServiceMock.buildListSurfaceSourceAvailabilityFilter.mockReturnValue(
+      {
+        kind: "ORIGINAL",
+      },
+    );
     postReadServiceMock.getBlockedAuthorIds.mockResolvedValue([]);
+    postReadServiceMock.projectPostListRows.mockImplementation(
+      (rows: unknown[]) =>
+        Promise.resolve(
+          rows.map((row) => ({
+            ...(row as object),
+            repostsCount: 0,
+            sourcePost: null,
+            viewerHasReposted: false,
+          })),
+        ),
+    );
     mutesServiceMock.getMutedUserIdsForScope.mockResolvedValue([]);
   });
 
@@ -266,6 +284,10 @@ describe("HashtagsService", () => {
       where: {
         AND: [
           { removedAt: null },
+          { kind: { not: "REPOST" } },
+          {
+            kind: "ORIGINAL",
+          },
           {
             hashtags: {
               some: {

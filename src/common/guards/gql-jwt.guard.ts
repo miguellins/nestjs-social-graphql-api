@@ -11,6 +11,7 @@ import type { AuthenticatedUser } from "@/auth/authenticated-user.type";
 
 import { RequestContextService } from "@/common/request-context/request-context.service";
 import { IS_PUBLIC_KEY } from "@/common/decorators/auth.decorator";
+import { MetricsRegistryService } from "@/metrics/metrics-registry.service";
 
 import { OperationTypeNode, type GraphQLResolveInfo } from "graphql";
 
@@ -32,6 +33,7 @@ export class GqlJwtGuard extends AuthGuard("jwt") {
   constructor(
     private readonly reflector: Reflector,
     private readonly requestContextService: RequestContextService,
+    private readonly metricsRegistry: MetricsRegistryService,
   ) {
     super();
   }
@@ -47,9 +49,15 @@ export class GqlJwtGuard extends AuthGuard("jwt") {
         return true;
       }
 
-      const result = (await super.canActivate(context)) as boolean;
-      this.setCurrentUserId(this.getHttpRequest(context).user);
-      return result;
+      try {
+        const result = (await super.canActivate(context)) as boolean;
+        this.setCurrentUserId(this.getHttpRequest(context).user);
+        if (!result) this.recordAuthFailure("unauthorized");
+        return result;
+      } catch (error) {
+        this.recordAuthFailure("unauthorized");
+        throw error;
+      }
     }
 
     const gqlContext = GqlExecutionContext.create(context);
@@ -59,6 +67,7 @@ export class GqlJwtGuard extends AuthGuard("jwt") {
 
     if (operation === OperationTypeNode.SUBSCRIPTION) {
       if (!ctx.extra?.user) {
+        this.recordAuthFailure("unauthorized");
         throw new UnauthorizedException("Unauthorized");
       }
 
@@ -77,9 +86,15 @@ export class GqlJwtGuard extends AuthGuard("jwt") {
       return true;
     }
 
-    const result = (await super.canActivate(context)) as boolean;
-    this.setCurrentUserId(ctx.req?.user);
-    return result;
+    try {
+      const result = (await super.canActivate(context)) as boolean;
+      this.setCurrentUserId(ctx.req?.user);
+      if (!result) this.recordAuthFailure("unauthorized");
+      return result;
+    } catch (error) {
+      this.recordAuthFailure("unauthorized");
+      throw error;
+    }
   }
 
   override getRequest(
@@ -97,17 +112,28 @@ export class GqlJwtGuard extends AuthGuard("jwt") {
     return ctx.req;
   }
 
+  /** Stores the authenticated user id in the request context when present. */
   private setCurrentUserId(user: AuthenticatedUser | undefined): void {
     if (typeof user?.id === "number") {
       this.requestContextService.setUserId(user.id);
     }
   }
 
+  /** Extracts the HTTP request from a non-GraphQL execution context. */
   private getHttpRequest(
     context: ExecutionContext,
   ): Request & { user?: AuthenticatedUser } {
     return context
       .switchToHttp()
       .getRequest<Request & { user?: AuthenticatedUser }>();
+  }
+
+  /** Records authentication failures defensively. */
+  private recordAuthFailure(reason: "unauthorized"): void {
+    try {
+      this.metricsRegistry.incrementAuthFailure(reason);
+    } catch {
+      // Metrics must never affect guard behavior.
+    }
   }
 }

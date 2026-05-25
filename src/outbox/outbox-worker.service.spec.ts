@@ -7,6 +7,7 @@ import { OutboxWorkerService } from "@/outbox/outbox-worker.service";
 import { HomeFeedProjectionService } from "@/posts/home-feed-projection.service";
 
 import { MetricsRegistryService } from "@/metrics/metrics-registry.service";
+import { TracingService } from "@/tracing/tracing.service";
 
 describe("OutboxWorkerService", () => {
   const outboxProcessorMock = {
@@ -19,6 +20,15 @@ describe("OutboxWorkerService", () => {
   const homeFeedProjectionMock = {
     purgeExpiredEntries: jest.fn(),
     reconcileSampledUsers: jest.fn(),
+  };
+  const tracingServiceMock = {
+    startActiveSpan: jest.fn(
+      async (
+        _name: string,
+        _attributes: unknown,
+        callback: () => Promise<unknown>,
+      ) => callback(),
+    ),
   };
   const metricsRegistryMock = {
     incrementFeedProjectionPurgeError: jest.fn(),
@@ -75,6 +85,7 @@ describe("OutboxWorkerService", () => {
         { provide: OutboxProcessorService, useValue: outboxProcessorMock },
         { provide: OutboxService, useValue: outboxServiceMock },
         { provide: MetricsRegistryService, useValue: metricsRegistryMock },
+        { provide: TracingService, useValue: tracingServiceMock },
         {
           provide: HomeFeedProjectionService,
           useValue: homeFeedProjectionMock,
@@ -115,6 +126,7 @@ describe("OutboxWorkerService", () => {
         { provide: OutboxProcessorService, useValue: outboxProcessorMock },
         { provide: OutboxService, useValue: outboxServiceMock },
         { provide: MetricsRegistryService, useValue: metricsRegistryMock },
+        { provide: TracingService, useValue: tracingServiceMock },
         {
           provide: HomeFeedProjectionService,
           useValue: homeFeedProjectionMock,
@@ -155,6 +167,7 @@ describe("OutboxWorkerService", () => {
         { provide: OutboxProcessorService, useValue: outboxProcessorMock },
         { provide: OutboxService, useValue: outboxServiceMock },
         { provide: MetricsRegistryService, useValue: metricsRegistryMock },
+        { provide: TracingService, useValue: tracingServiceMock },
         {
           provide: HomeFeedProjectionService,
           useValue: homeFeedProjectionMock,
@@ -204,6 +217,7 @@ describe("OutboxWorkerService", () => {
         { provide: OutboxProcessorService, useValue: outboxProcessorMock },
         { provide: OutboxService, useValue: outboxServiceMock },
         { provide: MetricsRegistryService, useValue: metricsRegistryMock },
+        { provide: TracingService, useValue: tracingServiceMock },
         {
           provide: HomeFeedProjectionService,
           useValue: homeFeedProjectionMock,
@@ -244,6 +258,7 @@ describe("OutboxWorkerService", () => {
         { provide: OutboxProcessorService, useValue: outboxProcessorMock },
         { provide: OutboxService, useValue: outboxServiceMock },
         { provide: MetricsRegistryService, useValue: metricsRegistryMock },
+        { provide: TracingService, useValue: tracingServiceMock },
         {
           provide: HomeFeedProjectionService,
           useValue: homeFeedProjectionMock,
@@ -289,6 +304,7 @@ describe("OutboxWorkerService", () => {
         { provide: OutboxProcessorService, useValue: outboxProcessorMock },
         { provide: OutboxService, useValue: outboxServiceMock },
         { provide: MetricsRegistryService, useValue: metricsRegistryMock },
+        { provide: TracingService, useValue: tracingServiceMock },
         {
           provide: HomeFeedProjectionService,
           useValue: homeFeedProjectionMock,
@@ -334,6 +350,7 @@ describe("OutboxWorkerService", () => {
         { provide: OutboxProcessorService, useValue: outboxProcessorMock },
         { provide: OutboxService, useValue: outboxServiceMock },
         { provide: MetricsRegistryService, useValue: metricsRegistryMock },
+        { provide: TracingService, useValue: tracingServiceMock },
         {
           provide: HomeFeedProjectionService,
           useValue: homeFeedProjectionMock,
@@ -382,6 +399,7 @@ describe("OutboxWorkerService", () => {
         { provide: OutboxProcessorService, useValue: outboxProcessorMock },
         { provide: OutboxService, useValue: outboxServiceMock },
         { provide: MetricsRegistryService, useValue: metricsRegistryMock },
+        { provide: TracingService, useValue: tracingServiceMock },
         {
           provide: HomeFeedProjectionService,
           useValue: homeFeedProjectionMock,
@@ -432,6 +450,7 @@ describe("OutboxWorkerService", () => {
         { provide: OutboxProcessorService, useValue: outboxProcessorMock },
         { provide: OutboxService, useValue: outboxServiceMock },
         { provide: MetricsRegistryService, useValue: metricsRegistryMock },
+        { provide: TracingService, useValue: tracingServiceMock },
         {
           provide: HomeFeedProjectionService,
           useValue: homeFeedProjectionMock,
@@ -501,6 +520,7 @@ describe("OutboxWorkerService", () => {
         { provide: OutboxProcessorService, useValue: outboxProcessorMock },
         { provide: OutboxService, useValue: outboxServiceMock },
         { provide: MetricsRegistryService, useValue: metricsRegistryMock },
+        { provide: TracingService, useValue: tracingServiceMock },
         {
           provide: HomeFeedProjectionService,
           useValue: homeFeedProjectionMock,

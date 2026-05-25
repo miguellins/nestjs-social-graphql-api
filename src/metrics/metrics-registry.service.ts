@@ -1,6 +1,9 @@
 import { Counter, Gauge, Histogram, Registry } from "prom-client";
 
-import { Injectable } from "@nestjs/common";
+import { Injectable, Optional } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+
+export type MetricsProcessLabel = "api" | "worker";
 
 export type OutboxEventOutcome =
   | "failed_exhausted"
@@ -31,6 +34,24 @@ export type HomeFeedProjectionReconciliationOutcome =
 
 export type NotificationSuppressionReason = "actor" | "mute" | "prefs";
 
+export type GraphqlOperationOutcome =
+  | "graphql_error"
+  | "internal_error"
+  | "success";
+
+export type GraphqlOperationType = "mutation" | "query" | "subscription";
+
+export type CacheOperation = "del" | "get" | "get_or_set" | "set";
+
+export type CacheOperationResult = "error" | "hit" | "miss" | "write";
+
+export type PrismaQueryOutcome =
+  | "error"
+  | "foreign_key"
+  | "not_found"
+  | "success"
+  | "unique_violation";
+
 export type OutboxBacklogMetrics = {
   failedCount: number;
   oldestPendingAgeSeconds: number;
@@ -39,9 +60,13 @@ export type OutboxBacklogMetrics = {
   processingCount: number;
 };
 
-/** Owns the Prometheus registry and stable v1 metric definitions. */
+const DURATION_BUCKETS = [0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30];
+
+/** Owns the Prometheus registry and stable metric definitions. */
 @Injectable()
 export class MetricsRegistryService {
+  private readonly enabled: boolean;
+  private readonly processLabel: MetricsProcessLabel;
   private readonly registry = new Registry();
   private readonly outboxWorkerTicksTotal: Counter<"process">;
   private readonly outboxWorkerTickErrorsTotal: Counter<"process">;
@@ -84,8 +109,32 @@ export class MetricsRegistryService {
     "component" | "process"
   >;
   private readonly notificationSuppressedTotal: Counter<"process" | "reason">;
+  private readonly graphqlOperationsTotal: Counter<
+    "operation_name" | "operation_type" | "outcome" | "process"
+  >;
+  private readonly graphqlOperationDurationSeconds: Histogram<
+    "operation_name" | "operation_type" | "process"
+  >;
+  private readonly graphqlOperationErrorsTotal: Counter<
+    "error_code" | "operation_name" | "process"
+  >;
+  private readonly cacheOperationsTotal: Counter<
+    "operation" | "process" | "result"
+  >;
+  private readonly prismaQueriesTotal: Counter<
+    "action" | "model" | "outcome" | "process"
+  >;
+  private readonly prismaQueryDurationSeconds: Histogram<
+    "action" | "model" | "process"
+  >;
+  private readonly authFailuresTotal: Counter<"process" | "reason">;
+  private readonly throttleRejectionsTotal: Counter<"process">;
 
-  constructor() {
+  constructor(@Optional() configService?: ConfigService) {
+    this.enabled = configService?.get<boolean>("METRICS_ENABLED") ?? false;
+    this.processLabel =
+      process.env.METRICS_PROCESS_LABEL === "worker" ? "worker" : "api";
+
     this.outboxWorkerTicksTotal = new Counter({
       name: "outbox_worker_ticks_total",
       help: "Total outbox worker ticks.",
@@ -114,7 +163,7 @@ export class MetricsRegistryService {
       name: "outbox_event_processing_seconds",
       help: "Outbox event processing duration in seconds.",
       labelNames: ["process", "event_type"],
-      buckets: [0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30],
+      buckets: DURATION_BUCKETS,
       registers: [this.registry],
     });
     this.outboxBatchSize = new Histogram({
@@ -237,25 +286,85 @@ export class MetricsRegistryService {
       labelNames: ["process", "reason"],
       registers: [this.registry],
     });
+    this.graphqlOperationsTotal = new Counter({
+      name: "graphql_operations_total",
+      help: "Total GraphQL operations by operation metadata and outcome.",
+      labelNames: ["process", "operation_name", "operation_type", "outcome"],
+      registers: [this.registry],
+    });
+    this.graphqlOperationDurationSeconds = new Histogram({
+      name: "graphql_operation_duration_seconds",
+      help: "GraphQL operation duration in seconds.",
+      labelNames: ["process", "operation_name", "operation_type"],
+      buckets: DURATION_BUCKETS,
+      registers: [this.registry],
+    });
+    this.graphqlOperationErrorsTotal = new Counter({
+      name: "graphql_operation_errors_total",
+      help: "Total GraphQL operation errors by allowlisted public code.",
+      labelNames: ["process", "operation_name", "error_code"],
+      registers: [this.registry],
+    });
+    this.cacheOperationsTotal = new Counter({
+      name: "cache_operations_total",
+      help: "Total cache helper operations by result.",
+      labelNames: ["process", "operation", "result"],
+      registers: [this.registry],
+    });
+    this.prismaQueriesTotal = new Counter({
+      name: "prisma_queries_total",
+      help: "Total Prisma queries by model, action, and outcome.",
+      labelNames: ["process", "model", "action", "outcome"],
+      registers: [this.registry],
+    });
+    this.prismaQueryDurationSeconds = new Histogram({
+      name: "prisma_query_duration_seconds",
+      help: "Prisma query duration in seconds.",
+      labelNames: ["process", "model", "action"],
+      buckets: DURATION_BUCKETS,
+      registers: [this.registry],
+    });
+    this.authFailuresTotal = new Counter({
+      name: "auth_failures_total",
+      help: "Total authentication and authorization failures.",
+      labelNames: ["process", "reason"],
+      registers: [this.registry],
+    });
+    this.throttleRejectionsTotal = new Counter({
+      name: "throttle_rejections_total",
+      help: "Total throttled requests rejected by the API.",
+      labelNames: ["process"],
+      registers: [this.registry],
+    });
   }
 
   get contentType(): string {
     return this.registry.contentType;
   }
 
+  /** Renders the current Prometheus exposition text. */
   async metrics(): Promise<string> {
     return this.registry.metrics();
   }
 
+  /** Records a successful outbox worker tick. */
   incrementOutboxWorkerTick(): void {
+    if (!this.enabled) return;
+
     this.outboxWorkerTicksTotal.inc({ process: "worker" });
   }
 
+  /** Records a failed outbox worker tick. */
   incrementOutboxWorkerTickError(): void {
+    if (!this.enabled) return;
+
     this.outboxWorkerTickErrorsTotal.inc({ process: "worker" });
   }
 
+  /** Records the number of outbox events claimed by a worker batch. */
   recordOutboxBatchClaimed(size: number): void {
+    if (!this.enabled) return;
+
     this.outboxBatchSize.observe({ process: "worker" }, size);
 
     if (size > 0) {
@@ -263,11 +372,14 @@ export class MetricsRegistryService {
     }
   }
 
+  /** Records an outbox event outcome and processing duration. */
   recordOutboxEventProcessed(
     eventType: string,
     outcome: OutboxEventOutcome,
     durationSeconds: number,
   ): void {
+    if (!this.enabled) return;
+
     this.outboxEventsTotal.inc({
       process: "worker",
       event_type: eventType,
@@ -279,7 +391,10 @@ export class MetricsRegistryService {
     );
   }
 
+  /** Records a completed home feed projection purge run. */
   recordFeedProjectionPurge(durationSeconds: number): void {
+    if (!this.enabled) return;
+
     this.feedProjectionPurgeRunsTotal.inc({ process: "worker" });
     this.feedProjectionPurgeSeconds.observe(
       { process: "worker" },
@@ -287,57 +402,80 @@ export class MetricsRegistryService {
     );
   }
 
+  /** Records a home feed projection purge failure. */
   incrementFeedProjectionPurgeError(): void {
+    if (!this.enabled) return;
+
     this.feedProjectionPurgeErrorsTotal.inc({ process: "worker" });
   }
 
+  /** Records a home feed shadow comparison. */
   incrementHomeFeedShadowCompare(): void {
+    if (!this.enabled) return;
+
     this.homeFeedShadowCompareTotal.inc({ process: "api" });
   }
 
+  /** Records a home feed shadow comparison mismatch. */
   incrementHomeFeedShadowCompareMismatch(): void {
+    if (!this.enabled) return;
+
     this.homeFeedShadowCompareMismatchTotal.inc({ process: "api" });
   }
 
+  /** Records a home feed shadow comparison mismatch by category. */
   incrementHomeFeedShadowCompareMismatchByCategory(
     category: HomeFeedShadowMismatchCategory,
   ): void {
+    if (!this.enabled) return;
+
     this.homeFeedShadowCompareMismatchByCategoryTotal.inc({
       process: "api",
       category,
     });
   }
 
+  /** Records a home feed projection cleanup enqueue outcome. */
   incrementHomeFeedProjectionCleanupEnqueue(
     outcome: HomeFeedCleanupEnqueueOutcome,
   ): void {
+    if (!this.enabled) return;
+
     this.homeFeedProjectionCleanupEnqueueTotal.inc({
       process: "api",
       outcome,
     });
   }
 
+  /** Records a home feed projection fallback reason. */
   incrementHomeFeedProjectionFallback(
     reason: HomeFeedProjectionFallbackReason,
   ): void {
+    if (!this.enabled) return;
+
     this.homeFeedProjectionFallbackTotal.inc({
       process: "api",
       reason,
     });
   }
 
+  /** Records the source used to serve a home feed read. */
   incrementHomeFeedReadSource(source: HomeFeedReadSource): void {
+    if (!this.enabled) return;
+
     this.homeFeedReadSourceTotal.inc({
       process: "api",
       source,
     });
   }
 
+  /** Records observe-only home feed projection reconciliation outcomes. */
   recordHomeFeedProjectionReconciliation(
     outcome: HomeFeedProjectionReconciliationOutcome,
     category: HomeFeedShadowMismatchCategory | "none",
     count = 1,
   ): void {
+    if (!this.enabled) return;
     if (count <= 0) return;
 
     this.homeFeedProjectionReconciliationTotal.inc(
@@ -350,13 +488,18 @@ export class MetricsRegistryService {
     );
   }
 
+  /** Records lag for the newest entry served by projection reads. */
   recordHomeFeedProjectionReadLag(lagSeconds: number): void {
+    if (!this.enabled) return;
     if (!Number.isFinite(lagSeconds) || lagSeconds < 0) return;
 
     this.homeFeedProjectionReadLagSeconds.set({ process: "api" }, lagSeconds);
   }
 
+  /** Sets DB-backed outbox backlog gauges from the latest refresh. */
   setOutboxBacklogMetrics(metrics: OutboxBacklogMetrics): void {
+    if (!this.enabled) return;
+
     this.outboxPendingCount.set({ process: "worker" }, metrics.pendingCount);
     this.outboxFailedCount.set({ process: "worker" }, metrics.failedCount);
     this.outboxProcessingCount.set(
@@ -377,7 +520,10 @@ export class MetricsRegistryService {
     );
   }
 
+  /** Records a failed DB-backed outbox metric refresh. */
   incrementOutboxMetricsRefreshError(): void {
+    if (!this.enabled) return;
+
     this.metricsDbRefreshErrorsTotal.inc({
       process: "worker",
       component: "outbox",
@@ -386,9 +532,106 @@ export class MetricsRegistryService {
 
   /** Records a notification suppressed before persistence for a low-cardinality reason. */
   incrementNotificationSuppressed(reason: NotificationSuppressionReason): void {
+    if (!this.enabled) return;
+
     this.notificationSuppressedTotal.inc({
       process: "api",
       reason,
     });
+  }
+
+  /** Records a completed GraphQL operation with low-cardinality metadata. */
+  recordGraphqlOperation(
+    operationName: string,
+    operationType: GraphqlOperationType,
+    outcome: GraphqlOperationOutcome,
+    durationSeconds: number,
+  ): void {
+    if (!this.enabled) return;
+
+    this.graphqlOperationsTotal.inc({
+      process: "api",
+      operation_name: operationName,
+      operation_type: operationType,
+      outcome,
+    });
+    this.graphqlOperationDurationSeconds.observe(
+      {
+        process: "api",
+        operation_name: operationName,
+        operation_type: operationType,
+      },
+      durationSeconds,
+    );
+  }
+
+  /** Records an allowlisted public GraphQL error code for an operation. */
+  incrementGraphqlOperationError(
+    operationName: string,
+    errorCode: string,
+  ): void {
+    if (!this.enabled) return;
+
+    this.graphqlOperationErrorsTotal.inc({
+      process: "api",
+      operation_name: operationName,
+      error_code: errorCode,
+    });
+  }
+
+  /** Records a cache helper operation result without key cardinality. */
+  incrementCacheOperation(
+    operation: CacheOperation,
+    result: CacheOperationResult,
+  ): void {
+    if (!this.enabled) return;
+
+    this.cacheOperationsTotal.inc({
+      process: this.processLabel,
+      operation,
+      result,
+    });
+  }
+
+  /** Records a Prisma query outcome and duration without argument cardinality. */
+  recordPrismaQuery(
+    model: string,
+    action: string,
+    outcome: PrismaQueryOutcome,
+    durationSeconds: number,
+  ): void {
+    if (!this.enabled) return;
+
+    this.prismaQueriesTotal.inc({
+      process: this.processLabel,
+      model,
+      action,
+      outcome,
+    });
+    this.prismaQueryDurationSeconds.observe(
+      {
+        process: this.processLabel,
+        model,
+        action,
+      },
+      durationSeconds,
+    );
+  }
+
+  /** Records an authentication or authorization failure. */
+  incrementAuthFailure(reason: "forbidden" | "unauthorized"): void {
+    if (!this.enabled) return;
+
+    this.authFailuresTotal.inc({
+      process: "api",
+      reason,
+    });
+  }
+
+  /** Records a throttled request rejected by the API. */
+  incrementThrottleRejection(): void {
+    if (!this.enabled) return;
+
+    this.throttleRejectionsTotal.inc({ process: "api" });
   }
 }

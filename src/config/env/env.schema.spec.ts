@@ -52,6 +52,13 @@ describe("validateEnv", () => {
     expect(result.METRICS_HOST).toBe("127.0.0.1");
     expect(result.METRICS_PORT).toBe(9090);
     expect(result.METRICS_DB_REFRESH_INTERVAL_MS).toBe(15_000);
+    expect(result.TRACING_ENABLED).toBe(false);
+    expect(result.OTEL_SERVICE_NAME).toBe("nestjs-social-graphql-api");
+    expect(result.OTEL_EXPORTER_OTLP_ENDPOINT).toBeUndefined();
+    expect(result.OTEL_EXPORTER_OTLP_HEADERS).toBeUndefined();
+    expect(result.OTEL_TRACES_SAMPLER).toBe("parentbased_traceidratio");
+    expect(result.OTEL_TRACES_SAMPLER_ARG).toBeUndefined();
+    expect(result.OTEL_RESOURCE_ATTRIBUTES).toBeUndefined();
     expect(result.OUTBOX_PROCESS_ROLE).toBe("api");
     expect(result.OUTBOX_FOLLOW_REQUESTED_ENABLED).toBe(false);
     expect(result.FEED_PROJECTION_ENQUEUE_ENABLED).toBe(false);
@@ -82,6 +89,30 @@ describe("validateEnv", () => {
     expect(result.MEDIA_IMAGE_MAX_BYTES).toBe(10 * 1024 * 1024);
     expect(result.MEDIA_PROFILE_AVATAR_MAX_BYTES).toBe(2 * 1024 * 1024);
     expect(result.MEDIA_VIDEO_MAX_BYTES).toBe(100 * 1024 * 1024);
+  });
+
+  it("coerces tracing environment variables", () => {
+    const result = validateEnv({
+      ...baseEnv,
+      TRACING_ENABLED: "true",
+      OTEL_SERVICE_NAME: "custom-api",
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://127.0.0.1:4318/v1/traces",
+      OTEL_EXPORTER_OTLP_HEADERS: "authorization=Bearer local",
+      OTEL_TRACES_SAMPLER: "parentbased_traceidratio",
+      OTEL_TRACES_SAMPLER_ARG: "0.25",
+      OTEL_RESOURCE_ATTRIBUTES: "deployment.environment=test",
+    });
+
+    expect(result.TRACING_ENABLED).toBe(true);
+    expect(result.OTEL_SERVICE_NAME).toBe("custom-api");
+    expect(result.OTEL_EXPORTER_OTLP_ENDPOINT).toBe(
+      "http://127.0.0.1:4318/v1/traces",
+    );
+    expect(result.OTEL_EXPORTER_OTLP_HEADERS).toBe(
+      "authorization=Bearer local",
+    );
+    expect(result.OTEL_TRACES_SAMPLER_ARG).toBe(0.25);
+    expect(result.OTEL_RESOURCE_ATTRIBUTES).toBe("deployment.environment=test");
   });
 
   it("allows R2 media storage variables to be omitted", () => {

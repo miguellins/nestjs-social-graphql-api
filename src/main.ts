@@ -9,10 +9,14 @@ import { RequestContextMiddleware } from "@/common/request-context/request-conte
 
 import { HealthService } from "@/ops/health.service";
 
+import { initTracing, shutdownTracing } from "@/tracing/tracing.bootstrap";
+
 import { AppModule } from "@/app.module";
 
 /** Bootstraps the NestJS app with validation, filters, security, and shutdown hooks. */
 async function bootstrap() {
+  initTracing();
+
   const app = await NestFactory.create(AppModule);
   const requestContextMiddleware = app.get(RequestContextMiddleware);
 
@@ -38,6 +42,13 @@ async function bootstrap() {
   app.get(HealthService).markBootCompleted();
 
   await app.listen(process.env.PORT ?? 3000);
+
+  const shutdown = async () => {
+    await shutdownTracing();
+  };
+
+  process.once("SIGTERM", () => void shutdown());
+  process.once("SIGINT", () => void shutdown());
 }
 
 bootstrap().catch((err) => {

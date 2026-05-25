@@ -41,7 +41,9 @@ describe("FeedReadService", () => {
   };
 
   const postReadServiceMock = {
+    buildListSurfaceSourceAvailabilityFilter: jest.fn(),
     getBlockedAuthorIds: jest.fn(),
+    projectPostListRows: jest.fn(),
   };
 
   const mutesServiceMock = {
@@ -76,6 +78,10 @@ describe("FeedReadService", () => {
     createdAt: new Date(`2026-04-0${id}T00:00:00.000Z`),
     likesCount: id + 10,
     commentsCount: id + 20,
+    kind: "ORIGINAL",
+    sourcePostId: null,
+    repostsCount: 0,
+    sourcePost: null,
     author: {
       id: id + 100,
       name: `User ${id}`,
@@ -114,6 +120,22 @@ describe("FeedReadService", () => {
       accountState: AccountState.ACTIVE,
     });
     postReadServiceMock.getBlockedAuthorIds.mockResolvedValue([]);
+    postReadServiceMock.buildListSurfaceSourceAvailabilityFilter.mockReturnValue(
+      {
+        kind: "ORIGINAL",
+      },
+    );
+    postReadServiceMock.projectPostListRows.mockImplementation(
+      (rows: unknown[]) =>
+        Promise.resolve(
+          rows.map((row) => ({
+            ...(row as object),
+            repostsCount: 0,
+            sourcePost: null,
+            viewerHasReposted: false,
+          })),
+        ),
+    );
     mutesServiceMock.getMutedUserIdsForScope.mockResolvedValue([]);
     r2StorageMock.getPublicUrl.mockImplementation(
       (objectKey: string) => `https://media.example.com/${objectKey}`,
@@ -174,6 +196,9 @@ describe("FeedReadService", () => {
             },
           },
           {
+            kind: "ORIGINAL",
+          },
+          {
             OR: [
               { authorId: 7 },
               {
@@ -215,6 +240,11 @@ describe("FeedReadService", () => {
         createdAt: new Date("2026-04-03T00:00:00.000Z"),
         likesCount: 13,
         commentsCount: 23,
+        kind: "ORIGINAL",
+        sourcePostId: null,
+        repostsCount: 0,
+        sourcePost: null,
+        viewerHasReposted: false,
         viewerHasLiked: false,
         viewerHasBookmarked: true,
         author: {
@@ -301,6 +331,9 @@ describe("FeedReadService", () => {
             author: {
               accountState: AccountState.ACTIVE,
             },
+          },
+          {
+            kind: "ORIGINAL",
           },
         ],
       },
@@ -930,6 +963,9 @@ describe("FeedReadService", () => {
             author: {
               accountState: AccountState.ACTIVE,
             },
+          },
+          {
+            kind: "ORIGINAL",
           },
           {
             OR: [

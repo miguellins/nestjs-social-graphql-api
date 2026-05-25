@@ -6,6 +6,7 @@ import { JwtService } from "@nestjs/jwt";
 import { createGraphqlSubscriptionsConfig } from "@/graphql/subscriptions/subscriptions.config";
 import { createBadRequestStatusPlugin } from "@/graphql/plugins/bad-request-status.plugin";
 import { createQueryComplexityPlugin } from "@/graphql/plugins/query-complexity.plugin";
+import { createGraphqlMetricsPlugin } from "@/graphql/plugins/graphql-metrics.plugin";
 import type {
   GqlContext,
   RequestWithContext,
@@ -14,6 +15,7 @@ import type {
 
 import { RequestContextService } from "@/common/request-context/request-context.service";
 import { GRAPHQL_ERROR_CODES } from "@/common/constants/graphql-error-code.constants";
+import { MetricsRegistryService } from "@/metrics/metrics-registry.service";
 
 import type { GraphQLError, GraphQLFormattedError } from "graphql";
 
@@ -159,6 +161,7 @@ export function createGraphqlConfig(
   jwtService: JwtService,
   configService: ConfigService,
   requestContextService: RequestContextService,
+  metricsRegistry: MetricsRegistryService,
 ): ApolloDriverConfig {
   const queryComplexityEnv = {
     GRAPHQL_COMPLEXITY_ENFORCE:
@@ -181,6 +184,7 @@ export function createGraphqlConfig(
     plugins: [
       createQueryComplexityPlugin(queryComplexityEnv),
       createBadRequestStatusPlugin(),
+      createGraphqlMetricsPlugin(metricsRegistry),
     ],
 
     // Configures WebSocket subscriptions for GraphQL with authentication, using the JWT service

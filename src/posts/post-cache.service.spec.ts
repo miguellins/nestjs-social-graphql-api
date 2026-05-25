@@ -35,13 +35,14 @@ describe("PostCacheService", () => {
     await service.invalidateAfterCreatePost(10, 7, true);
 
     expect(cacheMock.bumpVersion).toHaveBeenNthCalledWith(1, "v:posts:list");
+    expect(cacheMock.bumpVersion).toHaveBeenNthCalledWith(2, "v:search:posts");
     expect(cacheMock.bumpVersion).toHaveBeenNthCalledWith(
-      2,
+      3,
       "v:user:7:posts:list",
     );
-    expect(cacheMock.bumpVersion).toHaveBeenNthCalledWith(3, "v:hashtags:list");
+    expect(cacheMock.bumpVersion).toHaveBeenNthCalledWith(4, "v:hashtags:list");
     expect(cacheMock.del).toHaveBeenCalledWith("user:safe:7");
-    expect(cacheMock.bumpVersion).toHaveBeenNthCalledWith(4, "v:user:list");
+    expect(cacheMock.bumpVersion).toHaveBeenNthCalledWith(5, "v:user:list");
   });
 
   it("skips hashtag version bumps when public hashtag counts did not change", async () => {

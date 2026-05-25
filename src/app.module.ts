@@ -17,6 +17,7 @@ import { FollowsModule } from "@/follows/follows.module";
 import { ReportsModule } from "@/reports/reports.module";
 import { RepostsModule } from "@/reposts/reposts.module";
 import { MetricsModule } from "@/metrics/metrics.module";
+import { TracingModule } from "@/tracing/tracing.module";
 import { BlocksModule } from "@/blocks/blocks.module";
 import { OutboxModule } from "@/outbox/outbox.module";
 import { SearchModule } from "@/search/search.module";
@@ -29,6 +30,7 @@ import { AuthModule } from "@/auth/auth.module";
 import { OpsModule } from "@/ops/ops.module";
 
 import { RequestContextService } from "@/common/request-context/request-context.service";
+import { MetricsRegistryService } from "@/metrics/metrics-registry.service";
 import { GqlThrottlerGuard } from "@/common/guards/gql-throttler.guard";
 import { GqlRolesGuard } from "@/common/guards/gql-roles.guard";
 import { GqlJwtGuard } from "@/common/guards/gql-jwt.guard";
@@ -55,8 +57,13 @@ import { validateEnv } from "@/config/env/env.schema";
     /** Initializes GraphQL globally */
     GraphQLModule.forRootAsync({
       driver: ApolloDriver,
-      imports: [AuthModule, RequestContextModule],
-      inject: [JwtService, ConfigService, RequestContextService],
+      imports: [AuthModule, RequestContextModule, MetricsModule],
+      inject: [
+        JwtService,
+        ConfigService,
+        RequestContextService,
+        MetricsRegistryService,
+      ],
       useFactory: createGraphqlConfig,
     }),
 
@@ -84,6 +91,7 @@ import { validateEnv } from "@/config/env/env.schema";
     BlocksModule,
     LoggingModule,
     MetricsModule,
+    TracingModule,
     FollowsModule,
     ReportsModule,
     RepostsModule,

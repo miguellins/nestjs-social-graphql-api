@@ -10,6 +10,7 @@ import {
   MetricsRegistryService,
   type OutboxEventOutcome,
 } from "@/metrics/metrics-registry.service";
+import { TracingService } from "@/tracing/tracing.service";
 
 import type { OutboxEvent } from "@prisma/client";
 
@@ -24,6 +25,7 @@ export class OutboxProcessorService {
     private readonly outboxService: OutboxService,
     private readonly handlerRegistry: OutboxHandlerRegistryService,
     private readonly metricsRegistry: MetricsRegistryService,
+    private readonly tracingService: TracingService,
     configService: ConfigService,
   ) {
     this.batchSize = configService.get<number>("OUTBOX_BATCH_SIZE") ?? 20;
@@ -36,7 +38,11 @@ export class OutboxProcessorService {
     this.metricsRegistry.recordOutboxBatchClaimed(events.length);
 
     for (const event of events) {
-      await this.processOne(event);
+      await this.tracingService.startActiveSpan(
+        "outbox.event.process",
+        { event_type: event.eventType },
+        () => this.processOne(event),
+      );
     }
 
     return events.length;

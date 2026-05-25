@@ -3,11 +3,19 @@ import { Logger } from "@nestjs/common";
 
 import { Test, TestingModule } from "@nestjs/testing";
 
+import { MetricsRegistryService } from "@/metrics/metrics-registry.service";
+import { TracingService } from "@/tracing/tracing.service";
+
 import { CacheHelperService } from "./cache-helper.service";
 
 describe("CacheHelperService", () => {
   let service: CacheHelperService;
   let moduleRef: TestingModule;
+  let metricsRegistry: { incrementCacheOperation: jest.Mock };
+  let tracingService: {
+    isCurrentTraceSampled: jest.Mock;
+    startActiveSpan: jest.Mock;
+  };
 
   const cacheMock: {
     get: jest.Mock;
@@ -22,10 +30,20 @@ describe("CacheHelperService", () => {
   beforeEach(async () => {
     jest.clearAllMocks();
 
+    metricsRegistry = {
+      incrementCacheOperation: jest.fn(),
+    };
+    tracingService = {
+      isCurrentTraceSampled: jest.fn().mockReturnValue(false),
+      startActiveSpan: jest.fn(),
+    };
+
     moduleRef = await Test.createTestingModule({
       providers: [
         CacheHelperService,
         { provide: CACHE_MANAGER, useValue: cacheMock },
+        { provide: MetricsRegistryService, useValue: metricsRegistry },
+        { provide: TracingService, useValue: tracingService },
       ],
     }).compile();
 
@@ -44,6 +62,10 @@ describe("CacheHelperService", () => {
 
       expect(cacheMock.get).toHaveBeenCalledWith("k");
       expect(res).toBe("value");
+      expect(metricsRegistry.incrementCacheOperation).toHaveBeenCalledWith(
+        "get",
+        "hit",
+      );
     });
 
     it("returns undefined when cache returns null/undefined", async () => {
@@ -51,6 +73,10 @@ describe("CacheHelperService", () => {
 
       const res1 = await service.get("k1");
       expect(res1).toBeUndefined();
+      expect(metricsRegistry.incrementCacheOperation).toHaveBeenCalledWith(
+        "get",
+        "miss",
+      );
 
       cacheMock.get.mockResolvedValue(undefined);
 
@@ -66,6 +92,10 @@ describe("CacheHelperService", () => {
       await service.set("k", { a: 1 }, 1234);
 
       expect(cacheMock.set).toHaveBeenCalledWith("k", { a: 1 }, 1234);
+      expect(metricsRegistry.incrementCacheOperation).toHaveBeenCalledWith(
+        "set",
+        "write",
+      );
     });
   });
 
@@ -76,6 +106,10 @@ describe("CacheHelperService", () => {
       await service.del("k");
 
       expect(cacheMock.del).toHaveBeenCalledWith("k");
+      expect(metricsRegistry.incrementCacheOperation).toHaveBeenCalledWith(
+        "del",
+        "write",
+      );
     });
   });
 
@@ -113,6 +147,31 @@ describe("CacheHelperService", () => {
       expect(factory).not.toHaveBeenCalled();
       expect(cacheMock.set).not.toHaveBeenCalled();
       expect(res).toEqual({ ok: true });
+      expect(metricsRegistry.incrementCacheOperation).toHaveBeenCalledWith(
+        "get_or_set",
+        "hit",
+      );
+    });
+
+    it("wraps get_or_set in a child span when the current trace is sampled", async () => {
+      cacheMock.get.mockResolvedValue({ ok: true });
+      tracingService.isCurrentTraceSampled.mockReturnValue(true);
+      tracingService.startActiveSpan.mockImplementation(
+        async (
+          _name: string,
+          _attributes: unknown,
+          callback: () => Promise<unknown>,
+        ) => callback(),
+      );
+
+      const res = await service.getOrSet("k", jest.fn(), 1000);
+
+      expect(res).toEqual({ ok: true });
+      expect(tracingService.startActiveSpan).toHaveBeenCalledWith(
+        "cache.get_or_set",
+        { "cache.operation": "get_or_set" },
+        expect.any(Function),
+      );
     });
 
     it("calls factory, sets cache, and returns data (cache miss)", async () => {
@@ -126,6 +185,14 @@ describe("CacheHelperService", () => {
       expect(factory).toHaveBeenCalledTimes(1);
       expect(cacheMock.set).toHaveBeenCalledWith("k", { ok: true }, 1000);
       expect(res).toEqual({ ok: true });
+      expect(metricsRegistry.incrementCacheOperation).toHaveBeenCalledWith(
+        "get_or_set",
+        "miss",
+      );
+      expect(metricsRegistry.incrementCacheOperation).toHaveBeenCalledWith(
+        "get_or_set",
+        "write",
+      );
     });
 
     it("returns fresh data even when cache population fails", async () => {
@@ -146,6 +213,10 @@ describe("CacheHelperService", () => {
       expect(loggerErrorSpy).toHaveBeenCalledWith(
         "Failed to populate cache for key k",
         expect.any(String),
+      );
+      expect(metricsRegistry.incrementCacheOperation).toHaveBeenCalledWith(
+        "get_or_set",
+        "error",
       );
 
       loggerErrorSpy.mockRestore();

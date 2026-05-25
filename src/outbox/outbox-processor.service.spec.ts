@@ -7,6 +7,7 @@ import { OutboxProcessorService } from "@/outbox/outbox-processor.service";
 import { OutboxService } from "@/outbox/outbox.service";
 
 import { MetricsRegistryService } from "@/metrics/metrics-registry.service";
+import { TracingService } from "@/tracing/tracing.service";
 
 import { OutboxEventStatus, type OutboxEvent } from "@prisma/client";
 
@@ -29,6 +30,15 @@ describe("OutboxProcessorService", () => {
   const metricsRegistryMock = {
     recordOutboxBatchClaimed: jest.fn(),
     recordOutboxEventProcessed: jest.fn(),
+  };
+  const tracingServiceMock = {
+    startActiveSpan: jest.fn(
+      async (
+        _name: string,
+        _attributes: unknown,
+        callback: () => Promise<unknown>,
+      ) => callback(),
+    ),
   };
   const configServiceMock = {
     get: jest.fn((key: string) => {
@@ -62,6 +72,7 @@ describe("OutboxProcessorService", () => {
           useValue: handlerRegistryMock,
         },
         { provide: MetricsRegistryService, useValue: metricsRegistryMock },
+        { provide: TracingService, useValue: tracingServiceMock },
         { provide: ConfigService, useValue: configServiceMock },
       ],
     }).compile();
@@ -112,6 +123,7 @@ describe("OutboxProcessorService", () => {
           useValue: handlerRegistryMock,
         },
         { provide: MetricsRegistryService, useValue: metricsRegistryMock },
+        { provide: TracingService, useValue: tracingServiceMock },
         { provide: ConfigService, useValue: configServiceMock },
       ],
     }).compile();
@@ -156,6 +168,7 @@ describe("OutboxProcessorService", () => {
           useValue: handlerRegistryMock,
         },
         { provide: MetricsRegistryService, useValue: metricsRegistryMock },
+        { provide: TracingService, useValue: tracingServiceMock },
         { provide: ConfigService, useValue: configServiceMock },
       ],
     }).compile();
@@ -204,6 +217,7 @@ describe("OutboxProcessorService", () => {
           useValue: handlerRegistryMock,
         },
         { provide: MetricsRegistryService, useValue: metricsRegistryMock },
+        { provide: TracingService, useValue: tracingServiceMock },
         { provide: ConfigService, useValue: configServiceMock },
       ],
     }).compile();
@@ -245,6 +259,7 @@ describe("OutboxProcessorService", () => {
           useValue: handlerRegistryMock,
         },
         { provide: MetricsRegistryService, useValue: metricsRegistryMock },
+        { provide: TracingService, useValue: tracingServiceMock },
         { provide: ConfigService, useValue: configServiceMock },
       ],
     }).compile();
@@ -286,6 +301,7 @@ describe("OutboxProcessorService", () => {
           useValue: handlerRegistryMock,
         },
         { provide: MetricsRegistryService, useValue: metricsRegistryMock },
+        { provide: TracingService, useValue: tracingServiceMock },
         { provide: ConfigService, useValue: configServiceMock },
       ],
     }).compile();
@@ -331,6 +347,7 @@ describe("OutboxProcessorService", () => {
           useValue: handlerRegistryMock,
         },
         { provide: MetricsRegistryService, useValue: metricsRegistryMock },
+        { provide: TracingService, useValue: tracingServiceMock },
         { provide: ConfigService, useValue: configServiceMock },
       ],
     }).compile();
@@ -388,6 +405,7 @@ describe("OutboxProcessorService", () => {
           useValue: handlerRegistryMock,
         },
         { provide: MetricsRegistryService, useValue: metricsRegistryMock },
+        { provide: TracingService, useValue: tracingServiceMock },
         { provide: ConfigService, useValue: configServiceMock },
       ],
     }).compile();

@@ -1,6 +1,8 @@
-import { ExecutionContext, Injectable } from "@nestjs/common";
+import { ExecutionContext, Inject, Injectable } from "@nestjs/common";
 import { GqlExecutionContext } from "@nestjs/graphql";
 import { ThrottlerGuard } from "@nestjs/throttler";
+
+import { MetricsRegistryService } from "@/metrics/metrics-registry.service";
 
 import { OperationTypeNode, type GraphQLResolveInfo } from "graphql";
 
@@ -15,9 +17,12 @@ type GraphQLContext = {
 /** Applies HTTP throttling to GraphQL operations that expose request/response objects. */
 @Injectable()
 export class GqlThrottlerGuard extends ThrottlerGuard {
+  @Inject(MetricsRegistryService)
+  private readonly metricsRegistry!: MetricsRegistryService;
+
   override async canActivate(context: ExecutionContext): Promise<boolean> {
     if (context.getType<string>() !== "graphql") {
-      return super.canActivate(context);
+      return this.activateWithMetrics(context);
     }
 
     const gqlCtx = GqlExecutionContext.create(context);
@@ -26,14 +31,10 @@ export class GqlThrottlerGuard extends ThrottlerGuard {
 
     if (operation === OperationTypeNode.SUBSCRIPTION) return true;
 
-    return super.canActivate(context);
+    return this.activateWithMetrics(context);
   }
 
-  /**
-   * ThrottlerGuard expects an HTTP req/res
-   * GraphQL resolvers run under a GraphQL ExecutionContext
-   * So we adapt it by extracting req/res from the GQL context
-   */
+  /** Adapts GraphQL and HTTP contexts to the request/response shape expected by ThrottlerGuard. */
   protected getRequestResponse(context: ExecutionContext): {
     req: Request;
     res: Response;
@@ -54,5 +55,28 @@ export class GqlThrottlerGuard extends ThrottlerGuard {
       req: ctx.req,
       res: ctx.res,
     };
+  }
+
+  /** Runs base throttling and records rejected requests defensively. */
+  private async activateWithMetrics(
+    context: ExecutionContext,
+  ): Promise<boolean> {
+    try {
+      const result = await super.canActivate(context);
+      if (!result) this.recordThrottleRejection();
+      return result;
+    } catch (error) {
+      this.recordThrottleRejection();
+      throw error;
+    }
+  }
+
+  /** Records throttle rejections defensively. */
+  private recordThrottleRejection(): void {
+    try {
+      this.metricsRegistry.incrementThrottleRejection();
+    } catch {
+      // Metrics must never affect guard behavior.
+    }
   }
 }

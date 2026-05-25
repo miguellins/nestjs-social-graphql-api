@@ -15,6 +15,33 @@ const booleanFromEnv = z.preprocess((value) => {
   return value;
 }, z.boolean());
 
+/** Converts empty env strings to undefined for optional values. */
+const emptyStringToUndefined = (value: unknown) => {
+  if (typeof value === "string" && value.trim() === "") {
+    return undefined;
+  }
+
+  return value;
+};
+
+/** Optional non-empty trimmed string helper for env vars. */
+const optionalTrimmedString = z.preprocess(
+  emptyStringToUndefined,
+  z.string().trim().min(1).optional(),
+);
+
+/** Optional URL helper for env vars. */
+const optionalUrlString = z.preprocess(
+  emptyStringToUndefined,
+  z.string().trim().url().optional(),
+);
+
+/** Optional number ratio helper for env vars. */
+const optionalRatioFromEnv = z.preprocess(
+  emptyStringToUndefined,
+  z.coerce.number().min(0).max(1).optional(),
+);
+
 /** Zod schema for application environment variables. */
 export const envSchema = z.object({
   PORT: positiveIntFromEnv.default(3000),
@@ -57,6 +84,26 @@ export const envSchema = z.object({
   METRICS_HOST: z.string().trim().min(1).default("127.0.0.1"),
   METRICS_PORT: positiveIntFromEnv.default(9090),
   METRICS_DB_REFRESH_INTERVAL_MS: positiveIntFromEnv.default(15_000),
+  TRACING_ENABLED: booleanFromEnv.default(false),
+  OTEL_SERVICE_NAME: z.preprocess(
+    emptyStringToUndefined,
+    z.string().trim().min(1).default("nestjs-social-graphql-api"),
+  ),
+  OTEL_EXPORTER_OTLP_ENDPOINT: optionalUrlString,
+  OTEL_EXPORTER_OTLP_HEADERS: optionalTrimmedString,
+  OTEL_TRACES_SAMPLER: z.preprocess(
+    emptyStringToUndefined,
+    z
+      .enum([
+        "always_off",
+        "always_on",
+        "parentbased_traceidratio",
+        "traceidratio",
+      ])
+      .default("parentbased_traceidratio"),
+  ),
+  OTEL_TRACES_SAMPLER_ARG: optionalRatioFromEnv,
+  OTEL_RESOURCE_ATTRIBUTES: optionalTrimmedString,
   OUTBOX_ENABLED: booleanFromEnv.default(false),
   OUTBOX_PROCESS_ROLE: z.enum(["api", "worker"]).default("api"),
   OUTBOX_COMMENT_REPLIED_ENABLED: booleanFromEnv.default(false),

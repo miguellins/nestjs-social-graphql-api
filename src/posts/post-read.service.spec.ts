@@ -18,6 +18,7 @@ describe("PostReadService", () => {
   const prismaMock = {
     post: {
       findFirst: jest.fn(),
+      findMany: jest.fn(),
     },
     userBlock: {
       findMany: jest.fn(),
@@ -39,6 +40,7 @@ describe("PostReadService", () => {
   beforeEach(async () => {
     jest.clearAllMocks();
     prismaMock.userBlock.findMany.mockResolvedValue([]);
+    prismaMock.post.findMany.mockResolvedValue([]);
     mutesServiceMock.getMutedUserIdsForScope.mockResolvedValue([]);
     commentsReadServiceMock.listThreadedCommentsForPost.mockResolvedValue([
       {
@@ -90,6 +92,9 @@ describe("PostReadService", () => {
       editedAt: null,
       likesCount: 1,
       commentsCount: 1,
+      kind: "ORIGINAL",
+      sourcePostId: null,
+      repostsCount: 0,
       viewsCount: 2,
       author: {
         id: 7,

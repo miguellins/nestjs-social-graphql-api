@@ -46,7 +46,9 @@ describe("BookmarksService", () => {
 
   const postReadServiceMock = {
     getBlockedAuthorIds: jest.fn(),
+    buildListSurfaceSourceAvailabilityFilter: jest.fn(),
     buildViewerVisibilityFilters: jest.fn(),
+    projectPostListRows: jest.fn(),
   };
 
   const mutesServiceMock = {
@@ -60,6 +62,22 @@ describe("BookmarksService", () => {
       accountState: AccountState.ACTIVE,
     });
     postReadServiceMock.getBlockedAuthorIds.mockResolvedValue([]);
+    postReadServiceMock.buildListSurfaceSourceAvailabilityFilter.mockReturnValue(
+      {
+        kind: "ORIGINAL",
+      },
+    );
+    postReadServiceMock.projectPostListRows.mockImplementation(
+      (rows: unknown[]) =>
+        Promise.resolve(
+          rows.map((row) => ({
+            ...(row as object),
+            repostsCount: 0,
+            sourcePost: null,
+            viewerHasReposted: false,
+          })),
+        ),
+    );
     mutesServiceMock.getMutedUserIdsForScope.mockResolvedValue([]);
     postReadServiceMock.buildViewerVisibilityFilters.mockReturnValue([
       {
@@ -260,6 +278,9 @@ describe("BookmarksService", () => {
                       },
                     },
                   ],
+                },
+                {
+                  kind: "ORIGINAL",
                 },
               ],
             },

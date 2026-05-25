@@ -53,6 +53,8 @@ describe("NotificationPreferencesService", () => {
       followRequestNotificationsEnabled: true,
       mentionNotificationsEnabled: true,
       postLikedNotificationsEnabled: true,
+      postRepostedNotificationsEnabled: true,
+      postQuotedNotificationsEnabled: true,
       userFollowedNotificationsEnabled: true,
     });
     expect(cacheMock.getOrSet).toHaveBeenCalledWith(
@@ -67,6 +69,8 @@ describe("NotificationPreferencesService", () => {
         followRequestNotificationsEnabled: true,
         mentionNotificationsEnabled: true,
         postLikedNotificationsEnabled: true,
+        postRepostedNotificationsEnabled: true,
+        postQuotedNotificationsEnabled: true,
         userFollowedNotificationsEnabled: true,
       },
     });
@@ -78,6 +82,8 @@ describe("NotificationPreferencesService", () => {
       followRequestNotificationsEnabled: true,
       mentionNotificationsEnabled: true,
       postLikedNotificationsEnabled: true,
+      postRepostedNotificationsEnabled: true,
+      postQuotedNotificationsEnabled: true,
       userFollowedNotificationsEnabled: true,
     };
     cacheMock.getOrSet.mockResolvedValue(cached);
@@ -92,6 +98,8 @@ describe("NotificationPreferencesService", () => {
       followRequestNotificationsEnabled: true,
       mentionNotificationsEnabled: false,
       postLikedNotificationsEnabled: true,
+      postRepostedNotificationsEnabled: true,
+      postQuotedNotificationsEnabled: true,
       userFollowedNotificationsEnabled: false,
     };
     prismaMock.notificationPreference.upsert.mockResolvedValue(preferences);
@@ -118,6 +126,8 @@ describe("NotificationPreferencesService", () => {
         followRequestNotificationsEnabled: true,
         mentionNotificationsEnabled: true,
         postLikedNotificationsEnabled: true,
+        postRepostedNotificationsEnabled: true,
+        postQuotedNotificationsEnabled: true,
         userFollowedNotificationsEnabled: true,
       },
     });
@@ -142,6 +152,8 @@ describe("NotificationPreferencesService", () => {
       followRequestNotificationsEnabled: true,
       mentionNotificationsEnabled: false,
       postLikedNotificationsEnabled: false,
+      postRepostedNotificationsEnabled: false,
+      postQuotedNotificationsEnabled: false,
       userFollowedNotificationsEnabled: false,
     });
 

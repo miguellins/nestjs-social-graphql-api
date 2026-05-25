@@ -470,6 +470,8 @@ This is already stronger than in-memory pubsub and is designed for multi-instanc
 - version-key cache invalidation instead of wildcard deletes
 - fail-fast environment validation
 - Redis-backed subscription transport
+- Prometheus metrics for GraphQL, cache, Prisma, guards, outbox, and feed projection
+- Optional OpenTelemetry tracing with OTLP HTTP export and log correlation
 
 ## Environment Variables
 Common configured values:
@@ -502,6 +504,13 @@ METRICS_ENABLED=false
 METRICS_HOST=127.0.0.1
 METRICS_PORT=9090
 METRICS_DB_REFRESH_INTERVAL_MS=15000
+TRACING_ENABLED=false
+OTEL_SERVICE_NAME=nestjs-social-graphql-api
+OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318/v1/traces
+OTEL_EXPORTER_OTLP_HEADERS=
+OTEL_TRACES_SAMPLER=parentbased_traceidratio
+OTEL_TRACES_SAMPLER_ARG=1.0
+OTEL_RESOURCE_ATTRIBUTES=deployment.environment=development
 OUTBOX_ENABLED=false
 OUTBOX_COMMENT_REPLIED_ENABLED=false
 OUTBOX_FOLLOW_REQUESTED_ENABLED=false
@@ -575,7 +584,19 @@ sanitized worker logs.
 
 Do not add user ids, event ids, aggregate ids, or raw error messages as metric
 labels. Do not fail readiness only because backlog metrics are high; alert on
-metrics instead.
+metrics instead. See `docs/observability.md` for the full metrics catalog, scrape setup, dashboard, alerts, and tracing configuration.
+
+## Tracing
+OpenTelemetry tracing is disabled by default. Enable it only when an OTLP HTTP collector endpoint is configured:
+
+```env
+TRACING_ENABLED=true
+OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318/v1/traces
+OTEL_TRACES_SAMPLER=parentbased_traceidratio
+OTEL_TRACES_SAMPLER_ARG=1.0
+```
+
+The API service name defaults to `nestjs-social-graphql-api`; the worker entrypoint defaults to `nestjs-social-graphql-api-worker`. Logs include `traceId` and `spanId` when a span is active, but clients only receive `x-request-id`. Incident correlation steps are in `docs/runbooks/observability-trace-log-correlation.md`.
 
 ## Local Setup
 1. Install dependencies:
@@ -637,6 +658,7 @@ src/
   media/           # media upload orchestration and storage integration
   mentions/        # mention parsing and mention workflows
   metrics/         # Prometheus-compatible metrics exposure
+  tracing/         # OpenTelemetry tracing bootstrap and helpers
   mutes/           # user mute workflows
   notifications/   # notification persistence + delivery
   search/          # MySQL-native post and user discovery
@@ -690,8 +712,9 @@ This codebase is already coherent and production-minded, but it is still intenti
   - session/device management is present but still basic
 - Operational maturity is still limited
   - health checks, request correlation, structured logging, outbox, and worker paths exist
-  - metrics and initial dashboards now cover outbox/feed projection health
-  - tracing and broader diagnostics are still missing
+  - metrics now cover GraphQL, cache, Prisma, guards, outbox, and feed projection
+  - tracing is available through OTLP HTTP when configured
+  - alert thresholds still need production baseline tuning
 
 Current strengths worth preserving:
 
