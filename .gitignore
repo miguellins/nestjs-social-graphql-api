@@ -55,3 +55,6 @@ src/schema.gql
 .DS_Store
 Thumbs.db
 
+# local Cursor / MCP configuration
+.cursor/mcp.json
+.mcp/
