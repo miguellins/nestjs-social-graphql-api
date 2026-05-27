@@ -25,6 +25,18 @@ The media module owns post-scoped upload orchestration, profile-avatar upload or
   avatar upload mutations return a clear unavailable error
 - attachment ordering is handled inside the module
 
+## GraphQL Surface
+
+Authenticated operations:
+
+- `requestPostMediaUpload`
+- `completePostMediaUpload`
+- `requestProfileAvatarUpload`
+- `completeProfileAvatarUpload`
+- `attachMediaToPost`
+- `myMedia`
+- `mediaSignedViewUrl`
+
 ## Current doc set
 
 - `OPERATIONS.md`

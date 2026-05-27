@@ -21,6 +21,7 @@ import type { GraphQLError, GraphQLFormattedError } from "graphql";
 
 import type { Response } from "express";
 
+import { existsSync } from "fs";
 import { join } from "path";
 
 type PublicGraphqlErrorExtensions = {
@@ -176,9 +177,12 @@ export function createGraphqlConfig(
       configService.get<number>("GRAPHQL_COMPLEXITY_MAX_QUERY_NODES") ?? 2000,
   };
 
+  const schemaFilePath = join(process.cwd(), "src/schema.gql");
+  const shouldWriteSchemaFile = existsSync(join(process.cwd(), "src"));
+
   return {
     driver: ApolloDriver,
-    autoSchemaFile: join(process.cwd(), "src/schema.gql"),
+    autoSchemaFile: shouldWriteSchemaFile ? schemaFilePath : true,
 
     // Limits query complexity to prevent expensive or abusive GraphQL queries
     plugins: [

@@ -1,9 +1,7 @@
 # Architecture Direction
-
 This document locks the current architecture direction for the project so future changes stay pragmatic and consistent.
 
 ## Current Decision
-
 The backend remains a modular monolith.
 
 It uses a layered, service-first structure:
@@ -23,8 +21,48 @@ The project is not moving to:
 
 These options add more complexity than value for the current project size and maturity.
 
-## Architectural Direction Going Forward
+## Architecture Tooling Context
+Use `AGENTS.md` as the source of truth for agent behavior, and use MCP servers
+or skills only as supporting context for architecture work.
 
+Architecture-relevant skills:
+- `zoom-out` for broad design impact, new feature design, rollout planning, and
+  cross-module refactors
+- `diagnose` for unclear root causes, broken behavior, runtime failures,
+  GraphQL mismatches, cache/pubsub inconsistencies, Prisma/MySQL issues, and
+  Docker/local environment problems
+- `mysql-best-practices` before MySQL-related Prisma schema, index, query,
+  transaction, data type, performance, or security decisions
+- `manual-api-testing` after public GraphQL contract or behavior changes when
+  manual operation checks are requested, with `diagnose` used first for changed
+  behavior, auth states, fixture needs, side effects, and regression risks
+- `setup-matt-pocock-skills` only for installing, updating, repairing, or
+  verifying the Matt Pocock/Total TypeScript skill setup
+- `caveman` only for compact explanations or small next-step guidance, not for
+  architecture reviews, full plans, or detailed audits
+
+Architecture-relevant MCP servers:
+- `context7` for current external package documentation
+- `nestjs` for NestJS module, resolver, service, guard, pipe, provider, testing,
+  lifecycle, security, and project-structure context
+- `apollo-mcp` for GraphQL schema, operation shape, description, report, manual
+  test, and contract-impact checks
+- `redis` for local/dev read-only cache and pubsub inspection
+- `docker` for local/dev container, service, health, log, port, and environment
+  mismatch inspection
+- `git` for status, diff, history, branch state, final change checks, unrelated
+  edit detection, and forbidden generated-schema or migration edits
+- `eraser` and `Lucid Software` for architecture diagrams, flowcharts, sequence
+  diagrams, mind maps, and system maps
+
+Default MCP posture:
+- prefer read-only inspection while investigating architecture questions
+- do not use Redis, Docker, or Git destructive/write MCP actions unless the user
+  explicitly asks and the target is local/dev
+- do not use MCP output to bypass tests, type checks, lint, Prisma safety,
+  GraphQL code-first rules, migration restrictions, or repository setup steps
+
+## Architectural Direction Going Forward
 Keep the current architecture and sharpen internal boundaries where complexity is growing.
 
 Preferred direction:
@@ -43,7 +81,6 @@ Preferred feature-private helper patterns:
 These helpers should stay inside the same feature module unless the logic is truly shared infrastructure.
 
 ## Decision Rules
-
 When adding or changing architecture, prefer:
 - small internal boundary improvements over large rewrites
 - feature-local helpers over cross-project abstractions
@@ -56,9 +93,7 @@ Avoid:
 - growing a single feature service into a catch-all coordinator for every concern
 
 ## Async Follow-Up Pattern
-
 For mutations and write-side workflows, separate work into two categories:
-
 1. Core correctness
 - validation
 - authorization
@@ -94,7 +129,6 @@ Do not expand the outbox into a broad queue, broker, or distributed event
 architecture until there is a real operational reason.
 
 ## Near-Term Focus
-
 The next architectural improvements should be incremental:
 1. Keep extracting feature-private helpers from broad services where cohesion is
    already under pressure.
@@ -104,7 +138,6 @@ The next architectural improvements should be incremental:
 4. Add metrics and tracing before expanding background processing much further.
 
 ## Long-Term Position
-
 If the project grows, the expected direction is still a stronger modular monolith, not an immediate split into deployable services.
 
 The main scaling goal is:

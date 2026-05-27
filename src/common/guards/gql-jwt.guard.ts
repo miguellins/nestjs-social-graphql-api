@@ -13,7 +13,8 @@ import { RequestContextService } from "@/common/request-context/request-context.
 import { IS_PUBLIC_KEY } from "@/common/decorators/auth.decorator";
 import { MetricsRegistryService } from "@/metrics/metrics-registry.service";
 
-import { OperationTypeNode, type GraphQLResolveInfo } from "graphql";
+import type { GraphQLResolveInfo } from "graphql/type/definition";
+import { OperationTypeNode } from "graphql/language/ast";
 
 import type { Request } from "express";
 

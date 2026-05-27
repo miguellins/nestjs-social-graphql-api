@@ -13,7 +13,9 @@ import {
   type GraphqlOperationType,
 } from "@/metrics/metrics-registry.service";
 
-import { Kind, OperationTypeNode, type GraphQLFormattedError } from "graphql";
+import type { GraphQLFormattedError } from "graphql/error/GraphQLError";
+import { OperationTypeNode } from "graphql/language/ast";
+import { Kind } from "graphql/language/kinds";
 
 const PUBLIC_GRAPHQL_ERROR_CODES = new Set<string>(
   Object.values(GRAPHQL_ERROR_CODES),

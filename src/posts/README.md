@@ -30,6 +30,26 @@ The posts module owns post creation and updates, public and viewer-aware post re
 - post creation, moderation removal, follows, blocks, and relationship changes
   can enqueue projection maintenance work when feed projection enqueueing is enabled
 
+## GraphQL Surface
+
+Public reads:
+
+- `posts`
+- `postById`
+- `postsByUsername`
+
+Authenticated reads:
+
+- `myFeed`
+- `homeFeed`
+
+Authenticated writes:
+
+- `createPost`
+- `updatePost`
+- `deletePost`
+- `removePostByModerator`
+
 ## Service ownership
 
 - `PostsService` is the resolver-facing facade for feed delegation, post detail reads, anonymous view-count refresh, writes, and moderator removal delegation.

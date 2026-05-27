@@ -24,6 +24,18 @@ The comments module owns top-level comments, one-level replies, comment thread r
 - blocked-pair reply notifications are suppressed
 - when outbox-backed reply delivery is enabled, the notification row and outbox row are persisted transactionally
 
+## GraphQL Surface
+
+Authenticated operations:
+
+- `commentsByPost`
+- `createComment`
+- `updateComment`
+- `deleteComment`
+
+Moderator/admin operations:
+
+- `removeCommentByModerator`
 
 ## Service ownership
 

@@ -27,6 +27,26 @@ The notifications module owns notification persistence, read-status flows, realt
 - preferences gate new notification persistence only; disabling a category does not hide or delete existing rows
 - preference suppression increments `notification_suppressed_total{reason="prefs"}` for aggregate observability
 
+## GraphQL Surface
+
+Authenticated operations:
+
+- `myNotifications`
+- `unreadNotificationsCount`
+- `myNotificationPreferences`
+- `myInteractionPreferences`
+- `updateNotificationPreferences`
+- `silenceNotificationsFromActor`
+- `unsilenceNotificationsFromActor`
+- `mySilencedNotificationActors`
+- `markNotificationAsRead`
+- `markAllNotificationsAsRead`
+- `notificationReceived`
+
+## Actor Silencing
+
+Actor silencing suppresses future notifications from a chosen actor without deleting existing notifications. `myInteractionPreferences` returns notification preferences, muted users, and silenced actors together for client settings screens.
+
 ## Preference mapping
 
 | NotificationType | Preference field |

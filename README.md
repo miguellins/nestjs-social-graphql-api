@@ -1,3 +1,8 @@
+<p align="center">
+  <img src="./assets/tech-stack.png" alt="Project technology stack" width="900" />
+</p>
+
+
 # NestJS Social GraphQL API
 A production-oriented social platform backend built with NestJS, GraphQL, Prisma, MySQL, Redis, and Cloudflare R2.
 
@@ -83,6 +88,76 @@ Notes:
 - Build/Dev: Nest CLI, `ts-node`, `nodemon`, `tsc-alias`
 - Code Quality: ESLint + Prettier
 
+## Agent Skills and MCP Usage
+Use these project skills and MCP servers as supporting context while preserving
+the repository rules in `AGENTS.md` as the higher authority. Use relevant MCPs
+and skills automatically when they improve accuracy.
+
+Default MCP posture:
+- prefer read-only MCP actions during investigation
+- use Redis, Docker, and Git write or destructive MCP actions only when the user
+  explicitly asks and the target is local/dev
+- never use MCP output to bypass tests, lint, Prisma safety, GraphQL code-first
+  rules, migration restrictions, or repository setup steps
+
+### Skills
+- `caveman`
+  - When: short answers, quick explanations, small fixes, simple command guidance, or compact next steps.
+  - Why: keeps routine communication concise without losing technical accuracy.
+
+- `diagnose`
+  - When: debugging failing behavior, broken tests, runtime errors, GraphQL response mismatches, cache or pubsub issues, Prisma/MySQL issues, Docker/local environment problems, or any unclear root-cause investigation.
+  - Why: enforces a disciplined reproduce, minimize, hypothesize, instrument, fix, and regression-test workflow.
+
+- `zoom-out`
+  - When: large architectural changes, new feature design, rollout planning, cross-module refactors, or local fixes with broader GraphQL, auth, cache, persistence, worker, docs, or operational impact.
+  - Why: checks the broader system effect before committing to a narrow implementation.
+
+- `setup-matt-pocock-skills`
+  - When: installing, updating, repairing, or verifying the Matt Pocock/Total TypeScript skill setup.
+  - Why: keeps the local issue-tracker, triage-label, and domain-doc context wired correctly for those skills.
+
+- `manual-api-testing`
+  - When: the user asks for manual API tests, operation checks, or post-feature verification after a public GraphQL contract or behavior change.
+  - Why: produces copyable GraphQL/API checks based on real fixture data and expected success, failure, auth, cache, and side-effect behavior. Use `diagnose` first inside this workflow to identify changed behavior, affected operations, auth states, fixture needs, and regression risks.
+
+- `mysql-best-practices`
+  - When: designing, reviewing, or debugging MySQL schema, indexes, query patterns, data types, constraints, transactions, connection behavior, Prisma-backed MySQL usage, or MySQL performance and security concerns.
+  - Why: keeps database decisions aligned with MySQL behavior instead of generic ORM assumptions.
+
+### MCP Servers
+- `eraser`
+  - When: creating or reviewing architecture diagrams, implementation diagrams, or visual system maps.
+  - Why: supports diagram-first explanation for complex backend flows and design discussions.
+
+- `Lucid Software`
+  - When: creating, editing, exporting, or sharing Lucid documents such as flowcharts, mind maps, sequence diagrams, org charts, and architecture diagrams.
+  - Why: turns planned or reviewed system structure into durable visual documentation.
+
+- `context7`
+  - When: current external library documentation is needed for NestJS, Apollo GraphQL, GraphQL, Prisma, Redis, Keyv, Express, Node.js, TypeScript, Jest, or other package APIs.
+  - Why: verifies package behavior against current docs instead of relying on memory.
+
+- `nestjs`
+  - When: implementing or reviewing NestJS modules, resolvers, services, guards, interceptors, filters, pipes, providers, tests, lifecycle behavior, security hardening, or project structure.
+  - Why: provides NestJS-specific context while keeping this repo's existing patterns authoritative.
+
+- `apollo-mcp`
+  - When: inspecting the GraphQL schema, operation names, arguments, return shapes, descriptions, operation reports, manual API tests, or GraphQL contract impact.
+  - Why: helps verify the public GraphQL API surface without manually editing generated schema output.
+
+- `redis`
+  - When: debugging local/dev cache or pubsub behavior, verifying Redis connectivity, inspecting key types, TTLs, counts, or checking cache invalidation effects.
+  - Why: gives read-only visibility into cache and subscription state when diagnosing Redis-backed behavior.
+
+- `git`
+  - When: inspecting repository status, staged and unstaged diffs, changed files, commit history, branch state, preparing change summaries, or doing final checks after code, docs, Prisma schema, GraphQL DTO/resolver, test, config, or tooling changes.
+  - Why: confirms exactly what changed and helps detect unrelated edits, forbidden schema edits, or migration-file changes before completion.
+
+- `docker`
+  - When: debugging local/dev containers, Docker Compose services, API or worker startup, MySQL or Redis container state, container logs, health, exposed ports, Docker socket/context mismatches, or environment mismatches.
+  - Why: provides container-level evidence for local runtime and infrastructure issues.
+
 ## Architecture Overview
 
 ### Application bootstrap
@@ -134,6 +209,11 @@ The shared/common layer already provides several repository-wide standards:
 
 ## Data Model Overview
 Defined in `prisma/schema.prisma`.
+
+### Prisma Schema Overview (diagram)
+<p align="center">
+  <img src="./assets/tables.png" alt="Prisma schema overview" width="1200" />
+</p>
 
 ### Core entities
 - `User`
@@ -375,7 +455,6 @@ Current strengths:
 - namespaced triggers
 - centralized connection handling
 
-This is already stronger than in-memory pubsub and is designed for multi-instance deployment.
 
 ## GraphQL Operations
 ### Queries
@@ -619,13 +698,73 @@ npm run start:dev
 ```
 
 5. Open the GraphQL endpoint:
-
 - `http://localhost:3000/graphql`
 
 ## Docker Setup
-No Docker Compose or Dockerfile is currently present in this repository.
-Run MySQL and Redis separately, or add reviewed container configuration in a
-future infrastructure change.
+This repository includes a Dockerfile and Docker Compose setup for local development.
+
+### Prerequisites
+- Docker Engine + Docker Compose v2
+
+### 1) Create a local env file
+```bash
+cp .env.example .env
+```
+
+At minimum, set:
+- `JWT_SECRET`
+- `PASSWORD_PEPPER`
+
+### 2) Build and start the stack
+```bash
+docker compose up --build
+```
+
+GraphQL:
+- `http://localhost:3000/graphql`
+
+Health:
+- `http://localhost:3000/health/live`
+- `http://localhost:3000/health/ready`
+
+MySQL (host):
+- `localhost:3308` (container `3306`)
+
+Redis (host):
+- `localhost:6380`
+
+### 3) Prisma generate and migrations (safe workflow)
+Prisma Client generation is handled during Docker image builds.
+
+Run migrations explicitly (recommended for local/dev):
+```bash
+docker compose run --rm api npx prisma migrate dev
+```
+
+Production-style migration deploy (non-destructive but still requires reviewed migrations):
+```bash
+docker compose run --rm api npx prisma migrate deploy
+```
+
+Notes:
+- Do not edit anything under `prisma/migrations/` manually.
+- This project intentionally does not auto-run migrations on container startup.
+
+### Optional: run the worker
+The worker is defined behind a Compose profile so it’s opt-in:
+```bash
+docker compose --profile worker up --build
+```
+
+### Stop and clean up
+```bash
+docker compose down
+```
+
+Remove volumes (this deletes local MySQL data):
+```bash
+docker compose down -v
+```
 
 ## Available Scripts
 - `npm run build` -> builds Nest app and resolves path aliases
@@ -642,6 +781,30 @@ future infrastructure change.
 - `npm run test:debug` -> unit tests under the Node inspector
 
 ## Project Structure
+The project is organized around feature modules, shared API/platform infrastructure, operational support, and observability.
+
+```mermaid
+flowchart TB
+  ROOT["NestJS Social GraphQL API"]
+
+  ROOT --> SRC["Application Source<br/>src/"]
+  ROOT --> SUPPORT["Project Support"]
+
+  SRC --> FEATURES["Feature Modules<br/>auth · users · follows · blocks · mutes<br/>posts · comments · likes · bookmarks<br/>mentions · notifications · search · reports"]
+  SRC --> PLATFORM["API Platform<br/>graphql · common · config · bootstrap · ops"]
+  SRC --> INFRA["Infrastructure<br/>cache · prisma · media · outbox"]
+  SRC --> OBS["Observability<br/>metrics · tracing"]
+
+  SUPPORT --> DATABASE["Database Schema<br/>prisma/schema.prisma"]
+  SUPPORT --> DOCS["Documentation<br/>docs/plans · docs/reviews · docs/runbooks"]
+  SUPPORT --> HTTP["HTTP Examples<br/>http/"]
+  SUPPORT --> MONITORING["Monitoring<br/>monitoring/prometheus · monitoring/grafana"]
+  SUPPORT --> SCRIPTS["Maintenance Scripts<br/>scripts/"]
+```
+
+<details>
+<summary>Full folder tree</summary>
+
 ```text
 src/
   auth/            # login + password reset
@@ -668,18 +831,25 @@ src/
   prisma/          # Prisma service/module
   reports/         # content reports + moderation review
   users/           # user CRUD + cache helpers
+
 prisma/
   schema.prisma
+
 docs/
   plans/           # implementation plans and operational design notes
   reviews/         # project and module review documents
   runbooks/        # operational response guides
+
 http/              # checked-in HTTP request examples
+
 monitoring/
   prometheus/      # alert rules for operational metrics
   grafana/         # dashboard JSON exports
+
 scripts/           # repository maintenance scripts
 ```
+
+</details>
 
 ## Design Choices Summary
 - Code-first GraphQL to keep the schema aligned with TypeScript declarations
@@ -694,50 +864,6 @@ scripts/           # repository maintenance scripts
 - Best-effort side effects after the write path commits
 - Redis-backed subscriptions instead of in-memory pubsub
 - Durable outbox processing for selected notification and feed-projection work
-
-## Current Limitations / Next Priorities
-This codebase is already coherent and production-minded, but it is still intentionally smaller than a real social platform. The main current gaps are:
-
-- Feed design is still early
-  - `myFeed` remains a bounded relational query
-  - `homeFeed` has an optional persisted projection, but not ranking or recommendations
-- Moderation is still V1-only
-  - no audit log
-  - no moderator dashboard UI
-  - no auto-moderation
-- Product realism is still limited
-  - no mute system
-  - hashtag and MySQL-native search are V1-only
-  - no richer profile domain
-  - session/device management is present but still basic
-- Operational maturity is still limited
-  - health checks, request correlation, structured logging, outbox, and worker paths exist
-  - metrics now cover GraphQL, cache, Prisma, guards, outbox, and feed projection
-  - tracing is available through OTLP HTTP when configured
-  - alert thresholds still need production baseline tuning
-
-Current strengths worth preserving:
-
-- Shared cursor-based pagination is now in place across the main list-style modules
-  - opaque `createdAt + id` cursors
-  - deterministic chronological ordering
-  - `items + pageInfo` response shape
-- The current feed stays simple but is now placed more cleanly
-  - `PostReadService` owns post detail/read helpers
-  - `FeedReadService` owns `homeFeed` and projection selection
-- Internal module boundaries are better than before
-  - `PostReadService`
-  - `FeedReadService`
-  - `MediaQueryService`
-  - `MediaPolicyService`
-  - `NotificationTriggerService`
-  - `NotificationDeliveryService`
-  - `HomeFeedProjectionService`
-
-The strongest next technical platform improvements are:
-- defining a more realistic feed strategy
-- deepening session/device management
-- building on the current moderation and privacy foundations
 
 ---
 

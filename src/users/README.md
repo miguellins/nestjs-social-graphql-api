@@ -28,6 +28,28 @@ The users module owns public user reads, signup, self-service profile updates, p
 - user reads are cache-backed with viewer rules applied after the base user cache
 - moderator account-state changes are separate from self-service flows
 
+## GraphQL Surface
+
+Public operations:
+
+- `users`
+- `userById`
+- `userByUsername`
+- `createUser`
+
+Authenticated owner operations:
+
+- `myProfile`
+- `updateMe`
+- `updateMyProfile`
+- `myPrivacySettings`
+- `updateMyPrivacySetting`
+- `deleteMe`
+
+Moderator/admin operations:
+
+- `suspendUser`
+- `reactivateUser`
 
 ## Service ownership
 

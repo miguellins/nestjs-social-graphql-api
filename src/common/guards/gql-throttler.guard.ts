@@ -4,7 +4,8 @@ import { ThrottlerGuard } from "@nestjs/throttler";
 
 import { MetricsRegistryService } from "@/metrics/metrics-registry.service";
 
-import { OperationTypeNode, type GraphQLResolveInfo } from "graphql";
+import type { GraphQLResolveInfo } from "graphql/type/definition";
+import { OperationTypeNode } from "graphql/language/ast";
 
 import type { Request, Response } from "express";
 

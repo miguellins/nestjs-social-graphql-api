@@ -1,0 +1,107 @@
+services:
+  mysql:
+    image: mysql:8.0
+    command: --default-authentication-plugin=mysql_native_password
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-mydb}
+    ports:
+      - "${MYSQL_PORT:-3308}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "${REDIS_PORT:-6380}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
+
+  api:
+    build:
+      context: .
+      target: runtime
+    command: ["node", "dist/main.js"]
+    environment:
+      PORT: 3000
+      NODE_ENV: ${NODE_ENV:-development}
+      DATABASE_URL: mysql://root:${MYSQL_ROOT_PASSWORD:-root}@mysql:3306/${MYSQL_DATABASE:-mydb}
+      REDIS_URL: redis://redis:6379
+      GRAPHQL_SUBSCRIPTIONS_REDIS_URL: redis://redis:6379
+      GRAPHQL_SUBSCRIPTIONS_REDIS_NAMESPACE: ${GRAPHQL_SUBSCRIPTIONS_REDIS_NAMESPACE:-graphql-subscriptions}
+      JWT_SECRET: ${JWT_SECRET}
+      PASSWORD_PEPPER: ${PASSWORD_PEPPER}
+      METRICS_ENABLED: ${METRICS_ENABLED:-false}
+      METRICS_HOST: ${METRICS_HOST:-0.0.0.0}
+      METRICS_PORT: ${METRICS_PORT:-9090}
+      TRACING_ENABLED: ${TRACING_ENABLED:-false}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_HEADERS: ${OTEL_EXPORTER_OTLP_HEADERS:-}
+      OTEL_TRACES_SAMPLER: ${OTEL_TRACES_SAMPLER:-parentbased_traceidratio}
+      OTEL_TRACES_SAMPLER_ARG: ${OTEL_TRACES_SAMPLER_ARG:-}
+      OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES:-}
+      OUTBOX_ENABLED: ${OUTBOX_ENABLED:-false}
+      OUTBOX_PROCESS_ROLE: api
+    ports:
+      - "${API_PORT:-3000}:3000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:3000/health/ready >/dev/null"]
+      interval: 10s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
+
+  worker:
+    build:
+      context: .
+      target: runtime
+    command: ["node", "dist/outbox-worker.js"]
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      DATABASE_URL: mysql://root:${MYSQL_ROOT_PASSWORD:-root}@mysql:3306/${MYSQL_DATABASE:-mydb}
+      REDIS_URL: redis://redis:6379
+      GRAPHQL_SUBSCRIPTIONS_REDIS_URL: redis://redis:6379
+      GRAPHQL_SUBSCRIPTIONS_REDIS_NAMESPACE: ${GRAPHQL_SUBSCRIPTIONS_REDIS_NAMESPACE:-graphql-subscriptions}
+      JWT_SECRET: ${JWT_SECRET}
+      PASSWORD_PEPPER: ${PASSWORD_PEPPER}
+      METRICS_ENABLED: ${WORKER_METRICS_ENABLED:-false}
+      METRICS_HOST: ${WORKER_METRICS_HOST:-0.0.0.0}
+      METRICS_PORT: ${WORKER_METRICS_PORT:-9091}
+      TRACING_ENABLED: ${TRACING_ENABLED:-false}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_HEADERS: ${OTEL_EXPORTER_OTLP_HEADERS:-}
+      OTEL_TRACES_SAMPLER: ${OTEL_TRACES_SAMPLER:-parentbased_traceidratio}
+      OTEL_TRACES_SAMPLER_ARG: ${OTEL_TRACES_SAMPLER_ARG:-}
+      OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES:-}
+      OUTBOX_ENABLED: ${OUTBOX_ENABLED:-false}
+      OUTBOX_PROCESS_ROLE: worker
+      FEED_PROJECTION_WORKER_ENABLED: ${FEED_PROJECTION_WORKER_ENABLED:-false}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    profiles: ["worker"]
+
+volumes:
+  mysql_data:
+
